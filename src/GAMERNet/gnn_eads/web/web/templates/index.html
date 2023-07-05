@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en" >
+  <head>
+    <meta charset="UTF-8">
+    <title>Game-Net test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">    
+    <link href="static/standalone/static/css/main.8e693d51.css" rel="stylesheet">  
+      
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.3/dist/jquery.min.js" integrity="sha256-pvPw+upLPUjgMXY0G+8O0xUf+/Im1MZjXxxgOcBQBXU=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="static/standalone/static/js/d3/d3.min.js"></script>
+    <script src="static/standalone/static/js/d3/index.min.js" ></script>
+    <script src="static/standalone/static/js/d3/d3-graphviz.js"></script>
+            
+    <script defer="defer" src="static/standalone/static/js/main.50d6a1e1.js"></script>    
+       
+    <style>        
+        #toast-container {
+            display: block;
+            position: fixed;
+            z-index: 10000
+        }
+        @media only screen and (max-width: 600px) {
+            #toast-container {
+                min-width: 100%;
+                bottom: 0%
+            }
+        }
+        
+        @media only screen and (min-width: 993px){
+            #toast-container {
+                top:auto;
+                bottom: 20px !important;
+                right: 20px !important;
+            }
+        }
+        @media only screen and (min-width: 601px) and (max-width: 992px) {
+            #toast-container {
+                top:auto;
+                bottom: 20px !important;
+                right: 20px !important;
+                max-width: 90%
+            }
+        }
+        @media only screen and (min-width: 993px) {
+            #toast-container {
+                top:auto;
+                bottom: 20px !important;
+                right: 20px !important;
+                max-width: 86%
+            }
+        }
+       
+        div#metalSpeciesDiv a {        
+            text-transform: none;
+        }
+
+        .modal { 
+            height: 90%;
+            width: 90%;
+            overflow: visible;
+        }
+    </style>
+       
+  </head>
+  <body>
+        <div class="">
+            <div class="row">                
+                <div class="col s12">
+                    <div class="row valign-wrapper" style="margin-bottom: 0px;">
+                        <div style="margin-left: 10px;">  
+                            <img src="static/logo.png" class="responsive-img" alt="Logo" style="width: 90px;/*! line-break: normal; */">
+                            
+                        </div>
+                        <div class="col s9" style="margin-left: 0px;">
+                            <div class="row valign-wrapper" style="margin-bottom: 0px;">
+                                <div class="col">
+                                    <span style="font-size: 3em;">GAME-Net</span>
+                                </div>
+                                <div class="col">
+                                    <span style="">Fast Evaluation of the Adsorption Energy of Organic Molecules on Metals via Graph Neural Networks</span>
+                                </div>
+                            </div></div>
+                        <div class="col s2">
+                            <img class="responsive-img" src="static/logo-iciq.png" style="height: 60px;">
+                        </div>                       
+                    </div>
+                    <div class="divider"></div>
+                </div>
+                                    
+                <div class="col">
+                    <div id="searchCard" class="card">
+                        <div class="card-content">
+                            <div class="section">
+                                <div class="row">
+                                    <div class="col s10">
+                                        <div class="input-field">
+                                            <input id="compoundText" type="text" class="validate" placeholder="Search on PubChem®">
+                                            <label for="compoundText">Type molecule name or draw it</label>
+                                        </div>        
+                                    </div>
+                                    <div class="col s2">
+                                        <div class="input-field">
+                                            <button id="searchBtn" type="button" class="btn waves-effect waves-light" onclick="javascript:searchOnPubchem()"><i class="material-icons">search</i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                                                
+                                <div id="root" style="height:600px;width:700px"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="parametersDiv" class="col s3">
+                    <div class="card">
+                        <div class="card-content">
+                            <p>
+                                <label>
+                                    <input id="isAdsorptionCheck" type="checkbox" onchange="javascript:adsorptionChanged()" disabled=""/>
+                                    <span>Use an adsorption configuration</span>
+                                </label>
+                            </p>
+                        </div>
+                    </div>
+                    <div id="adsorptionParameters" class="card" style="display: none;">
+                        <div class="card-content" style="height:525px">              
+                            <div class="section">
+                                <div class="col s12">
+                                    <label>Define metal species</label> 
+                                    <div id="metalSpeciesDiv" class="section center">
+                                        <div class="row">
+                                            <a class="metalSpeciesFe btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Fe')">Fe</a>
+                                            <a class="metalSpeciesCo btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Co')">Co</a>
+                                            <a class="metalSpeciesNi btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Ni')">Ni</a>
+                                            <a class="metalSpeciesCu btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Cu')">Cu</a>
+                                            <a class="metalSpeciesZn btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Zn')">Zn</a>                                            
+                                        </div>
+                                        <div class="row">
+                                            <a class="metalSpeciesRu btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Ru')">Ru</a>
+                                            <a class="metalSpeciesRh btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Rh')">Rh</a>
+                                            <a class="metalSpeciesPd btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Pd')">Pd</a>
+                                            <a class="metalSpeciesAg btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Ag')">Ag</a>
+                                            <a class="metalSpeciesCd btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Cd')">Cd</a>
+                                        </div>
+                                        <div class="row">
+                                            <a class="metalSpeciesOs btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Os')">Os</a>
+                                            <a class="metalSpeciesIr btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Ir')">Ir</a>
+                                            <a class="metalSpeciesPt btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Pt')">Pt</a>
+                                            <a class="metalSpeciesAu btn btn-large waves-effect waves-light pink lighten-5" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Au')">Au</a>
+                                            <a class="metalSpeciesHg btn btn-large waves-effect waves-light pink lighten-5 disabled" style="width:77px; margin-bottom:2px;color: rgba(0, 0, 0, 0.87)" onclick="javascript:metalSpeciesChanged('Hg')">Hg</a>
+                                        </div>
+                                    </div>
+                                </div>                                             
+                                <div id="firstConnectionDiv">
+                                  <div id="connectionGroup1" class="input-field col s8">
+                                      <select id="connectionAtom1" class="atomconnect" multiple onchange="javascript:validate()">
+                                          <option value="-1" disabled>Molecule atoms indexes </option>                                         
+                                      </select>
+                                      <label id="connectionAtomLabel1">Connect atom 1 to</label>
+                                  </div>
+                                  <div class="input-field col s4">
+                                      <a class="btn-floating btn-large waves-effect waves-light btn-small" onclick="javascript:addConnection()"><i class="material-icons">add</i></a>
+                                      <a id="removeOptionBtn" class="btn-floating btn-large waves-effect waves-light btn-small red" onclick="javascript:removeConnection()"><i class="material-icons">remove</i></a>                                      
+                                  </div>
+                                </div>
+                                <div id="connectionsDiv">                            
+                                
+                                </div>
+                            </div>    
+                        </div>
+                    </div>
+                    <button id="gnnRequestBtn" type="button" class="btn waves-effect waves-light" onclick="javascript:gnnRequest()" disabled="" style="width: 100%"><i class="material-icons right">send</i>Generate prediction</button>
+                </div>
+                <div id="resultsDiv" class="col s4">
+                    <div id="resultsCard" class="card" style="display: none;">
+                        <div id="resultsCard" class="card-content">
+                            <p>System: <span id="adsorbateLabel"></span><span id="metalLabelText"> on  <span id="metalLabel"></span></span></p>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                
+                                <tbody>
+                                    <tr id="eenergyRow">
+                                        <td>Ensemble energy / eV</td>
+                                        <td id="eenergyLabel" class="right"></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Molecule energy / eV</td>
+                                        <td id="menergyLabel"  class="right"></td>
+                                        <td></td>
+                                    </tr>
+                                    <tr id="aenergyRow">
+                                        <td><span style="font-weight:bold">Adsorption energy / eV</span></td>
+                                        <td id="aenergyLabel" class="right" style="font-weight:bold"></td>
+                                        <td><span style="font-weight:bold"></span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Execution time / ms</td>
+                                        <td id="ellapsedLabel" class="right"></td>
+                                        <td></td>
+                                    </tr>                                    
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="graphCard" class="card">
+                        <div class="card-content">
+                            <div id="graph">
+                                
+                            </div>
+                        </div>
+                    </div>                    
+                </div>
+            </div>
+        </div>    
+      
+        <div id="resultsModal" class="modal">
+            <div class="modal-content">
+                <div class="row">
+                    <div id="resultsModalCard" class="col s6"></div>
+                    <div id="resultsGrahpCard" class="col s6"></div>
+                </div>                    
+            </div>
+            <div class="modal-footer">
+                <a href="#!" class="modal-close waves-effect waves-green btn-flat">Close</a>
+            </div>
+        </div>
+    <script type="text/javascript">
+        var ketcherSettings = {
+            "showAtomIds": true
+        }
+        /* https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest#section=URL-based-API */
+        var pubchemSearchUrl = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/@/json";
+        var pubchemGetSDFUrl = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/@/record/SDF/?record_type=2d";
+      
+        var atomInx = null;
+        var atomType = null;
+        var bondStart = null;
+        var bondEnd = null;
+        var result = null;
+        var molFromPubchem = false;
+        var adsorbate = null;
+        var metalAtom = null;
+        var newOrder = null;
+        var graphviz = null;
+        var smallDisplay = false;
+        
+        function searchOnPubchem() {
+            var compound = $('#compoundText').val().replace('/', '.').replace('@', '.').replace('&', '%26').trim();
+            if (compound !== '') {
+                $.ajax({
+                    url: pubchemSearchUrl.replace('@', compound)
+                }).done(function (data) {
+                    for (var index = 0; index < data.PC_Compounds.length; index++) {
+                        var cid = data.PC_Compounds[index].id.id.cid;
+                        var name = getSearchResultProperty(data, 0, 'IUPAC Name', 'Traditional');
+                        var smiles = getSearchResultProperty(data, 0, 'SMILES', 'Canonical');
+                        loadMoleculeSDFFromPubchem(cid);
+                    }
+                    $('#compoundText').removeClass('invalid');
+                }).fail(function () {
+                    M.toast({html: 'No matches have been found.'});
+                    ketcher.setMolecule('');
+                    $('#compoundText').addClass('invalid');
+                    clearForm();
+                });
+            }
+        }
+        
+        function getSearchResultProperty(obj, i, label, name) {
+            for (var index = 0; index < obj.PC_Compounds[i].props.length; index++) {
+                if (obj.PC_Compounds[i].props[index].urn.label === label && obj.PC_Compounds[i].props[index].urn.name === name)
+                return obj.PC_Compounds[i].props[index].value.sval;
+            }
+            return '';
+        }
+        
+        function loadMoleculeSDFFromPubchem(cid) {
+            if (cid !== '') {
+                $.ajax({
+                    url: pubchemGetSDFUrl.replace('@', cid)
+                }).done(function (data) {
+                    //Get the SDF information only
+                    data = data.substring(0, data.search('> <'));
+                    molFromPubchem = true;
+                    ketcher.setMolecule(data);
+                }).fail(function () {
+                    M.toast({html: 'Error retrieving molecule geometry.'});
+                    ketcher.setMolecule('');
+                    $('#compoundText').addClass('invalid');
+                    clearForm();                    
+                });
+            }
+        }
+        
+        function ketcherDataChanged(obj) {        
+            ketcher.getKet().then(function (data) {
+                atomInx = new Array();
+                atomType = new Array();
+                bondStart = new Array();
+                bondEnd = new Array();
+                ketcher.editor.struct().atoms.forEach(function(key, val){                
+                    atomInx.push(val);
+                    atomType.push(key.label);
+                });
+                ketcher.editor.struct().bonds.forEach(function(key, val){
+                    bondStart.push(key.begin);
+                    bondEnd.push(key.end);
+                });
+                               
+                if(atomInx.length == 0) {
+                    $('#compoundText').val('');
+                } else {                
+                    if(molFromPubchem){
+                        adsorbate = $('#compoundText').val();
+                        molFromPubchem = false;
+                    }else{
+                        adsorbate = "Custom";
+                    }
+                }
+                clearForm();
+            });
+        }
+
+        function setupKetcher() {
+            ketcherSettings = ketcher.setSettings(ketcherSettings);
+            ketcherSettings.showAtomIds=true;
+            ketcher.setSettings(ketcherSettings);
+            
+            $('button[title="Aromatize"]').hide()
+            $('button[title="Dearomatize"]').hide();
+            $('button[title="Calculate CIP (Ctrl+P)"]').hide();
+            $('button[title="Check Structure"]').hide();
+            $('button[title="Layout (Ctrl+L)"]').hide();
+            $('button[title="Calculated Values"]').hide();
+            $('button[title="Stereochemistry (Alt+E)"]').hide();
+            $($('.css-cssveg')[1]).hide()
+            $($('.css-cssveg')[2]).hide()
+            $('button[title="Fullscreen mode"]').hide();
+            $('button[title="Help (?)"]').hide();
+            $('button[title="3D Viewer"]').hide();  
+            $('textarea').hide();        
+            $('button[title="Phosphorus (P)"]').hide();            
+            $('button[title="Fluorine (F)"]').hide();
+            $('button[title="Chlorine (Shift+C)"]').hide();
+            $('button[title="Bromine (Shift+B)"]').hide();
+            $('button[title="Iodine (I)"]').hide();
+            $('button[title="Periodic Table"]').hide();
+            $('button[title="Any atom"]').hide();
+            $('button[title="Extended Table"]').hide();
+            
+            ketcher.editor.subscribe('change', (data) => ketcherDataChanged(data));   
+        }
+        
+        function metalSpeciesChanged(element){  
+            metalAtom = element;        
+            $('div#metalSpeciesDiv div a').removeClass('lighten-1');
+            $('a.metalSpecies' + element).addClass('lighten-1');           
+            clearConnectionAtoms();
+            loadConnectionAtoms(1);            
+            validate();
+        }
+        
+        function clearConnectionAtoms() {
+            $('div#connectionGroup1').html('');
+            $('#connectionsDiv').html('');            
+            $('#removeOptionBtn').hide();
+        }
+        
+        function loadConnectionAtoms(index){
+            if(atomInx != null) {
+                if(index == 1){
+                    content ="        <select id=\"connectionAtom1\" class=\"atomconnect\" multiple onchange=\"javascript:validate()\">";
+                    content += "            <option value=\"-1\" disabled>Molecule atom indexes</option>  ";
+                    content += "       </select>";
+                    content += "      <label id=\"connectionAtomLabel1\">Connect " + metalAtom + " atom 1 to</label>";
+                    $('div#connectionGroup1').html(content);   
+                }
+             
+                if($('#connectionAtom' + index + ' option').length == 1){
+                    atomInx.map(function(i) {
+                       $('#connectionAtom' + index).append($('<option>', { 
+                          value: i,
+                          text : i 
+                      }));  
+                   });             
+                 }                              
+               $('#connectionAtom' + index).val(-1);
+               $('#connectionAtom' + index).formSelect();
+            }
+        }
+              
+        function addConnection() {  
+            $('#removeOptionBtn').show();
+            var count = $('.atomconnect').length + 1;            
+            var content = "<div id=\"connectionGroup" + count + "\" class=\"input-field col s8\">";
+            content +="        <select id=\"connectionAtom" + count +"\" class=\"atomconnect\" multiple onchange=\"javascript:validate()\">";
+            content += "            <option value=\"-1\" disabled>Molecule atom indexes</option>  ";
+            content += "       </select>";
+            content += "      <label id=\"connectionAtomLabel" + count + "\">Connect " + metalAtom + " atom " + count +" to</label>";
+            content += "  </div>";            
+            $('#connectionsDiv').append(content);            
+            loadConnectionAtoms(count);
+            validate();
+        }
+
+        function removeConnection() {
+            var count = $('.atomconnect').length;
+            if (count >= 2)
+                $('#connectionGroup' + count).remove();
+                
+            if(count == 2)
+                $('#removeOptionBtn').hide();
+        }
+       
+        function adsorptionChanged() {
+            $('div#metalSpeciesDiv div a').removeClass('lighten-1');
+            metalAtom = null;
+            
+            if ($('#isAdsorptionCheck').is(":checked")){                
+                $('#removeOptionBtn').hide();
+                $('#adsorptionParameters').show();
+            }
+            else{
+                $('#adsorptionParameters').hide();
+            }
+            clearConnectionAtoms();
+            validate(); 
+        }
+
+        $(document).ready(function () {
+            setupKetcher();
+            adaptSizes();
+            $('#compoundText').val('');
+            clearForm();          
+            $('#compoundText').on('keypress',function(e) {
+                if(e.which == 13) {
+                    searchOnPubchem();
+                }
+            });
+            $('#resultsModal').modal();
+            $(this).scrollTop(0);
+        });
+        
+        function clearForm() {
+            $('#isAdsorptionCheck').prop('checked',false)
+            clearAdsorptionParameters();
+            validate();
+        }
+
+        function clearAdsorptionParameters(){
+          $('div#metalSpeciesDiv div a').removeClass('lighten-1');
+          $('#adsorptionParameters').hide();
+          metalAtom = null;
+          clearConnectionAtoms();
+          validate();
+        }
+
+        function validate() {
+            var isValid = true;
+            isValid &&= atomInx != null && atomInx.length != 0;
+            isValid &&= ketcher.editor.struct().frags.size == 1;
+            if($('#isAdsorptionCheck').prop('checked')){
+                isValid &&= metalAtom != null
+                for(var i = 1; i <= $('.atomconnect').length; i++){
+                     isValid &&= $('#connectionAtom' + i).val().length != 0;
+                }
+            }            
+            if(ketcher.editor.struct().frags.size > 1)
+                M.toast({html: 'There must be only one molecule defined.'});
+             if(atomInx != null && atomInx.length != 0){
+                var validAtoms = true;
+                atomType.forEach(
+                    function(type) { 
+    	                  if(!(['H', 'C', 'N', 'O', 'S'].includes(type))) validAtoms = false;
+    	            }
+    	        );
+    	        if(!validAtoms){
+    	           M.toast({html: 'Only H,C,N,O,S atoms are valid.'});
+                   isValid = false;    	             
+    	        }    	          
+            }
+            
+            $('#resultsCard').hide();    // All data validation will clear previous results
+            $('#graphCard').hide();            
+            //if(graphviz != null)
+                //graphviz.destroy();
+            
+            $('#isAdsorptionCheck').prop('disabled', !isValid && !$('#isAdsorptionCheck').prop('checked'));
+            $('#gnnRequestBtn').prop('disabled', !isValid);            
+        }
+
+        function gnnRequest() {
+            reindexAtoms();    
+                
+            var request = {};            
+            request.atoms = atomType;
+            
+            var bonds = {};                                    
+            var newAtomInx = atomInx.slice().map(val=>newOrder[val]);
+            var newBondStart = bondStart.slice().map(val=>newOrder[val]);
+            var newBondEnd = bondEnd.slice().map(val=>newOrder[val]);
+            
+            //Will now double connect them
+            var doubledBondStart = new Array();
+            var doubledBondEnd = new Array();
+            for(var i = 0; i< newBondStart.length; i++){
+                doubledBondStart.push(newBondStart[i]);
+                doubledBondStart.push(newBondEnd[i]);
+                doubledBondEnd.push(newBondEnd[i]);
+                doubledBondEnd.push(newBondStart[i]);
+            }
+            newBondStart = doubledBondStart;
+            newBondEnd = doubledBondEnd;
+            
+            bonds.start = newBondStart;
+            bonds.end = newBondEnd;            
+            request.bonds = bonds;
+                        
+            var numAtoms = newAtomInx.length;            
+            if($('#isAdsorptionCheck').prop('checked')){
+                var adsorption = {};
+                adsorption.metal = metalAtom;
+                adsorption.atomnumber = $('.atomconnect').length;
+                var adsorbateLinks = {};
+                adsorbateLinks.source = new Array();
+                adsorbateLinks.target= new Array();
+                $('.atomconnect').map(function(i,select) {
+                    var metalIndex = numAtoms + i;                                       
+                    $(select).val().map(function(j, atomIndex){
+                        adsorbateLinks.source.push(metalIndex);
+                        adsorbateLinks.target.push(newOrder[Number(j)]);         
+                        
+                        adsorbateLinks.source.push(newOrder[Number(j)]);
+                        adsorbateLinks.target.push(metalIndex);
+                    });
+                });
+                adsorption.adsorbateLinks = adsorbateLinks;
+                request.adsorption = adsorption;       
+            }
+           
+             $.ajax({
+                url: "api/",
+                method:'POST',
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',  
+                processData: false,
+                data:JSON.stringify(request)
+             }).done(function(data) {               
+                result = data;
+                var isAdsorption = $('#isAdsorptionCheck').prop('checked');
+                $('#adsorbateLabel').html(adsorbate.charAt(0).toUpperCase() + adsorbate.slice(1));
+                $('#ellapsedLabel').html(Number(data['elapsed']).toFixed(2));
+                $('#menergyLabel').html(Number(data['menergy']).toFixed(2));
+
+                
+                
+                if(isAdsorption){                
+                    $('#metalLabel').html(metalAtom);
+                    $('#eenergyLabel').html(Number(data['eenergy']).toFixed(2));
+                    $('#aenergyLabel').html(Number(data['edsorption']).toFixed(2));
+                    $('#metalLabelText').show();
+                    $('#eenergyRow').show();
+                    $('#aenergyRow').show();                  
+                }else{
+                    $('#metalLabelText').hide();
+                    $('#eenergyRow').hide();
+                    $('#aenergyRow').hide();
+                }
+                                
+                if(smallDisplay) {
+                    $("#resultsCard").detach().appendTo("#resultsModalCard");
+                    $("#graphCard").detach().appendTo("#resultsGrahpCard");                                       
+                } else {
+                    $("#resultsCard").detach().appendTo("#resultsDiv");
+                    $("#graphCard").detach().appendTo("#resultsDiv");
+                }
+                                
+                $('#resultsCard').show();
+                $('#graphCard').show();
+                
+                if(smallDisplay){
+                    var instance = M.Modal.getInstance($('#resultsModal')); 
+                    instance.open();
+                }
+                    
+                var graphHeight = $('#searchCard').height() - $('#resultsCard').height() - 50;
+                var graphWidth = $('#resultsCard').width() - 50;                
+                graphviz = d3.select("#graph").graphviz()
+                    .width(graphWidth)
+                    .height(graphHeight)
+                    .dot(getCorrectedGraph(data['graph']))
+                    .engine('neato')
+                    .fit(true)
+                    .zoom(true)
+                    .render();
+                                
+                                
+             }).fail(function(data) {
+                console.log(data);
+                alert("There has been an error connecting to the server." );
+              });
+        }
+
+        /* ketcher editor will set atom indexes ranging from an arbitrary start, this function reorders atoms and bond indexes to start from 1 */        
+        function reindexAtoms() {
+            var numAtoms = atomType.length;
+            newOrder = new Map();
+            for(var i = 0; i < numAtoms; i++)
+                newOrder[atomInx.at(i)] = i;
+        }
+        
+        /* Graph related functions */
+        function getCorrectedGraph(graph1) {            
+             var graphCopy = graph1.replaceAll('atom', 'fontname="Roboto" label').replaceAll('rgb=',' shape=circle style=filled fillcolor=').slice();             
+             graph1.match(/".*?"/g).map(a=>{
+                graphCopy = graphCopy.replaceAll(a, '"' + convertToRGB(a.replaceAll('(','').replaceAll(')', '')) + '"');              
+                });
+            return graphCopy;
+        }
+       
+       function convertToRGB(values){                   
+            var rgb = values.replaceAll(/,\s*/g, ' ').replaceAll('"','').trim().split(' ');
+            var hex = "#" + (Math.floor(Number(rgb[0])*255)).toString(16).padStart(2, '0') + (Math.floor(Number(rgb[1])*255)).toString(16).padStart(2, '0') + (Math.floor(Number(rgb[2])*255)).toString(16).padStart(2, '0')
+            return hex;
+       }
+       
+       $(window).resize(function() {        
+           adaptSizes();
+       });
+
+       function adaptSizes() {
+            var width = $(window).width();
+            $(window).height();            
+            if(width < 1920) {
+                console.log('Size under 900');
+                console.log(width);
+                $('#parametersDiv').removeClass('s3');
+                $('#parametersDiv').addClass('s5');
+                smallDisplay = true;
+            } else {
+                console.log('Size over 1920');
+                console.log(width);                
+                $('#parametersDiv').removeClass('s5');
+                $('#parametersDiv').addClass('s3');
+                
+                $('#resultsDiv').removeClass('s5');
+                $('#resultsDiv').addClass('s4');
+                smallDisplay = false;
+            }
+       }
+
+    
+
+    </script>    
+  </body>
+</html>

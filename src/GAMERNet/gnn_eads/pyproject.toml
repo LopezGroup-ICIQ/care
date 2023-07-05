@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gnn_eads"
+version = "0.1.0"
+authors = [
+    {name = "Sergio Pablo-Garcia Carrillo"},
+    {name = "Santiago Morandi"},
+]
+description = """
+GNN that aims to predict adsorption energies by using graph representation of
+catalytic surfaces.
+"""
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["GNN", "NN", "torch", "chemistry", "heterogeneous catalysis", "DFT"]
+license = {text = "MIT License"}
+classifiers = [
+    "Framework :: Pytorch",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "pyRDTP",
+    "pandas",
+    "numpy",
+    "scipy",
+    "scikit_learn"
+]

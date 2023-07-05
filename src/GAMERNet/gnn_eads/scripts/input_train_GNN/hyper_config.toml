@@ -1,0 +1,45 @@
+# Configuration file for setting the hyperparameter for GNN model training with train_GNN.py
+
+[graph]
+
+voronoi_tol = 0.5         # Tolerance applied to all pairs of atoms
+scaling_factor = 1.5      # For atomic radii of metals (no C, H, O, N, S)
+second_order_nn = false   # Whether to include the NNs of the metals directly interacting with the adsorbate
+
+[train]  # Training related: All hyperparams except architecture-related ones
+
+splits = 10                 # Initial splits of the graph dataset for train/val/test sets creation
+test_set = true             # whether generate test set or just split among train/val
+batch_size = 16             # Batch size
+epochs = 200                # Iterations of the learning process
+target_scaling = "std"      # Target scaling approach (std=standardization)
+loss_function = "mae"       # Loss function of the training(mae, mse)
+lr0 = 1e-3                  # Initial learning rate (lr)
+patience = 5                # Patience of the lr-scheduler (ReduceLossOnPlateau)
+factor = 0.7                # Decreasing factor of the lr-scheduler
+minlr = 1e-7                # Minimum allowed lr by the lr-scheduler
+eps = 1e-9                  # eps for ensuring numerical stability of the ADAM algorithm
+weight_decay = 0            # See ADAM documentation in pytorch
+amsgrad = true              # Include amsgrad addition of adam
+
+[architecture]  # All the hyperparameters defining the model architecture
+
+dim = 128                   # depth of the layers
+sigma = "ReLU"              # Activation function
+bias = false                # Whether allowing bias in all layers formulation
+n_linear = 3                # Number of fully connected layers
+n_conv = 3                  # Number of convolutional layers
+conv_layer = "SAGE"         # Convolutional layer (SAGE=GraphSAGE)
+adj_conv = false            # Whether to adjust convolutional layer with fully connected one just before
+conv_normalize = false      
+conv_root_weight = true
+pool_layer = "GMT"          # Pooling layer (GMT=Graph Multiset Transformer)
+pool_ratio = 0.25           # Poling ratio params for GMT
+pool_heads = 2              # Pooling heads for GMT              
+pool_seq = "1"              # Pool sequence (see pyG documentation)
+pool_layer_norm = false     # Pool layer normalization
+
+[data]
+
+root = "/home/santiago/Desktop/GNN/FG_dataset"  #Absolute path to the FG_dataset folder
+

@@ -1,0 +1,45 @@
+# Configuration file for setting the hyperparameter for GNN model training with train_GNN.py
+
+[graph]
+
+voronoi_tol = 0.5        # Applied to all pairs of elements
+scaling_factor = 1.5      # For atomic radii of metals
+second_order_nn = false    # Whether to comprise also the NNs of the metals direclt interacting with the adsorbate
+
+[train]  # Training related: All hyperparams except architecture-related ones
+
+splits = 10                 # Initial splits of the starting dataset for train/val/test sets creation
+test_set = true             # whether generate test set or just split among train/val
+batch_size = 32             
+epochs = 200
+target_scaling = "std"      # Target scaling approach ("std" only available for now)
+loss_function = "mae"       # Loss function of the training
+lr0 = 1e-3                  # Initial learning rate (lr)
+patience = 5                # Patience of the lr-scheduler
+factor = 0.7                # Decreasing factor of the lr-scheduler
+minlr = 1e-7                # Minimum lr of the lr-scheduler
+eps = 1e-9                  # adam eps for ensuring numerical stability of the algorithm
+weight_decay = 0            
+amsgrad = true              # Include amsgrad addition of adam
+
+[architecture]  # All the hyperparameters defining the model architecture
+
+dim = 128                   # dimension of the layers
+sigma = "ReLU"              # Activation function
+bias = false                # Whether allowing bias in all layer formulas
+n_linear = 3                # Number of fully connected layers
+n_conv = 3                  # Number of convolutional layers
+conv_layer = "SAGE"          # Convolutional layer
+adj_conv = true             # Whether adjust convolutional layer with fully connected one just before
+conv_normalize = false      
+conv_root_weight = false
+pool_layer = "GMT"          # Pooling layer
+pool_ratio = 0.25           # Poling ratio params for GMT
+pool_heads = 2                            
+pool_seq = "4"
+pool_layer_norm = false
+
+[data]
+
+root = "/home/santiago/Desktop/GNN/FG_dataset"  #Absolute path to the FG_dataset folder
+

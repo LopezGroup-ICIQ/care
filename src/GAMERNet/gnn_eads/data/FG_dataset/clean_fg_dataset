@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+
+# Remove all the pre_ and post_ files in the sub-families of the FG-dataset
+
+for family in amides amidines aromatics aromatics2 group2 group2b group3S group3N group4 oximes carbamate_esters metal_surfaces gas_*;
+do 
+    cd $family;
+    echo $family;
+    rm -r pre_* post_*;
+    ls;
+    cd ..;
+done
