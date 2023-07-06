@@ -45,6 +45,9 @@ def organic_network(slab_ase_obj, intermediate_dict, map_dict):
     breaking_ts = break_and_connect(rxn_net, surface=surf_inter)
 
     # Adding the TSs to the network
-    rxn_net.add_ts(breaking_ts) 
+    rxn_net.add_ts(breaking_ts)
+
+    for t_state in rxn_net.t_states:
+         t_state.energy, t_state.entropy = 0.0, 0.0
 
     return rxn_net

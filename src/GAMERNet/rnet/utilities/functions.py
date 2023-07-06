@@ -15,34 +15,6 @@ def digraph(mol):
             graph_now.add_edge(atom, connection)
     return graph_now
 
-def get_all_subs(molecule, n_sub, element): #function to what point you want to remove hydrogens
-    sel_atoms = molecule.atom_element_filter(element)
-    list(combinations(sel_atoms, n_sub))
-    mol_pack = []
-    graph_pack = []
-    for comb in combinations(sel_atoms, n_sub):
-        new_mol = molecule.copy()
-        int_list = []
-        for atom in comb:
-            int_list.append(atom.index)
-        new_mol.atom_remove_list(int_list)
-        new_mol.connectivity_search_voronoi(tolerance=0.25)
-        mol_pack.append(new_mol)
-        graph_pack.append(digraph(new_mol))
-    return mol_pack, graph_pack
-
-def get_unique(mol_pack, graph_pack, element): #function to get unqiue configs
-    accepted = []
-
-    em = iso.categorical_node_match('elem', element)
-    for index, graph1 in enumerate(graph_pack):
-        for graph2 in accepted:
-            if nx.is_isomorphic(graph1, graph_pack[graph2], node_match=em):
-                break
-        else:
-            accepted.append(index)
-    return accepted
-
 def code_name(molecule, group, index): #name of the molecule
     name_elem = ('C', 'H', 'O')
     name_str = ''
@@ -63,18 +35,6 @@ def decode(code): #storing of data?
                'grp': int(code[3], 16),
                'iso': int(code[4:6], 16)}
     return decoded
-
-def generate_range(molecule, element, subs, group): #generating all the possibilities
-    mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, digraph(molecule), {})]}
-    for index in range(subs):
-        tmp_pack = []
-        pack = get_all_subs(molecule, index + 1, element)
-        unique = get_unique(*pack, element)
-        for i_code, struct in enumerate(unique):
-            mol_sel = pack[0][struct]
-            tmp_pack.append(MolPack(code_name(mol_sel, group, i_code+1), mol_sel, pack[1][struct], {'H': index+1}))
-        mg_pack[index+1] = tmp_pack
-    return mg_pack
 
 def search_code(mg_pack, code):
     for _, pack in mg_pack.items():
@@ -134,3 +94,49 @@ def generate_pack(molecule, niter, group):
     molecule.atom_index()
     return generate_range(molecule, 'H', niter, group)
 
+def generate_range(molecule, element, subs, group): #generating all the possibilities
+
+    mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, digraph(molecule), {})]}
+
+    for index in range(subs):
+        
+        pack = get_all_subs(molecule, index + 1, element)
+        unique = get_unique(*pack, element)
+        
+        tmp_pack = []
+        for i_code, struct in enumerate(unique):
+            mol_sel = pack[0][struct]
+            tmp_pack.append(MolPack(code_name(mol_sel, group, i_code+1), mol_sel, pack[1][struct], {'H': index+1}))
+
+        mg_pack[index+1] = tmp_pack
+
+    return mg_pack
+
+def get_all_subs(molecule, n_sub, element): #function to what point you want to remove hydrogens
+    
+    sel_atoms = molecule.atom_element_filter(element)
+    list(combinations(sel_atoms, n_sub))
+    mol_pack = []
+    graph_pack = []
+    for comb in combinations(sel_atoms, n_sub):
+        new_mol = molecule.copy()
+        int_list = []
+        for atom in comb:
+            int_list.append(atom.index)
+        new_mol.atom_remove_list(int_list)
+        new_mol.connectivity_search_voronoi(tolerance=0.25)
+        mol_pack.append(new_mol)
+        graph_pack.append(digraph(new_mol))
+    return mol_pack, graph_pack
+
+def get_unique(mol_pack, graph_pack, element): #function to get unqiue configs
+    accepted = []
+
+    em = iso.categorical_node_match('elem', element)
+    for index, graph1 in enumerate(graph_pack):
+        for graph2 in accepted:
+            if nx.is_isomorphic(graph1, graph_pack[graph2], node_match=em):
+                break
+        else:
+            accepted.append(index)
+    return accepted

@@ -764,7 +764,7 @@ def generate_label(formula, colors, codes, html_template=None):
     Returns:
         str with the generated html table compatible with dot language to use
         it as a label of a node.
-    """
+    # """
     term = colors[0]
     rest = colors[1:]
     mix = [item for sublist in zip(rest, codes) for item in sublist]

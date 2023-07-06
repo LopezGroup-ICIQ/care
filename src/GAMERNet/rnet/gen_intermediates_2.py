@@ -5,7 +5,7 @@ import numpy as np
 from itertools import product, combinations
 from scipy.spatial import Voronoi
 from pyRDTP.geomio import ASEAtoms, MolObj
-from pyRDTP.molecule import Molecule
+from pyRDTP.molecule import Ase2Molecule
 from GAMERNet.rnet.utilities import functions as fn
 import copy
 
@@ -164,7 +164,7 @@ def ase_coord_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
 
     return nx_graph
 
-def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph, Molecule]:
+def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph, Ase2Molecule]:
     """Generates the molecular formula, ASE Atoms object, pyRDTP object and NetworkX Graph of a molecule.
 
     Parameters
@@ -193,9 +193,10 @@ def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph, Molecule]:
     
     molecular_formula = molecular_formula_from_graph(molecule_nx_graph)
 
+
     return molecular_formula, molecule_ase_obj, molecule_nx_graph, molecule_pyrdtp_obj
 
-def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_graph: nx.Graph) -> tuple[nx.Graph, str, Atoms, Molecule]:
+def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_graph: nx.Graph) -> tuple[nx.Graph, str, Atoms, Ase2Molecule]:
     """Compares the molecular formula and graph of a molecule with the PubChem database to obtain the
     molecular formula, ASE Atoms object, pyRDTP object and NetworkX Graph of the saturated molecule.
 
@@ -225,9 +226,12 @@ def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_gr
         compound_graph = ase_coord_2_graph(compound_ase_obj, coords=True)
 
         uni_coords = ASEAtoms(compound_ase_obj).universal_convert()
-        compound_pyrdtp_obj = MolObj()
-        compound_pyrdtp_obj.universal_read(uni_coords)
-        compound_pyrdtp_obj = compound_pyrdtp_obj.write()
+        compound_pyrdtp_obj = Ase2Molecule(name=compound_formula, symbols=compound_atoms, positions=compound_coords)
+        print(compound_pyrdtp_obj.elem_inf())
+        quit()
+        # compound_pyrdtp_obj = MolObj()
+        # compound_pyrdtp_obj.universal_read(uni_coords)
+        # compound_pyrdtp_obj = compound_pyrdtp_obj.write()
         if nx.is_isomorphic(saturated_molecule_graph, compound_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
             return  compound_graph, compound_formula, compound_ase_obj, compound_pyrdtp_obj
 
