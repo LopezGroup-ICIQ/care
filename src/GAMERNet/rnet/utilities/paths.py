@@ -33,7 +33,7 @@ def generate_pairs(network, skip=None):
         pairs += pair_lst
     return np.asarray(pairs)
 
-def gen_dir_net(network, avoid_electro_OH=False):
+def gen_dir_net(network):
     """Generate a directed network from an existing obj:`networks.OrganicNetwork`
 
     Args:
@@ -42,7 +42,7 @@ def gen_dir_net(network, avoid_electro_OH=False):
     Returns:
         obj:`nx.DiGraph` with the new graph of the network.
     """
-    norm_vals = network.get_min_max()
+
     new_graph = nx.DiGraph()
     for inter in network.intermediates.values():
         new_graph.add_node(inter.code, energy=inter.energy,

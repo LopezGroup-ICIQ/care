@@ -13,7 +13,7 @@ def generate_dict(lot1):
         tmp_dict = lot1_att[network]
         for mol_lst in subs.values():
             for inter in mol_lst:
-                tmp_dict[inter.code] = {'mol': inter.mol, 'graph': inter.graph, 'energy': 0, 'entropy':0}
+                tmp_dict[inter.code] = {'mol': inter.mol, 'graph': inter.graph, 'energy': 0.0, 'entropy': 0.0}
 
     return lot1_att
 
@@ -59,11 +59,13 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
             test = [n for n in energ_entr_dict.values()]
             for i in test:
                 for vals in i.values():
-                    try:
-                        inter.energy = vals[code]['e_zpe_solv']
-                        inter.entropy = vals[code]['S_meV']
-                    except KeyError:
-                        pass
+                    # try:
+                    #     inter.energy = vals[code]['e_zpe_solv']
+                    #     inter.entropy = vals[code]['S_meV']
+                    # except KeyError:
+                    inter.energy = 0.0
+                    inter.entropy = 0.0
+                        # pass
     return network_dict
 
 def oh_bond_breaks(ts_list: list) -> None:

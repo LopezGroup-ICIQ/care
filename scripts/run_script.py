@@ -10,9 +10,17 @@ from GAMERNet.gnn_eads.new_web.web_script import gnn_eads_predict
 from GAMERNet.gnn_eads.src.gnn_eads.nets import PreTrainedModel
 from GAMERNet.rnet.gen_intermediates import gen_intermediates
 from GAMERNet.rnet.organic_network import organic_network
+from GAMERNet.rnet.utilities import paths as pt
+from GAMERNet.rnet.utilities import additional_funcs as af
+
+import numpy as np
+from graph_tool import Graph
 import plotly.graph_objects as go
 import networkx as nx
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+from graph_tool.topology import all_paths, all_shortest_paths
+from matplotlib import cm
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -37,7 +45,8 @@ os.makedirs(res_path, exist_ok=True)
 
 # Inputs
 input_molecule_list = ['water', 'methane', 'methanol', 'formic acid', 'ethane', 'ethanol', 'ethylene glycol', 'propane',
-                       '1-propanol', '2-propanol', '1,2-propylene glycol', '1,3-propylene glycol', 'glycerol']
+                       '1-propanol', '2-propanol']#, '1,2-propylene glycol', '1,3-propylene glycol', 'glycerol']
+
 
 metal = 'Cu'
 surface_facet = '100'
@@ -71,22 +80,233 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
 ###############################################
 # Generating the organic network
 rxn_net = organic_network(slab_ase_obj, intermediate_dict, map_dict)
+# Converting the organic network as a dictionary
+rxn_net_dict = rxn_net.to_dict()
+
+# Exporting the organic network as a pickle file
+with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
+        pickle.dump(rxn_net_dict, outfile)
+################################################
+
+###############################################
+# Generate Directed graphs
+new_graph = pt.gen_dir_net(rxn_net)
+rm_list = []
+
+for edge in new_graph.edges():
+    non_values = set(['000000', '010101', '011101', 'e-', '001101', 'H+'])#, '101101'])
+    if non_values.intersection(set(edge)):
+        rm_list.append(edge)
+new_graph.remove_edges_from(rm_list) 
+
+non_values = ['000000', '010101', '011101', 'e-', '001101', 'H+', '']
+pairs = pt.generate_pairs(rxn_net)
+
+pairs = []
+for edge in new_graph.edges():
+    pairs.append(edge)
+pairs = np.asarray(pairs)
+
+opt_graph = Graph(directed=True)
+opt_graph_edg = opt_graph.add_edge_list(pairs, hashed=True)
+##############################################
+
+###############################################
+# Generate boxes
+# C2H4 = rxn_net.search_inter_by_elements({'C': 2, 'H': 4})[0]
+# CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 1})[0]
+# COCO = rxn_net.intermediates['202101']
+
+# ethylene = rxn_net.search_inter_by_elements({'C': 2, 'H': 4})[1]
+# ethanol = rxn_net.search_inter_by_elements({'C': 2, 'H': 6, 'O': 1})[0]
+# ethane = rxn_net.intermediates['260101']
+# methane = rxn_net.search_inter_by_elements({'C': 1, 'H': 4})[0]
+# print('methane: ', methane)
 
 
+# C2H4_index = af.search_species(opt_graph_edg, C2H4.code)
+# COCO_index = af.search_species(opt_graph_edg, COCO.code)
+# CO_index = af.search_species(opt_graph_edg, CO.code)
+# ethylene_index = af.search_species(opt_graph_edg, ethylene.code)
+# ethane_index = af.search_species(opt_graph_edg, ethane.code)
+# ethanol_index = af.search_species(opt_graph_edg, ethanol.code)
+# methane_index = af.search_species(opt_graph_edg, methane.code)
 
-pp.pprint(intermediate_dict)
-# print('N of intermediates:',len(rxn_net.intermediates))
-# # pp.pprint(rxn_net.intermediates)
-# print('N of TS', len(rxn_net.t_states))
-# # pp.pprint(rxn_net.t_states)
 
-# # Converting the organic network as a dictionary
-# rxn_net_dict = rxn_net.to_dict()
+# ethylene_paths = list(all_paths(opt_graph, ethylene_index, CO_index,))
+# ethanol_paths = list(all_paths(opt_graph, ethanol_index, CO_index,))
+# methane_paths = list(all_paths(opt_graph, methane_index, CO_index,))
 
-# # Exporting the organic network as a pickle file
-# with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
-#         pickle.dump(rxn_net_dict, outfile)
-# ###############################################
+# # atr_path = list(all_shortest_paths(opt_graph, C2H4_index, CO_index))
+
+# ts_hasher = {item.code: item for item in rxn_net.t_states}
+
+# ethylene_eners = [0] * len(ethylene_paths)
+# for index, item in enumerate(ethylene_paths):
+#     ethylene_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
+# ethylene_eners = sorted(ethylene_eners, key=lambda x: x[0])
+
+# methane_eners = [0] * len(methane_paths)
+# for index, item in enumerate(methane_paths):
+#     methane_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
+# methane_eners = sorted(methane_eners, key=lambda x: x[0])
+
+# ethanol_eners = [0] * len(ethanol_paths)
+# for index, item in enumerate(ethanol_paths):
+#     ethanol_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=False)
+# ethanol_eners = sorted(ethanol_eners, key=lambda x: x[0])
+
+def path_finder(input_molecule_list, rxn_net, new_graph, opt_graph, opt_graph_edg):
+
+    CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 1})[0]
+    CO_idx = af.search_species(opt_graph_edg, CO.code)
+
+    ts_hasher = {item.code: item for item in rxn_net.t_states}
+
+    total_molecule_eners = []
+    for molecule in input_molecule_list:
+        if molecule == 'water':
+            pass
+        else:
+            molecule_loc = intermediate_dict[molecule][0][0]
+            molecule = molecule_loc.mol
+            molecule_idx = af.search_species(opt_graph_edg, molecule_loc.code)
+            molecule_paths = list(all_paths(opt_graph, molecule_idx, CO_idx,))
+            molecule_eners = [0] * len(molecule_paths)
+            for idx, item in enumerate(molecule_paths):
+                molecule_eners[idx] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
+            molecule_eners = sorted(molecule_eners, key=lambda x: x[0])
+            total_molecule_eners.extend(molecule_eners)
+    
+    return total_molecule_eners
+
+total_molecule_eners = path_finder(input_molecule_list, rxn_net, new_graph, opt_graph, opt_graph_edg)
+
+turu = nx.DiGraph()
+for item in total_molecule_eners:
+    reversed_item = item[2::]
+    reversed_item = reversed_item[::-1]
+    for index, path_element in enumerate(reversed_item):
+        if path_element in rxn_net.intermediates:
+            turu.add_node(path_element)
+        else:
+            turu.add_edge(reversed_item[index - 1], reversed_item[index + 1])
+
+# Ethanol
+min_h = 0
+max_h = 5
+max_o = 2
+
+surf_hydrogen = rxn_net.intermediates['010101'].bader_energy
+surf_oh = rxn_net.intermediates['011101'].bader_energy
+surf_clean = rxn_net.surface[0].bader_energy
+
+edge_width = 3
+inters = []
+radicals = []
+
+for node in turu.nodes:
+    inters.append(rxn_net.intermediates[node])
+
+for edge in turu.edges:
+    try:
+        t_state = rxn_net.search_ts([edge[0]], final=[edge[1]])
+    except KeyError:
+        continue
+    try:
+        custom_energy = af.calc_ts_hydrogens(t_state[0],
+                                          surf_hydrogen,
+                                          surf_clean,
+                                          min_hydrogens=min_h,
+                                          max_hydrogens=max_h,
+                                          max_oxygens=max_o)
+    except IndexError:
+        continue
+
+
+edge_width = 3
+inters = []
+radicals = []
+deleters = []
+
+vals = [inter.energy for inter in rxn_net.intermediates.values()]
+min_val = min(vals)
+max_val = max(vals)
+norm = mpl.colors.Normalize(vmin=min_val, vmax=max_val+1)
+
+color_dict = {}
+edge_dict = {}
+for node in turu.nodes:
+    if node not in rxn_net.intermediates:
+        continue
+    if node in deleters:
+        colormap = cm.binary
+    else:
+        colormap = cm.inferno_r
+    inters.append(rxn_net.intermediates[node])
+    inter = rxn_net.intermediates[node]
+
+    formula = af.code_mol_graph(inter.graph, ['C'])
+    formula = formula.replace('(', '')
+    formula = formula.replace(')', '')
+    formula = formula.replace('2', '₂')
+    formula = formula.replace('3', '₃')
+    formula = formula.split('-')
+    formula = '-'.join(formula)
+    # if af.radical_calc(inter):
+    #     formula = af.underline_label(formula)
+    #     radicals.append(inter)
+    custom_energy = inter.bader_energy + af.calc_hydrogens_energy(inter,
+                                                               surf_hydrogen,
+                                                               surf_clean,
+                                                               min_hydrogens=min_h,
+                                                               max_hydrogens=max_h,
+                                                               max_oxygens=max_o)
+
+    colors, codes = af.generate_colors(inter, colormap, norm, bader=True, custom_energy=custom_energy)
+    label = af.generate_label(formula, colors, codes, html_template=af.BOX_TMP_0)
+    color_dict[node] = {'label': label, 'shape': 'plaintext', 'fontname': 'Arial'}
+for edge in turu.edges:
+
+    try:
+        t_state = rxn_net.search_ts([edge[0]], final=[edge[1]])
+
+    except KeyError:
+        continue
+
+    if edge[0] in deleters or edge[1] in deleters:
+        colormap = cm.inferno_r
+    else:
+        colormap = cm.inferno_r
+    
+    #custom_energy -= renorm
+    ts_code=t_state[0].code
+
+    ts_code=ts_code.split('i')[1:]
+    ts_code.sort()
+    ts_code=''.join(str(e) for e in ts_code)
+    edge_color = colormap(norm(t_state[0].bader_energy + custom_energy))
+    edge_color = mpl.colors.to_hex(edge_color)
+    reverse = False
+    if t_state[0].r_type == 'C-H':
+        reverse = True
+    edge_dict[edge] = {'color': '#000000', 'penwidth': 1, 'dir': 'forward'}
+
+empty = af.clear_graph(turu)
+nx.set_node_attributes(empty, color_dict )
+nx.set_edge_attributes(empty, edge_dict)
+for node in list(empty.nodes()):
+    if node not in color_dict:
+        empty.remove_node(node)
+for edge in list(empty.edges()):
+    if edge not in edge_dict:
+        empty.remove_edge(edge[0],edge[1])
+empty.graph['graph']={'rankdir':'LR', 'ranksep':'0.30', 'nodesep': '0.1', 'margin': '0.2', 'fontname': 'Arial', 'center': 'true'}
+map_pydot = nx.nx_pydot.to_pydot(empty)
+# map_pydot = nx.nx_agraph.pygraphviz_layout(empty)
+# nx.nx_agraph.view_pygraphviz(empty)
+map_pydot.write_svg(f'{res_path}/test_plot_t.svg')
+
 
 # ###############################################
 # # Converting the pyRDTP molecule objects to ASE atoms objects
