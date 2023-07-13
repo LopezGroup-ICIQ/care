@@ -8,7 +8,7 @@ from ase.db import connect
 from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.gnn_eads.new_web.web_script import gnn_eads_predict
 from GAMERNet.gnn_eads.src.gnn_eads.nets import PreTrainedModel
-from GAMERNet.rnet.gen_intermediates import gen_intermediates
+from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.organic_network import organic_network
 from GAMERNet.rnet.utilities import paths as pt
 from GAMERNet.rnet.utilities import additional_funcs as af
@@ -44,9 +44,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 
 # Inputs
-input_molecule_list = ['water', 'methane', 'methanol', 'formic acid', 'ethane', 'ethanol', 'ethylene glycol', 'propane',
-                       '1-propanol', '2-propanol']#, '1,2-propylene glycol', '1,3-propylene glycol', 'glycerol']
-
+input_molecule_list = ['ethane']
 
 metal = 'Cu'
 surface_facet = '100'
@@ -63,7 +61,7 @@ slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
 ###############################################
 # Generating the intermediates
-intermediate_dict, map_dict = gen_intermediates(input_molecule_list)
+intermediate_dict, map_dict = gen_inter(input_molecule_list)
 
 # Saving the map dictionary as a pickle file
 with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
@@ -80,6 +78,8 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
 ###############################################
 # Generating the organic network
 rxn_net = organic_network(slab_ase_obj, intermediate_dict, map_dict)
+
+
 # Converting the organic network as a dictionary
 rxn_net_dict = rxn_net.to_dict()
 
@@ -87,6 +87,8 @@ rxn_net_dict = rxn_net.to_dict()
 with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
 ################################################
+
+digraph = rxn_net.gen_graph()
 
 ###############################################
 # Generate Directed graphs
@@ -99,7 +101,6 @@ for edge in new_graph.edges():
         rm_list.append(edge)
 new_graph.remove_edges_from(rm_list) 
 
-non_values = ['000000', '010101', '011101', 'e-', '001101', 'H+', '']
 pairs = pt.generate_pairs(rxn_net)
 
 pairs = []
@@ -113,52 +114,10 @@ opt_graph_edg = opt_graph.add_edge_list(pairs, hashed=True)
 
 ###############################################
 # Generate boxes
-# C2H4 = rxn_net.search_inter_by_elements({'C': 2, 'H': 4})[0]
-# CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 1})[0]
-# COCO = rxn_net.intermediates['202101']
-
-# ethylene = rxn_net.search_inter_by_elements({'C': 2, 'H': 4})[1]
-# ethanol = rxn_net.search_inter_by_elements({'C': 2, 'H': 6, 'O': 1})[0]
-# ethane = rxn_net.intermediates['260101']
-# methane = rxn_net.search_inter_by_elements({'C': 1, 'H': 4})[0]
-# print('methane: ', methane)
-
-
-# C2H4_index = af.search_species(opt_graph_edg, C2H4.code)
-# COCO_index = af.search_species(opt_graph_edg, COCO.code)
-# CO_index = af.search_species(opt_graph_edg, CO.code)
-# ethylene_index = af.search_species(opt_graph_edg, ethylene.code)
-# ethane_index = af.search_species(opt_graph_edg, ethane.code)
-# ethanol_index = af.search_species(opt_graph_edg, ethanol.code)
-# methane_index = af.search_species(opt_graph_edg, methane.code)
-
-
-# ethylene_paths = list(all_paths(opt_graph, ethylene_index, CO_index,))
-# ethanol_paths = list(all_paths(opt_graph, ethanol_index, CO_index,))
-# methane_paths = list(all_paths(opt_graph, methane_index, CO_index,))
-
-# # atr_path = list(all_shortest_paths(opt_graph, C2H4_index, CO_index))
-
-# ts_hasher = {item.code: item for item in rxn_net.t_states}
-
-# ethylene_eners = [0] * len(ethylene_paths)
-# for index, item in enumerate(ethylene_paths):
-#     ethylene_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
-# ethylene_eners = sorted(ethylene_eners, key=lambda x: x[0])
-
-# methane_eners = [0] * len(methane_paths)
-# for index, item in enumerate(methane_paths):
-#     methane_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
-# methane_eners = sorted(methane_eners, key=lambda x: x[0])
-
-# ethanol_eners = [0] * len(ethanol_paths)
-# for index, item in enumerate(ethanol_paths):
-#     ethanol_eners[index] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=False)
-# ethanol_eners = sorted(ethanol_eners, key=lambda x: x[0])
 
 def path_finder(input_molecule_list, rxn_net, new_graph, opt_graph, opt_graph_edg):
 
-    CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 1})[0]
+    CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 2})[0]
     CO_idx = af.search_species(opt_graph_edg, CO.code)
 
     ts_hasher = {item.code: item for item in rxn_net.t_states}
@@ -171,7 +130,7 @@ def path_finder(input_molecule_list, rxn_net, new_graph, opt_graph, opt_graph_ed
             molecule_loc = intermediate_dict[molecule][0][0]
             molecule = molecule_loc.mol
             molecule_idx = af.search_species(opt_graph_edg, molecule_loc.code)
-            molecule_paths = list(all_paths(opt_graph, molecule_idx, CO_idx,))
+            molecule_paths = list(all_paths(opt_graph, molecule_idx, CO_idx,cutoff=20))
             molecule_eners = [0] * len(molecule_paths)
             for idx, item in enumerate(molecule_paths):
                 molecule_eners[idx] = pt.trans_and_ener(new_graph, opt_graph_edg, np.asarray(item), ts_hasher, inter_hasher=rxn_net.intermediates, bader=True)
@@ -266,6 +225,7 @@ for node in turu.nodes:
     colors, codes = af.generate_colors(inter, colormap, norm, bader=True, custom_energy=custom_energy)
     label = af.generate_label(formula, colors, codes, html_template=af.BOX_TMP_0)
     color_dict[node] = {'label': label, 'shape': 'plaintext', 'fontname': 'Arial'}
+
 for edge in turu.edges:
 
     try:
@@ -305,7 +265,24 @@ empty.graph['graph']={'rankdir':'LR', 'ranksep':'0.30', 'nodesep': '0.1', 'margi
 map_pydot = nx.nx_pydot.to_pydot(empty)
 # map_pydot = nx.nx_agraph.pygraphviz_layout(empty)
 # nx.nx_agraph.view_pygraphviz(empty)
-map_pydot.write_svg(f'{res_path}/test_plot_t.svg')
+map_pydot.write_svg(f'{res_path}/plot_propane.svg')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ###############################################

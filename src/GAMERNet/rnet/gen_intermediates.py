@@ -276,28 +276,37 @@ def add_H_nodes(molecule_nx_graph: nx.Graph) -> nx.Graph:
     nx.Graph
         NetworkX Graph representing the molecule with the added H atoms.
     """
+    copy_graph, unsat_flag = sat_H_graph(molecule_nx_graph)
+    updated_molecular_formula, molecule_nx_graph, updated_ase_obj, updated_pyrdtp_obj = None, None, None, None
+
+    if unsat_flag:
+        molecular_formula = molecular_formula_from_graph(copy_graph)
+        molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj = compare_strucures_from_pubchem(molecular_formula, copy_graph)
+ 
+    return unsat_flag, molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj
+
+def sat_H_graph(molecule_nx_graph):
     n_nodes = molecule_nx_graph.number_of_nodes()
     node_conn = nx.degree(molecule_nx_graph)
     node_attrs = nx.nodes(molecule_nx_graph)
 
     max_conns = {'C': 4, 'O': 2, 'N': 3, 'P': 5, 'S': 4}
     copy_graph = molecule_nx_graph.copy()
-    unsat_flag, updated_molecular_formula, molecule_nx_graph, updated_ase_obj, updated_pyrdtp_obj = None, None, None, None, None
+    unsat_flag = False
 
     for idx_node, conn in node_conn:
         elem_node = dict(node_attrs)[idx_node]['elem']
         for element, max_conn in max_conns.items():
-            if elem_node == element and conn < max_conn:
-                unsat_flag = True
-                idx_updt = idx_node
-                copy_graph.add_node(n_nodes, elem='H')
-                copy_graph.add_edge(idx_updt, n_nodes)
-                n_nodes += 1
-    if unsat_flag:
-        molecular_formula = molecular_formula_from_graph(copy_graph)
-        molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj = compare_strucures_from_pubchem(molecular_formula, copy_graph)
- 
-    return unsat_flag, molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj
+            if elem_node == element:
+                while conn < max_conn:
+                    unsat_flag = True
+                    idx_updt = idx_node
+                    copy_graph.add_node(n_nodes, elem='H')
+                    copy_graph.add_edge(idx_updt, n_nodes)
+                    n_nodes += 1
+                    conn += 1
+
+    return copy_graph, unsat_flag
 
 def id_group_dict(molecules_dict: dict) -> dict:
     """Corrects the labeling for isomeric systems.

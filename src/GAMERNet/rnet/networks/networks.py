@@ -734,7 +734,7 @@ class OrganicNetwork:
         return fig
 
     def search_connections(self):
-        """Add the to the intermediates the transition states where they are
+        """Add to the intermediates the transition states where they are
         involved.
         """
         for t_state in self.t_states:
@@ -817,7 +817,7 @@ class OrganicNetwork:
                 ts_lst.append(t_state)
         return t_state
 
-    def search_ts_by_code(self, code):
+    def search_ts_by_code(self, code: str):
         """Given an arbitrary code, returns the TS with the matching code.
 
         Args:

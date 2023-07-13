@@ -15,6 +15,14 @@ def digraph(mol):
             graph_now.add_edge(atom, connection)
     return graph_now
 
+def nx_graph(mol):
+    graph_now = nx.Graph()
+    for atom in mol:
+        graph_now.add_node(atom, elem=atom.element)
+        for connection in atom.connections:
+            graph_now.add_edge(atom, connection)
+    return graph_now
+
 def code_name(molecule, group, index): #name of the molecule
     name_elem = ('C', 'H', 'O')
     name_str = ''
