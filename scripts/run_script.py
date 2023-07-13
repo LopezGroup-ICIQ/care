@@ -41,6 +41,7 @@ metal_structure_dict = {
 
 # Generating the results directory
 res_path = "results"
+
 os.makedirs(res_path, exist_ok=True)
 
 # Inputs
