@@ -1,11 +1,14 @@
 from itertools import combinations
 import pickle
 import networkx as nx
+import numpy as np
 import networkx.algorithms.isomorphism as iso
 from GAMERNet.rnet.networks.networks_2 import TransitionState
 from matplotlib.colors import to_hex
-from pyRDTP.operations.analysis import bond_analysis, insaturation_check
-from pyRDTP.operations import graph
+from ase import Atoms
+from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
+from GAMERNet.rnet.gen_inter_from_prod import ase_coord_2_graph
+from collections import Counter
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'C-H' : {'alpha': 0.63, 'beta': 0.81},
@@ -83,8 +86,310 @@ BOX_TMP_flat = """<
 </TABLE>>
 """
 
-
 ELEM_WEIGTHS = {'H': 1., 'C': 12, 'O': 16}
+
+#### pyRDTP.analysis
+
+BOND_ORDER = {'C': 4,
+              'O': 2}
+
+def connectivity_helper(atoms: Atoms):
+    if 'conn_pairs' not in atoms.arrays: 
+        conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
+        atoms.arrays['conn_pairs'] = conn_matrix
+    conn_matrix = atoms.arrays['conn_pairs']
+    print('conn_matrix: ', conn_matrix)
+    connections = {}
+    if conn_matrix.shape[0] == 0: 
+        return connections
+    for index, _ in enumerate(atoms):
+        selected_rows = conn_matrix[np.logical_or(conn_matrix[:, 0] == index, conn_matrix[:, 1] == index)]
+        connections[index] = [element for row in selected_rows for element in row if element != index]
+    return connections
+
+def bond_analysis(mol: Atoms, comp_dist: bool=False) -> dict:
+    """Returns a dictionary of frozen tuples containing information about
+    the bond distances values between the different bonds of the molecule.
+
+    Args:
+        comp_dist (bool, optional): If True, the voronoi method will be
+            used to compute the bonds before the bond analysis.
+        bond_num (bool, optional): Take into account the number of bonds
+            of every atom and separate the different distances.
+
+    Returns:
+        dict of frozentuples containing the minimum distances between
+        different atoms.
+    """
+    if comp_dist:
+        mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1.0, ['C', 'H', 'O'])
+    package = BondPackage()
+    for row in range(mol.arrays['conn_pairs'].shape[0]):
+        package.bond_add(Bond(mol, mol.arrays['conn_pairs'][row, 0], mol.arrays['conn_pairs'][row, 1]))
+    return package
+
+#TODO: done, but double-check later
+def insaturation_matrix(mol: Atoms, voronoi: bool=False) -> np.ndarray:
+    """Generate the insaturation bond matrix for an organic molecule.
+
+    Args:
+        mol (:obj`ase.atoms.Atoms): Organic molecule that will be analyzed to
+            create the bond matrix.
+        voronoi (bool, optional): If True, a voronoi connectivity analysis
+            will be performed before creating the bond matrix. Defaults to
+            False.
+
+    Returns:
+        :obj`np.ndarray` of size (n_noHatoms, n_noHatoms) containing the bonds
+        between different atoms and the insaturations in the diagonal.
+
+    Notes:
+        At the moment only works with C and O, discarding the H.
+        If Voronoi is True, all the previous bonds will be deleted from the
+        molecule.
+    """
+    if voronoi:
+        del mol.arrays['conn_pairs']
+        mol.array['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1, ['C', 'H', 'O'])
+
+    not_h = [atom for atom in mol if atom.symbol != 'H']
+    bond_mat = np.zeros((len(not_h), len(not_h)), dtype=int)
+
+    for index, atom in enumerate(not_h):
+        avail_con = BOND_ORDER[atom.symbol]
+        condition = (mol.array['conn_pairs'][:, 0] == atom.index) or (mol.array['conn_pairs'][:, 1] == atom.index)
+        indices = np.where(condition)[0]
+        for connection in indices:
+            avail_con -= 1
+            if not 'H' in [mol[index].symbol for index in mol.arrays['conn_pairs'][connection, :]]:
+                bond_mat[index, not_h.index(connection)] = 1
+        bond_mat[index, index] = avail_con
+    return bond_mat
+
+def insaturation_solver(bond_mat: np.ndarray) -> np.ndarray:
+    """Solve the insaturation matrix distributing all the avaliable bonds
+    between the different atoms of the matrix.
+
+    bond_mat (:obj`np.ndarray`): Bond matrix containing the information of the
+        bonds and insaturations. See insaturation_matrix()  function for
+        further information.
+
+    Returns:
+        :obj`np.ndarray` containing the insaturation matrix.
+    """
+    ori_mat = bond_mat.copy()
+    new_mat = bond_mat.copy()
+    while True:
+        for row, value in enumerate(new_mat):
+            if [new_mat[row] == 0][0].all():
+                continue
+            elif new_mat[row, row] == 0:
+                new_mat[row] = 0
+                new_mat[:, row] = 0
+                break
+            elif new_mat[row, row] < 0:
+                continue
+            bool_mat = [value != 0][0]
+            bool_mat[row] = False
+            if np.sum(bool_mat) == 1:
+                col = np.argwhere(bool_mat)[0]
+                new_mat[row, row] -= 1
+                new_mat[col, col] -= 1
+                new_mat[row, col] += 1
+                new_mat[col, row] += 1
+
+                ori_mat[row, row] -= 1
+                ori_mat[col, col] -= 1
+                ori_mat[row, col] += 1
+                ori_mat[col, row] += 1
+                break
+        else:
+            break
+    return ori_mat
+
+def insaturation_check(mol: Atoms) -> bool:
+    """Check if all the bonds from an organic molecule are fullfilled.
+
+    Returns:
+        True if all the electrons are correctly distributed and False
+        if the molecule is a radical.
+    """
+    bond_mat = insaturation_matrix(mol)
+    bond_mat = insaturation_solver(bond_mat)
+    return not np.diag(bond_mat).any()
+
+class Bond:
+    def __init__(self, 
+                 atoms_obj: Atoms,
+                 index_1: int, 
+                 index_2: int):
+        """The atoms object must contain the connectivity list as atoms_obj.array['conn_pairs'].
+
+        Parameters
+        ----------
+        atoms_obj : Atoms
+            _description_
+        index_1 : int
+            _description_
+        index_2 : int
+            _description_
+        """
+        self.atom_1 = atoms_obj[index_1]
+        self.atom_2 = atoms_obj[index_2]
+        self.atoms = frozenset((self.atom_1, self.atom_2))
+        self.elements = frozenset((self.atom_1.symbol, self.atom_2.symbol))
+        self.distance = atoms_obj.get_distance(index_1, index_2)
+        self.num_connections_1 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_1)
+        self.num_connections_2 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_2)
+        self.bond_order = frozenset(((self.atom_1.symbol, self.num_connections_1),
+                                     (self.atom_2.symbol, self.num_connections_2)))
+    def __repr__(self):
+        rtr_str = '{}({})-{}({}) [{:.4f}]'.format(self.atom_1.symbol,
+                                                  self.num_connections_1,
+                                                  self.atom_2.symbol,
+                                                  self.num_connections_2,
+                                                  self.distance)
+        return rtr_str
+
+class BondPackage:
+    def __init__(self):
+        self.name = None
+        self.bonds = []
+        self.bond_types = []
+        self.bond_elements = {}
+        self.orders = {}
+
+    def __contains__(self, item):
+        new_set = frozenset(item)
+        for sg_bond in self.bonds:
+            if sg_bond.atoms == new_set:
+                return True
+        else:
+            return False
+
+    def __getitem__(self, choice):
+        if isinstance(choice, int):
+            selection = self.bonds[choice]
+        elif isinstance(choice, str):
+            selection = self.element_search(choice)
+        elif isinstance(choice, (list, tuple)):
+            selection = self.bond_search(choice)
+        return selection
+
+    def __len__(self):
+        return len(self.bonds)
+
+    def bond_add(self, bond):
+        if isinstance(bond, (list, tuple)):
+            for item in bond:
+                self._bond_add(item)
+        elif isinstance(bond, Bond):
+            self._bond_add(bond)
+        else:
+            raise NotImplementedError
+
+    def _bond_add(self, bond: Bond):
+        if bond.elements not in self.bond_elements:
+            self.bond_elements[bond.elements] = []
+        if bond.bond_order not in self.bond_types:
+            self.bond_types.append(bond.bond_order)
+            self.bond_elements[bond.elements].append(bond.bond_order)
+        for index, atom in enumerate(list(bond.atoms)):
+            # element_type = list(bond.bond_order)[atom]
+            # [t[0] for t in list(bond.bond_order) if t[atom] == 'O']
+            element_type = [t[0] for t in list(bond.bond_order) if t[0] == atom]
+            if atom.symbol not in self.orders:
+                self.orders[atom.symbol] = []
+            elif element_type in self.orders[atom.symbol]:
+                continue
+            self.orders[atom.symbol].append(element_type)
+        self.bonds.append(bond)
+
+    def sum_bonds(self, other):
+        bonds = other.bonds.copy()
+        self.bond_add(bonds)
+
+    def _compute_average(self, sub_pack):
+        dist_arr = np.asarray([sg_bond.distance for sg_bond in sub_pack])
+        return np.average(dist_arr)
+
+    def type_average(self, elements):
+        return np.average(np.asarray([sg_bond for sg_bond in self.bonds if
+                                      sg_bond.elements == frozenset(elements)]))
+
+    def element_search(self, element: str):
+        selection = [sg_bond for sg_bond in self.bonds if
+                     element in sg_bond.elements]
+        return selection
+
+    def element_order_search(self, element_type):
+        selection = [sg_bond for sg_bond in self.bonds if
+                     element_type in sg_bond.bond_order]
+        return selection
+
+    def bond_search(self, elements):
+        frz_set = frozenset(elements)
+        selection = [sg_bond for sg_bond in self.bonds if
+                     frz_set == sg_bond.elements]
+        return selection
+
+    def bond_order_search(self, bond_type):
+        frz_set = frozenset(bond_type)
+        selection = [sg_bond for sg_bond in self.bonds if
+                     frz_set == sg_bond.bond_order]
+        return selection
+
+    def analysis_element(self):
+        rtr_dic = {}
+        for key, value in self.orders.items():
+            sub_typ = []
+            for item in value:
+                arr_pvt = self.element_order_search(item)
+                sub_typ.append({'order': item,
+                                'average': self._compute_average(arr_pvt)})
+
+            avg_el = np.average(np.array([elem['average'] for elem in sub_typ]))
+            rtr_dic[key] = {'sub_types': sub_typ,
+                            'total_average': avg_el}
+        return rtr_dic
+
+    def analysis_bond(self):
+        rtr_dic = {}
+        for key, value in self.bond_elements.items():
+            sub_typ = []
+            avg_tot = 0
+            for item in value:
+                arr_pvt = self.bond_order_search(item)
+                lst_pvt = list(item)
+                weight = len(arr_pvt)
+                sub_typ.append({'elements': lst_pvt,
+                                'average': self._compute_average(arr_pvt),
+                                'weight': weight})
+                avg_tot += weight
+
+            avg_el = np.array([elem['average'] * float(elem['weight'])
+                               for elem in sub_typ])
+            avg_el = np.sum(avg_el / avg_tot)
+            avg_norm = np.average(np.array([elem['average'] for elem in sub_typ]))
+            lst_pvt = list(key)
+            rtr_dic[key] = {'sub_types': sub_typ,
+                            'weighted_average': avg_el,
+                            'total_average': avg_norm,
+                            'bond_total': avg_tot}
+        return rtr_dic
+
+#####
+
+def elem_inf(graph: nx.Graph):
+    elem_lst = [atom[1]['elem'] for atom in graph.nodes(data=True)]
+    elem_uniq = [elem for numb, elem in enumerate(elem_lst)
+                 if elem_lst.index(elem) == numb]
+    elem_count = []
+    for elem in elem_uniq:
+        elem_count.append(elem_lst.count(elem))
+    return dict(zip(elem_uniq, elem_count))
+
+
 
 def mkm_rxn_file(network, gb_rxn, filename):
     t_state_array=[]
@@ -100,7 +405,7 @@ def mkm_rxn_file(network, gb_rxn, filename):
                 #if label_gw==label_i:
                 #if label_gw==label_i and (label_gw=='102101' or  label_gw=='101101'):
                 if label_gw==label_i and (label_gw!='021101'):
-                    label_g=inter.molecule.formula
+                    label_g=inter.molecule.get_chemical_formula()
                     rxn_label = label_g + '(g) + i000000 -> i' + label_i  
                     #print(rxn_label)
                     outfile.write((inter_str.format(rxn_label)))
@@ -184,8 +489,7 @@ def mkm_rxn_file(network, gb_rxn, filename):
             elif intuit=='add_electro':
                 outfile.write((inter_str.format(rxn_label_H)))
     return t_state_array
-    # np.save('t_state_array.npy',t_state_array)
-    #print(t_state_array)
+
                 
 def mkm_g_file(network, filename='g.mkm'):
     with open(filename, 'w') as outfile:
@@ -301,7 +605,7 @@ def mkm_g_file(network, filename='g.mkm'):
             ener = inter.energy
             entropy = float(298*inter.entropy*1e-3)
             #print(label,entropy)
-            label= inter.molecule.formula
+            label= inter.molecule.get_chemical_formula()
             print(label)
             g_line = label + '(g): ' 
             #print(g_line)
@@ -309,7 +613,6 @@ def mkm_g_file(network, filename='g.mkm'):
                 outfile.write(inter_str.format(g_line,ener,entropy))
             except:
                 'do nothing'
-
 
 def mkm_g_file_TS(network, filename='g.mkm'):
     with open(filename, 'w') as outfile:
@@ -429,7 +732,7 @@ def mkm_g_file_TS(network, filename='g.mkm'):
             ener = inter.energy
             entropy = float(298*inter.entropy*1e-3)
             #print(label,entropy)
-            label= inter.molecule.formula
+            label= inter.molecule.get_chemical_formula()
             # print(label)
             g_line = label + '(g): ' 
             #print(g_line)
@@ -441,35 +744,35 @@ def mkm_g_file_TS(network, filename='g.mkm'):
 def calculate_weigth(elems):
     return sum([ELEM_WEIGTHS[key] * value for key, value in elems.items()])
 
-
-def break_bonds(molecule):
+def break_bonds(molecule: Atoms):
     """Generate all possible C-O, C-C and C-OH bonds for the given molecule.
 
     Args:
-        molecule (obj:`pyRDTP.molecule.Molecule`): Molecule that will be used
+        molecule (obj:`ase.atoms.Atoms`): Molecule that will be used
             to detect the breakeages.
 
     Returns:
         dict with the keys being the types of bond breakings containing the 
         obj:`nx.DiGraph` with the generated molecules after the breakage.
     """
+    connections = connectivity_helper(molecule)
     bonds = {'C-O': [],
              'C-C': [],
              'C-OH': []}
     bond_pack = bond_analysis(molecule)
-    new_graph = graph.generate(molecule)
+    new_graph = ase_coord_2_graph(molecule, coords=False)
     for bond_type in (('O', 'C'), ('C', 'C')):
         for pair in bond_pack.bond_search(bond_type):
             tmp_graph = new_graph.copy()
-            tmp_graph.remove_edge(*pair.atoms)
+            tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
             # sub_mols = list(nx.connected_component_subgraphs(tmp_graph))
             sub_mols = [tmp_graph.subgraph(comp).copy() for comp in
                         nx.connected_components(tmp_graph)]
             if ('O', 'C') == bond_type:
                 oh_bond = False
                 for atom in pair.atoms:
-                    if atom.element == 'O':
-                        if 'H' in [con.element for con in atom.connections]:
+                    if atom.symbol == 'O':
+                        if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
                             oh_bond = True
                     else:
                         continue
@@ -481,7 +784,6 @@ def break_bonds(molecule):
             else:
                 bonds['C-C'].append(sub_mols)
     return bonds
-
 
 def break_and_connect(network, surface='000000'):
     """For an entire network, perform a breakage search (see `break_bonds`) for
@@ -511,9 +813,9 @@ def break_and_connect(network, surface='000000'):
                     for loop_inter in network.intermediates.values():
                         if len(loop_inter.graph) != len(ind_graph):
                             continue
-                        if graph.elem_inf(loop_inter.graph) != graph.elem_inf(ind_graph):
+                        if elem_inf(loop_inter.graph) != elem_inf(ind_graph):
                             continue
-                        if nx.is_isomorphic(loop_inter.graph, ind_graph,
+                        if nx.is_isomorphic(loop_inter.graph.to_undirected(), ind_graph,
                                             node_match=cate):
                             in_comp[1].append(loop_inter)
                             if len(in_comp[1]) == 2:
@@ -523,7 +825,7 @@ def break_and_connect(network, surface='000000'):
                     for mol in item:
                         if mol.is_surface:
                             continue
-                        chk_lst[index] += len(mol.molecule.atoms)
+                        chk_lst[index] += len(mol.molecule.get_chemical_symbols())
 
                 if chk_lst[0] != chk_lst[1] and chk_lst[0] != chk_lst[1]/2:
                     continue
@@ -535,7 +837,6 @@ def break_and_connect(network, surface='000000'):
                 else:
                     ts_lst.append(new_ts)
     return ts_lst
-
 
 def change_r_type(network):
     """Given a network, search if the C-H breakages are correct, and if not
@@ -553,7 +854,7 @@ def change_r_type(network):
         for comp in flatten:
             flatten_tmp += comp
         flatten = flatten_tmp
-        flatten.sort(key=lambda x: len(x.molecule.atoms), reverse=True)
+        flatten.sort(key=lambda x: len(x.molecule.get_chemical_symbols()), reverse=True)
         flatten = flatten[1:3]  # With this step we will skip
         bonds = [bond_analysis(comp.molecule) for comp in flatten]
         bond_len = [item.bond_search(('C', 'O')) for item in bonds]
@@ -561,7 +862,6 @@ def change_r_type(network):
             trans.r_type = 'C-H'
         else:
             trans.r_type = 'O-H'
-
 
 def calculate_ts_energy(t_state, bader=False):
     """Calculate the ts energy of a transition state using the interpolation
@@ -596,7 +896,6 @@ def calculate_ts_energy(t_state, bader=False):
         ts_ener = alpha * e_fs + (1. - alpha) * e_is + beta
     return max(e_is, e_fs, ts_ener)
 
-
 def calc_TS_energy(t_state, bader=False):
     """Calculate the ts energy of a transition state using the interpolation
      formula
@@ -630,7 +929,6 @@ def calc_TS_energy(t_state, bader=False):
         ts_ener = alpha * e_fs + (1. - alpha) * e_is + beta
     return max(e_is, e_fs, ts_ener)
 
-
 def generate_electron(t_state, electron='e-', proton='H+', def_h='000000', ener_gap=0.):
     new_ts = TransitionState(r_type='C-H', is_electro=True)
     new_components = []
@@ -649,7 +947,6 @@ def generate_electron(t_state, electron='e-', proton='H+', def_h='000000', ener_
         new_ts.energy += ener_gap
     return new_ts
 
-
 def search_electro(network, electron='e-', proton='H+', def_h='000000', ener_gap=0.):
     electro_states = []
     for t_state in network.t_states:
@@ -659,7 +956,6 @@ def search_electro(network, electron='e-', proton='H+', def_h='000000', ener_gap
                                    proton=proton, def_h=def_h, ener_gap=ener_gap)
         electro_states.append(tmp_el)
     return electro_states
-
 
 def generate_colors(inter, colormap, norm, bader=False, custom_energy=None):
     """Given an intermediate with associated transition states, a colormap and
@@ -748,7 +1044,6 @@ def generate_colors(inter, colormap, norm, bader=False, custom_energy=None):
     full_colors.insert(0, color)
     return full_colors, full_codes
 
-
 def generate_label(formula, colors, codes, html_template=None):
     """Generate a html table with the colors and the codes generted with the
     generate_colorn function.
@@ -777,6 +1072,7 @@ def generate_label(formula, colors, codes, html_template=None):
             label = BOX_TMP.format(term, formula, *mix)
     return label
 
+#TODO
 def code_mol_graph(mol_graph, elems=['O', 'C']):
     """Given a molecule graph generated with the lib:`pyRDTP.operation.graph`
     node, return an str with the formula of the molecule.
@@ -793,10 +1089,10 @@ def code_mol_graph(mol_graph, elems=['O', 'C']):
     """
     new_graph = nx.DiGraph()
     for node in list(mol_graph.nodes()):
-        if node.element in elems:
+        if node.symbol in elems:
             new_graph.add_node(node)
     for edge in list(mol_graph.edges()):
-        if edge[0].element in elems and edge[1].element in elems:
+        if edge[0].symbol in elems and edge[1].symbol in elems:
             new_graph.add_edge(*edge)
             new_graph.add_edge(*edge[::-1])
 
@@ -815,20 +1111,21 @@ def code_mol_graph(mol_graph, elems=['O', 'C']):
         longest_path = list(new_graph.nodes())
 
     path = ''
+    connections = connectivity_helper(longest_path)
     for item in longest_path:
-        if item.element == 'H':
+        if item.symbol == 'H':
             continue
-        path += item.element
+        path += item.symbol
         count_H = 0
         H_lst = []
         oh_numb = []
         for hydro in item.connections:
-            if hydro.element == 'H' and hydro not in H_lst:
+            if hydro.symbol == 'H' and hydro not in H_lst:
                 H_lst.append(hydro)
                 count_H += 1
-            if hydro.element == 'O':
+            if hydro.symbol == 'O':
                 oh_numb.append(len([atom for atom in hydro.connections if
-                                   atom.element == 'H']))
+                                   atom.symbol == 'H']))
         if count_H > 1:
             path += '{}{}'.format('H', count_H)
         elif count_H == 1:
@@ -844,7 +1141,6 @@ def code_mol_graph(mol_graph, elems=['O', 'C']):
     path = path[:-1]
     return path
 
-
 def radical_calc(inter):
     """Check if an intermediate is a radical.
 
@@ -855,10 +1151,9 @@ def radical_calc(inter):
         bool with the results of the test.
     """
     new_mol = inter.molecule.copy()
-    new_mol.connection_clear()
-    new_mol.connectivity_search_voronoi()
+    del new_mol.arrays['conn_pairs']
+    new_mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(new_mol, 0,25, 1.0, ['C', 'H', 'O'])
     return insaturation_check(new_mol)
-
 
 def underline_label(label):
     """Add the needed marks to a str to underline it in dot.
@@ -872,7 +1167,6 @@ def underline_label(label):
     temp = '<u>{}</u>'
     new_label = temp.format(label)
     return new_label
-
 
 def change_color_label(label, color):
     """Add the needed marks to an str to change the font color on dat.
@@ -888,8 +1182,7 @@ def change_color_label(label, color):
     new_label = temp.format(color, label)
     return new_label
 
-
-def adjust_co2(elements):
+def adjust_co2(ase_atoms_obj):
     """Given a dict with elements, calculate the reference energy for
     the compound.
 
@@ -901,17 +1194,23 @@ def adjust_co2(elements):
                   'H2O': -14.51367559, # Water with solvent correction
                   'H'  : -3.383197435,
                   'CO2' : -22.96215586}
-    pivot_dict = elements.copy()
+    
+    elements_dict = {'C': sum([1 for atom in ase_atoms_obj if atom.symbol == 'C']),
+                'H': sum([1 for atom in ase_atoms_obj if atom.symbol == 'H']),
+                'O': sum([1 for atom in ase_atoms_obj if atom.symbol == 'O'])}
+    
+    pivot_dict = elements_dict.copy()
+    
     for elem in ['O', 'C', 'H']:
         if elem not in pivot_dict:
             pivot_dict[elem] = 0
+    
 
     energy = GASES_ENER['CO2'] * pivot_dict['C']
     energy += GASES_ENER['H2O'] * (pivot_dict['O'] - 2 * pivot_dict['C'])
     energy += GASES_ENER['H'] * (4 * pivot_dict['C'] + pivot_dict['H']
                                  - 2 * pivot_dict['O'])
     return energy
-
 
 def read_object(filename):
     """Read a pickle object from the specified file
@@ -926,7 +1225,6 @@ def read_object(filename):
         new_obj = pickle.load(obj_file)
     return new_obj
 
-
 def write_object(obj, filename):
     """Write the given object to the specified file.
 
@@ -937,7 +1235,6 @@ def write_object(obj, filename):
     """
     with open(filename, 'wb') as obj_file:
         new_file = pickle.dump(obj, obj_file)
-
 
 def clear_graph(graph):
     """Generate a copy of the graph only using the edges and clearing the
@@ -954,7 +1251,6 @@ def clear_graph(graph):
         new_graph.add_edge(*edge)
     return new_graph
 
-
 def inverse_edges(graph):
     """Generate a copy of the graph and add additional edges that connect
     the nodes in the inverse direction while keeping the originals.
@@ -970,7 +1266,6 @@ def inverse_edges(graph):
     for edge in graph.edges():
         new_graph.add_edge(edge[1], edge[0])
     return new_graph
-
 
 def search_species(vertex_map, code):
     for index, species in enumerate(vertex_map):
@@ -996,22 +1291,22 @@ def calc_all_energies(graph, path_lst):
     return tuple(energy_lst)
 
 def calc_hydrogens_energy(inter, h_ener, s_ener, min_hydrogens=3, max_hydrogens=8, max_oxygens=1):
-    if 'H' not in inter.molecule.elem_inf(): 
+    if 'H' not in inter.molecule.get_chemical_symbols(): 
         mol_h_numb = 0
     else:
-        mol_h_numb = inter.molecule.elem_inf()['H']
+        mol_h_numb = sum(1 for atom in inter.molecule if atom.symbol == 'H')
         
-    if 'O' not in inter.molecule.elem_inf():
+    if 'O' not in inter.molecule.get_chemical_symbols():
         mol_h_numb += 1 * max_oxygens
     else:
-        mol_h_numb += 1 * ( max_oxygens - inter.molecule.elem_inf()['O'])
+        mol_h_numb += 1 * ( max_oxygens - sum(1 for atom in inter.molecule if atom.symbol == 'O'))
     h_numb = max_hydrogens - mol_h_numb 
     s_numb =  mol_h_numb - min_hydrogens
     return (h_ener * h_numb + s_ener * s_numb)
 
 def calc_ts_hydrogens(t_state, h_ener, s_ener, min_hydrogens=3, max_hydrogens=8, max_oxygens=1):
     comps = t_state.bb_order()[0]
-    elem_info = [inter.molecule.elem_inf() for inter in comps if 'H' in inter.molecule.elem_inf()]
+    elem_info = [inter.molecule.get_chemical_symbols() for inter in comps if 'H' in inter.molecule.get_chemical_symbols()]
     if 'H' not in elem_info[0]:
         mol_h_numb = 0
     else:
@@ -1021,7 +1316,7 @@ def calc_ts_hydrogens(t_state, h_ener, s_ener, min_hydrogens=3, max_hydrogens=8,
     if 'O' not in elem_info:
         mol_h_numb += 1 * max_oxygens
     else:
-        mol_h_numb += 1 * ( max_oxygens - elem_info['O'])
+        mol_h_numb += 1 * (max_oxygens - elem_info['O'])
     h_numb = max_hydrogens - mol_h_numb 
     s_numb =  mol_h_numb - min_hydrogens
     return (h_ener * h_numb + s_ener * s_numb)  
@@ -1070,7 +1365,6 @@ def print_intermediates(network, filename='inter.dat'):
             out_str = inter_str.format(label, ener, formula)
             outfile.write(out_str)
 
-
 def print_intermediates_kinetics(network, filename='inter.dat'):
     """Print a text file containing the information of the intermediates of a
     network.
@@ -1090,7 +1384,6 @@ def print_intermediates_kinetics(network, filename='inter.dat'):
             electrons = inter.electrons
             out_str = inter_str.format(label, ener, electrons, tmp_frq)
             outfile.write(out_str)
-
 
 def print_t_states_kinetics(network, filename='ts.dat'):
     """Print a text file containing the information of the transition states
@@ -1128,8 +1421,8 @@ def print_t_states_kinetics(network, filename='ts.dat'):
                         network.intermediates[item[1]]]
                 if mols[0].is_surface:
                     order.append(item[::-1])
-                elif not mols[1].is_surface and (mols[0].molecule.atom_numb <
-                                                 mols[1].molecule.atom_numb):
+                elif not mols[1].is_surface and (len(mols[0].molecule) <
+                                                 len(mols[1].molecule)):
                     order.append(item[::-1])
                 else:
                     order.append(item)
@@ -1145,7 +1438,6 @@ def print_t_states_kinetics(network, filename='ts.dat'):
             outfile.write(inter_str.format(label, *initial, *final,
                                            ener, electrons, alpha,
                                            beta, tmp_frq))
-
 
 def print_t_states(network, filename='ts.dat'):
     """Print a text file containing the information of the transition states
@@ -1196,16 +1488,16 @@ def print_gasses_kinetics(gas_dict, filename='gas.dat'):
             ener = gas['energy']
             electrons = gas['electrons']
             try:
-                formula = code_mol_graph(graph.generate(gas['mol'], voronoi=True), ['C'])
+                gas['mol'].arrays['conn_pairs'] = get_voronoi_neighbourlist(gas['mol'], 0.25, 1.0, ['C', 'H', 'O'])
+                formula = code_mol_graph(ase_coord_2_graph(gas['mol'], coords=False), ['C'])
             except nx.NetworkXNoPath:
-                formula = gas['mol'].formula
+                formula = gas['mol'].get_chemical_formula()
             if not formula:
-                formula = gas['mol'].formula
-            weight = calculate_weigth(gas['mol'].elements_number)
+                formula = gas['mol'].get_chemical_formula()
+            weight = calculate_weigth(dict(Counter(gas['mol'].get_chemical_symbols())))
             out_str = inter_str.format(label, formula, label, ener,
                                        ener, weight, electrons, tmp_frq)
             outfile.write(out_str)
-
 
 def read_TS_energies(filename):
     """Reads an energy filename and convert it to a dictionary.
@@ -1320,52 +1612,30 @@ def read_energies(filename):
 
     return ener_dict, entropy_dict, discard
 
-
-def adjust_electrons_old(elements):
-    """Given a dict with elements, calculate the reference energy for
-    the compound.
-s
-    Args:
-        elements (dict): C, O, H as key and the number of atoms for every
-            element as value.
-    """
-    pivot_dict = elements.copy()
-    for elem in ['O', 'C', 'H']:
-        if elem not in pivot_dict:
-            pivot_dict[elem] = 0
-
-    electrons = (4 * pivot_dict['C'] + pivot_dict['H']
-                 - 2 * pivot_dict['O'])
-    return electrons
-
-def adjust_electrons(molecule):
+def adjust_electrons(ase_atoms_obj: Atoms):
     """Given a dict with elements, calculate the reference energy for
     the compound.
 
     Args:
-        elements (dict): C, O, H as key and the number of atoms for every
+        elements_dict (dict): C, O, H as key and the number of atoms for every
             element as value.
     """
-    elements = molecule.elements_number
-    pivot_dict = elements.copy()
-    for elem in ['O', 'C', 'H']:
-        if elem not in pivot_dict:
-            pivot_dict[elem] = 0
+    elements_dict = {'C': sum([1 for atom in ase_atoms_obj if atom.symbol == 'C']),
+                'H': sum([1 for atom in ase_atoms_obj if atom.symbol == 'H']),
+                'O': sum([1 for atom in ase_atoms_obj if atom.symbol == 'O'])}
 
-    electrons = (4 * pivot_dict['C'] + pivot_dict['H']
-                 - 2 * pivot_dict['O'])
-    return electrons
+    n_electrons = (4 * elements_dict['C'] + elements_dict['H']
+                 - 2 * elements_dict['O'])
+    return n_electrons
 
-
-def adjust_electrons_H(molecule):
-    elements = molecule.elements_number
+def adjust_electrons_H(molecule: Atoms):
+    elements = dict(Counter(molecule.get_chemical_symbols()))
     pivot_dict = elements.copy()
     if 'H' not in pivot_dict:
         pivot_dict['H'] = 0
 
     electrons = pivot_dict['H'] # + search_alcoxy(molecule)
     return electrons
-
 
 def select_larger_inter(inter_lst):
     """Given a list of Intermediates, select the intermediate with the
@@ -1377,7 +1647,7 @@ def select_larger_inter(inter_lst):
     Returns:
         obj:`networks.Intermediate` with the bigger molecule.
     """
-    atoms = [len(inter.mol.atoms) for inter in inter_lst]
+    atoms = [len(inter.mol) for inter in inter_lst]
     inter_max = [0, 0]
     for size, inter in zip(atoms, inter_lst):
         if size > inter_max[0]:
@@ -1385,7 +1655,7 @@ def select_larger_inter(inter_lst):
             inter_max[1] = inter
     return inter_max[1]
 
-
+#TODO
 def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0.05):
     """Search for all the possible electronic transition states of a network.
 
@@ -1399,22 +1669,22 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
     cate = iso.categorical_node_match(['elem', 'elem'], ['H', 'O'])
     electro_ts = []
     for inter in network.intermediates.values():
-        if 'O' not in inter.molecule.elements_number:
+        if 'O' not in dict(Counter(inter.molecule.get_chemical_symbols())):
             continue
         tmp_oxy = inter.molecule['O']
         for index, _ in enumerate(tmp_oxy):
             tmp_mol = inter.molecule.copy()
-            oxygen = tmp_mol['O'][index]
+            oxygen = [atom for atom in tmp_mol if atom.symbol == "O"][index]
 
             hydrogen = [conect for conect in oxygen.connections if
-                        conect.element == 'H']
+                        conect.symbol == 'H']
             if not hydrogen:
                 continue
 
-            tmp_mol.atom_remove(hydrogen[0])
-            tmp_mol.connection_clear()
-            tmp_mol.connectivity_search_voronoi()
-            tmp_graph = graph.generate(tmp_mol)
+            del tmp_mol[hydrogen[0]]
+            del tmp_mol.arrays['conn_pairs']
+            tmp_mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(tmp_mol, 0.25, 1.0, ['C', 'H', 'O'])
+            tmp_graph = ase_coord_2_graph(tmp_mol, coords=False)
 
 
             candidates = network.search_graph(tmp_graph, cate=cate)
@@ -1430,13 +1700,13 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
                 oh_ts.bader_energy = max((inter_energy_bader, new_inter_energy_bader)) + ener_up
                 electro_ts.append(oh_ts)
 
-            tmp_mol.atom_remove(oxygen)
-            tmp_mol.connection_clear()
+            del tmp_mol[oxygen]
+            del tmp_mol.arrays['conn_pairs']
             try:
-                tmp_mol.connectivity_search_voronoi()
+                tmp_mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(tmp_mol, 0.25, 1.0, ['C', 'H', 'O'])
             except ValueError:
                 continue
-            tmp_graph = graph.generate(tmp_mol)
+            tmp_graph = ase_coord_2_graph(tmp_mol, coords=False)
 
             
             candidates = network.search_graph(tmp_graph, cate=cate)
@@ -1453,7 +1723,6 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
                 electro_ts.append(wa_ts)
 
     return electro_ts
-
 
 def print_electro_kinetics(ts_lst, filename='elec.dat'):
     """Print a text file containing the information of the transition states
@@ -1509,18 +1778,23 @@ def print_electro_kinetics(ts_lst, filename='elec.dat'):
             outfile.write(inter_str.format(label, *initial, *final,
                                            ener, electrons, tmp_frq))
 
-def search_alcoxy(molecule):
-    mol = molecule.copy()
-    mol.connectivity_search_voronoi()
-    oxy = mol['O']
-    alco_numb = 0
-    for item in oxy:
-        if len(item.connections) > 1 or len(item.connections) == 0:
-            continue
-        elif item.connections[0].element != 'C':
-            continue
-        elif len(item.connections[0].connections) != 4:
-            continue
-        else:
-            alco_numb += 1
-    return alco_numb
+#TODO
+# def search_alcoxy(molecule: Atoms) -> int:
+#     mol = molecule.copy()
+#     # mol.connectivity_search_voronoi()
+#     mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1, ['C', 'H', 'O'])
+#     # oxy = mol['O']
+#     oxy_list = [atom for atom in mol if atom.symbol == "O"]
+#     alco_numb = 0
+#     for atom in oxy_list:
+#         if np.count_nonzero(mol.arrays['conn_pairs'] == atom.index) > 1 or np.count_nonzero(mol.arrays['conn_pairs'] == atom.index) == 0:
+#             continue
+#         index = np.where(mol.arrays['conn_pairs'] == atom.index)[0]
+#         index_2 = 0 if index[1]==atom.index else 1
+#         elif mol[index_2].symbol != 'C':
+#             continue
+#         elif len(atom.connections[0].connections) != 4:
+#             continue
+#         else:
+#             alco_numb += 1
+#     return alco_numb

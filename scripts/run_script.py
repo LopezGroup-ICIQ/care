@@ -2,14 +2,13 @@ import os
 import pickle
 import pprint as pp
 
-from ase import Atoms
 from ase.db import connect
 
 from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.gnn_eads.new_web.web_script import gnn_eads_predict
 from GAMERNet.gnn_eads.src.gnn_eads.nets import PreTrainedModel
 from GAMERNet.rnet.gen_inter_from_prod import gen_inter
-from GAMERNet.rnet.organic_network import organic_network
+from GAMERNet.rnet.organic_network import generate_rxn_net
 from GAMERNet.rnet.utilities import paths as pt
 from GAMERNet.rnet.utilities import additional_funcs as af
 
@@ -45,7 +44,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 
 # Inputs
-input_molecule_list = ['ethane']
+input_molecule_list = ['propylene']
 
 metal = 'Cu'
 surface_facet = '100'
@@ -62,24 +61,40 @@ slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
 ###############################################
 # Generating the intermediates
-intermediate_dict, map_dict = gen_inter(input_molecule_list)
+# intermediate_dict, map_dict = gen_inter(input_molecule_list)
+# pp.pprint(intermediate_dict) 
 
-# Saving the map dictionary as a pickle file
-with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
-    pickle.dump(map_dict, outfile)
+# # Saving the map dictionary as a pickle file
+# with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
+#     pickle.dump(map_dict, outfile)
+#     print(
+#         f"The intermediate map dictionary pickle file has been generated")
+# # Saving the intermediate dictionary as a pickle file
+# with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
+#     pickle.dump(intermediate_dict, outfile)
+#     print(
+#         f"The intermediate dictionary pickle file has been generated")
+# ###############################################
+
+# Loading the intermediate dictionary from a pickle file
+with open(f"{res_path}/intermediate_dict.pkl", "rb") as infile:
+    intermediate_dict = pickle.load(infile)
     print(
-        f"The intermediate map dictionary pickle file has been generated")
-# Saving the intermediate dictionary as a pickle file
-with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
-    pickle.dump(intermediate_dict, outfile)
+        f"The intermediate dictionary pickle file has been loaded")
+
+# Loading the map dictionary from a pickle file
+with open(f"{res_path}/map_dict.pkl", "rb") as infile:
+    map_dict = pickle.load(infile)
     print(
-        f"The intermediate dictionary pickle file has been generated")
-###############################################
+        f"The intermediate map dictionary pickle file has been loaded")
+
 
 ###############################################
 # Generating the organic network
-rxn_net = organic_network(slab_ase_obj, intermediate_dict, map_dict)
-
+rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
+print(len(rxn_net.intermediates))
+print(len(rxn_net.t_states))
+quit()
 
 # Converting the organic network as a dictionary
 rxn_net_dict = rxn_net.to_dict()
@@ -88,7 +103,6 @@ rxn_net_dict = rxn_net.to_dict()
 with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
 ################################################
-
 digraph = rxn_net.gen_graph()
 
 ###############################################
@@ -266,7 +280,7 @@ empty.graph['graph']={'rankdir':'LR', 'ranksep':'0.30', 'nodesep': '0.1', 'margi
 map_pydot = nx.nx_pydot.to_pydot(empty)
 # map_pydot = nx.nx_agraph.pygraphviz_layout(empty)
 # nx.nx_agraph.view_pygraphviz(empty)
-map_pydot.write_svg(f'{res_path}/plot_propane.svg')
+map_pydot.write_svg(f'{res_path}/plot_ethyleneox.svg')
 
 
 

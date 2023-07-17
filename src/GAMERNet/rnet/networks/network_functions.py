@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 
 
-def generate_dict(lot1):
+def generate_dict(lot1: dict) -> dict:
     lot1_att = {}
     for network, subs in lot1.items(): #reading the pickle file and making a dictionary
         lot1_att[network] = {}
@@ -17,14 +17,13 @@ def generate_dict(lot1):
 
     return lot1_att
 
-def generate_network_dict(map1, surf_inter, h_inter):
+def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Intermediate) -> dict:
     network_dict = {} 
     for key, network in map1.items():
         network_dict[key] = {'intermediates': {}, 'ts': []}
         for node in network.nodes():
             try:
                 sel_node = network.nodes[node]
-                elems = sel_node['mol'].elements_number
                 electrons = af.adjust_electrons(sel_node['mol'])
                 new_inter = Intermediate(code=node, molecule=sel_node['mol'], graph=sel_node['graph'], energy=sel_node['energy'], entropy=sel_node['entropy'] , electrons=electrons, phase='cat')
                 new_inter._graph = new_inter.gen_graph()
@@ -79,11 +78,11 @@ def oh_bond_breaks(ts_list: list) -> None:
                     if item.is_surface or item.code == '010101':
                         continue
                     else:
-                        oxy = item.molecule['O']
+                        oxy = [atom for atom in item.molecule if atom.symbol == "O"]
                         if oxy:
                             counter = 0
                             for atom in oxy:
-                                counter += len(atom.connections)
+                                counter += np.count_nonzero(item.molecule.arrays['conn_pairs'] == atom.index)
                             check_bonds.append(counter)
                         else:
                             check_bonds.append(0)
