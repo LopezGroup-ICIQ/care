@@ -93,7 +93,7 @@ def add_O_2_molec(molecule_graph: nx.Graph) -> nx.Graph:
     # Checking if the carbon atoms are connected to a hydrogen atom
     for node, oxy_flg in carbon_nodes:
         if oxy_flg == True:
-            continue
+            return molec_graph_copy
         H_flag = False
         for neighbor in molec_graph_copy.neighbors(node):
             if molec_graph_copy.nodes[neighbor]['elem'] == 'H':

@@ -274,17 +274,17 @@ def get_all_subs(ase_molecule_obj: Atoms,
     
     sel_atoms = [atom.index for atom in ase_molecule_obj if atom.symbol == element]
     mol_pack, graph_pack = [], []
-    print(sel_atoms)
+
     for comb in combinations(sel_atoms, n_sub):
-        print(comb)
+
         new_mol = deepcopy(ase_molecule_obj)
         del new_mol.arrays["conn_pairs"]
-        print(new_mol)
+
         int_list = []
         for index in comb:
             int_list.append(index)
         # Deleting the atoms which index is in int_list
-        print(int_list)
+
         del new_mol[int_list]
         new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_mol, 0.25, 1.0, ['C', 'H', 'O'])
         mol_pack.append(new_mol)
@@ -292,12 +292,12 @@ def get_all_subs(ase_molecule_obj: Atoms,
     return mol_pack, graph_pack
 
 def get_unique(graph_pack: list[nx.DiGraph], element: str) -> list[int]: #function to get unqiue configs
+    
     accepted = []
-
     em = iso.categorical_node_match('elem', element)
     for index, graph1 in enumerate(graph_pack):
         for graph2 in accepted:
-            if nx.is_isomorphic(graph1, graph_pack[graph2], node_match=em):
+            if nx.is_isomorphic(graph1.to_undirected(), graph_pack[graph2].to_undirected(), node_match=lambda x, y: x["elem"] == y["elem"]):
                 break
         else:
             accepted.append(index)

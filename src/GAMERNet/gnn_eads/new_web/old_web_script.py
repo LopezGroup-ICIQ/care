@@ -9,7 +9,7 @@ import resource
 sys.path.insert(0, "../src")
 sys.path.insert(0, "./adsurf")
 
-import dockonsurf.dockonsurf as dos
+import GAMERNet.gnn_eads.new_web.dockonsurf.dockonsurf as dos
 import ase
 from ase.constraints import FixAtoms
 from ase.db import connect
@@ -22,9 +22,9 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from torch_geometric.loader import DataLoader
 import numpy as np
 
-from adsurf.functions.act_sites import get_act_sites
-from adsurf.functions.adsurf_fn import connectivity_analysis, gen_docksurf_file
-from adsurf.graphs.graph_utilities import ase_2_graph
+from GAMERNet.gnn_eads.new_web.adsurf.functions.act_sites import get_act_sites
+from GAMERNet.gnn_eads.new_web.adsurf.functions.adsurf_fn import connectivity_analysis, gen_docksurf_file
+from GAMERNet.gnn_eads.new_web.adsurf.graphs.graph_utilities import ase_2_graph
 from GAMERNet.gnn_eads.src.gnn_eads.functions import atoms_to_pyggraph
 from GAMERNet.gnn_eads.src.gnn_eads.graph_tools import plotter
 from GAMERNet.gnn_eads.src.gnn_eads.nets import PreTrainedModel

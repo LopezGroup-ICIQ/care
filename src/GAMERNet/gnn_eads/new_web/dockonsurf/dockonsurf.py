@@ -3,8 +3,8 @@
 Code to systematically find the most stable geometry for molecules on surfaces
 """
 
-from src.dockonsurf.dos_input import read_input
-from src.dockonsurf.screening import run_screening
+from GAMERNet.gnn_eads.new_web.dockonsurf.src.dockonsurf.dos_input import read_input
+from GAMERNet.gnn_eads.new_web.dockonsurf.src.dockonsurf.screening import run_screening
 
 
 def dockonsurf(file):

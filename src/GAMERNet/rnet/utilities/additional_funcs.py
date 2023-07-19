@@ -98,7 +98,6 @@ def connectivity_helper(atoms: Atoms):
         conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
         atoms.arrays['conn_pairs'] = conn_matrix
     conn_matrix = atoms.arrays['conn_pairs']
-    print('conn_matrix: ', conn_matrix)
     connections = {}
     if conn_matrix.shape[0] == 0: 
         return connections

@@ -44,7 +44,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 
 # Inputs
-input_molecule_list = ['propylene']
+input_molecule_list = ['ethane']
 
 metal = 'Cu'
 surface_facet = '100'
@@ -59,41 +59,67 @@ metal_struct = metal_structure_dict[metal]
 full_facet = f"{metal_struct}({surface_facet})"
 slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
-###############################################
+##############################################
 # Generating the intermediates
-# intermediate_dict, map_dict = gen_inter(input_molecule_list)
-# pp.pprint(intermediate_dict) 
+intermediate_dict, map_dict = gen_inter(input_molecule_list)
+pp.pprint(intermediate_dict) 
 
-# # Saving the map dictionary as a pickle file
-# with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
-#     pickle.dump(map_dict, outfile)
-#     print(
-#         f"The intermediate map dictionary pickle file has been generated")
-# # Saving the intermediate dictionary as a pickle file
-# with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
-#     pickle.dump(intermediate_dict, outfile)
-#     print(
-#         f"The intermediate dictionary pickle file has been generated")
-# ###############################################
-
-# Loading the intermediate dictionary from a pickle file
-with open(f"{res_path}/intermediate_dict.pkl", "rb") as infile:
-    intermediate_dict = pickle.load(infile)
+# Saving the map dictionary as a pickle file
+with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
+    pickle.dump(map_dict, outfile)
     print(
-        f"The intermediate dictionary pickle file has been loaded")
-
-# Loading the map dictionary from a pickle file
-with open(f"{res_path}/map_dict.pkl", "rb") as infile:
-    map_dict = pickle.load(infile)
+        f"The intermediate map dictionary pickle file has been generated")
+# Saving the intermediate dictionary as a pickle file
+with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
+    pickle.dump(intermediate_dict, outfile)
     print(
-        f"The intermediate map dictionary pickle file has been loaded")
+        f"The intermediate dictionary pickle file has been generated")
+###############################################
 
+# # Loading the intermediate dictionary from a pickle file
+# with open(f"{res_path}/intermediate_dict.pkl", "rb") as infile:
+#     intermediate_dict = pickle.load(infile)
+#     print(
+#         f"The intermediate dictionary pickle file has been loaded")
 
+# # Loading the map dictionary from a pickle file
+# with open(f"{res_path}/map_dict.pkl", "rb") as infile:
+#     map_dict = pickle.load(infile)
+#     print(
+#         f"The intermediate map dictionary pickle file has been loaded")
+
+# pp.pprint(intermediate_dict)
 ###############################################
 # Generating the organic network
 rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
+
+# with open(f'{res_path}/ase_inter.txt', 'w') as file:
+#     for inter in rxn_net.intermediates:
+#         file.write(inter + '\n')
+
 print(len(rxn_net.intermediates))
 print(len(rxn_net.t_states))
+quit()
+
+digraph = rxn_net.gen_graph()
+
+# terminal_nodes = []
+# for node in digraph.nodes:
+#     if digraph.out_degree(node) == 3:
+#         terminal_nodes.append(node)
+
+terminal_nodes = ['383101']
+# Retrieve attributes of terminal nodes
+terminal_node_attributes = digraph.nodes.data()
+terminal_node_attributes = {node: attrs for node, attrs in terminal_node_attributes if node in terminal_nodes}
+
+# Print terminal nodes and their attributes
+for node, attributes in terminal_node_attributes.items():
+    print("Terminal Node:", node)
+    print("Attributes:", attributes)
+    # Cheking the adjacent nodes
+    print("Adjacent Nodes:", list(digraph.adj[node]))
+    print('-----------------------------')
 quit()
 
 # Converting the organic network as a dictionary
@@ -129,10 +155,9 @@ opt_graph_edg = opt_graph.add_edge_list(pairs, hashed=True)
 
 ###############################################
 # Generate boxes
-
 def path_finder(input_molecule_list, rxn_net, new_graph, opt_graph, opt_graph_edg):
 
-    CO = rxn_net.search_inter_by_elements({'C': 1, 'O': 2})[0]
+    CO = rxn_net.search_inter_by_elements({'C': 1, 'H': 0 ,'O': 2})[0]
     CO_idx = af.search_species(opt_graph_edg, CO.code)
 
     ts_hasher = {item.code: item for item in rxn_net.t_states}
@@ -280,7 +305,7 @@ empty.graph['graph']={'rankdir':'LR', 'ranksep':'0.30', 'nodesep': '0.1', 'margi
 map_pydot = nx.nx_pydot.to_pydot(empty)
 # map_pydot = nx.nx_agraph.pygraphviz_layout(empty)
 # nx.nx_agraph.view_pygraphviz(empty)
-map_pydot.write_svg(f'{res_path}/plot_ethyleneox.svg')
+map_pydot.write_svg(f'{res_path}/plot_propylene_ase.svg')
 
 
 
