@@ -4,9 +4,7 @@ import pprint as pp
 
 from ase.db import connect
 
-from GAMERNet import DB_PATH, MODEL_PATH
-from GAMERNet.gnn_eads.new_web.web_script import gnn_eads_predict
-from GAMERNet.gnn_eads.src.gnn_eads.nets import PreTrainedModel
+from GAMERNet import DB_PATH
 from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.organic_network import generate_rxn_net
 from GAMERNet.rnet.utilities import paths as pt
