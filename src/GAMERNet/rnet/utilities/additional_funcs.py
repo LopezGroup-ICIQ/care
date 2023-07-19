@@ -388,8 +388,6 @@ def elem_inf(graph: nx.Graph):
         elem_count.append(elem_lst.count(elem))
     return dict(zip(elem_uniq, elem_count))
 
-
-
 def mkm_rxn_file(network, gb_rxn, filename):
     t_state_array=[]
     with open(filename, 'w') as outfile:
@@ -760,14 +758,13 @@ def break_bonds(molecule: Atoms):
              'C-OH': []}
     bond_pack = bond_analysis(molecule)
     new_graph = ase_coord_2_graph(molecule, coords=False)
-    for bond_type in (('O', 'C'), ('C', 'C')):
+    for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C')):
         for pair in bond_pack.bond_search(bond_type):
             tmp_graph = new_graph.copy()
             tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
-            # sub_mols = list(nx.connected_component_subgraphs(tmp_graph))
             sub_mols = [tmp_graph.subgraph(comp).copy() for comp in
                         nx.connected_components(tmp_graph)]
-            if ('O', 'C') == bond_type:
+            if ('O', 'C') == bond_type or ('C', 'O') == bond_type:
                 oh_bond = False
                 for atom in pair.atoms:
                     if atom.symbol == 'O':
@@ -810,9 +807,9 @@ def break_and_connect(network, surface='000000'):
                 in_comp = [[surface, intermediate], []]
                 for ind_graph in graph_numb:
                     for loop_inter in network.intermediates.values():
-                        if len(loop_inter.graph) != len(ind_graph):
+                        if len(loop_inter.graph.to_undirected()) != len(ind_graph):
                             continue
-                        if elem_inf(loop_inter.graph) != elem_inf(ind_graph):
+                        if elem_inf(loop_inter.graph.to_undirected()) != elem_inf(ind_graph):
                             continue
                         if nx.is_isomorphic(loop_inter.graph.to_undirected(), ind_graph,
                                             node_match=cate):
@@ -1298,7 +1295,7 @@ def calc_hydrogens_energy(inter, h_ener, s_ener, min_hydrogens=3, max_hydrogens=
     if 'O' not in inter.molecule.get_chemical_symbols():
         mol_h_numb += 1 * max_oxygens
     else:
-        mol_h_numb += 1 * ( max_oxygens - sum(1 for atom in inter.molecule if atom.symbol == 'O'))
+        mol_h_numb += 1 * (max_oxygens - sum(1 for atom in inter.molecule if atom.symbol == 'O'))
     h_numb = max_hydrogens - mol_h_numb 
     s_numb =  mol_h_numb - min_hydrogens
     return (h_ener * h_numb + s_ener * s_numb)

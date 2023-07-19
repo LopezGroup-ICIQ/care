@@ -93,7 +93,7 @@ def add_O_2_molec(molecule_graph: nx.Graph) -> nx.Graph:
     # Checking if the carbon atoms are connected to a hydrogen atom
     for node, oxy_flg in carbon_nodes:
         if oxy_flg == True:
-            return molec_graph_copy
+            continue
         H_flag = False
         for neighbor in molec_graph_copy.neighbors(node):
             if molec_graph_copy.nodes[neighbor]['elem'] == 'H':
@@ -287,6 +287,12 @@ def add_H_nodes(molecule_nx_graph: nx.Graph, name_molecule: str) -> tuple[nx.Gra
     
     return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule
 
+def find_new_struct(molecule_graph: nx.Graph):
+    molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = None, None, None, None
+    molecular_formula = molecular_formula_from_graph(molecule_graph)
+    molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = compare_strucures_from_pubchem(molecular_formula, molecule_graph)
+    return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule
+
 def id_group_dict(molecules_dict: dict) -> dict:
     """Corrects the labeling for isomeric systems.
 
@@ -399,8 +405,9 @@ def gen_inter(input_molecule_list: list[str]) -> tuple[dict, dict]:
 
         oxy_molec_graph = add_O_2_molec(molecule_nx_graph)
 
-        sat_oxy_res = add_H_nodes(oxy_molec_graph, input_molecule)
-        sat_molecule_nx_graph_oxy = sat_oxy_res[0]
+        # sat_oxy_res = sat_H_graph(oxy_molec_graph)
+        sat_molecule_oxy = sat_H_graph(oxy_molec_graph)[0]
+        sat_molecule_nx_graph_oxy = find_new_struct(sat_molecule_oxy)[0]
 
         # Adding new edge attribute to the graph where the bond type is defined and stored
         for edge in sat_molecule_nx_graph_oxy.edges():
