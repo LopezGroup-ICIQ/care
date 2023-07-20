@@ -1,6 +1,5 @@
 import os
 import pickle
-import pprint as pp
 
 from ase.db import connect
 
@@ -30,9 +29,10 @@ res_path = "results"
 
 os.makedirs(res_path, exist_ok=True)
 
-# Inputs
+# Input of the desired final product
 input_molecule_list = ['propylene']
 
+# Input of the metal surface
 metal = 'Cu'
 surface_facet = '100'
 
@@ -46,8 +46,7 @@ metal_struct = metal_structure_dict[metal]
 full_facet = f"{metal_struct}({surface_facet})"
 slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
-##############################################
-# Generating the intermediates
+# Generating all the possible intermediates
 intermediate_dict, map_dict = gen_inter(input_molecule_list)
 
 # Saving the map dictionary as a pickle file
@@ -60,15 +59,16 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
     pickle.dump(intermediate_dict, outfile)
     print(
         f"The intermediate dictionary pickle file has been generated")
-###############################################
 
-###############################################
-# Generating the organic network
+# Generating the reaction network
 rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
+print('rxn_net: ', len(rxn_net.intermediates), len(rxn_net.t_states))
 
-# Converting the organic network as a dictionary
+# Converting the reaction network as a dictionary
 rxn_net_dict = rxn_net.to_dict()
 
-# Exporting the organic network as a pickle file
+# Exporting the reaction network as a pickle file
 with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
+        print(
+            f"The reaction network pickle file has been generated")
