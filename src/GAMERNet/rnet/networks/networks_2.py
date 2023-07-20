@@ -184,7 +184,7 @@ class TransitionState:
                 if species.is_surface:
                     new_list.insert(0, new_list.pop(index))
                     break
-                tmp_numb = len(species.molecule.atoms)
+                tmp_numb = len(species.molecule)
                 if tmp_numb > max_numb:
                     max_numb = tmp_numb
                     index_numb = index

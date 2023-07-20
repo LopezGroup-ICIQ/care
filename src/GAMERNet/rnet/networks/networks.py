@@ -6,22 +6,33 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from pyRDTP.operations import graph
-from pyRDTP import data
-import pprint as pp
+from ase.atoms import Atoms
+from networkx import Graph
+from GAMERNet.rnet.utilities import functions as fn
+from GAMERNet.rnet.gen_inter_from_prod import ase_coord_2_graph
+from GAMERNet.rnet.utilities import functions as fn
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
 
     Attributes:
         code (str): Code of the intermediate.
-        molecule (obj:`pyRDTP.molecule.Molecule`): Associated molecule.
+        molecule (obj:`ase.atoms.Atoms`): Associated molecule.
         graph (obj:`nx.graph`): Associated molecule graph.
         energy (float): DFT energy of the intermediate.
         entropy (float): Entropy of the intermediate
         formula (str): Formula of the intermediate.
     """
-    def __init__(self, code=None, molecule=None, graph=None, energy=None, entropy=None,
-                 formula=None, electrons=None, is_surface=False, phase=None):
+    def __init__(self, 
+                 code: str=None, 
+                 molecule: Atoms=None, 
+                 graph: Graph=None, 
+                 energy: float=None, 
+                 entropy: float=None,
+                 formula: str=None, 
+                 electrons: int=None,
+                 is_surface: bool=False,
+                 phase: str=None):
         
         self.code = code
         self.molecule = molecule
@@ -50,22 +61,22 @@ class Intermediate:
         raise NotImplementedError
 
     def __repr__(self):
-        string = (self.code + '({})'.format(self.molecule.formula))
+        string = (self.code + '({})'.format(self.molecule.get_chemical_formula()))
         return string
 
-    def draft(self):
-        """Draft of the intermediate generated using the associated graph.
+    # TODO: Use Santi function to generate the code
+    # def draft(self):
+    #     """Draft of the intermediate generated using the associated graph.
 
-        Returns:
-            obj:`matplotlib.pyplot.Figure` with the image of the draft.
-        """
-        color_map = []
-        node_size = []
-        for node in self.graph.nodes():
-            color_map.append(data.colors.rgb_colors[node.element])
-            node_size.append(data.radius.CORDERO[node.element] * 5000)
-        return nx.draw(self.graph, node_color=color_map,
-                       node_size=node_size, width=15)
+    #     Returns:
+    #         obj:`matplotlib.pyplot.Figure` with the image of the draft.
+    #     """
+    #     color_map, node_size = [], []
+    #     for node in self.graph.nodes():
+    #         color_map.append(RGB_COLORS[node.element])
+    #         node_size.append(CORDERO[node.element] * 5000)
+    #     return nx.draw(self.graph, node_color=color_map,
+    #                    node_size=node_size, width=15)
 
     @property
     def bader_energy(self):
@@ -75,11 +86,11 @@ class Intermediate:
         return self.energy - ((self.bader + self.electrons) * (-1.) * self.voltage)
 
     @classmethod
-    def from_molecule(cls, molecule, code=None, energy=None, entropy=None, is_surface=False, phase=None):
+    def from_molecule(cls, ase_atoms_obj, code=None, energy=None, entropy=None, is_surface=False, phase=None):
         """Create an Intermediate using a molecule obj.
 
         Args:
-            molecule (obj:`pyRDTP.molecule.Molecule`): Molecule from which the
+            ase_atoms_obj (obj:`ase.atoms.Atoms`): ase.Atoms object from which the
                 intermediate will be created.
             code (str, optional): Code of the intermediate. Defaults to None.
             energy (float, optional): Energy of the intermediate. Defaults to
@@ -90,15 +101,14 @@ class Intermediate:
         Returns:
             obj:`Intermediate` with the given values.
         """
-        new_mol = molecule.copy()
-        new_mol.connection_clear()
-        new_mol.connectivity_search_voronoi()
-        new_graph = graph.generate(new_mol)
-        new_formula = new_mol.formula
-        new_inter = cls(code=code, molecule=new_mol, graph=new_graph,
+        new_mol = ase_atoms_obj.copy()
+        new_mol.arrays['conn_pairs'] = fn.get_voronoi_neighbourlist(new_mol, 0.25, 1, ['C', 'H', 'O'])
+        new_graph = ase_coord_2_graph(new_mol, coords=False)
+        new_formula = new_mol.get_chemical_formula()
+        return cls(code=code, molecule=new_mol, graph=new_graph,
                         formula=new_formula, energy=energy, entropy=entropy,
                         is_surface=is_surface, phase=phase)
-        return new_inter
+    
 
     @property
     def graph(self):
@@ -116,7 +126,7 @@ class Intermediate:
         Returns:
             obj:`nx.DiGraph` Of the associated molecule.
         """
-        return graph.generate(self.molecule)
+        return fn.digraph(self.molecule, coords=False)
 
 
 class TransitionState:
@@ -129,8 +139,12 @@ class TransitionState:
         energy (float): Energy of the transition state.
         r_type (str): Type of reaction of the transition state.
     """
-    def __init__(self, code=None, components=None, energy=None,
-                 r_type=None, is_electro=False):
+    def __init__(self, 
+                 code: str=None, 
+                 components: list[frozenset]=None, 
+                 energy: float=None,
+                 r_type: str=None, 
+                 is_electro: bool=False):
         self._code = code
         self._components = None
         self.components = components
@@ -144,7 +158,7 @@ class TransitionState:
         for comp in self.components:
             for inter in comp:
                 try:
-                    out_str += inter.molecule.formula + '+'
+                    out_str += inter.molecule.get_chemical_formula() + '+'
                 except:
                     out_str += inter.code + '+'
             out_str = out_str[:-1]
@@ -185,7 +199,7 @@ class TransitionState:
                 if species.is_surface:
                     new_list.insert(0, new_list.pop(index))
                     break
-                tmp_numb = len(species.molecule.atoms)
+                tmp_numb = len(species.molecule)
                 if tmp_numb > max_numb:
                     max_numb = tmp_numb
                     index_numb = index
@@ -211,8 +225,8 @@ class TransitionState:
                 
             if mols[0].is_surface:
                 order.append(mols[::-1])
-            elif not mols[1].is_surface and (mols[0].molecule.atom_numb <
-                                             mols[1].molecule.atom_numb):
+            elif not mols[1].is_surface and (len(mols[0].molecule) <
+                                             len(mols[1].molecule)):
                 order.append(mols[::-1])
             else:
                 order.append(mols)
@@ -327,23 +341,23 @@ class TransitionState:
             end_str += out_str + str(species.code)
         return end_str
 
-    def draft(self):
-        """Draw a draft of the transition state using the drafts of the
-        components.
+    # def draft(self):
+    #     """Draw a draft of the transition state using the drafts of the
+    #     components.
 
-        Returns:
-            obj:`matplotlib.pyplot.Figure` containing the draft.
-        """
-        counter = 1
-        for item in self.components:
-            for component in item:
-                plt.subplot(2, 2, counter)
-                component.draft()
-                counter += 1
-        return plt.show()
+    #     Returns:
+    #         obj:`matplotlib.pyplot.Figure` containing the draft.
+    #     """
+    #     counter = 1
+    #     for item in self.components:
+    #         for component in item:
+    #             plt.subplot(2, 2, counter)
+    #             component.draft()
+    #             counter += 1
+    #     return plt.show()
 
 
-class OrganicNetwork:
+class ReactionNetwork:
     """Implements the organic network.
 
     Attributes:
@@ -354,7 +368,11 @@ class OrganicNetwork:
         surface (obj:`pyRDTP.molecule.Bulk`): Surface of the network.
         graph (obj:`nx.DiGraph`): Graph of the network.
     """
-    def __init__(self, intermediates=None, t_states=None, gasses=None):
+    def __init__(self, 
+                 intermediates: dict[str, Intermediate]=None, 
+                 t_states: list[TransitionState]=None, 
+                 gasses: dict[str, Intermediate]=None):
+        
         if intermediates is None:
             self.intermediates = {}
         else:
@@ -845,32 +863,34 @@ class OrganicNetwork:
         """
         matches = []
         for inter in self.intermediates.values():
-            elem_tmp = inter.molecule.elem_inf()
+            elem_tmp = {'C': sum([1 for elem in inter.molecule if elem.symbol == 'C']),
+                        'H': sum([1 for elem in inter.molecule if elem.symbol == 'H']),
+                        'O': sum([1 for elem in inter.molecule if elem.symbol == 'O'])}
             if elem_tmp == element_dict:
                 matches.append(inter)
         return tuple(matches)
 
-class Reactant:
-    """Reactant class that contains all the species that are not an intermediate
-    but are involved in certain reactions.
+# class Reactant:
+#     """Reactant class that contains all the species that are not an intermediate
+#     but are involved in certain reactions.
 
-    Attributes:
-        nome (str): Name of the reactant.
-        code (str): Code of the reactant, if any.
-        enregy (float): Energy of the reactant, if any.
-    """
-    def __init__(self, name=None, code=None, energy=None):
-        self.name = name
-        self.code = code
-        self.energy = energy
+#     Attributes:
+#         nome (str): Name of the reactant.
+#         code (str): Code of the reactant, if any.
+#         enregy (float): Energy of the reactant, if any.
+#     """
+#     def __init__(self, name=None, code=None, energy=None):
+#         self.name = name
+#         self.code = code
+#         self.energy = energy
 
-    def __str__(self):
-        out_str = 'Reactant: '
-        if self.name is not None:
-            out_str += self.name
-        if self.code is not None:
-            out_str += '({})'.format(self.code)
-        return out_str
+#     def __str__(self):
+#         out_str = 'Reactant: '
+#         if self.name is not None:
+#             out_str += self.name
+#         if self.code is not None:
+#             out_str += '({})'.format(self.code)
+#         return out_str
 
-    def __repr__(self):
-        return '[{}]'.format(str(self))
+#     def __repr__(self):
+#         return '[{}]'.format(str(self))

@@ -1,11 +1,11 @@
+import copy
+from collections import namedtuple
+
 import networkx as nx
 from itertools import combinations
 from ase import Atoms
-from pyRDTP.molecule import Molecule
-from pyRDTP.geomio import MolObj, ASEAtoms
 from pubchempy import get_compounds, Compound
 from GAMERNet.rnet.utilities import functions as fn
-import copy
 
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
@@ -28,8 +28,10 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "Sn": 1.39, "Ti": 1.60, "Wf": 1.62, "U" : 1.96, "V" : 1.53,
            "Xe": 1.40, "Yb": 1.87, "Y" : 1.90, "Zn": 1.22, "Zr": 1.75}
 
-def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph, Molecule]:
-    """Generates the molecular formula, ASE Atoms object, pyRDTP object and NetworkX Graph of a molecule.
+MolPack = namedtuple('MolPack',['code', 'mol','graph', 'subs'])
+
+def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph]:
+    """Generates the molecular formula, ASE Atoms object and NetworkX Graph of a molecule.
 
     Parameters
     ----------
@@ -39,25 +41,17 @@ def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph, Molecule]:
     Returns
     -------
     tuple(str, Atoms, nx.Graph, Molecule)
-        Molecular formula, ASE Atoms object, pyRDTP object and NetworkX Graph of the molecule.
+        Molecular formula, ASE Atoms object and NetworkX Graph of the molecule.
     """
 
     pubchem_molecule = get_compounds(input_molecule, 'name', record_type='3d', listkey_count=1)[0]
-    
     pubchem_atoms = [atom.element for atom in pubchem_molecule.atoms]
     pubchem_coordinates = [(atom.x, atom.y, atom.z) for atom in pubchem_molecule.atoms]
     molecule_ase_obj = Atoms(pubchem_atoms, positions=pubchem_coordinates)
     molecule_nx_graph = ase_coord_2_graph(molecule_ase_obj, coords=True)
-    
-    uni_coords = ASEAtoms(molecule_ase_obj).universal_convert()
-    
-    molecule_pyrdtp_obj = MolObj()
-    molecule_pyrdtp_obj.universal_read(uni_coords)
-    molecule_pyrdtp_obj = molecule_pyrdtp_obj.write()
-    
     molecular_formula = molecular_formula_from_graph(molecule_nx_graph)
 
-    return molecular_formula, molecule_ase_obj, molecule_nx_graph, molecule_pyrdtp_obj
+    return molecular_formula, molecule_ase_obj, molecule_nx_graph
 
 def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: float) -> float:
     """Get the cutoff distance for two atoms to be considered connected using Cordero's atomic radii.
@@ -79,8 +73,7 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
 
     element_i = node_i.symbol
     element_j = node_j.symbol
-    cutoff = (CORDERO[element_i] + CORDERO[element_j]) + tolerance
-    return cutoff
+    return CORDERO[element_i] + CORDERO[element_j] + tolerance
 
 def add_O_2_molec(molecule_graph: nx.Graph) -> nx.Graph:
     molec_graph_copy = copy.deepcopy(molecule_graph)
@@ -195,9 +188,9 @@ def molecular_formula_from_graph(graph: nx.Graph) -> str:
         formula += "O" + (str(num_O) if num_O > 1 else "")
     return str(formula)
 
-def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_graph: nx.Graph) -> tuple[nx.Graph, str, Atoms, Molecule]:
+def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_graph: nx.Graph) -> tuple[nx.Graph, str, Atoms]:
     """Compares the molecular formula and graph of a molecule with the PubChem database to obtain the
-    molecular formula, ASE Atoms object, pyRDTP object and NetworkX Graph of the saturated molecule.
+    molecular formula, ASE Atoms object, and NetworkX Graph of the saturated molecule.
 
     Parameters
     ----------
@@ -208,43 +201,56 @@ def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_gr
 
     Returns
     -------
-    tuple(nx.Graph, str, Atoms, Molecule)
-        Tuple containing the NetworkX Graph, molecular formula, ASE Atoms object, pyRDTP object of the saturated molecule.
+    tuple(nx.Graph, str, Atoms)
+        Tuple containing the NetworkX Graph, molecular formula, ASE Atoms object of the saturated molecule.
     """
     
     pubchem_compounds = get_compounds(molecular_formula, 'formula', record_type='3d', listkey_count=20)
     for compound in pubchem_compounds:
-        compound_pyrdtp_obj = None
         pubchem_cid = compound.cid
         c = Compound.from_cid(pubchem_cid)
         compound_formula = c.molecular_formula
-        # Getthng the name of the compound
         
         compound_atoms = [atom.element for atom in compound.atoms]
         compound_coords = [(atom.x, atom.y, atom.z) for atom in compound.atoms]
 
-        compound_ase_obj = Atoms(compound_atoms, positions=compound_coords)
+        compound_ase_obj = Atoms(compound_atoms, positions=compound_coords, pbc=True)
         compound_graph = ase_coord_2_graph(compound_ase_obj, coords=True)
 
-        uni_coords = ASEAtoms(compound_ase_obj).universal_convert()
-        compound_pyrdtp_obj = MolObj()
-        compound_pyrdtp_obj.universal_read(uni_coords)
-        compound_pyrdtp_obj = compound_pyrdtp_obj.write()
         if nx.is_isomorphic(saturated_molecule_graph, compound_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
             compound_name = c.iupac_name
             if compound_name == 'oxidane':
                 compound_name = 'water'
-            return  compound_graph, compound_formula, compound_ase_obj, compound_pyrdtp_obj, compound_name
+            return  compound_graph, compound_formula, compound_ase_obj, compound_name
 
-def sat_H_graph(molecule_nx_graph):
+def sat_H_graph(molecule_nx_graph: nx.Graph) -> tuple[nx.Graph, bool]:
+    """For the unsaturated molecules, it adds the missing H atoms to the nx.Graphs.
+
+    Parameters
+    ----------
+    molecule_nx_graph : nx.Graph
+        NetworkX Graph representing the molecule.
+
+    Returns
+    -------
+    nx.Graph
+        NetworkX Graph representing the molecule with the added H atoms.
+
+    Examples
+    --------
+    C -> CH4
+    CH -> CH4
+    C2H2 -> C2H6
+    """
+
     n_nodes = molecule_nx_graph.number_of_nodes()
     node_conn = nx.degree(molecule_nx_graph)
     node_attrs = nx.nodes(molecule_nx_graph)
 
-    max_conns = {'C': 4, 'O': 2, 'N': 3, 'P': 5, 'S': 4}
+    max_conns = {'C': 4, 'O': 2}
     copy_graph = molecule_nx_graph.copy()
+    
     unsat_flag = False
-
     for idx_node, conn in node_conn:
         elem_node = dict(node_attrs)[idx_node]['elem']
         for element, max_conn in max_conns.items():
@@ -259,7 +265,8 @@ def sat_H_graph(molecule_nx_graph):
 
     return copy_graph, unsat_flag
 
-def add_H_nodes(molecule_nx_graph: nx.Graph, name_molecule: str) -> nx.Graph:
+# TODO: Redefine this function
+def add_H_nodes(molecule_nx_graph: nx.Graph, name_molecule: str) -> tuple[nx.Graph, str, Atoms, str]:
     """For the unsaturated molecules, it adds the missing H atoms to the nx.Graphs.
     This is done to ensure a label consistency between the saturated and unsaturated molecules.
     Parameters
@@ -272,24 +279,40 @@ def add_H_nodes(molecule_nx_graph: nx.Graph, name_molecule: str) -> nx.Graph:
         NetworkX Graph representing the molecule with the added H atoms.
     """
     copy_graph, unsat_flag = sat_H_graph(molecule_nx_graph)
-    updated_molecular_formula, molecule_nx_graph, updated_ase_obj, updated_pyrdtp_obj = None, None, None, None
+    updated_molecular_formula, molecule_nx_graph, updated_ase_obj = None, None, None, 
 
     if unsat_flag:
         molecular_formula = molecular_formula_from_graph(copy_graph)
-        molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj, name_molecule = compare_strucures_from_pubchem(molecular_formula, copy_graph)
+        molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = compare_strucures_from_pubchem(molecular_formula, copy_graph)
     
-    return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, updated_pyrdtp_obj, name_molecule
+    return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule
+
+def find_new_struct(molecule_graph: nx.Graph):
+    molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = None, None, None, None
+    molecular_formula = molecular_formula_from_graph(molecule_graph)
+    molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = compare_strucures_from_pubchem(molecular_formula, molecule_graph)
+    return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule
 
 def id_group_dict(molecules_dict: dict) -> dict:
     """Corrects the labeling for isomeric systems.
+
     Parameters
     ----------
     molecule_dict : dict
         Dictionary containing the molecular formulas and graph for the all the case study systems.
+    
     Returns
     -------
     dict
         Dictionary containing the isomeric groups.
+    
+    Examples
+    --------
+    1-propanol -> 381101
+    2-propanol -> 381201
+    
+    Note: each label consists of 6 digits. The first three define the number of C, H, and O atoms, respectively.
+    the fourth digit is the isomer tag, and the last two digits are TODO: what are the last two digits?
     """
     molec_dict = {}
     molec_combinations = combinations(molecules_dict.keys(), 2)
@@ -314,7 +337,7 @@ def id_group_dict(molecules_dict: dict) -> dict:
 
     return molec_dict
 
-def update_inter_dict(inter_dict: dict, input_init_dict: dict) -> dict:
+def update_inter_dict(inter_dict: dict[str, dict[int, list]], input_init_dict: dict) -> dict:
     """Updates the intermediate dictionary to include the desired products as another entry in the dictionary.
     Parameters
     ----------
@@ -329,12 +352,12 @@ def update_inter_dict(inter_dict: dict, input_init_dict: dict) -> dict:
     """
 
     copy_dict = copy.deepcopy(inter_dict)
-    unsat_molec = [molecule for molecule, data in input_init_dict.items() if molecule != 'formic acid']
+    unsat_molec = [molecule for molecule in input_init_dict.keys() if molecule != 'formic acid']
 
     another_copy = copy_dict
     for molecule in unsat_molec:
         old_graph = input_init_dict[molecule]['nx.Graph']
-        mol_g, u_mf, u_ase, u_pyr, updated_name  = add_H_nodes(old_graph, molecule)
+        _, _, _, updated_name  = add_H_nodes(old_graph, molecule)
         for molec in inter_dict.keys():
             if molec in updated_name:
                 for sat_H_group in range(len(inter_dict[molec])):
@@ -373,18 +396,18 @@ def gen_inter(input_molecule_list: list[str]) -> tuple[dict, dict]:
     input_dict = {}
     total_graph_list = []
     for input_molecule in product_list:
-        molecular_formula, molecule_ase_obj, molecule_nx_graph, molecule_pyrdtp_obj = generate_vars(input_molecule)
+        molecular_formula, molecule_ase_obj, molecule_nx_graph = generate_vars(input_molecule)
         input_dict[input_molecule] = {
                 'Formula': molecular_formula,
                 'Atoms object': molecule_ase_obj,
-                'pyRDTP object': molecule_pyrdtp_obj,
                 'nx.Graph': molecule_nx_graph,
             }
 
         oxy_molec_graph = add_O_2_molec(molecule_nx_graph)
 
-        sat_oxy_res = add_H_nodes(oxy_molec_graph, input_molecule)
-        sat_molecule_nx_graph_oxy = sat_oxy_res[0]
+        # sat_oxy_res = sat_H_graph(oxy_molec_graph)
+        sat_molecule_oxy = sat_H_graph(oxy_molec_graph)[0]
+        sat_molecule_nx_graph_oxy = find_new_struct(sat_molecule_oxy)[0]
 
         # Adding new edge attribute to the graph where the bond type is defined and stored
         for edge in sat_molecule_nx_graph_oxy.edges():
@@ -442,12 +465,11 @@ def gen_inter(input_molecule_list: list[str]) -> tuple[dict, dict]:
 
     inter_dict = {}
     for graph, formula in graph_formula_tuple:
-        mol_graph, upd_formula, mol_ase_obj, mol_pyrdtp_obj, iupac_name = compare_strucures_from_pubchem(formula, graph)
+        mol_graph, upd_formula, mol_ase_obj, iupac_name = compare_strucures_from_pubchem(formula, graph)
         inter_dict[iupac_name] = {
                 'Name': iupac_name,
                 'Formula': upd_formula,
                 'Atoms object': mol_ase_obj,
-                'pyRDTP object': mol_pyrdtp_obj,
                 'nx.Graph': mol_graph,
             }
         
@@ -459,8 +481,8 @@ def gen_inter(input_molecule_list: list[str]) -> tuple[dict, dict]:
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
-                updated_pyrdtp_obj = inter_dict[molec_grp]['pyRDTP object']
-                intermediate = fn.generate_pack(updated_pyrdtp_obj, updated_pyrdtp_obj.elem_inf()['H'], id_group[name].index(molec_grp) + 1)
+                mol_ase_obj = inter_dict[molec_grp]['Atoms object']
+                intermediate = fn.generate_pack(mol_ase_obj, sum(1 for atom in mol_ase_obj if atom.symbol == 'H'), id_group[name].index(molec_grp) + 1)
                 tmp_inter_dict[molec_grp] = intermediate
 
     updated_inter_dict = update_inter_dict(tmp_inter_dict, input_dict)

@@ -1,1 +1,0 @@
-{'name': 'NVIDIA A100-SXM4-80GB MIG 3g.40gb', 'CudaDNN_enabled': True, 'CUDNN_version': 8200, 'CUDA_version': '11.3', 'training_time': 4.505848129590352}
