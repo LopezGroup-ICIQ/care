@@ -5,12 +5,10 @@ import networkx.algorithms.isomorphism as iso
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from pyRDTP.operations import graph
 from ase.atoms import Atoms
 from networkx import Graph
 from GAMERNet.rnet.utilities import functions as fn
-from GAMERNet.rnet.gen_inter_from_prod import ase_coord_2_graph
-from GAMERNet.rnet.utilities import functions as fn
+from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.

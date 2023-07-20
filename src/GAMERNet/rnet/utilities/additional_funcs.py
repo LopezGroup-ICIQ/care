@@ -7,7 +7,7 @@ from GAMERNet.rnet.networks.networks_2 import TransitionState
 from matplotlib.colors import to_hex
 from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
-from GAMERNet.rnet.gen_inter_from_prod import ase_coord_2_graph
+from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from collections import Counter
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
