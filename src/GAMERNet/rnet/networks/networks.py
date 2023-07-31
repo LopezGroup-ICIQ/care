@@ -23,7 +23,8 @@ class Intermediate:
     """
     def __init__(self, 
                  code: str=None, 
-                 molecule: Atoms=None, 
+                 molecule: Atoms=None,
+                 adsorbate: Atoms=None, 
                  graph: Graph=None, 
                  energy: float=None, 
                  entropy: float=None,
@@ -34,6 +35,7 @@ class Intermediate:
         
         self.code = code
         self.molecule = molecule
+        self.adsorbate = adsorbate
         self._graph = graph
         self.energy = energy
         self.entropy = entropy
@@ -449,6 +451,7 @@ class ReactionNetwork:
             curr_inter = {}
             curr_inter['code'] = intermediate.code
             curr_inter['molecule']=intermediate.molecule
+            curr_inter['adsorbate']=intermediate.adsorbate
             curr_inter['graph']=intermediate.graph
             curr_inter['energy']=intermediate.energy
             curr_inter['entropy']=intermediate.entropy
@@ -466,10 +469,10 @@ class ReactionNetwork:
             for j in ts.components:
                 tupl_comp_list = []
                 for i in j:
-                    
                     curr_ts_i_dict = {}
                     curr_ts_i_dict['code'] = i.code
                     curr_ts_i_dict['molecule']=i.molecule
+                    curr_ts_i_dict['adsorbate']=i.adsorbate
                     curr_ts_i_dict['graph']=i.graph
                     curr_ts_i_dict['energy']=i.energy
                     curr_ts_i_dict['entropy']=i.entropy
@@ -684,19 +687,20 @@ class ReactionNetwork:
         Returns:
             obj:`nx.DiGraph` with all the information of the network.
         """
-        norm_vals = self.get_min_max()
+        # norm_vals = self.get_min_max()
         colormap = cm.inferno_r
-        norm = mpl.colors.Normalize(*norm_vals)
+        # norm = mpl.colors.Normalize(*norm_vals)
         node_inf = {'inter': {'node_lst': [], 'color': [], 'size': []},
                     'ts': {'node_lst': [], 'color': [], 'size': []}}
         edge_cl = []
         for node in self.graph.nodes():
             sel_node = self.graph.nodes[node]
             try:
-                color = colormap(norm(sel_node['energy']))
+                # color = colormap(norm(sel_node['energy']))
                 if sel_node['category'] == 'intermediate':
                     node_inf['inter']['node_lst'].append(node)
-                    node_inf['inter']['color'].append(mpl.colors.to_hex(color))
+                    node_inf['inter']['color'].append('blue')
+                    # node_inf['inter']['color'].append(mpl.colors.to_hex(color))
                     node_inf['inter']['size'].append(20)
                 elif sel_node['category'] == 'ts':
                     if 'electro' in sel_node:
@@ -706,22 +710,24 @@ class ReactionNetwork:
                             node_inf['ts']['size'].append(5)
                     else:
                         node_inf['ts']['node_lst'].append(node)
-                        node_inf['ts']['color'].append(mpl.colors.to_hex(color))
+                        node_inf['ts']['color'].append('green')
+                        # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
                         node_inf['ts']['size'].append(5)
                 elif sel_node['electro']:
                     node_inf['ts']['node_lst'].append(node)
-                    node_inf['ts']['color'].append(mpl.colors.to_hex(color))
+                    node_inf['ts']['color'].append('green')
+                    # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
                     node_inf['ts']['size'].append(10)
             except KeyError:
                 node_inf['ts']['node_lst'].append(node)
                 node_inf['ts']['color'].append('green')
                 node_inf['ts']['size'].append(10)
 
-        for edge in self.graph.edges():
-            sel_edge = self.graph.edges[edge]
-            color = colormap(norm(sel_edge['energy']))
-            color = mpl.colors.to_rgba(color, 0.2)
-            edge_cl.append(color)
+        # for edge in self.graph.edges():
+        #     sel_edge = self.graph.edges[edge]
+            # color = colormap(norm(sel_edge['energy']))
+            # color = mpl.colors.to_rgba(color, 0.2)
+            # edge_cl.append(color)
 
         fig = plt.Figure()
         axes = fig.gca()
@@ -737,13 +743,15 @@ class ReactionNetwork:
                                        nodelist=node_inf['ts']['node_lst'],
                                        node_color=node_inf['ts']['color'],
                                        node_size=node_inf['ts']['size'],)
+                                        
         nx.drawing.draw_networkx_nodes(self.graph, pos=pos, ax=axes,
                                        nodelist=node_inf['inter']['node_lst'],
                                        node_color=node_inf['inter']['color'],
-                                       node_size=node_inf['inter']['size'],
-                                       node_shape='v')
+                                       node_size=node_inf['inter']['size'],)
+                                    #    node_shape='v')
         nx.drawing.draw_networkx_edges(self.graph, pos=pos, ax=axes,
-                                       edge_color=edge_cl, width=0.3,
+                                    #    edge_color=edge_cl, 
+                                       width=0.3,
                                        arrowsize=0.1)
         fig.tight_layout()
 

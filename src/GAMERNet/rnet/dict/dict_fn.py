@@ -60,8 +60,8 @@ def id_group_dict(molecules_dict: dict) -> dict:
         if molecules_dict[molec_1]['Formula'] != molecules_dict[molec_2]['Formula']:
             continue
 
-        graph_1 = molecules_dict[molec_1]['nx.Graph']
-        graph_2 = molecules_dict[molec_2]['nx.Graph']
+        graph_1 = molecules_dict[molec_1]['Graph']
+        graph_2 = molecules_dict[molec_2]['Graph']
 
         if not nx.is_isomorphic(graph_1, graph_2, node_match=lambda x, y: x["elem"] == y["elem"]):
             molec_dict.setdefault(molec_1, []).append(molec_1)

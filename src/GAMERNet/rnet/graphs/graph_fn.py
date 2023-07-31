@@ -2,6 +2,8 @@ from ase import Atoms
 import networkx as nx
 from pubchempy import get_compounds, Compound
 import copy
+from rdkit import Chem
+from multiprocessing import Pool, cpu_count
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
@@ -97,6 +99,31 @@ def ase_coord_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
 
     return nx_graph
 
+def connectivity_analysis(graph: nx.Graph) -> list:
+    """This function will return a list with the number of connections for each atom in the molecule.
+    Parameters
+    ----------
+    graph : nx.Graph
+        Graph representation of the molecule.
+    Returns
+    -------
+    list
+        List with the number of connections for each atom in the molecule.
+    """
+    max_conns = {'C': 4, 'O': 2, 'N': 3, 'P': 5, 'S': 4}
+
+    unsat_elems = [node for node in graph.nodes() if graph.degree(node) < max_conns.get(graph.nodes[node]["elem"], 0)]
+    if not unsat_elems:
+        sat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] != 'H']
+        return list(set(sat_elems))
+    # Specifying the carbon monoxide case
+    elif len(graph.nodes()) == 2 and ((graph.nodes[0]["elem"] == 'C' and graph.nodes[1]["elem"] == 'O') or (graph.nodes[0]["elem"] == 'O' and graph.nodes[1]["elem"] == 'C')):
+        # Extracting only the Carbon atom index
+        unsat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] == 'C']
+        return list(set(unsat_elems))
+    else:
+        return list(set(unsat_elems))
+
 def add_O_2_molec(molecule_graph: nx.Graph) -> nx.Graph:
     molec_graph_copy = copy.deepcopy(molecule_graph)
     molec_graph_copy.neighbors(0)
@@ -180,8 +207,8 @@ def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_gr
     tuple(nx.Graph, str, Atoms)
         Tuple containing the NetworkX Graph, molecular formula, ASE Atoms object of the saturated molecule.
     """
-    
-    pubchem_compounds = get_compounds(molecular_formula, 'formula', record_type='3d', listkey_count=20)
+
+    pubchem_compounds = get_compounds(molecular_formula, 'formula', record_type='3d')
     for compound in pubchem_compounds:
         pubchem_cid = compound.cid
         c = Compound.from_cid(pubchem_cid)
@@ -193,7 +220,7 @@ def compare_strucures_from_pubchem(molecular_formula: str, saturated_molecule_gr
         compound_ase_obj = Atoms(compound_atoms, positions=compound_coords, pbc=True)
         compound_graph = ase_coord_2_graph(compound_ase_obj, coords=True)
 
-        if nx.is_isomorphic(saturated_molecule_graph, compound_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
+        if nx.is_isomorphic(saturated_molecule_graph, compound_graph):
             compound_name = c.iupac_name
             if compound_name == 'oxidane':
                 compound_name = 'water'
@@ -267,6 +294,7 @@ def add_H_nodes(molecule_nx_graph: nx.Graph, name_molecule: str) -> tuple[nx.Gra
 
 def find_new_struct(molecule_graph: nx.Graph):
     molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = None, None, None, None
+
     molecular_formula = molecular_formula_from_graph(molecule_graph)
     molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule = compare_strucures_from_pubchem(molecular_formula, molecule_graph)
     return molecule_nx_graph, updated_molecular_formula, updated_ase_obj, name_molecule

@@ -8,6 +8,23 @@ from ase import Atoms
 def generate_rxn_net(slab_ase_obj: Atoms, 
                      intermediate_dict: dict[int, list], 
                      map_dict: dict[int, nx.DiGraph]) -> ReactionNetwork:
+    """
+    Generates the entire reaction network from the intermediate dictionary and the map dictionary.
+
+    Parameters
+    ----------
+    slab_ase_obj : Atoms
+        ASE object of the metal surface.
+    intermediate_dict : dict[int, list]
+        Dictionary of the intermediates.
+    map_dict : dict[int, nx.DiGraph]
+        Dictionary of the reaction networks.
+
+    Returns
+    -------
+    ReactionNetwork
+        Reaction network.
+    """
     
     hydrogen_atom_ase = Atoms('H', positions=[[0, 0, 0]])
 

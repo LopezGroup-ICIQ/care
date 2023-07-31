@@ -1,11 +1,15 @@
 import os
 import pickle
+import pprint as pp
+import time
 
 from ase.db import connect
+from ase.visualize import view
 
 from GAMERNet import DB_PATH
 from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
+from GAMERNet.rnet.networks.networks import ReactionNetwork
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -28,9 +32,9 @@ metal_structure_dict = {
 res_path = "results"
 
 os.makedirs(res_path, exist_ok=True)
-
+time0 = time.time()
 # Input of the desired final product
-input_molecule_list = ['propylene']
+input_molecule_list = ['methane']
 
 # Input of the metal surface
 metal = 'Cu'
@@ -59,10 +63,8 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
     pickle.dump(intermediate_dict, outfile)
     print(
         f"The intermediate dictionary pickle file has been generated")
-
 # Generating the reaction network
 rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
-print('rxn_net: ', len(rxn_net.intermediates), len(rxn_net.t_states))
 
 # Converting the reaction network as a dictionary
 rxn_net_dict = rxn_net.to_dict()
@@ -72,3 +74,15 @@ with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(
             f"The reaction network pickle file has been generated")
+
+
+list_ase_inter = list(rxn_net.intermediates.values())
+print('list_ase_inter: ', list_ase_inter)
+
+# # Loading the reaction network from a pickle file
+# with open("results/rxn_net.pkl", "rb") as infile:
+#     rxn_net_dict = pickle.load(infile)
+
+# # Converting the reaction network dictionary to a reaction network object
+
+# rxn_net = ReactionNetwork.from_dict(rxn_net_dict)
