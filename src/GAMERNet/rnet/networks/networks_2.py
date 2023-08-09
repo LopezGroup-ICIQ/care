@@ -5,8 +5,8 @@ import networkx.algorithms.isomorphism as iso
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from pyRDTP.operations import graph
-from pyRDTP import data
+# from pyRDTP.operations import graph
+# from pyRDTP import data
 
 
 class Intermediate:

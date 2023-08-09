@@ -5,11 +5,13 @@ import time
 
 from ase.db import connect
 from ase.visualize import view
+from torch import load
 
-from GAMERNet import DB_PATH
+from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.rnet.networks.networks import ReactionNetwork
+from GAMERNet.gnn_eads.nets import UQTestNet
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -44,6 +46,29 @@ surface_facet = '100'
 metal_surf_db_file = DB_PATH
 metal_db_path = os.path.abspath(metal_surf_db_file)
 
+# Load GAME-Net UQ 
+one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
+node_features_list = one_hot_encoder_elements.categories_[0].tolist()
+model_elements = one_hot_encoder_elements.categories_[0].tolist()
+node_features_list.append("Valence")
+node_features_list.append("Gcn")
+node_features_list.append("Magnetization")
+model = UQTestNet(features_list=node_features_list, 
+                  scaling_params={"scaling":"std", "mean": -52.052330, "std": 29.274139},
+                  dim=176, 
+                  N_linear=0, 
+                  N_conv=3, 
+                  bias=False, 
+                  pool_heads=1)
+model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
+
+
+
+# load dict from input.txt
+with open(MODEL_PATH+'/input.txt', 'r') as f:
+        configuration_dict = eval(f.read())
+graph_params = configuration_dict["graph"]
+
 surf_db = connect(metal_db_path)
 
 metal_struct = metal_structure_dict[metal]
@@ -76,6 +101,7 @@ with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(
             f"The reaction network pickle file has been generated")
+
 
 # list_ase_inter = list(rxn_net.intermediates.values())
 # print('list_ase_inter: ', list_ase_inter)

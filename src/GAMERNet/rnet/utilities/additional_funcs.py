@@ -3,7 +3,7 @@ import pickle
 import networkx as nx
 import numpy as np
 import networkx.algorithms.isomorphism as iso
-from GAMERNet.rnet.networks.networks_2 import TransitionState
+from GAMERNet.rnet.networks.networks import TransitionState
 from matplotlib.colors import to_hex
 from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
