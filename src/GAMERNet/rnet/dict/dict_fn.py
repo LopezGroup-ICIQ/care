@@ -2,7 +2,7 @@ import copy
 from itertools import combinations
 from ase import Atoms
 import networkx as nx
-from pubchempy import get_compounds
+from pubchempy import get_compounds, Compound
 from collections import namedtuple
 from GAMERNet.rnet.graphs import graph_fn as gfn
 
@@ -22,14 +22,15 @@ def generate_vars(input_molecule: str) -> tuple[str, Atoms, nx.Graph]:
         Molecular formula, ASE Atoms object and NetworkX Graph of the molecule.
     """
 
-    pubchem_molecule = get_compounds(input_molecule, 'name', record_type='3d', listkey_count=1)[0]
+    pubchem_molecule = get_compounds(input_molecule, 'name', record_type='3d')[0]
+    pubchem_smiles = Compound.from_cid(pubchem_molecule.cid).canonical_smiles
     pubchem_atoms = [atom.element for atom in pubchem_molecule.atoms]
     pubchem_coordinates = [(atom.x, atom.y, atom.z) for atom in pubchem_molecule.atoms]
     molecule_ase_obj = Atoms(pubchem_atoms, positions=pubchem_coordinates)
     molecule_nx_graph = gfn.ase_coord_2_graph(molecule_ase_obj, coords=True)
     molecular_formula = gfn.molecular_formula_from_graph(molecule_nx_graph)
 
-    return molecular_formula, molecule_ase_obj, molecule_nx_graph
+    return molecular_formula, pubchem_smiles, molecule_ase_obj, molecule_nx_graph
 
 def id_group_dict(molecules_dict: dict) -> dict:
     """Corrects the labeling for isomeric systems.

@@ -34,7 +34,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 time0 = time.time()
 # Input of the desired final product
-input_molecule_list = ['methane']
+backbone_carbon_class = 'propane'
 
 # Input of the metal surface
 metal = 'Cu'
@@ -51,8 +51,9 @@ full_facet = f"{metal_struct}({surface_facet})"
 slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
 # Generating all the possible intermediates
-intermediate_dict, map_dict = gen_inter(input_molecule_list)
-
+print('Generating intermediates...')
+intermediate_dict, map_dict = gen_inter(backbone_carbon_class)
+print('Time to generate intermediates: ', time.time() - time0)
 # Saving the map dictionary as a pickle file
 with open(f"{res_path}/map_dict.pkl", "wb") as outfile:
     pickle.dump(map_dict, outfile)
@@ -64,8 +65,9 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
     print(
         f"The intermediate dictionary pickle file has been generated")
 # Generating the reaction network
+print('Generating reaction network...')
 rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
-
+print('The reaction network has been generated')
 # Converting the reaction network as a dictionary
 rxn_net_dict = rxn_net.to_dict()
 
@@ -75,9 +77,8 @@ with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
         print(
             f"The reaction network pickle file has been generated")
 
-
-list_ase_inter = list(rxn_net.intermediates.values())
-print('list_ase_inter: ', list_ase_inter)
+# list_ase_inter = list(rxn_net.intermediates.values())
+# print('list_ase_inter: ', list_ase_inter)
 
 # # Loading the reaction network from a pickle file
 # with open("results/rxn_net.pkl", "rb") as infile:
