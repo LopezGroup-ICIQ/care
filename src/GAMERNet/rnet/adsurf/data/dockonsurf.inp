@@ -1,0 +1,27 @@
+# Sample of DockOnSurf input file. The file format must be an INI file. 
+# Input format on https://dockonsurf.readthedocs.io/en/latest/inp_ref_manual.html
+
+[Global]                                # mandatory
+project_name = ethylene 
+run_type = Screening                      # mandatory
+code = VASP                             # mandatory
+batch_q_sys = False                       # mandatory
+max_jobs = False
+subm_script = run.sh
+pbc_cell = False
+special_atoms = False
+potcar_dir = False
+
+[Screening]                             # mandatory if screening
+screen_inp_file = Cu/INCAR Cu/KPOINTS     # mandatory if screening
+surf_file = Cu/POSCAR       # mandatory if screening
+use_molec_file = Cu/POSCAR_ethylene
+select_magns = energy MOI
+sites = 61                # mandatory if screening
+surf_norm_vect = z
+set_angles = Euler
+molec_ctrs = 0              # mandatory if screening
+min_coll_height = 1.5
+collision_threshold = 1.2
+max_structures = 500
+adsorption_height=1.7

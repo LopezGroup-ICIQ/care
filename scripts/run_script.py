@@ -10,7 +10,7 @@ from torch import load
 from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
-from GAMERNet.rnet.networks.networks import ReactionNetwork
+from GAMERNet.rnet.dock_ads_surf.gen_ads_surf import run_docksurf
 from GAMERNet.gnn_eads.nets import UQTestNet
 
 metal_structure_dict = {
@@ -36,7 +36,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 time0 = time.time()
 # Input of the desired final product
-backbone_carbon_class = 'propane'
+backbone_carbon_class = 'methane'
 
 # Input of the metal surface
 metal = 'Cu'
@@ -45,6 +45,11 @@ surface_facet = '100'
 # Loading metal surface from ASE database
 metal_surf_db_file = DB_PATH
 metal_db_path = os.path.abspath(metal_surf_db_file)
+surf_db = connect(metal_db_path)
+
+metal_struct = metal_structure_dict[metal]
+full_facet = f"{metal_struct}({surface_facet})"
+slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
 # Load GAME-Net UQ 
 one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
@@ -62,18 +67,10 @@ model = UQTestNet(features_list=node_features_list,
                   pool_heads=1)
 model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
 
-
-
 # load dict from input.txt
 with open(MODEL_PATH+'/input.txt', 'r') as f:
         configuration_dict = eval(f.read())
 graph_params = configuration_dict["graph"]
-
-surf_db = connect(metal_db_path)
-
-metal_struct = metal_structure_dict[metal]
-full_facet = f"{metal_struct}({surface_facet})"
-slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
 
 # Generating all the possible intermediates
 print('Generating intermediates...')
@@ -103,8 +100,16 @@ with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
             f"The reaction network pickle file has been generated")
 
 
-# list_ase_inter = list(rxn_net.intermediates.values())
-# print('list_ase_inter: ', list_ase_inter)
+list_ase_inter = list(rxn_net.intermediates.values())
+print('list_ase_inter: ', list_ase_inter)
+
+for intermediate in rxn_net.intermediates.values():
+    print('\nIntermediate code: ', intermediate.code)
+    print('Intermediate molecule: ', intermediate.molecule)
+    # If the molecule has only one atom, pass (need to see how to overcome this)
+    if len(intermediate.molecule) == 1:
+        continue
+    run_docksurf(intermediate.code, intermediate.molecule, slab_ase_obj, surface_facet)
 
 # # Loading the reaction network from a pickle file
 # with open("results/rxn_net.pkl", "rb") as infile:

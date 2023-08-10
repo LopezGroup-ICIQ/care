@@ -1,0 +1,16 @@
+name: care
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - pytorch
+  - pyg
+  - ase
+  - pymatgen
+  - rdkit
+  - pubchempy
+  - scikit-learn=1.2.2
