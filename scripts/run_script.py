@@ -71,6 +71,7 @@ model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
 with open(MODEL_PATH+'/input.txt', 'r') as f:
         configuration_dict = eval(f.read())
 graph_params = configuration_dict["graph"]
+graph_params['structure']['scaling_factor'] = 1.6
 
 # Generating all the possible intermediates
 print('Generating intermediates...')
@@ -87,7 +88,7 @@ with open(f"{res_path}/intermediate_dict.pkl", "wb") as outfile:
     print(
         f"The intermediate dictionary pickle file has been generated")
 # Generating the reaction network
-print('Generating reaction network...')
+print('\nGenerating reaction network...')
 rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
 print('The reaction network has been generated')
 # Converting the reaction network as a dictionary
@@ -101,15 +102,16 @@ with open(f"{res_path}/rxn_net.pkl", "wb") as outfile:
 
 
 list_ase_inter = list(rxn_net.intermediates.values())
-print('list_ase_inter: ', list_ase_inter)
+print('\nlist_ase_inter: ', list_ase_inter)
 
 for intermediate in rxn_net.intermediates.values():
     print('\nIntermediate code: ', intermediate.code)
     print('Intermediate molecule: ', intermediate.molecule)
     # If the molecule has only one atom, pass (need to see how to overcome this)
-    if len(intermediate.molecule) == 1:
+    if len(intermediate.molecule) == 1 or intermediate.code == '000000':
         continue
-    run_docksurf(intermediate.code, intermediate.molecule, slab_ase_obj, surface_facet)
+    best_eads = run_docksurf(intermediate, slab_ase_obj, surface_facet, model, graph_params, model_elements)
+    print('best_eads: ', best_eads)
 
 # # Loading the reaction network from a pickle file
 # with open("results/rxn_net.pkl", "rb") as infile:

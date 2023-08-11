@@ -220,20 +220,20 @@ def check_inp_files(inp_files, code: str, potcar_dir=None):
     @return: None
     """
 
-    if code == 'cp2k':
-        from pycp2k import CP2K
-        if not isinstance(inp_files, str):
-            err_msg = "When using CP2K, only one input file is allowed"
-            logger.error(err_msg)
-            ValueError(err_msg)
-        elif not os.path.isfile(inp_files):
-            err_msg = f"Input file {inp_files} was not found."
-            logger.error(err_msg)
-            raise FileNotFoundError(err_msg)
-        cp2k = CP2K()
-        try_command(cp2k.parse,
-                    [(UnboundLocalError, "Invalid CP2K input file")], inp_files)
-    elif code == "vasp":
+    # if code == 'cp2k':
+    #     from pycp2k import CP2K
+    #     if not isinstance(inp_files, str):
+    #         err_msg = "When using CP2K, only one input file is allowed"
+    #         logger.error(err_msg)
+    #         ValueError(err_msg)
+    #     elif not os.path.isfile(inp_files):
+    #         err_msg = f"Input file {inp_files} was not found."
+    #         logger.error(err_msg)
+    #         raise FileNotFoundError(err_msg)
+    #     cp2k = CP2K()
+    #     try_command(cp2k.parse,
+    #                 [(UnboundLocalError, "Invalid CP2K input file")], inp_files)
+    if code == "vasp":
         if not potcar_dir:
             mand_files = ["INCAR", "KPOINTS"]
         else:
@@ -284,9 +284,9 @@ def check_inp_files(inp_files, code: str, potcar_dir=None):
                 except IndexError:
                     #logger.error(err_msg)
                     err = IndexError(err_msg)
-                else:
-                    if file_name == "INCAR":
-                        Incar.from_file(inp_file).check_params()
+                # else:
+                #     if file_name == "INCAR":
+                #         Incar.from_file(inp_file).check_params()
                 finally:
                     if isinstance(err, BaseException):
                         raise err

@@ -17,9 +17,9 @@ import networkx as nx
 import pandas as pd
 # from ase.data import covalent_radii as CR
 
-from gnn_eads.graph_filters import adsorption_filter, H_connectivity_filter, C_connectivity_filter, single_fragment_filter
-from gnn_eads.graph_tools import extract_adsorbate
-from gnn_eads.functions import atoms_to_pyggraph, get_voronoi_neighbourlist
+from GAMERNet.gnn_eads.graph_filters import adsorption_filter, H_connectivity_filter, C_connectivity_filter, single_fragment_filter
+from GAMERNet.gnn_eads.graph_tools import extract_adsorbate
+from GAMERNet.gnn_eads.functions import atoms_to_pyggraph, get_voronoi_neighbourlist
 
 
 def pyg_dataset_id(ase_database_path: str, 

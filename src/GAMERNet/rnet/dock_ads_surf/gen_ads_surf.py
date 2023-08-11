@@ -1,22 +1,44 @@
 import os
 import ase
 import time
+import numpy as np
+import multiprocessing
+from multiprocessing import Process, Pipe
+import resource
+from torch_geometric.loader import DataLoader
+from torch.nn import Module
 from numpy import sqrt, max, arange
 from numpy.linalg import norm
 from ase import io, Atoms
+from ase.constraints import FixAtoms
 from pymatgen.core.periodic_table import Element
-from pymatgen.core.structure import Structure
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from pymatgen.io.ase import AseAtomsAdaptor
+from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from GAMERNet.rnet.adsurf.functions.act_sites import get_act_sites
 from GAMERNet.rnet.adsurf.functions.adsurf_fn import connectivity_analysis
 from GAMERNet.rnet.adsurf.graphs.graph_utilities import ase_2_graph
+from GAMERNet.gnn_eads.create_pyg_dataset import atoms_to_data
 import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
 
 from GAMERNet import DOCK_DATA
 
-    
+def process_chunk(args):
+    chunk, graph_params, model_elems, calc_type = args
+    return [atoms_to_data(structure, graph_params, model_elems, calc_type) for structure in chunk]
+
+def atoms_to_data_parallel(atoms_list, graph_params, model_elems, calc_type='adsorption'):
+    # Split atoms_list into chunks
+    num_cores = multiprocessing.cpu_count()
+    chunks = [(atoms_list[i::num_cores], graph_params, model_elems, calc_type) for i in range(num_cores)]
+
+    # Use multiprocessing.Pool to parallelize the conversion
+    with multiprocessing.Pool(num_cores) as pool:
+        results = pool.map(process_chunk, chunks)
+
+    # Flatten the list of results and return
+    return [data for sublist in results for data in sublist]
+
 def gen_docksurf_file(tmp_subdir: str, molecule_id: str, mol_obj: ase.Atoms, conn_idxs: list, slab_poscar_file: str, metal_lattice: list, activ_site: str, active_idxs: list, ads_height:float) -> None:
     """This function will generate the dockonsurf input file for the adsorbate-slab of interest.
     Parameters
@@ -150,7 +172,39 @@ def get_act_sites(slab_ase_obj: str, surface_facet: str) -> dict:
         surface.remove_sites([dummy_idx])
     return active_site_dict
 
-def run_docksurf(intermediate_code: str, molec_ase_obj: Atoms, slab_ase_obj: Atoms, surface_facet:str):
+def get_fragment_energy(structure: Atoms) -> float:
+    """Calculate fragment energy from reference closed-shell molecules.
+    This function allows to calculate the energy of both open- and closed-shell structures, 
+    keeping the same reference.
+    Args:
+        structure (Atoms): Atoms object of the adsorption structure
+    Returns:
+        e_fragment (float): reference gas-phase energy in eV
+    """ 
+    elements = structure.get_chemical_symbols()
+    ed = {"C": 0, "H": 0, "O": 0, "N": 0, "S": 0}  # adsorbate elements
+    for element in elements:
+        if element in ed:
+            ed[element] += 1
+        else:
+            ed[element] = 1
+    # Reference DFT energy for C, H, O, N, S
+    e_H2O = -14.21877278  # O
+    e_H2 = -6.76639487    # H
+    e_NH3 = -19.54236910  # N
+    e_H2S = -11.20113092  # S
+    e_CO2 = -22.96215586  # C
+    # Count elemens in the structure
+    n_C = ed["C"]
+    n_H = ed["H"]
+    n_O = ed["O"]
+    n_N = ed["N"]
+    n_S = ed["S"]
+    return n_C * e_CO2 + (n_O - 2*n_C) * e_H2O + (4*n_C + n_H - 2*n_O - 3*n_N - 2*n_S) * e_H2 * 0.5 + (n_N * e_NH3) + (n_S * e_H2S)
+
+def run_docksurf(intermediate, slab_ase_obj: Atoms, surface_facet:str, model: Module, graph_params:dict, model_elems:list):
+    molec_ase_obj = intermediate.molecule
+    intermediate_code = intermediate.code
     res_folder = 'results/dockonsurf_screening'
     os.makedirs(res_folder, exist_ok=True)
 
@@ -194,9 +248,21 @@ def run_docksurf(intermediate_code: str, molec_ase_obj: Atoms, slab_ase_obj: Ato
     # Generate input files for DockonSurf
     slab_active_sites = get_act_sites(slab_ase_obj, surface_facet)
     slab_lattice = slab_ase_obj.get_cell().lengths()
-    total_config_list = []
+    if len(molec_ase_obj) <= 6:
+        min_height = 1.7
+        max_height = 1.8
+        increment = 0.1
+    elif 6 < len(molec_ase_obj) <= 8:
+        min_height = 1.8
+        max_height = 2.0
+        increment = 0.1
+    else:
+        min_height = 2.4
+        max_height = 3.2
+        increment = 0.2
     t00 = time.time()
-    for ads_height in arange(2.0, 3.0, 0.15):
+    total_config_list = []
+    for ads_height in arange(min_height, max_height, increment):
         ads_height = '{:.2f}'.format(ads_height)
         for active_site, site_idxs in slab_active_sites.items():
             if site_idxs != []:
@@ -222,7 +288,47 @@ def run_docksurf(intermediate_code: str, molec_ase_obj: Atoms, slab_ase_obj: Ato
 
     print('DockonSurf run time: {:.2f} s'.format(time.time()-t00))
     print('Number of detected adsorption configurations: ', len(total_config_list))  
-    return
+    t_000 = time.time()
+    # Removing the metal atoms with selective dynamics == False
+    fixed_atms_idxs = slab_ase_obj.todict().get('constraints', None)[0].get_indices()
+    fixed_atms = slab_ase_obj[np.isin(range(len(slab_ase_obj)), fixed_atms_idxs)]
+    for idx, atoms_obj in enumerate(total_config_list):
+        # Removing the atoms which indices are in fixed_atms
+        atoms_obj = atoms_obj[~np.isin(range(len(atoms_obj)), fixed_atms_idxs)]
+        total_config_list[idx] = atoms_obj
+
+
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096*2, rlimit[1]))
+    
+    ads_graph_list = atoms_to_data_parallel(total_config_list, graph_params, model_elems)
+
+    # Setting back the default limit
+    resource.setrlimit(resource.RLIMIT_NOFILE, rlimit)
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    loader = DataLoader(ads_graph_list, batch_size=len(ads_graph_list), shuffle=False)
+    print('ads_graph_list: ', ads_graph_list[0])
+    print('Time to convert adsorption configurations to graphs: {:.2f} s'.format(time.time()-t_000))
+    t_00 = time.time()
+    for batch in loader:
+        energy_list = model(batch)  # unitless (scaled values)
+        mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
+        std_tensor = energy_list.scale * model.scaling_params['std'] # eV
+    print('Time to evaluate adsorption configurations: {:.2f} s'.format(time.time()-t_00))
+    best_poscar = total_config_list[mean_tensor.argmin().item()]
+    best_poscar.extend(fixed_atms)
+    last_idxs_best_poscar = len(best_poscar) - len(fixed_atms)
+    
+    last_idxs_list = list(range(last_idxs_best_poscar, len(best_poscar)))
+    fixed_atms_constr = FixAtoms(indices=last_idxs_list)
+    best_poscar.set_constraint(fixed_atms_constr)
+
+    best_ensemble = mean_tensor.min().item()
+    fragment_energy = get_fragment_energy(best_poscar)
+    best_eads = best_ensemble - fragment_energy
+    intermediate.energy = best_eads
+    return best_eads
 
 
 
