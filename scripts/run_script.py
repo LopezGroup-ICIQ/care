@@ -1,10 +1,8 @@
 import os
 import pickle
-import pprint as pp
 import time
 
 from ase.db import connect
-from ase.visualize import view
 from torch import load
 
 from GAMERNet import DB_PATH, MODEL_PATH
@@ -36,7 +34,7 @@ res_path = "results"
 os.makedirs(res_path, exist_ok=True)
 time0 = time.time()
 # Input of the desired final product
-backbone_carbon_class = 'methane'
+backbone_carbon_class = 'isobutane'
 
 # Input of the metal surface
 metal = 'Cu'

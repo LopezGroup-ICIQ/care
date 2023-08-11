@@ -26,7 +26,8 @@ class Intermediate:
                  molecule: Atoms=None,
                  adsorbate: Atoms=None, 
                  graph: Graph=None, 
-                 energy: float=None, 
+                 energy: float=None,
+                 std_energy: float=None, 
                  entropy: float=None,
                  formula: str=None, 
                  electrons: int=None,
@@ -38,6 +39,7 @@ class Intermediate:
         self.adsorbate = adsorbate
         self._graph = graph
         self.energy = energy
+        self.std_energy = std_energy
         self.entropy = entropy
         self.formula = formula
         self.electrons = electrons
@@ -86,7 +88,7 @@ class Intermediate:
         return self.energy - ((self.bader + self.electrons) * (-1.) * self.voltage)
 
     @classmethod
-    def from_molecule(cls, ase_atoms_obj, code=None, energy=None, entropy=None, is_surface=False, phase=None):
+    def from_molecule(cls, ase_atoms_obj, code=None, energy=None, std_energy=None,entropy=None, is_surface=False, phase=None):
         """Create an Intermediate using a molecule obj.
 
         Args:
@@ -106,7 +108,7 @@ class Intermediate:
         new_graph = ase_coord_2_graph(new_mol, coords=False)
         new_formula = new_mol.get_chemical_formula()
         return cls(code=code, molecule=new_mol, graph=new_graph,
-                        formula=new_formula, energy=energy, entropy=entropy,
+                        formula=new_formula, energy=energy, std_energy = std_energy, entropy=entropy,
                         is_surface=is_surface, phase=phase)
     
 
@@ -454,6 +456,7 @@ class ReactionNetwork:
             curr_inter['adsorbate']=intermediate.adsorbate
             curr_inter['graph']=intermediate.graph
             curr_inter['energy']=intermediate.energy
+            curr_inter['std_energy']=intermediate.std_energy
             curr_inter['entropy']=intermediate.entropy
             curr_inter['formula']=intermediate.formula
             curr_inter['electrons']=intermediate.electrons

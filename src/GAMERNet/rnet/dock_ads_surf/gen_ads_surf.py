@@ -3,7 +3,6 @@ import ase
 import time
 import numpy as np
 import multiprocessing
-from multiprocessing import Process, Pipe
 import resource
 from torch_geometric.loader import DataLoader
 from torch.nn import Module
