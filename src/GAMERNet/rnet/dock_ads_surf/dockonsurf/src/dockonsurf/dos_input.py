@@ -99,7 +99,7 @@ import logging
 from configparser import ConfigParser, NoSectionError, NoOptionError, \
     MissingSectionHeaderError, DuplicateOptionError
 import numpy as np
-from src.dockonsurf.utilities import try_command
+from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
 
 logger = logging.getLogger('DockOnSurf')
 
