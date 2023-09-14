@@ -9,6 +9,57 @@ from ase.atoms import Atoms
 from networkx import Graph
 from GAMERNet.rnet.utilities import functions as fn
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
+from rdkit import Chem
+from rdkit.Chem import rdDetermineBonds
+from ase.io import write
+import re
+
+from os.path import abspath
+
+def ase_to_rdkit(ase_atoms_obj):
+    """
+    Convert an ASE Atoms object to an RDKit Molecule object.
+    """
+    symbols = ase_atoms_obj.get_chemical_symbols()
+    coords = ase_atoms_obj.get_positions()
+    # if some of coords are very close to 0, set them to zero (as RDKit cannot convert very small number as 1.0e-8)
+    for i in range(len(coords)):
+        for j in range(len(coords[i])):
+            if abs(coords[i][j]) < 1.0e-6:
+                coords[i][j] = 0.0
+    xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
+    xyz = "{}\n\n{}".format(len(ase_atoms_obj), xyz)
+    rdkit_mol = Chem.MolFromXYZBlock(xyz)
+    conn_mol = Chem.Mol(rdkit_mol)
+    rdDetermineBonds.DetermineConnectivity(conn_mol)
+    Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
+    return conn_mol
+
+def is_closed_shell(molecule: Atoms):
+    """
+    Check if a molecule is closed-shell or not.
+    """
+    #TODO: Improve function as it is not working properly
+    conn_mol = ase_to_rdkit(molecule)
+    # unpaired_electrons = 0
+    # for atom in conn_mol.GetAtoms():
+    #     unpaired_electrons += atom.GetNumRadicalElectrons()
+        
+    # if unpaired_electrons == 0:
+    #     return True
+    # else:
+    #     return False
+    num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
+    is_open_shell = num_electrons % 2 == 1
+    return not is_open_shell
+
+def get_smiles(molecule: Atoms):
+    """
+    Get the SMILES string of a molecule.
+    """
+    conn_mol = ase_to_rdkit(molecule)
+    smiles = Chem.MolToSmiles(conn_mol)
+    return smiles
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
@@ -46,9 +97,16 @@ class Intermediate:
         self.is_surface = is_surface
         self.bader = None
         self.voltage = None
+        self.smiles = get_smiles(molecule)
+        
         if self.is_surface:
             self.phase = 'surface'
+            self.closed_shell = None
         else:
+            try:
+                self.closed_shell = is_closed_shell(molecule)
+            except:
+                self.closed_shell = None
             self.phase = phase
         self.t_states = [{}, {}]
 
@@ -132,13 +190,13 @@ class Intermediate:
 
 
 class TransitionState:
-    """Definition of the transition state.
+    """Transition state class.
 
     Attributes:
         code (str): Code associated with the transition state.
         components (list of frozensets): List containing the frozensets.
             with the components of the reaction.
-        energy (float): Energy of the transition state.
+        energy (float): DFT Energy of the transition state.
         r_type (str): Type of reaction of the transition state.
     """
     def __init__(self, 
@@ -235,6 +293,9 @@ class TransitionState:
         return order
 
     def full_label(self):
+        """
+        xxx
+        """
         order = self.full_order()
         full_label = ''
         for item in order:
@@ -390,6 +451,10 @@ class ReactionNetwork:
         self.excluded = None
         self._graph = None
         self._surface = None
+        self.num_intermediates = len(self.intermediates)
+        self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell]
+        self.num_closed_shell_mols = len(self.closed_shells)
+        self.num_reactions = len(self.t_states)
 
     def __getitem__(self, other):
         if other in self.intermediates:
@@ -398,9 +463,18 @@ class ReactionNetwork:
         if out_value:
             return out_value
         raise KeyError
+    
+    def __str__(self):
+        string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(self.num_intermediates, 
+                                                                                                                self.num_closed_shell_mols, 
+                                                                                                                self.num_reactions)
+        # string += "Surface: {}({})\n".format(self.get_surface()[0].molecule.get_chemical_formula(), 
+                                            #  self.get_surface()[0].molecule.info["surface_orientation"])
+        # string += "Carbon cutoff: N/A\n"
+        return string
 
     @classmethod
-    def from_dict(cls, net_dict):
+    def from_dict(cls, net_dict: dict):
         """Generate a reaction network using a dictionary containing the
         intermediates and the transition states
 
@@ -443,6 +517,10 @@ class ReactionNetwork:
 
         new_net.intermediates = int_list_gen
         new_net.t_states = ts_list_gen
+        new_net.num_intermediates = len(new_net.intermediates)        
+        new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell]
+        new_net.num_closed_shell_mols = len(new_net.closed_shells)
+        new_net.num_reactions = len(new_net.t_states)
         return new_net
 
     def to_dict(self):
@@ -548,7 +626,7 @@ class ReactionNetwork:
                 coinc_lst.append(inter)
         return coinc_lst
 
-    def gen_graph(self, paired_inter=False):
+    def gen_graph(self, paired_inter: bool=False):
         """Generate a graph using the intermediates and the transition states
         contained in this object.
 
@@ -601,6 +679,47 @@ class ReactionNetwork:
                                            #energy=ed_ener, 
                                            break_type=None)
         return new_graph
+    
+    def gen_graph2(self, path: str=None):
+        """Generate a graph using the intermediates and the transition states
+        contained in this object.
+
+        Returns:
+            obj:`nx.DiGraph` of the network.
+        """
+        new_graph = nx.DiGraph()
+        for inter in self.intermediates.values():  
+            if inter.is_surface or inter.code == '010101':
+                pass
+            else:
+                fig_path = '{}/{}.png'.format(path, inter.code)
+                write(fig_path, inter.molecule, show_unit_cell=0)                
+                new_graph.add_node(inter.code+"({})".format(inter.molecule.get_chemical_formula()), 
+                                   category='intermediate', 
+                                   gas_atoms=inter.molecule, 
+                                   closed_shell=inter.closed_shell, 
+                                   formula=inter.molecule.get_chemical_formula(), 
+                                   smiles=inter.smiles,
+                                   fig=abspath(fig_path))
+            
+        
+        for t_state in self.t_states:  # edge
+            rs, ps = [], []
+            for intermediate in t_state.components[0]:
+                if intermediate.is_surface or intermediate.code == '010101': # surface(*) or H*
+                    pass
+                else:
+                    rs.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
+            for intermediate in t_state.components[1]:
+                if intermediate.is_surface or intermediate.code == '010101':
+                    pass
+                else:
+                    ps.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
+            for r in rs:
+                for p in ps:
+                    new_graph.add_edge(r, p)
+
+        return new_graph
 
     def get_min_max(self):
         """Returns the minimum and the maximum energy of the intermediates and
@@ -649,6 +768,55 @@ class ReactionNetwork:
         plot.set_rankdir('LR')
         plot.write_png(filename)
 
+    def write_dotgraph2(self, fig_path:str, filename: str):
+        graph = self.gen_graph2(fig_path)
+        # try layout kamada_kawai_layout
+        pos = nx.kamada_kawai_layout(graph)
+        nx.set_node_attributes(graph, pos, 'pos')
+        plot = nx.drawing.nx_pydot.to_pydot(graph)
+        # text in the node is the node attribute formula
+        for node in plot.get_nodes():
+            # all numbers in the node label are subscripted
+            formula = node.get_attributes()['formula']
+            closed_shell = node.get_attributes()['closed_shell']
+            # print(formula, closed_shell)
+            for num in re.findall(r'\d+', formula):
+                SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+                formula = formula.replace(num, num.translate(SUB))
+            figure = node.get_attributes()['fig']
+            node.set_fontname("Arial")
+            # Add figure as html-like label without table borders
+            node.set_label(f"""<
+            <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+            <TR>
+            <TD><IMG SRC="{figure}"/></TD>
+            </TR>
+            <TR>
+            <TD>{formula}</TD>
+            </TR>
+            </TABLE>>""")
+            node.set_style("filled")
+            node.set_fillcolor("wheat")
+            # set node shape as function of closed_shell attribute
+            node.set_shape("ellipse")          
+            node.set_width("1.5")
+            node.set_height("1.5")
+            node.set_fixedsize("true")
+
+        # make graph undirected
+        for edge in plot.get_edges():
+            edge.set_dir("none")
+            edge.set_arrowhead("none")
+            edge.set_arrowtail("none")
+            edge.set_arrowsize("1.0")
+            edge.set_penwidth("0.5")
+            edge.set_color("azure4")
+        plot.set_nodesep(0.3)
+        plot.set_rankdir('LR')
+        plot.set_margin(0.2)
+        plot.set_pad(0.2)
+        plot.write_png(filename)
+
     @property
     def graph(self):
         if self._graph is None:
@@ -659,7 +827,7 @@ class ReactionNetwork:
     def graph(self, other):
         self._graph = other
 
-    def calc_ts_energy(self, ener_func):
+    def calc_ts_energy(self, ener_func: callable):
         """Use a custom function to calculate the energy of the transition
         states and the energy of the edges.
 

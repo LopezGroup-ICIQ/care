@@ -287,6 +287,8 @@ def run_docksurf(intermediate, slab_ase_obj: Atoms, surface_facet:str, model: Mo
 
     print('DockonSurf run time: {:.2f} s'.format(time.time()-t00))
     print('Number of detected adsorption configurations: ', len(total_config_list))  
+    if len(total_config_list) == 0:
+        return 0.0
     t_000 = time.time()
     # Removing the metal atoms with selective dynamics == False
     fixed_atms_idxs = slab_ase_obj.todict().get('constraints', None)[0].get_indices()

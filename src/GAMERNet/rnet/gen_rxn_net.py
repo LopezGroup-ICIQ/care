@@ -27,7 +27,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     """
     
     hydrogen_atom_ase = Atoms('H', positions=[[0, 0, 0]])
-
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='000000', energy=0.0, entropy=0.0, is_surface=True, phase='surface')
     surf_inter.electrons = 0
     h_inter = Intermediate.from_molecule(hydrogen_atom_ase, code='010101', energy=0.0, entropy=0.0, phase='cat')
