@@ -882,7 +882,7 @@ def read_input(in_file):
     @return inp_vars: Dictionary with the values for every option in the input
     file.
     """
-    from src.dockonsurf.formats import adapt_format
+    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.formats import adapt_format
 
     # Checks for errors in the Input file.
     err_msg = False
