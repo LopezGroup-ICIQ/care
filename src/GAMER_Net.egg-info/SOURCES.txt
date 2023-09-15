@@ -15,7 +15,6 @@ src/GAMERNet/gnn_eads/post_training_UQ.py
 src/GAMERNet/rnet/__init__.py
 src/GAMERNet/rnet/gen_inter_from_prod.py
 src/GAMERNet/rnet/gen_rxn_net.py
-src/GAMERNet/rnet/old_gen_inter_from_prod.py
 src/GAMERNet/rnet/adsurf/__init__.py
 src/GAMERNet/rnet/adsurf/functions/__init__.py
 src/GAMERNet/rnet/adsurf/functions/act_sites.py
@@ -25,7 +24,6 @@ src/GAMERNet/rnet/adsurf/graphs/graph_utilities.py
 src/GAMERNet/rnet/networks/__init__.py
 src/GAMERNet/rnet/networks/network_functions.py
 src/GAMERNet/rnet/networks/networks.py
-src/GAMERNet/rnet/networks/networks_2.py
 src/GAMERNet/rnet/utilities/__init__.py
 src/GAMERNet/rnet/utilities/additional_funcs.py
 src/GAMERNet/rnet/utilities/functions.py

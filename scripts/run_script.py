@@ -49,14 +49,11 @@ if __name__ == "__main__":
     surface_facet = args.hkl
 
     # Loading metal surface from ASE database
-    metal_surf_db_file = DB_PATH
-    metal_db_path = os.path.abspath(metal_surf_db_file)
-    surf_db = connect(metal_db_path)
-
+    surf_db = connect(os.path.abspath(DB_PATH))
     metal_struct = metal_structure_dict[metal]
     full_facet = f"{metal_struct}({surface_facet})"
-    slab_ase_obj = surf_db.get_atoms(metal=metal, facet=full_facet)
-    slab_ase_obj.info["surface_orientation"] = full_facet
+    surface = surf_db.get_atoms(metal=metal, facet=full_facet)
+    surface.info["surface_orientation"] = full_facet
 
     # Load GAME-Net UQ 
     one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
@@ -96,7 +93,7 @@ if __name__ == "__main__":
             f"The intermediate dictionary pickle file has been generated")
     # Generating the reaction network
     print('\nGenerating reaction network...')
-    rxn_net = generate_rxn_net(slab_ase_obj, intermediate_dict, map_dict)
+    rxn_net = generate_rxn_net(surface, intermediate_dict, map_dict)
     print('The reaction network has been generated')
     # Converting the reaction network as a dictionary
     rxn_net_dict = rxn_net.to_dict()
@@ -112,12 +109,11 @@ if __name__ == "__main__":
     print('\nlist_ase_inter: ', list_ase_inter)
 
     for intermediate in rxn_net.intermediates.values():
-        print('\nIntermediate code: ', intermediate.code)
-        print('Intermediate molecule: ', intermediate.molecule)
+        print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
         # If the molecule has only one atom, pass (need to see how to overcome this)
         if len(intermediate.molecule) == 1 or intermediate.code == '000000':
             continue
-        best_eads = run_docksurf(intermediate, slab_ase_obj, surface_facet, model, graph_params, model_elements, args.o)
+        best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements, args.o)
         print('best_eads: ', best_eads)
 
     # # Loading the reaction network from a pickle file

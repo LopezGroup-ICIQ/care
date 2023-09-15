@@ -212,13 +212,13 @@ def get_fragment_energy(structure: Atoms) -> float:
 
 def run_docksurf(intermediate: Intermediate, 
                  slab_ase_obj: Atoms, 
-                 surface_facet:str, 
                  model: Module, 
                  graph_params:dict, 
                  model_elems:list, 
                  output_dir:str) -> float:
     molec_ase_obj = intermediate.molecule
     intermediate_code = intermediate.code
+    surface_facet = slab_ase_obj.info['surface_orientation'].split('(')[1].split(')')[0]
     res_folder = '{}/dockonsurf_screening'.format(output_dir)
     os.makedirs(res_folder, exist_ok=True)
 
@@ -263,17 +263,17 @@ def run_docksurf(intermediate: Intermediate,
     slab_active_sites = get_act_sites(slab_ase_obj, surface_facet)
     slab_lattice = slab_ase_obj.get_cell().lengths()
     if len(molec_ase_obj) <= 6:
-        min_height = 1.7
-        max_height = 1.8
+        min_height = 2.0
+        max_height = 2.5
         increment = 0.1
     elif 6 < len(molec_ase_obj) <= 8:
-        min_height = 1.8
-        max_height = 2.0
+        min_height = 2.0
+        max_height = 2.5
         increment = 0.1
     else:
-        min_height = 2.4
-        max_height = 3.2
-        increment = 0.2
+        min_height = 2.5
+        max_height = 3.3
+        increment = 0.1
     t00 = time.time()
     total_config_list = []
     for ads_height in arange(min_height, max_height, increment):
