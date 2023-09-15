@@ -117,7 +117,7 @@ if __name__ == "__main__":
         # If the molecule has only one atom, pass (need to see how to overcome this)
         if len(intermediate.molecule) == 1 or intermediate.code == '000000':
             continue
-        best_eads = run_docksurf(intermediate, slab_ase_obj, surface_facet, model, graph_params, model_elements)
+        best_eads = run_docksurf(intermediate, slab_ase_obj, surface_facet, model, graph_params, model_elements, args.o)
         print('best_eads: ', best_eads)
 
     # # Loading the reaction network from a pickle file

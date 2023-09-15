@@ -717,7 +717,7 @@ class ReactionNetwork:
                     ps.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
             for r in rs:
                 for p in ps:
-                    new_graph.add_edge(r, p)
+                    new_graph.add_edge(r, p, energy=t_state.energy)
 
         return new_graph
 

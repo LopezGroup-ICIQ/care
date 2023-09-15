@@ -19,6 +19,7 @@ from GAMERNet.rnet.adsurf.functions.adsurf_fn import connectivity_analysis
 from GAMERNet.rnet.adsurf.graphs.graph_utilities import ase_2_graph
 from GAMERNet.gnn_eads.create_pyg_dataset import atoms_to_data
 import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
+from GAMERNet.rnet.networks.networks import Intermediate
 
 from GAMERNet import DOCK_DATA
 
@@ -38,7 +39,15 @@ def atoms_to_data_parallel(atoms_list, graph_params, model_elems, calc_type='ads
     # Flatten the list of results and return
     return [data for sublist in results for data in sublist]
 
-def gen_docksurf_file(tmp_subdir: str, molecule_id: str, mol_obj: ase.Atoms, conn_idxs: list, slab_poscar_file: str, metal_lattice: list, activ_site: str, active_idxs: list, ads_height:float) -> None:
+def gen_docksurf_file(tmp_subdir: str, 
+                      molecule_id: str, 
+                      mol_obj: ase.Atoms, 
+                      conn_idxs: list, 
+                      slab_poscar_file: str, 
+                      metal_lattice: list, 
+                      activ_site: str, 
+                      active_idxs: list, 
+                      ads_height:float) -> None:
     """This function will generate the dockonsurf input file for the adsorbate-slab of interest.
     Parameters
     ----------
@@ -201,10 +210,16 @@ def get_fragment_energy(structure: Atoms) -> float:
     n_S = ed["S"]
     return n_C * e_CO2 + (n_O - 2*n_C) * e_H2O + (4*n_C + n_H - 2*n_O - 3*n_N - 2*n_S) * e_H2 * 0.5 + (n_N * e_NH3) + (n_S * e_H2S)
 
-def run_docksurf(intermediate, slab_ase_obj: Atoms, surface_facet:str, model: Module, graph_params:dict, model_elems:list):
+def run_docksurf(intermediate: Intermediate, 
+                 slab_ase_obj: Atoms, 
+                 surface_facet:str, 
+                 model: Module, 
+                 graph_params:dict, 
+                 model_elems:list, 
+                 output_dir:str) -> float:
     molec_ase_obj = intermediate.molecule
     intermediate_code = intermediate.code
-    res_folder = 'results/dockonsurf_screening'
+    res_folder = '{}/dockonsurf_screening'.format(output_dir)
     os.makedirs(res_folder, exist_ok=True)
 
     # Getting the distance between the furthest atoms of the molecule
