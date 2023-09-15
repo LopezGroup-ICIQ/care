@@ -101,7 +101,7 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
     import ase.io
     from ase.io.formats import filetype
 
-    from src.dockonsurf.utilities import try_command
+    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
 
     req_vals = ['rdkit', 'ase']
     lib_err = f"The conversion to the '{requirement}' library object type" \
@@ -115,7 +115,7 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
         raise NotImplementedError(lib_err)
 
     if requirement == 'rdkit':
-        from src.dockonsurf.xyz2mol import xyz2mol
+        from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.xyz2mol import xyz2mol
         if filetype(coord_file) == 'xyz':  # TODO Include detection of charges.
             ase_atms = ase.io.read(coord_file)
             atomic_nums = ase_atms.get_atomic_numbers().tolist()
@@ -227,7 +227,7 @@ def collect_confs(dir_list, code, run_type, spec_atms=tuple()):
     """
     from glob import glob
     import os
-    from src.dockonsurf.utilities import is_binary
+    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import is_binary
     atoms_list = []
     for conf_dir in dir_list:
         conf_path = f"{run_type}/{conf_dir}/"
