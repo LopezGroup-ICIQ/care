@@ -21,6 +21,7 @@ class Surface:
         self.num_atoms = len(ase_atoms_slab)
         self.num_layers = self.get_num_layers()
         self.slab_height = self.get_slab_height()
+        self.slab_diag = self.get_slab_diag()
         self.area = self.get_area()
         self.active_sites = self.find_active_sites()
 
@@ -35,6 +36,10 @@ class Surface:
     def get_slab_height(self) -> float:
         z_atoms = self.slab.get_positions()[:,2]
         return max(z_atoms)
+    
+    def get_slab_diag(self) -> float:
+        a, b, c = self.slab.get_cell()
+        return np.linalg.norm(a + b + c)
 
     def get_area(self) -> float:
         """

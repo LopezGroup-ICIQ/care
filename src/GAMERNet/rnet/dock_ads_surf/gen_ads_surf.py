@@ -245,8 +245,9 @@ def run_docksurf(intermediate: Intermediate,
             pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
             pymatgen_slab.make_supercell([counter, counter, 1])
             surface.slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
-            a, b, _ = surface.slab.get_cell()
-            slab_diagonal = sqrt(norm(a*counter)**2 + norm(b*counter)**2)
+            # a, b, _ = surface.slab.get_cell()
+            # slab_diagonal = sqrt(norm(a*counter)**2 + norm(b*counter)**2)
+            slab_diagonal = surface.get_slab_diag()
             condition = slab_diagonal - tolerance > max_dist_molec
         print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter)) 
     
