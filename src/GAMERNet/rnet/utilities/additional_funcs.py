@@ -3,7 +3,7 @@ import pickle
 import networkx as nx
 import numpy as np
 import networkx.algorithms.isomorphism as iso
-from GAMERNet.rnet.networks.networks import TransitionState
+from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 from matplotlib.colors import to_hex
 from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
@@ -784,17 +784,17 @@ def break_bonds(molecule: Atoms):
 def break_and_connect(network, surface='000000'):
     """For an entire network, perform a breakage search (see `break_bonds`) for
     all the intermediates, search if the generated submolecules belong to the
-    network and if affirmative, create an obj:`networks.TransitionState` object
+    network and if affirmative, create an obj:`networks.ElementaryReaction` object
     that connect all the species.
 
     Args:
-        network (obj:`networks.OrganicNetwork`): Network in which the function
+        network (obj:`networks.ReactionNetwork`): Network in which the function
             will be performed.
         surface (obj:`networks.Intermediate`, optional): Surface intermediate.
             defaults to '000000'.
 
     Returns:
-        list of obj:`networks.TransitionState` with all the generated
+        list of obj:`networks.ElementaryReaction` with all the generated
         transition states.
     """
     cate = iso.categorical_node_match(['elem', 'elem'], ['H', 'O'])
@@ -803,7 +803,7 @@ def break_and_connect(network, surface='000000'):
         sub_graphs = break_bonds(intermediate.molecule)
         for r_type, graphs in sub_graphs.items():
             for graph_numb in graphs:
-                new_ts = TransitionState(r_type=r_type)
+                new_ts = ElementaryReaction(r_type=r_type)
                 in_comp = [[surface, intermediate], []]
                 for ind_graph in graph_numb:
                     for loop_inter in network.intermediates.values():
@@ -839,7 +839,7 @@ def change_r_type(network):
     correct them.
 
     Args:
-        network (obj:`networks.OrganicNetwork`): Network in which the function
+        network (obj:`networks.ReactionNetwork`): Network in which the function
             will be performed.
     """
     for trans in network.t_states:
@@ -864,7 +864,7 @@ def calculate_ts_energy(t_state, bader=False):
      formula
 
     Args:
-        t_state (obj:`networks.TransitionState`): TS that will be evaluated.
+        t_state (obj:`networks.ElementaryReaction`): TS that will be evaluated.
 
     Returns:
         max value between the computed energy and the initial and final state
@@ -897,7 +897,7 @@ def calc_TS_energy(t_state, bader=False):
      formula
 
     Args:
-        t_state (obj:`networks.TransitionState`): TS that will be evaluated.
+        t_state (obj:`networks.ElementaryReaction`): TS that will be evaluated.
 
     Returns:
         max value between the computed energy and the initial and final state
@@ -926,7 +926,7 @@ def calc_TS_energy(t_state, bader=False):
     return max(e_is, e_fs, ts_ener)
 
 def generate_electron(t_state, electron='e-', proton='H+', def_h='000000', ener_gap=0.):
-    new_ts = TransitionState(r_type='C-H', is_electro=True)
+    new_ts = ElementaryReaction(r_type='C-H', is_electro=True)
     new_components = []
     for comp in t_state.components:
         tmp_comp = []
@@ -1347,7 +1347,7 @@ def print_intermediates(network, filename='inter.dat'):
     network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the intermediates.
+        network (obj:`ReactionNetwork`): Network containing the intermediates.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'inter.dat'
     """
@@ -1366,7 +1366,7 @@ def print_intermediates_kinetics(network, filename='inter.dat'):
     network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the intermediates.
+        network (obj:`ReactionNetwork`): Network containing the intermediates.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'inter.dat'
     """
@@ -1386,7 +1386,7 @@ def print_t_states_kinetics(network, filename='ts.dat'):
     of a network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the transition
+        network (obj:`ReactionNetwork`): Network containing the transition
             states.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'ts.dat'
@@ -1440,7 +1440,7 @@ def print_t_states(network, filename='ts.dat'):
     of a network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the transition
+        network (obj:`ReactionNetwork`): Network containing the transition
             states.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'ts.dat'
@@ -1471,7 +1471,7 @@ def print_gasses_kinetics(gas_dict, filename='gas.dat'):
     network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the intermediates.
+        network (obj:`ReactionNetwork`): Network containing the intermediates.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'inter.dat'
     """
@@ -1656,7 +1656,7 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
     """Search for all the possible electronic transition states of a network.
 
     Args:
-        network (obj:`networks.OrganicNetwork`): Network in wich the electronic
+        network (obj:`networks.ReactionNetwork`): Network in wich the electronic
             states will be generated.
         electron (any object): Object that represents an electron.
         proton (any object): Object that represents a proton.
@@ -1686,7 +1686,7 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
             candidates = network.search_graph(tmp_graph, cate=cate)
             for new_inter in candidates:
                 oh_comp = [[new_inter, proton], [inter, electron]]
-                oh_ts = TransitionState(components=oh_comp,
+                oh_ts = ElementaryReaction(components=oh_comp,
                                             r_type='O-H', is_electro=True)
                 inter_energy = inter.energy + electron.energy
                 new_inter_energy = new_inter.energy + proton.energy
@@ -1708,7 +1708,7 @@ def search_electro_ts(network, electron='e-', proton='H', water='H2O', ener_up=0
             candidates = network.search_graph(tmp_graph, cate=cate)
             for new_inter in candidates:
                 wa_comp = [[inter, proton], [new_inter, water]]            
-                wa_ts = TransitionState(components=wa_comp,
+                wa_ts = ElementaryReaction(components=wa_comp,
                         r_type='C-OH', is_electro=True)
                 inter_energy = inter.energy + electron.energy
                 new_inter_energy = new_inter.energy + proton.energy
@@ -1725,7 +1725,7 @@ def print_electro_kinetics(ts_lst, filename='elec.dat'):
     of a network.
 
     Args:
-        network (obj:`OrganicNetwork`): Network containing the transition
+        network (obj:`ReactionNetwork`): Network containing the transition
             states.
         filename (str, optional): Location where the file will be writed.
             Defaults to 'ts.dat'

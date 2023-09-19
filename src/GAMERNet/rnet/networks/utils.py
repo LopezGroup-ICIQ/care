@@ -1,5 +1,8 @@
+from rdkit import Chem
+from rdkit.Chem import rdDetermineBonds
+from ase import Atoms
 import GAMERNet.rnet.utilities.additional_funcs as af
-from GAMERNet.rnet.networks.networks import Intermediate, TransitionState
+from GAMERNet.rnet.networks.networks import Intermediate, ElementaryReaction
 import networkx as nx
 import itertools as it
 import pickle
@@ -7,6 +10,9 @@ import numpy as np
 
 
 def generate_dict(lot1: dict) -> dict:
+    """
+    missing docstring
+    """
     lot1_att = {}
     for network, subs in lot1.items(): #reading the pickle file and making a dictionary
         lot1_att[network] = {}
@@ -14,10 +20,12 @@ def generate_dict(lot1: dict) -> dict:
         for mol_lst in subs.values():
             for inter in mol_lst:
                 tmp_dict[inter.code] = {'mol': inter.mol, 'graph': inter.graph, 'energy': 0.0, 'entropy': 0.0}
-
     return lot1_att
 
 def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Intermediate) -> dict:
+    """
+    missing docstring
+    """
     network_dict = {} 
     for key, network in map1.items():
         network_dict[key] = {'intermediates': {}, 'ts': []}
@@ -42,7 +50,7 @@ def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Interme
                     comp_1 = (inters[1], surf_inter)
                     comp_2 = (inters[0], h_inter)
                 inters = (comp_1, comp_2)
-                new_ts = TransitionState(components=inters, r_type='C-H')
+                new_ts = ElementaryReaction(components=inters, r_type='C-H')
                 for t_state in network_dict[key]['ts']:
                     if t_state.components == new_ts.components:
                         break
@@ -53,6 +61,9 @@ def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Interme
     return network_dict
 
 def add_energies_to_dict(network_dict, energ_entr_dict):
+    """
+    missing docstring
+    """
     for net in network_dict.values():
         for code, inter in net['intermediates'].items():
             test = [n for n in energ_entr_dict.values()]
@@ -68,6 +79,9 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
     return network_dict
 
 def oh_bond_breaks(ts_list: list) -> None:
+    """
+    missing docstring
+    """
 
     for t_state in ts_list:
         check_bonds = []
@@ -91,6 +105,9 @@ def oh_bond_breaks(ts_list: list) -> None:
 
 
 def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
+    """
+    missing docstring
+    """
     for reaction in ts_states:
         reaction.energy = 0.0
         reaction.entropy = 0.0
@@ -142,6 +159,9 @@ def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
                         break
 
 def gen_gas_dict(gas_df):
+    """
+    missing docstring
+    """
     gas_dict = {gas_code: {'mol': None, 'conn_graph': None, 'energy': None, 
                        'entropy': None, 'electrons': None} for gas_code in gas_df.gas}
 
@@ -169,6 +189,9 @@ def gen_gas_dict(gas_df):
     return gas_dict
 
 def gen_gas_inter_dict(gas_dict: dict) -> dict:
+    """
+    missing docstring
+    """
     gas_inter_dict = {}
     for gas_code, gas_data in gas_dict.items():
         new_inter = Intermediate(gas_code, molecule=gas_data['mol'], energy=gas_data['energy'], 
@@ -177,3 +200,47 @@ def gen_gas_inter_dict(gas_dict: dict) -> dict:
 
     return gas_inter_dict
 
+def ase_to_rdkit(mol: Atoms):
+    """
+    Convert an ASE Atoms object to an RDKit Molecule object.
+    """
+    symbols = mol.get_chemical_symbols()
+    coords = mol.get_positions()
+    for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
+        for j in range(len(coords[i])):
+            if abs(coords[i][j]) < 1.0e-6:
+                coords[i][j] = 0.0
+    xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
+    xyz = "{}\n\n{}".format(len(mol), xyz)
+    rdkit_mol = Chem.MolFromXYZBlock(xyz)
+    conn_mol = Chem.Mol(rdkit_mol)
+    rdDetermineBonds.DetermineConnectivity(conn_mol)
+    Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
+    return conn_mol
+
+def is_closed_shell(molecule: Atoms):
+    """
+    Check if a molecule is closed-shell or not.
+    IN PROGRESS
+    """
+    #TODO: Improve function as it is not working properly
+    conn_mol = ase_to_rdkit(molecule)
+    # unpaired_electrons = 0
+    # for atom in conn_mol.GetAtoms():
+    #     unpaired_electrons += atom.GetNumRadicalElectrons()
+        
+    # if unpaired_electrons == 0:
+    #     return True
+    # else:
+    #     return False
+    num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
+    is_open_shell = num_electrons % 2 == 1
+    return not is_open_shell
+
+def get_smiles(molecule: Atoms):
+    """
+    Get the SMILES string of a molecule.
+    """
+    conn_mol = ase_to_rdkit(molecule)
+    smiles = Chem.MolToSmiles(conn_mol)
+    return smiles

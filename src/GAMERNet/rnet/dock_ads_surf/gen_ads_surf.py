@@ -181,13 +181,12 @@ def get_act_sites(slab_ase_obj: str, surface_facet: str) -> dict:
     return active_site_dict
 
 def get_fragment_energy(structure: Atoms) -> float:
-    """Calculate fragment energy from reference closed-shell molecules.
-    This function allows to calculate the energy of both open- and closed-shell structures, 
-    keeping the same reference.
+    """
+    Get adsorbate gas-phase energy from reference closed-shell molecules.
     Args:
         structure (Atoms): Atoms object of the adsorption structure
     Returns:
-        e_fragment (float): reference gas-phase energy in eV
+        (float): gas-phase adsorbate energy in eV
     """ 
     elements = structure.get_chemical_symbols()
     ed = {"C": 0, "H": 0, "O": 0, "N": 0, "S": 0}  # adsorbate elements
@@ -203,11 +202,8 @@ def get_fragment_energy(structure: Atoms) -> float:
     e_H2S = -11.20113092  # S
     e_CO2 = -22.96215586  # C
     # Count elemens in the structure
-    n_C = ed["C"]
-    n_H = ed["H"]
-    n_O = ed["O"]
-    n_N = ed["N"]
-    n_S = ed["S"]
+    n_C, n_H, n_O, n_N, n_S = ed["C"], ed["H"], ed["O"], ed["N"], ed["S"]
+    #TODO: use numpy to solve this
     return n_C * e_CO2 + (n_O - 2*n_C) * e_H2O + (4*n_C + n_H - 2*n_O - 3*n_N - 2*n_S) * e_H2 * 0.5 + (n_N * e_NH3) + (n_S * e_H2S)
 
 def run_docksurf(intermediate: Intermediate, 

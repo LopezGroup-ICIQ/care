@@ -1,439 +1,31 @@
-"""Module that implements the needed classes to create a reaction network.
-"""
-import networkx as nx
-import networkx.algorithms.isomorphism as iso
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from ase.atoms import Atoms
-from networkx import Graph
-from GAMERNet.rnet.utilities import functions as fn
-from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
-from rdkit import Chem
-from rdkit.Chem import rdDetermineBonds
-from ase.io import write
 import re
-
 from os.path import abspath
 
-def ase_to_rdkit(ase_atoms_obj):
-    """
-    Convert an ASE Atoms object to an RDKit Molecule object.
-    """
-    symbols = ase_atoms_obj.get_chemical_symbols()
-    coords = ase_atoms_obj.get_positions()
-    # if some of coords are very close to 0, set them to zero (as RDKit cannot convert very small number as 1.0e-8)
-    for i in range(len(coords)):
-        for j in range(len(coords[i])):
-            if abs(coords[i][j]) < 1.0e-6:
-                coords[i][j] = 0.0
-    xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
-    xyz = "{}\n\n{}".format(len(ase_atoms_obj), xyz)
-    rdkit_mol = Chem.MolFromXYZBlock(xyz)
-    conn_mol = Chem.Mol(rdkit_mol)
-    rdDetermineBonds.DetermineConnectivity(conn_mol)
-    Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
-    return conn_mol
+import networkx as nx
+import networkx.algorithms.isomorphism as iso
+from ase.io import write
+import matplotlib.pyplot as plt
+from matplotlib import cm
 
-def is_closed_shell(molecule: Atoms):
-    """
-    Check if a molecule is closed-shell or not.
-    """
-    #TODO: Improve function as it is not working properly
-    conn_mol = ase_to_rdkit(molecule)
-    # unpaired_electrons = 0
-    # for atom in conn_mol.GetAtoms():
-    #     unpaired_electrons += atom.GetNumRadicalElectrons()
-        
-    # if unpaired_electrons == 0:
-    #     return True
-    # else:
-    #     return False
-    num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
-    is_open_shell = num_electrons % 2 == 1
-    return not is_open_shell
-
-def get_smiles(molecule: Atoms):
-    """
-    Get the SMILES string of a molecule.
-    """
-    conn_mol = ase_to_rdkit(molecule)
-    smiles = Chem.MolToSmiles(conn_mol)
-    return smiles
-
-class Intermediate:
-    """Intermediate class that defines the intermediate species of the network.
-
-    Attributes:
-        code (str): Code of the intermediate.
-        molecule (obj:`ase.atoms.Atoms`): Associated molecule.
-        graph (obj:`nx.graph`): Associated molecule graph.
-        energy (float): DFT energy of the intermediate.
-        entropy (float): Entropy of the intermediate
-        formula (str): Formula of the intermediate.
-    """
-    def __init__(self, 
-                 code: str=None, 
-                 molecule: Atoms=None,
-                 adsorbate: Atoms=None, 
-                 graph: Graph=None, 
-                 energy: float=None,
-                 std_energy: float=None, 
-                 entropy: float=None,
-                 formula: str=None, 
-                 electrons: int=None,
-                 is_surface: bool=False,
-                 phase: str=None):
-        
-        self.code = code
-        self.molecule = molecule
-        self.adsorbate = adsorbate
-        self._graph = graph
-        self.energy = energy
-        self.std_energy = std_energy
-        self.entropy = entropy
-        self.formula = formula
-        self.electrons = electrons
-        self.is_surface = is_surface
-        self.bader = None
-        self.voltage = None
-        self.smiles = get_smiles(molecule)
-        
-        if self.is_surface:
-            self.phase = 'surface'
-            self.closed_shell = None
-        else:
-            try:
-                self.closed_shell = is_closed_shell(molecule)
-            except:
-                self.closed_shell = None
-            self.phase = phase
-        self.t_states = [{}, {}]
-
-    def __hash__(self):
-        return hash(self.code)
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.code == other
-        if isinstance(other, Intermediate):
-            return self.code == other.code
-        raise NotImplementedError
-
-    def __repr__(self):
-        string = (self.code + '({})'.format(self.molecule.get_chemical_formula()))
-        return string
-
-    # TODO: Use Santi function to generate the code
-    # def draft(self):
-    #     """Draft of the intermediate generated using the associated graph.
-
-    #     Returns:
-    #         obj:`matplotlib.pyplot.Figure` with the image of the draft.
-    #     """
-    #     color_map, node_size = [], []
-    #     for node in self.graph.nodes():
-    #         color_map.append(RGB_COLORS[node.element])
-    #         node_size.append(CORDERO[node.element] * 5000)
-    #     return nx.draw(self.graph, node_color=color_map,
-    #                    node_size=node_size, width=15)
-
-    @property
-    def bader_energy(self):
-        if self.bader is None or self.voltage is None:
-            return self.energy
-        # -1 is the electron charge
-        return self.energy - ((self.bader + self.electrons) * (-1.) * self.voltage)
-
-    @classmethod
-    def from_molecule(cls, ase_atoms_obj, code=None, energy=None, std_energy=None,entropy=None, is_surface=False, phase=None):
-        """Create an Intermediate using a molecule obj.
-
-        Args:
-            ase_atoms_obj (obj:`ase.atoms.Atoms`): ase.Atoms object from which the
-                intermediate will be created.
-            code (str, optional): Code of the intermediate. Defaults to None.
-            energy (float, optional): Energy of the intermediate. Defaults to
-                None.
-            is_surface (bool, optional): Defines if the intermediate is the
-                surface.
-
-        Returns:
-            obj:`Intermediate` with the given values.
-        """
-        new_mol = ase_atoms_obj.copy()
-        new_mol.arrays['conn_pairs'] = fn.get_voronoi_neighbourlist(new_mol, 0.25, 1, ['C', 'H', 'O'])
-        new_graph = ase_coord_2_graph(new_mol, coords=False)
-        new_formula = new_mol.get_chemical_formula()
-        return cls(code=code, molecule=new_mol, graph=new_graph,
-                        formula=new_formula, energy=energy, std_energy = std_energy, entropy=entropy,
-                        is_surface=is_surface, phase=phase)
-    
-
-    @property
-    def graph(self):
-        if self._graph is None:
-            self._graph = self.gen_graph()
-        return self._graph
-
-    @graph.setter
-    def graph(self, other):
-        self._graph = other
-
-    def gen_graph(self):
-        """Generate a graph of the molecule.
-
-        Returns:
-            obj:`nx.DiGraph` Of the associated molecule.
-        """
-        return fn.digraph(self.molecule, coords=False)
-
-
-class TransitionState:
-    """Transition state class.
-
-    Attributes:
-        code (str): Code associated with the transition state.
-        components (list of frozensets): List containing the frozensets.
-            with the components of the reaction.
-        energy (float): DFT Energy of the transition state.
-        r_type (str): Type of reaction of the transition state.
-    """
-    def __init__(self, 
-                 code: str=None, 
-                 components: list[frozenset]=None, 
-                 energy: float=None,
-                 r_type: str=None, 
-                 is_electro: bool=False):
-        self._code = code
-        self._components = None
-        self.components = components
-        self.energy = energy
-        self._bader_energy = None
-        self.r_type = r_type
-        self.is_electro = is_electro
-
-    def __repr__(self):
-        out_str = ''
-        for comp in self.components:
-            for inter in comp:
-                try:
-                    out_str += inter.molecule.get_chemical_formula() + '+'
-                except:
-                    out_str += inter.code + '+'
-            out_str = out_str[:-1]
-            out_str += '<->'
-        return out_str[:-3]
-
-    def __eq__(self, other):
-        if isinstance(other, TransitionState):
-            return self.bb_order() == other.bb_order()
-        return False
-
-    def __hash__(self):
-        return hash((self.components))
-
-    @property
-    def bader_energy(self):
-        if self._bader_energy is None:
-            return self.energy
-        return self._bader_energy
-
-    @bader_energy.setter
-    def bader_energy(self, other):
-        self._bader_energy = other
-
-    def bb_order(self):
-        """Order the components of the transition state in the direction of the
-        bond breaking reaction.
-
-        Returns:
-            list of frozensets containing the reactants before the bond
-            breaking in the firs position and the products before the breakage.
-        """
-        new_list = list(self.components)
-        flatten = [list(comp) for comp in self.components]
-        max_numb = 0
-        for index, item in enumerate(flatten):
-            for species in item:
-                if species.is_surface:
-                    new_list.insert(0, new_list.pop(index))
-                    break
-                tmp_numb = len(species.molecule)
-                if tmp_numb > max_numb:
-                    max_numb = tmp_numb
-                    index_numb = index
-            else:
-                continue
-            break
-        else:
-            new_list.insert(0, new_list.pop(index_numb))
-        return new_list
-
-    def full_order(self):
-        ordered = self.bb_order()
-        react, prod = ordered
-        react = list(react)
-        prod = list(prod)
-        order = []
-        for item in [react, prod]:
-            try:
-                mols = [item[0],
-                        item[1]]
-            except IndexError:
-                mols = [item[0], item[0]]
-                
-            if mols[0].is_surface:
-                order.append(mols[::-1])
-            elif not mols[1].is_surface and (len(mols[0].molecule) <
-                                             len(mols[1].molecule)):
-                order.append(mols[::-1])
-            else:
-                order.append(mols)
-        return order
-
-    def full_label(self):
-        """
-        xxx
-        """
-        order = self.full_order()
-        full_label = ''
-        for item in order:
-            for inter in item:
-                if inter.phase == ['cat']:
-                    full_label += 'i'
-                elif inter.code == 'e-':
-                    full_label += 'xxxxxxx'
-                    continue
-                else:
-                    full_label += 'g'
-                full_label += str(inter.code)
-        return full_label
-
-    def calc_activation_energy(self, reverse=False, bader=False):
-        components = [list(item) for item in self.bb_order()]
-        if reverse:
-            components = components[1]
-        else:
-            components = components[0]
-
-        if len(components) == 1:
-            components = components * 2
-
-        if bader:
-            inter_ener = sum([inter.bader_energy for inter in components])
-            out_ener = self.bader_energy - inter_ener
-        else:
-            inter_ener = sum([inter.energy for inter in components])
-            out_ener = self.energy - inter_ener
-        return out_ener
-
-    def calc_delta_energy(self, reverse=False, bader=False):
-        components = [list(item) for item in self.bb_order()]
-        start_comp, end_comp = components
-
-        if len(end_comp) == 1:
-            end_comp = end_comp * 2
-
-        if reverse:
-            start_comp, end_comp = end_comp, start_comp
-
-        if bader:
-            start_ener = sum([inter.bader_energy for inter in start_comp])
-            end_ener = sum([inter.bader_energy for inter in end_comp])
-        else:
-            start_ener = sum([inter.energy for inter in start_comp])
-            end_ener = sum([inter.energy for inter in end_comp])
-        out_ener = end_ener - start_ener
-        return out_ener
-
-    @property
-    def components(self):
-        return self._components
-
-    @components.setter
-    def components(self, other):
-        if other is None:
-            self._components = []
-        else:
-            _ = []
-            for item in other:
-                _.append(frozenset(item))
-            self._components = tuple(_)
-
-    @property
-    def code(self):
-        if self._code is None:
-            self._code = self.get_code(option='g')
-        return self._code
-
-    @code.setter
-    def code(self, other):
-        self._code = other
-
-    def add_components(self, pair):
-        """Add components to the transition state.
-
-        Args:
-            pair (list of Intermediate): Intermediates that will be added to
-                the components.
-        """
-        new_pair = frozenset(pair)
-        self.components.append(new_pair)
-
-    def get_code(self, option='g'):
-        """Automatically generate a code for the transition state using the
-        code of the intermediates.
-
-        Args:
-            option (str, optional): 'g' or 'i'. If 'g' the position of the
-                intermediates in the code is inverted. Defaults to None.
-        """
-        end_str = ''
-        in_str = 'i'
-        out_str = 'f'
-        act_comp = self.bb_order()
-        if option in ['inverse', 'i']:
-            act_comp = self.components[::-1]
-        elif option in ['general', 'g']:
-            out_str = 'i'
-
-        for species in act_comp[0]:
-            end_str += in_str + str(species.code)
-        for species in act_comp[1]:
-            end_str += out_str + str(species.code)
-        return end_str
-
-    # def draft(self):
-    #     """Draw a draft of the transition state using the drafts of the
-    #     components.
-
-    #     Returns:
-    #         obj:`matplotlib.pyplot.Figure` containing the draft.
-    #     """
-    #     counter = 1
-    #     for item in self.components:
-    #         for component in item:
-    #             plt.subplot(2, 2, counter)
-    #             component.draft()
-    #             counter += 1
-    #     return plt.show()
-
+from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 
 class ReactionNetwork:
-    """Implements the organic network.
+    """
+    Reaction network class for representing a network of surface reactions 
+    starting from the Intermediate and ElementaryReaction objects.
 
     Attributes:
         intermediates (dict of obj:`Intermediate`): Intermediates that belong
             to the network
-        t_states (list of obj:`TransitionState`): List containing the
+        t_states (list of obj:`ElementaryReaction`): List containing the
             transition states associated to the network.
         surface (obj:`pyRDTP.molecule.Bulk`): Surface of the network.
         graph (obj:`nx.DiGraph`): Graph of the network.
     """
     def __init__(self, 
                  intermediates: dict[str, Intermediate]=None, 
-                 t_states: list[TransitionState]=None, 
+                 t_states: list[ElementaryReaction]=None, 
                  gasses: dict[str, Intermediate]=None):
         
         if intermediates is None:
@@ -481,7 +73,7 @@ class ReactionNetwork:
         Args:
             net_dict (dict): Dictionary with two different keys "intermediates"
                 and "ts" containing the obj:`Intermediate` and
-                obj:`TransitionState`
+                obj:`ElementaryReaction` respectively.
 
         Returns:
             obj:`OrganicNetwork` configured with the intermediates and
@@ -512,7 +104,7 @@ class ReactionNetwork:
                     ts_comp_list.append(ts_couple)
 
             ts.pop('components')
-            curr_ts = TransitionState(**ts, components=ts_comp_list[0])
+            curr_ts = ElementaryReaction(**ts, components=ts_comp_list[0])
             ts_list_gen.append(curr_ts)
 
         new_net.intermediates = int_list_gen
@@ -594,7 +186,7 @@ class ReactionNetwork:
         """Add transition states to the network.
 
         Args:
-            ts_lst (list of obj:`TransitionState`): List containing the
+            ts_lst (list of obj:`ElementaryReaction`): List containing the
                 transition states that will be added to network.
         """
         self.t_states += ts_lst
@@ -604,7 +196,7 @@ class ReactionNetwork:
         The items of the dictionary will be added to the network.
 
         Args:
-           net_dict (dictionary): Intermediates and TransitionStates that will 
+           net_dict (dictionary): Intermediates and ElementaryReaction that will 
               be added to the dictionary.
         """
         self.intermediates.update(net_dict['intermediates'])
@@ -956,7 +548,7 @@ class ReactionNetwork:
                 Defaults to a simple list.
 
         Returns:
-            tuple of obj:`TransitionState` containing all the matches.
+            tuple of obj:`ElementaryReaction` containing all the matches.
         """
         if final is None:
             final = []
@@ -990,7 +582,7 @@ class ReactionNetwork:
                 Defaults to a simple list.
 
         Returns:
-            tuple of obj:`TransitionState` containing all the matches.
+            tuple of obj:`ElementaryReaction` containing all the matches.
         """
         if final is None:
             final = []
@@ -1019,7 +611,7 @@ class ReactionNetwork:
             code (str): Code of the transition state.
 
         Returns:
-            obj:`TransitionState` with the matching code
+            obj:`ElementaryReaction` with the matching code
         """
         for t_state in self.t_states:
             if t_state.code == code:
@@ -1046,28 +638,3 @@ class ReactionNetwork:
             if elem_tmp == element_dict:
                 matches.append(inter)
         return tuple(matches)
-
-# class Reactant:
-#     """Reactant class that contains all the species that are not an intermediate
-#     but are involved in certain reactions.
-
-#     Attributes:
-#         nome (str): Name of the reactant.
-#         code (str): Code of the reactant, if any.
-#         enregy (float): Energy of the reactant, if any.
-#     """
-#     def __init__(self, name=None, code=None, energy=None):
-#         self.name = name
-#         self.code = code
-#         self.energy = energy
-
-#     def __str__(self):
-#         out_str = 'Reactant: '
-#         if self.name is not None:
-#             out_str += self.name
-#         if self.code is not None:
-#             out_str += '({})'.format(self.code)
-#         return out_str
-
-#     def __repr__(self):
-#         return '[{}]'.format(str(self))

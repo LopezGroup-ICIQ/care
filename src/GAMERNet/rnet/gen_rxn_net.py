@@ -1,6 +1,7 @@
 from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
-from GAMERNet.rnet.networks.networks import Intermediate, ReactionNetwork
-from GAMERNet.rnet.networks.network_functions import generate_dict, generate_network_dict, oh_bond_breaks
+from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
+from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, oh_bond_breaks
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 import networkx as nx
 from ase import Atoms
