@@ -1,13 +1,32 @@
+import itertools as it
+import pickle
+
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 from ase import Atoms
-import GAMERNet.rnet.utilities.additional_funcs as af
-from GAMERNet.rnet.networks.networks import Intermediate, ElementaryReaction
 import networkx as nx
-import itertools as it
-import pickle
 import numpy as np
 
+import GAMERNet.rnet.utilities.additional_funcs as af
+from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
+
+metal_structure_dict = {
+    "Ag": "fcc",
+    "Au": "fcc",
+    "Cd": "hcp",
+    "Co": "hcp",
+    "Cu": "fcc",
+    "Fe": "bcc",
+    "Ir": "fcc",
+    "Ni": "fcc",
+    "Os": "hcp",
+    "Pd": "fcc",
+    "Pt": "fcc",
+    "Rh": "fcc",
+    "Ru": "hcp",
+    "Zn": "hcp"
+}
 
 def generate_dict(lot1: dict) -> dict:
     """
@@ -33,7 +52,12 @@ def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Interme
             try:
                 sel_node = network.nodes[node]
                 electrons = af.adjust_electrons(sel_node['mol'])
-                new_inter = Intermediate(code=node, molecule=sel_node['mol'], graph=sel_node['graph'], energy=sel_node['energy'], entropy=sel_node['entropy'] , electrons=electrons, phase='cat')
+                new_inter = Intermediate(code=node, 
+                                         molecule=sel_node['mol'], 
+                                         graph=sel_node['graph'], 
+                                         energy=sel_node['energy'], 
+                                         entropy=sel_node['entropy'], 
+                                         electrons=electrons, phase='cat')
                 new_inter._graph = new_inter.gen_graph()
                 network_dict[key]['intermediates'][node] = new_inter
             except KeyError:
@@ -197,50 +221,4 @@ def gen_gas_inter_dict(gas_dict: dict) -> dict:
         new_inter = Intermediate(gas_code, molecule=gas_data['mol'], energy=gas_data['energy'], 
                                 entropy=gas_data['entropy'], electrons=gas_data['electrons'], phase='gas')
         gas_inter_dict[gas_code] = new_inter
-
     return gas_inter_dict
-
-def ase_to_rdkit(mol: Atoms):
-    """
-    Convert an ASE Atoms object to an RDKit Molecule object.
-    """
-    symbols = mol.get_chemical_symbols()
-    coords = mol.get_positions()
-    for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
-        for j in range(len(coords[i])):
-            if abs(coords[i][j]) < 1.0e-6:
-                coords[i][j] = 0.0
-    xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
-    xyz = "{}\n\n{}".format(len(mol), xyz)
-    rdkit_mol = Chem.MolFromXYZBlock(xyz)
-    conn_mol = Chem.Mol(rdkit_mol)
-    rdDetermineBonds.DetermineConnectivity(conn_mol)
-    Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
-    return conn_mol
-
-def is_closed_shell(molecule: Atoms):
-    """
-    Check if a molecule is closed-shell or not.
-    IN PROGRESS
-    """
-    #TODO: Improve function as it is not working properly
-    conn_mol = ase_to_rdkit(molecule)
-    # unpaired_electrons = 0
-    # for atom in conn_mol.GetAtoms():
-    #     unpaired_electrons += atom.GetNumRadicalElectrons()
-        
-    # if unpaired_electrons == 0:
-    #     return True
-    # else:
-    #     return False
-    num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
-    is_open_shell = num_electrons % 2 == 1
-    return not is_open_shell
-
-def get_smiles(molecule: Atoms):
-    """
-    Get the SMILES string of a molecule.
-    """
-    conn_mol = ase_to_rdkit(molecule)
-    smiles = Chem.MolToSmiles(conn_mol)
-    return smiles

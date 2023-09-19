@@ -60,8 +60,8 @@ class ReactionNetwork:
         string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(self.num_intermediates, 
                                                                                                                 self.num_closed_shell_mols, 
                                                                                                                 self.num_reactions)
-        # string += "Surface: {}({})\n".format(self.get_surface()[0].molecule.get_chemical_formula(), 
-                                            #  self.get_surface()[0].molecule.info["surface_orientation"])
+        string += "Surface: {} {}\n".format(self.get_surface()[0].molecule.get_chemical_formula(), 
+                                              self.get_surface()[0].molecule.info["surface_orientation"])
         # string += "Carbon cutoff: N/A\n"
         return string
 

@@ -3,10 +3,6 @@ from collections import defaultdict
 from ase import Atoms
 import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
-from pymatgen.core.periodic_table import Element
-from pymatgen.core.structure import Structure
-from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from pymatgen.io.ase import AseAtomsAdaptor
 
 from GAMERNet.rnet.networks.utils import metal_structure_dict
 
@@ -26,8 +22,7 @@ class Surface:
         self.num_layers = self.get_num_layers()
         self.slab_height = self.get_slab_height()
         self.area = self.get_area()
-        self.active_sites_dict_acat = self.find_active_sites_acat()
-        self.active_sites_dict_pmg = self.find_active_sites_pmg()
+        self.active_sites = self.find_active_sites()
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
@@ -48,7 +43,7 @@ class Surface:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(np.cross(a, b))
 
-    def find_active_sites_acat(self) -> list[dict]:
+    def find_active_sites(self) -> list[dict]:
         surf = self.crystal_structure + self.facet
         if self.facet == "10m10":
             surf += "h"
@@ -61,17 +56,8 @@ class Surface:
         sas = SlabAdsorptionSites(self.slab,
                                   surface=surf, 
                                   tol=tol_dict[self.metal], 
-                                  label_sites=False, 
+                                  label_sites=True, 
                                   optimize_surrogate_cell=True)
         sas = sas.get_unique_sites()
         sas = [site for site in sas if site['position'][2] > 0.75 * self.slab_height]  
         return sas
-    
-    def find_active_sites_pmg(self):
-        """
-        Get unique active sites of the surface with Pymatgen.
-        """
-        surface_pmg = AseAtomsAdaptor.get_structure(self.slab)
-        surf_sites = AdsorbateSiteFinder(surface_pmg, selective_dynamics=True)
-        most_active_sites = surf_sites.find_adsorption_sites()
-        return most_active_sites

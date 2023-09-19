@@ -2,7 +2,9 @@ from ase import Atoms
 from networkx import Graph
 from GAMERNet.rnet.utilities import functions as fn
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
-from GAMERNet.rnet.networks.utils import get_smiles, is_closed_shell
+# from GAMERNet.rnet.networks.utils import get_smiles, ase_to_rdkit
+from rdkit import Chem
+from rdkit.Chem import rdDetermineBonds
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
@@ -40,14 +42,14 @@ class Intermediate:
         self.is_surface = is_surface
         self.bader = None
         self.voltage = None
-        self.smiles = get_smiles(molecule)
+        self.smiles = self.get_smiles()
         
         if self.is_surface:
             self.phase = 'surface'
             self.closed_shell = None
         else:
             try:
-                self.closed_shell = is_closed_shell(molecule)
+                self.closed_shell = self.is_closed_shell()
             except:
                 self.closed_shell = None
             self.phase = phase
@@ -130,3 +132,53 @@ class Intermediate:
             obj:`nx.DiGraph` Of the associated molecule.
         """
         return fn.digraph(self.molecule, coords=False)
+    
+    def is_closed_shell(self):
+        """
+        Check if a molecule is closed-shell or not.
+        IN PROGRESS
+        """
+
+        symbols = self.molecule.get_chemical_symbols()
+        coords = self.molecule.get_positions()
+        for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
+            for j in range(len(coords[i])):
+                if abs(coords[i][j]) < 1.0e-6:
+                    coords[i][j] = 0.0
+        xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
+        xyz = "{}\n\n{}".format(len(self.molecule), xyz)
+        rdkit_mol = Chem.MolFromXYZBlock(xyz)
+        conn_mol = Chem.Mol(rdkit_mol)
+        rdDetermineBonds.DetermineConnectivity(conn_mol)
+        Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
+        #TODO: Improve function as it is not working properly
+        # unpaired_electrons = 0
+        # for atom in conn_mol.GetAtoms():
+        #     unpaired_electrons += atom.GetNumRadicalElectrons()
+
+        # if unpaired_electrons == 0:
+        #     return True
+        # else:
+        #     return False
+        num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
+        is_open_shell = num_electrons % 2 == 1
+        return not is_open_shell
+    
+    def get_smiles(self):
+        """
+        Get the SMILES string of a molecule.
+        """
+        symbols = self.molecule.get_chemical_symbols()
+        coords = self.molecule.get_positions()
+        for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
+            for j in range(len(coords[i])):
+                if abs(coords[i][j]) < 1.0e-6:
+                    coords[i][j] = 0.0
+        xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
+        xyz = "{}\n\n{}".format(len(self.molecule), xyz)
+        rdkit_mol = Chem.MolFromXYZBlock(xyz)
+        conn_mol = Chem.Mol(rdkit_mol)
+        rdDetermineBonds.DetermineConnectivity(conn_mol)
+        Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
+        smiles = Chem.MolToSmiles(conn_mol)
+        return smiles

@@ -11,6 +11,7 @@ from GAMERNet.rnet.gen_inter_from_prod import gen_inter
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.rnet.dock_ads_surf.gen_ads_surf import run_docksurf
 from GAMERNet.gnn_eads.nets import UQTestNet
+from GAMERNet.rnet.networks.surface import Surface
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -53,15 +54,14 @@ if __name__ == "__main__":
     metal_struct = metal_structure_dict[metal]
     full_facet = f"{metal_struct}({surface_facet})"
     surface = surf_db.get_atoms(metal=metal, facet=full_facet)
-    surface.info["surface_orientation"] = full_facet
+    surface = Surface(surface, surface_facet)
+    # surface.info["surface_orientation"] = full_facet
 
     # Load GAME-Net UQ 
     one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
     node_features_list = one_hot_encoder_elements.categories_[0].tolist()
     model_elements = one_hot_encoder_elements.categories_[0].tolist()
-    node_features_list.append("Valence")
-    node_features_list.append("Gcn")
-    node_features_list.append("Magnetization")
+    node_features_list.extend(["Valence", "Gcn", "Magnetization"])
     model = UQTestNet(features_list=node_features_list, 
                       scaling_params={"scaling":"std", "mean": -52.052330, "std": 29.274139},
                       dim=176, 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     with open(MODEL_PATH+'/input.txt', 'r') as f:
             configuration_dict = eval(f.read())
     graph_params = configuration_dict["graph"]
-    graph_params['structure']['scaling_factor'] = 1.6  # solve this later
+    # graph_params['structure']['scaling_factor'] = 1.6  # solve this later
 
     # Generating all the possible intermediates
     print('Generating intermediates...')
@@ -93,7 +93,7 @@ if __name__ == "__main__":
             f"The intermediate dictionary pickle file has been generated")
     # Generating the reaction network
     print('\nGenerating reaction network...')
-    rxn_net = generate_rxn_net(surface, intermediate_dict, map_dict)
+    rxn_net = generate_rxn_net(surface.slab, intermediate_dict, map_dict)
     print('The reaction network has been generated')
     # Converting the reaction network as a dictionary
     rxn_net_dict = rxn_net.to_dict()

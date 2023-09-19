@@ -19,7 +19,8 @@ from GAMERNet.rnet.adsurf.functions.adsurf_fn import connectivity_analysis
 from GAMERNet.rnet.adsurf.graphs.graph_utilities import ase_2_graph
 from GAMERNet.gnn_eads.create_pyg_dataset import atoms_to_data
 import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
-from GAMERNet.rnet.networks.networks import Intermediate
+from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.surface import Surface
 
 from GAMERNet import DOCK_DATA
 
@@ -207,14 +208,14 @@ def get_fragment_energy(structure: Atoms) -> float:
     return n_C * e_CO2 + (n_O - 2*n_C) * e_H2O + (4*n_C + n_H - 2*n_O - 3*n_N - 2*n_S) * e_H2 * 0.5 + (n_N * e_NH3) + (n_S * e_H2S)
 
 def run_docksurf(intermediate: Intermediate, 
-                 slab_ase_obj: Atoms, 
+                 surface: Surface, 
                  model: Module, 
                  graph_params:dict, 
                  model_elems:list, 
                  output_dir:str) -> float:
     molec_ase_obj = intermediate.molecule
     intermediate_code = intermediate.code
-    surface_facet = slab_ase_obj.info['surface_orientation'].split('(')[1].split(')')[0]
+    surface_facet = surface.facet
     res_folder = '{}/dockonsurf_screening'.format(output_dir)
     os.makedirs(res_folder, exist_ok=True)
 
@@ -227,7 +228,7 @@ def run_docksurf(intermediate: Intermediate,
     molec_graph = ase_2_graph(molec_ase_obj, coords=True)
     connect_sites_molec = connectivity_analysis(molec_graph)
 
-    a, b, _ = slab_ase_obj.get_cell()
+    a, b, _ = surface.slab.get_cell()
     slab_diagonal = sqrt(norm(a)**2 + norm(b)**2)
     print('Surface x-y extension: {:.2f} Angstrom'.format(slab_diagonal))
 
@@ -241,23 +242,23 @@ def run_docksurf(intermediate: Intermediate,
         counter = 1.0
         while not condition:
             counter += 1.0
-            pymatgen_slab = AseAtomsAdaptor.get_structure(slab_ase_obj)
+            pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
             pymatgen_slab.make_supercell([counter, counter, 1])
-            slab_ase_obj = AseAtomsAdaptor.get_atoms(pymatgen_slab)
-            a, b, _ = slab_ase_obj.get_cell()
+            surface.slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
+            a, b, _ = surface.slab.get_cell()
             slab_diagonal = sqrt(norm(a*counter)**2 + norm(b*counter)**2)
             condition = slab_diagonal - tolerance > max_dist_molec
         print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter)) 
     
-    tmp_subdir = os.path.join(res_folder, f'{intermediate_code}_{slab_ase_obj.get_chemical_formula()}{surface_facet}')
+    tmp_subdir = os.path.join(res_folder, f'{intermediate_code}_{surface.slab.get_chemical_formula()}{surface_facet}')
     os.makedirs(tmp_subdir, exist_ok=True)
 
     slab_poscar_file = os.path.join(tmp_subdir, 'POSCAR')
-    io.write(slab_poscar_file, slab_ase_obj, format='vasp')
+    io.write(slab_poscar_file, surface.slab, format='vasp')
 
     # Generate input files for DockonSurf
-    slab_active_sites = get_act_sites(slab_ase_obj, surface_facet)
-    slab_lattice = slab_ase_obj.get_cell().lengths()
+    active_sites = {"Site_{}".format(site["label"]): site["indices"] for site in surface.active_sites}
+    slab_lattice = surface.slab.get_cell().lengths()
     if len(molec_ase_obj) <= 6:
         min_height = 2.0
         max_height = 2.5
@@ -274,7 +275,7 @@ def run_docksurf(intermediate: Intermediate,
     total_config_list = []
     for ads_height in arange(min_height, max_height, increment):
         ads_height = '{:.2f}'.format(ads_height)
-        for active_site, site_idxs in slab_active_sites.items():
+        for active_site, site_idxs in active_sites.items():
             if site_idxs != []:
                 gen_docksurf_file(tmp_subdir, 
                                 intermediate_code, 
@@ -302,8 +303,8 @@ def run_docksurf(intermediate: Intermediate,
         return 0.0
     t_000 = time.time()
     # Removing the metal atoms with selective dynamics == False
-    fixed_atms_idxs = slab_ase_obj.todict().get('constraints', None)[0].get_indices()
-    fixed_atms = slab_ase_obj[np.isin(range(len(slab_ase_obj)), fixed_atms_idxs)]
+    fixed_atms_idxs = surface.slab.todict().get('constraints', None)[0].get_indices()
+    fixed_atms = surface.slab[np.isin(range(len(surface.slab)), fixed_atms_idxs)]
     for idx, atoms_obj in enumerate(total_config_list):
         # Removing the atoms which indices are in fixed_atms
         atoms_obj = atoms_obj[~np.isin(range(len(atoms_obj)), fixed_atms_idxs)]
