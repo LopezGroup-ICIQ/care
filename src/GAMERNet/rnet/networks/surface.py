@@ -25,7 +25,7 @@ class Surface:
         self.active_sites = self.find_active_sites()
 
     def __repr__(self) -> str:
-        return f"{self.metal}({self.facet})"
+        return f"{self.slab.get_chemical_formula()}({self.facet})"
 
     def get_num_layers(self) -> int:
         z = {atom.index:atom.position[2] for atom in self.slab}

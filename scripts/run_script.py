@@ -97,6 +97,8 @@ if __name__ == "__main__":
     print('The reaction network has been generated')
     # Converting the reaction network as a dictionary
     rxn_net_dict = rxn_net.to_dict()
+    rxn_net_dict['ncc'] = backbone_carbon_class
+    rxn_net_dict['surface'] = surface
 
     # Exporting the reaction network as a pickle file
     with open(f"{args.o}/rxn_net.pkl", "wb") as outfile:

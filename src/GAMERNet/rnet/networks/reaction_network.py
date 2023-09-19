@@ -9,6 +9,7 @@ from matplotlib import cm
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
+from GAMERNet.rnet.networks.surface import Surface
 
 class ReactionNetwork:
     """
@@ -20,13 +21,15 @@ class ReactionNetwork:
             to the network
         t_states (list of obj:`ElementaryReaction`): List containing the
             transition states associated to the network.
-        surface (obj:`pyRDTP.molecule.Bulk`): Surface of the network.
+        surface (obj:`Surface`): Surface of the network.
         graph (obj:`nx.DiGraph`): Graph of the network.
     """
     def __init__(self, 
                  intermediates: dict[str, Intermediate]=None, 
                  t_states: list[ElementaryReaction]=None, 
-                 gasses: dict[str, Intermediate]=None):
+                 gasses: dict[str, Intermediate]=None,
+                 surface: Surface=None, 
+                 ncc: int=None):
         
         if intermediates is None:
             self.intermediates = {}
@@ -43,6 +46,8 @@ class ReactionNetwork:
         self.excluded = None
         self._graph = None
         self._surface = None
+        self.ncc = ncc
+        self.surface = surface
         self.num_intermediates = len(self.intermediates)
         self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell]
         self.num_closed_shell_mols = len(self.closed_shells)
@@ -60,9 +65,8 @@ class ReactionNetwork:
         string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(self.num_intermediates, 
                                                                                                                 self.num_closed_shell_mols, 
                                                                                                                 self.num_reactions)
-        string += "Surface: {} {}\n".format(self.get_surface()[0].molecule.get_chemical_formula(), 
-                                              self.get_surface()[0].molecule.info["surface_orientation"])
-        # string += "Carbon cutoff: N/A\n"
+        string += "Surface: {}\n".format(self.surface)
+        string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         return string
 
     @classmethod
@@ -113,6 +117,8 @@ class ReactionNetwork:
         new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell]
         new_net.num_closed_shell_mols = len(new_net.closed_shells)
         new_net.num_reactions = len(new_net.t_states)
+        new_net.ncc = net_dict['ncc']
+        new_net.surface = net_dict['surface']
         return new_net
 
     def to_dict(self):
