@@ -7,7 +7,7 @@ from ase.db import connect
 from torch import load
 
 from GAMERNet import DB_PATH, MODEL_PATH
-from GAMERNet.rnet.gen_inter_from_prod import gen_inter
+from GAMERNet.rnet.gen_intermediates import generate_intermediates
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.rnet.dock_ads_surf.gen_ads_surf import run_docksurf
 from GAMERNet.gnn_eads.nets import UQTestNet
@@ -32,7 +32,7 @@ metal_structure_dict = {
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate reaction network with R-Nets for reaction involving C, H, O on transition metal surfaces.")
-    argparser.add_argument('--mol_cutoff', type=str, dest='mol_cutoff',
+    argparser.add_argument('--mol_cutoff', type=int, dest='mol_cutoff',
                             help="The biggest molecule present in the generated reaction mechanism.")
     argparser.add_argument('--metal', type=str, dest='metal',
                             help="Metal of interest. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     # Generating all the possible intermediates
     print('Generating intermediates...')
-    intermediate_dict, map_dict = gen_inter(backbone_carbon_class)
+    intermediate_dict, map_dict = generate_intermediates(backbone_carbon_class)
     print('Time to generate intermediates: ', time.time() - time0)
     # Saving the map dictionary as a pickle file
     with open(f"{args.o}/map_dict.pkl", "wb") as outfile:
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     list_ase_inter = list(rxn_net.intermediates.values())
     print('\nlist_ase_inter: ', list_ase_inter)
-
+    quit()
     for intermediate in rxn_net.intermediates.values():
         print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
         # If the molecule has only one atom, pass (need to see how to overcome this)
