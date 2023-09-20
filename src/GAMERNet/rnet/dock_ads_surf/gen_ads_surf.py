@@ -237,6 +237,7 @@ def run_docksurf(intermediate: Intermediate,
     condition = slab_diagonal - tolerance > max_dist_molec
     if condition:
         print('Molecule fits on reference metal slab\n')
+        aug_slab = surface.slab
     else:
         print('Scaling reference metal slab...')
         counter = 1.0
@@ -244,14 +245,14 @@ def run_docksurf(intermediate: Intermediate,
             counter += 1.0
             pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
             pymatgen_slab.make_supercell([counter, counter, 1])
-            surface.slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
+            aug_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
+            aug_surf = Surface(aug_slab, surface_facet)
             # a, b, _ = surface.slab.get_cell()
             # slab_diagonal = sqrt(norm(a*counter)**2 + norm(b*counter)**2)
-            slab_diagonal = surface.get_slab_diag()
-            condition = slab_diagonal - tolerance > max_dist_molec
+            condition = aug_surf.slab_diag - tolerance > max_dist_molec
         print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter)) 
     
-    tmp_subdir = os.path.join(res_folder, f'{intermediate_code}_{surface.slab.get_chemical_formula()}{surface_facet}')
+    tmp_subdir = os.path.join(res_folder, f'{intermediate_code}_{aug_slab.get_chemical_formula()}{surface_facet}')
     os.makedirs(tmp_subdir, exist_ok=True)
 
     slab_poscar_file = os.path.join(tmp_subdir, 'POSCAR')

@@ -80,7 +80,7 @@ class ReactionNetwork:
                 obj:`ElementaryReaction` respectively.
 
         Returns:
-            obj:`OrganicNetwork` configured with the intermediates and
+            obj:`ReactionNetwork` configured with the intermediates and
             transition states of the dictionary.
         """
         new_net = cls()
@@ -171,7 +171,7 @@ class ReactionNetwork:
         return export_dict
 
     def add_intermediates(self, inter_dict):
-        """Add intermediates to the OrganicNetwork.
+        """Add intermediates to the ReactionNetwork.
 
         Args:
             inter_dict (dict of obj:`Intermediate`): Intermediates that will be
@@ -180,7 +180,7 @@ class ReactionNetwork:
         self.intermediates.update(inter_dict)
 
     def add_gasses(self, gasses_dict):
-        """Add Gasses to the OrganicNetwork.
+        """Add Gasses to the ReactionNetwork.
 
         Args:
             gasses_dict (dict of obj:`Intermediate`): Dictionary
@@ -209,7 +209,7 @@ class ReactionNetwork:
         self.t_states += net_dict['ts']
 
     def search_graph(self, mol_graph, cate=None):
-        """Search for a intermediate with a isomorphic graph.
+        """Search for an intermediate with a isomorphic graph.
 
         Args:
             mol_graph (obj:`nx.DiGraph`): Digraph that will be used as query.
@@ -285,39 +285,65 @@ class ReactionNetwork:
         Returns:
             obj:`nx.DiGraph` of the network.
         """
-        new_graph = nx.DiGraph()
-        for inter in self.intermediates.values():  
-            if inter.is_surface or inter.code == '010101':
-                pass
-            else:
-                fig_path = '{}/{}.png'.format(path, inter.code)
-                write(fig_path, inter.molecule, show_unit_cell=0)                
-                new_graph.add_node(inter.code+"({})".format(inter.molecule.get_chemical_formula()), 
-                                   category='intermediate', 
-                                   gas_atoms=inter.molecule, 
-                                   closed_shell=inter.closed_shell, 
-                                   formula=inter.molecule.get_chemical_formula(), 
-                                   smiles=inter.smiles,
-                                   fig=abspath(fig_path))
+        nx_graph = nx.DiGraph()
+        # for inter in self.intermediates.values():  
+        #     if inter.is_surface or inter.code == '010101':
+        #         pass
+        #     else:
+        #         fig_path = '{}/{}.png'.format(path, inter.code)
+        #         write(fig_path, inter.molecule, show_unit_cell=0)                
+        #         new_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
+        #                            category='intermediate', 
+        #                            gas_atoms=inter.molecule, 
+        #                            closed_shell=inter.closed_shell, 
+        #                            formula=inter.molecule.get_chemical_formula()+"*", 
+        #                            smiles=inter.smiles,
+        #                            fig=abspath(fig_path))
+
+        for inter in self.intermediates.values():
+            fig_path = '{}/{}.png'.format(path, inter.code)
+            write(fig_path, inter.molecule, show_unit_cell=0)                
+            nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
+                               category='intermediate', 
+                               gas_atoms=inter.molecule, 
+                               closed_shell=inter.closed_shell, 
+                               formula=inter.molecule.get_chemical_formula()+"*", 
+                               smiles=inter.smiles,
+                               fig=abspath(fig_path))
+            
+        for reaction in self.t_states:  
+            nx_graph.add_node(reaction.code, category='reaction')
+            for comp in reaction.components[0]:
+                nx_graph.add_edge(comp.code+"({}*)".format(comp.molecule.get_chemical_formula()), 
+                                  reaction.code)
+                # nx_graph.add_edge(reaction.code, 
+                #                   comp.code+"({}*)".format(comp.molecule.get_chemical_formula()))
+            for comp in reaction.components[1]:
+                # nx_graph.add_edge(comp.code+"({}*)".format(comp.molecule.get_chemical_formula()), 
+                #                   reaction.code)
+                nx_graph.add_edge(reaction.code, 
+                                  comp.code+"({}*)".format(comp.molecule.get_chemical_formula()))
+                    
+
             
         
-        for t_state in self.t_states:  # edge
-            rs, ps = [], []
-            for intermediate in t_state.components[0]:
-                if intermediate.is_surface or intermediate.code == '010101': # surface(*) or H*
-                    pass
-                else:
-                    rs.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
-            for intermediate in t_state.components[1]:
-                if intermediate.is_surface or intermediate.code == '010101':
-                    pass
-                else:
-                    ps.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
-            for r in rs:
-                for p in ps:
-                    new_graph.add_edge(r, p, energy=t_state.energy)
+        # for t_state in self.t_states:  # edge
+        #     rs, ps = [], []
+        #     for intermediate in t_state.components[0]:
+        #         if intermediate.is_surface or intermediate.code == '010101': # surface(*) or H*
+        #             pass
+        #         else:
+        #             rs.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
+        #     for intermediate in t_state.components[1]:
+        #         if intermediate.is_surface or intermediate.code == '010101':
+        #             pass
+        #         else:
+        #             ps.append(intermediate.code+"({})".format(intermediate.molecule.get_chemical_formula()))
+        #     for r in rs:
+        #         for p in ps:
+        #             nx_graph.add_edge(r, p, energy=t_state.energy)
 
-        return new_graph
+        return nx_graph
 
     def get_min_max(self):
         """Returns the minimum and the maximum energy of the intermediates and
@@ -413,6 +439,61 @@ class ReactionNetwork:
         plot.set_rankdir('LR')
         plot.set_margin(0.2)
         plot.set_pad(0.2)
+        plot.write_png(filename)
+
+    
+    def write_dotgraph3(self, fig_path:str, filename: str):
+        graph = self.gen_graph2(fig_path)
+        # try layout kamada_kawai_layout
+        pos = nx.kamada_kawai_layout(graph)
+        nx.set_node_attributes(graph, pos, 'pos')
+        plot = nx.drawing.nx_pydot.to_pydot(graph)
+        # set shape of the figure to png
+        plot.set_nodesep(0.1)
+        plot.set_rankdir('TB')
+        plot.set_margin(0.1)
+        plot.set_pad(0.1)
+        plot.set_size('"8.27,11.69!"')
+        plot.set_orientation("landscape")   
+        plot.set_dpi(300)
+        # text in the node is the node attribute formula
+        for node in plot.get_nodes():
+            if node.get_attributes()['category'] == 'intermediate':
+                formula = node.get_attributes()['formula']
+                closed_shell = node.get_attributes()['closed_shell']
+                # print(formula, closed_shell)
+                for num in re.findall(r'\d+', formula):
+                    SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+                    formula = formula.replace(num, num.translate(SUB))
+                figure = node.get_attributes()['fig']
+                node.set_fontname("Arial")
+                # Add figure as html-like label without table borders
+                node.set_label(f"""<
+                <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
+                <TR>
+                <TD><IMG SRC="{figure}"/></TD>
+                </TR>
+                <TR>
+                <TD>{formula}</TD>
+                </TR>
+                </TABLE>>""")
+                node.set_style("filled")
+                node.set_fillcolor("wheat")
+                # set node shape as function of closed_shell attribute
+                node.set_shape("ellipse")          
+                node.set_width("1.5")
+                node.set_height("1.5")
+                node.set_fixedsize("true")
+            else:  # reaction node
+                node.set_shape("square")
+                node.set_style("filled")
+                node.set_fillcolor("royalblue")
+                # node.set_fixedsize("true")
+                node.set_label("")
+
+        for edge in plot.get_edges():
+            edge.set_color("azure4")
+        
         plot.write_png(filename)
 
     @property

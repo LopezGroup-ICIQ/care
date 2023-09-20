@@ -38,8 +38,8 @@ class Surface:
         return max(z_atoms)
     
     def get_slab_diag(self) -> float:
-        a, b, c = self.slab.get_cell()
-        return np.linalg.norm(a + b + c)
+        a, b, _ = self.slab.get_cell()
+        return np.linalg.norm(a + b)
 
     def get_area(self) -> float:
         """
