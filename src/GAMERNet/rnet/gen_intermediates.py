@@ -265,8 +265,9 @@ def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
     oxy_alkanes_smiles = [add_oxygens_to_molecule(mol) for mol in mol_unique_alkanes]
     # Transforming the list of sets into a list of SMILES strings
     oxy_alkanes_smiles = [smiles for smiles_set in oxy_alkanes_smiles for smiles in smiles_set]
-    # Adding water smiles to oxy_alkanes_smiles
+    # Adding water and hydrogen peroxide smiles to oxy_alkanes_smiles
     oxy_alkanes_smiles.append("O")
+    oxy_alkanes_smiles.append("OO")
     # Generating the RDKit molecules from the SMILES strings
     oxy_alkanes = [Chem.MolFromSmiles(smiles) for smiles in oxy_alkanes_smiles]
     # Unifying the mol_unique_alkanes and oxy_alkanes lists 
