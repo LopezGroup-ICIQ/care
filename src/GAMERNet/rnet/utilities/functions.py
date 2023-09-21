@@ -82,6 +82,8 @@ def generate_pack(molecule: Atoms,
         Group number of the molecule. For labeling purposes
     """
     n_H = molecule.get_chemical_symbols().count("H")
+    if molecule.get_chemical_formula() == 'H2':
+        n_H = 1
     molecule.arrays["conn_pairs"] = get_voronoi_neighbourlist(molecule, 0.25, 1.0, ['C', 'H', 'O']) 
     mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, digraph(molecule, coords=False), {})]}
 

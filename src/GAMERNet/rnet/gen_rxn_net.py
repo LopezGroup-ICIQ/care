@@ -1,7 +1,7 @@
 from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, oh_bond_breaks
+from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist, MolPack
 import networkx as nx
 from ase import Atoms
@@ -53,10 +53,9 @@ def generate_rxn_net(slab_ase_obj: Atoms,
                 del inter.molecule.arrays['conn_pairs']
             inter.molecule.arrays['conn_pairs'] = get_voronoi_neighbourlist(inter.molecule, 0.25, 1, ['C', 'H', 'O'])
 
-    oh_bond_breaks(rxn_net.t_states)
-
+    classify_oh_bond_breaks(rxn_net.t_states)
     breaking_ts = break_and_connect(rxn_net, surface=surf_inter)
-
+    
     # Adding the TSs to the network
     rxn_net.add_ts(breaking_ts)
 

@@ -5,7 +5,7 @@ from itertools import product, combinations
 import networkx as nx
 import copy
 
-from GAMERNet.rnet.utilities.functions import generate_map, generate_pack
+from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
@@ -232,7 +232,7 @@ def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
 
     return nx_graph
 
-def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
+def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
     """
     Generates all the possible intermediates for a given number of carbon atoms.
     Limitation: Only intermediates derived from alkanes and alcohols are generated.
@@ -264,6 +264,8 @@ def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
     # Adding water and hydrogen peroxide smiles to oxy_alkanes_smiles
     oxy_alkanes_smiles.append("O")
     oxy_alkanes_smiles.append("OO")
+    # Adding diatomic hydrogen to oxy_alkanes_smiles
+    oxy_alkanes_smiles.append("[H][H]")
     # Generating the RDKit molecules from the SMILES strings
     oxy_alkanes = [Chem.MolFromSmiles(smiles) for smiles in oxy_alkanes_smiles]
     # Unifying the mol_unique_alkanes and oxy_alkanes lists 

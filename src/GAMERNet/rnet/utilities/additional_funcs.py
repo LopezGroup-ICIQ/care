@@ -9,6 +9,7 @@ from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from collections import Counter
+# from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'C-H' : {'alpha': 0.63, 'beta': 0.81},
@@ -93,129 +94,6 @@ ELEM_WEIGTHS = {'H': 1., 'C': 12, 'O': 16}
 BOND_ORDER = {'C': 4,
               'O': 2}
 
-def connectivity_helper(atoms: Atoms):
-    if 'conn_pairs' not in atoms.arrays: 
-        conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
-        atoms.arrays['conn_pairs'] = conn_matrix
-    conn_matrix = atoms.arrays['conn_pairs']
-    connections = {}
-    if conn_matrix.shape[0] == 0: 
-        return connections
-    for index, _ in enumerate(atoms):
-        selected_rows = conn_matrix[np.logical_or(conn_matrix[:, 0] == index, conn_matrix[:, 1] == index)]
-        connections[index] = [element for row in selected_rows for element in row if element != index]
-    return connections
-
-def bond_analysis(mol: Atoms, comp_dist: bool=False) -> dict:
-    """Returns a dictionary of frozen tuples containing information about
-    the bond distances values between the different bonds of the molecule.
-
-    Args:
-        comp_dist (bool, optional): If True, the voronoi method will be
-            used to compute the bonds before the bond analysis.
-        bond_num (bool, optional): Take into account the number of bonds
-            of every atom and separate the different distances.
-
-    Returns:
-        dict of frozentuples containing the minimum distances between
-        different atoms.
-    """
-    if comp_dist:
-        mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1.0, ['C', 'H', 'O'])
-    package = BondPackage()
-    for row in range(mol.arrays['conn_pairs'].shape[0]):
-        package.bond_add(Bond(mol, mol.arrays['conn_pairs'][row, 0], mol.arrays['conn_pairs'][row, 1]))
-    return package
-
-#TODO: done, but double-check later
-def insaturation_matrix(mol: Atoms, voronoi: bool=False) -> np.ndarray:
-    """Generate the insaturation bond matrix for an organic molecule.
-
-    Args:
-        mol (:obj`ase.atoms.Atoms): Organic molecule that will be analyzed to
-            create the bond matrix.
-        voronoi (bool, optional): If True, a voronoi connectivity analysis
-            will be performed before creating the bond matrix. Defaults to
-            False.
-
-    Returns:
-        :obj`np.ndarray` of size (n_noHatoms, n_noHatoms) containing the bonds
-        between different atoms and the insaturations in the diagonal.
-
-    Notes:
-        At the moment only works with C and O, discarding the H.
-        If Voronoi is True, all the previous bonds will be deleted from the
-        molecule.
-    """
-    if voronoi:
-        del mol.arrays['conn_pairs']
-        mol.array['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1, ['C', 'H', 'O'])
-
-    not_h = [atom for atom in mol if atom.symbol != 'H']
-    bond_mat = np.zeros((len(not_h), len(not_h)), dtype=int)
-
-    for index, atom in enumerate(not_h):
-        avail_con = BOND_ORDER[atom.symbol]
-        condition = (mol.array['conn_pairs'][:, 0] == atom.index) or (mol.array['conn_pairs'][:, 1] == atom.index)
-        indices = np.where(condition)[0]
-        for connection in indices:
-            avail_con -= 1
-            if not 'H' in [mol[index].symbol for index in mol.arrays['conn_pairs'][connection, :]]:
-                bond_mat[index, not_h.index(connection)] = 1
-        bond_mat[index, index] = avail_con
-    return bond_mat
-
-def insaturation_solver(bond_mat: np.ndarray) -> np.ndarray:
-    """Solve the insaturation matrix distributing all the avaliable bonds
-    between the different atoms of the matrix.
-
-    bond_mat (:obj`np.ndarray`): Bond matrix containing the information of the
-        bonds and insaturations. See insaturation_matrix()  function for
-        further information.
-
-    Returns:
-        :obj`np.ndarray` containing the insaturation matrix.
-    """
-    ori_mat = bond_mat.copy()
-    new_mat = bond_mat.copy()
-    while True:
-        for row, value in enumerate(new_mat):
-            if [new_mat[row] == 0][0].all():
-                continue
-            elif new_mat[row, row] == 0:
-                new_mat[row] = 0
-                new_mat[:, row] = 0
-                break
-            elif new_mat[row, row] < 0:
-                continue
-            bool_mat = [value != 0][0]
-            bool_mat[row] = False
-            if np.sum(bool_mat) == 1:
-                col = np.argwhere(bool_mat)[0]
-                new_mat[row, row] -= 1
-                new_mat[col, col] -= 1
-                new_mat[row, col] += 1
-                new_mat[col, row] += 1
-
-                ori_mat[row, row] -= 1
-                ori_mat[col, col] -= 1
-                ori_mat[row, col] += 1
-                ori_mat[col, row] += 1
-                break
-        else:
-            break
-    return ori_mat
-
-def insaturation_check(mol: Atoms) -> bool:
-    """Check if all the bonds from an organic molecule are fullfilled.
-
-    Returns:
-        True if all the electrons are correctly distributed and False
-        if the molecule is a radical.
-    """
-    bond_mat = insaturation_matrix(mol)
-    bond_mat = insaturation_solver(bond_mat)
-    return not np.diag(bond_mat).any()
 
 class Bond:
     def __init__(self, 
@@ -377,7 +255,145 @@ class BondPackage:
                             'bond_total': avg_tot}
         return rtr_dic
 
-#####
+def connectivity_helper(atoms: Atoms) -> dict[int, list]:
+    """
+    Return a dictionary whose key is the atom index and the value a list with the indices of the atoms connected to the key atom.
+
+    Parameters
+    ----------
+    atoms : Atoms
+        ASE atoms object.
+
+    Returns
+    -------
+    dict[int, list]
+        Dictionary with the connectivity information.
+    """
+    connections = {}
+    if len(atoms) == 1: # C, H, O single atoms
+        return connections
+    if 'conn_pairs' not in atoms.arrays: 
+        conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
+        atoms.arrays['conn_pairs'] = conn_matrix
+    conn_matrix = atoms.arrays['conn_pairs']
+    for index, _ in enumerate(atoms):
+        selected_rows = conn_matrix[np.logical_or(conn_matrix[:, 0] == index, conn_matrix[:, 1] == index)]
+        connections[index] = [element for row in selected_rows for element in row if element != index]
+    return connections
+
+
+def bond_analysis(mol: Atoms, comp_dist: bool=False) -> BondPackage:
+    """
+    Returns a dictionary of frozen tuples containing information about
+    the bond distances values between the different bonds of the molecule.
+
+    Args:
+        comp_dist (bool, optional): If True, the voronoi method will be
+            used to compute the bonds before the bond analysis.
+        bond_num (bool, optional): Take into account the number of bonds
+            of every atom and separate the different distances.
+
+    Returns:
+        dict of frozentuples containing the minimum distances between
+        different atoms.
+    """
+    if comp_dist:
+        mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1.0, ['C', 'H', 'O'])
+    package = BondPackage()
+    for row in range(mol.arrays['conn_pairs'].shape[0]):
+        package.bond_add(Bond(mol, mol.arrays['conn_pairs'][row, 0], mol.arrays['conn_pairs'][row, 1]))
+    return package
+
+#TODO: done, but double-check later
+def insaturation_matrix(mol: Atoms, voronoi: bool=False) -> np.ndarray:
+    """Generate the insaturation bond matrix for an organic molecule.
+
+    Args:
+        mol (:obj`ase.atoms.Atoms): Organic molecule that will be analyzed to
+            create the bond matrix.
+        voronoi (bool, optional): If True, a voronoi connectivity analysis
+            will be performed before creating the bond matrix. Defaults to
+            False.
+
+    Returns:
+        :obj`np.ndarray` of size (n_noHatoms, n_noHatoms) containing the bonds
+        between different atoms and the insaturations in the diagonal.
+
+    Notes:
+        At the moment only works with C and O, discarding the H.
+        If Voronoi is True, all the previous bonds will be deleted from the
+        molecule.
+    """
+    if voronoi:
+        del mol.arrays['conn_pairs']
+        mol.array['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1, ['C', 'H', 'O'])
+
+    not_h = [atom for atom in mol if atom.symbol != 'H']
+    bond_mat = np.zeros((len(not_h), len(not_h)), dtype=int)
+
+    for index, atom in enumerate(not_h):
+        avail_con = BOND_ORDER[atom.symbol]
+        condition = (mol.array['conn_pairs'][:, 0] == atom.index) or (mol.array['conn_pairs'][:, 1] == atom.index)
+        indices = np.where(condition)[0]
+        for connection in indices:
+            avail_con -= 1
+            if not 'H' in [mol[index].symbol for index in mol.arrays['conn_pairs'][connection, :]]:
+                bond_mat[index, not_h.index(connection)] = 1
+        bond_mat[index, index] = avail_con
+    return bond_mat
+
+def insaturation_solver(bond_mat: np.ndarray) -> np.ndarray:
+    """Solve the insaturation matrix distributing all the avaliable bonds
+    between the different atoms of the matrix.
+
+    bond_mat (:obj`np.ndarray`): Bond matrix containing the information of the
+        bonds and insaturations. See insaturation_matrix()  function for
+        further information.
+
+    Returns:
+        :obj`np.ndarray` containing the insaturation matrix.
+    """
+    ori_mat = bond_mat.copy()
+    new_mat = bond_mat.copy()
+    while True:
+        for row, value in enumerate(new_mat):
+            if [new_mat[row] == 0][0].all():
+                continue
+            elif new_mat[row, row] == 0:
+                new_mat[row] = 0
+                new_mat[:, row] = 0
+                break
+            elif new_mat[row, row] < 0:
+                continue
+            bool_mat = [value != 0][0]
+            bool_mat[row] = False
+            if np.sum(bool_mat) == 1:
+                col = np.argwhere(bool_mat)[0]
+                new_mat[row, row] -= 1
+                new_mat[col, col] -= 1
+                new_mat[row, col] += 1
+                new_mat[col, row] += 1
+
+                ori_mat[row, row] -= 1
+                ori_mat[col, col] -= 1
+                ori_mat[row, col] += 1
+                ori_mat[col, row] += 1
+                break
+        else:
+            break
+    return ori_mat
+
+def insaturation_check(mol: Atoms) -> bool:
+    """Check if all the bonds from an organic molecule are fullfilled.
+
+    Returns:
+        True if all the electrons are correctly distributed and False
+        if the molecule is a radical.
+    """
+    bond_mat = insaturation_matrix(mol)
+    bond_mat = insaturation_solver(bond_mat)
+    return not np.diag(bond_mat).any()
+
 
 def elem_inf(graph: nx.Graph):
     elem_lst = [atom[1]['elem'] for atom in graph.nodes(data=True)]
@@ -741,8 +757,10 @@ def mkm_g_file_TS(network, filename='g.mkm'):
 def calculate_weigth(elems):
     return sum([ELEM_WEIGTHS[key] * value for key, value in elems.items()])
 
-def break_bonds(molecule: Atoms):
-    """Generate all possible C-O, C-C and C-OH bonds for the given molecule.
+def break_bonds(molecule: Atoms) -> dict[str, list]:
+    """
+    Where the magic happens.
+    Generate all possible C-O, C-C and C-OH bonds for the given molecule.
 
     Args:
         molecule (obj:`ase.atoms.Atoms`): Molecule that will be used
@@ -755,10 +773,12 @@ def break_bonds(molecule: Atoms):
     connections = connectivity_helper(molecule)
     bonds = {'C-O': [],
              'C-C': [],
-             'C-OH': []}
+             'C-OH': [], 
+             'O-O': [], 
+             'H-H': []}  # C-H and O-H bond breaking steps already considered
     bond_pack = bond_analysis(molecule)
     new_graph = ase_coord_2_graph(molecule, coords=False)
-    for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C')):
+    for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
         for pair in bond_pack.bond_search(bond_type):
             tmp_graph = new_graph.copy()
             tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
@@ -777,12 +797,17 @@ def break_bonds(molecule: Atoms):
                 else:
                     bonds['C-O'].append(sub_mols)
 
+            elif ('O', 'O') == bond_type:
+                bonds['O-O'].append(sub_mols)
+            elif ('H', 'H') == bond_type:
+                bonds['H-H'].append(sub_mols)
             else:
                 bonds['C-C'].append(sub_mols)
     return bonds
 
-def break_and_connect(network, surface='000000'):
-    """For an entire network, perform a breakage search (see `break_bonds`) for
+def break_and_connect(network, surface: Atoms) -> list[ElementaryReaction]:
+    """
+    For an entire network, perform a breakage search (see `break_bonds`) for
     all the intermediates, search if the generated submolecules belong to the
     network and if affirmative, create an obj:`networks.ElementaryReaction` object
     that connect all the species.
