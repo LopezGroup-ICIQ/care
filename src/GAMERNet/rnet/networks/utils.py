@@ -71,8 +71,13 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
                 else:
                     rxn_lhs = (inters[1], surf_inter)
                     rxn_rhs = (inters[0], h_inter)
-                inters = (rxn_lhs, rxn_rhs)  # elementary reaction: lhs -> rhs
-                new_ts = ElementaryReaction(components=inters, r_type='C-H')
+                rxn_sides = (rxn_lhs, rxn_rhs)  # elementary reaction: lhs -> rhs
+                new_ts = ElementaryReaction(components=rxn_sides, r_type='C-H')
+                # Specific r_typ case for H-H
+                condition1 = 'C' not in inters[0].molecule.get_chemical_symbols() and 'C' not in inters[1].molecule.get_chemical_symbols()
+                condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
+                if condition1 and condition2:
+                    new_ts.r_type = 'H-H'
                 for t_state in network_dict[key]['ts']:
                     if t_state.components == new_ts.components:
                         break
@@ -101,30 +106,39 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
                         # pass
     return network_dict
 
-def oh_bond_breaks(ts_list: list) -> None:
+def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
     """
-    missing docstring
+    Classify elementary reactions with O-H bond-breaking
+    It does not add any reaction to the network. It just classifies the reactions
+
+    Parameters
+    ----------
+    reactions_list : list[ElementaryReaction]
+        List of elementary reactions.
+
+    Returns
+    -------
+    None
     """
 
-    for t_state in ts_list:
+    for reaction in reactions_list:
         check_bonds = []
-        if t_state.r_type == 'C-H':
-            comps = t_state.components
-            for state in comps:
-                for item in list(state):
-                    if item.is_surface or item.code == '010101':
+        if reaction.r_type == 'C-H':
+            for state in reaction.components:
+                for inter in list(state):
+                    if inter.is_surface or inter.code in ('010101', '020101'): #surface or a hydrogen atom,
                         continue
                     else:
-                        oxy = [atom for atom in item.molecule if atom.symbol == "O"]
-                        if oxy:
+                        oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
+                        if len(oxy) != 0:
                             counter = 0
                             for atom in oxy:
-                                counter += np.count_nonzero(item.molecule.arrays['conn_pairs'] == atom.index)
+                                counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom.index)
                             check_bonds.append(counter)
                         else:
                             check_bonds.append(0)
             if check_bonds[0] != check_bonds[1]:
-                t_state.r_type = 'O-H'
+                reaction.r_type = 'O-H'
 
 
 def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
