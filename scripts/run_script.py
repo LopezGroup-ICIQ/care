@@ -32,9 +32,9 @@ metal_structure_dict = {
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate reaction network with R-Nets for reaction involving C, H, O on transition metal surfaces.")
-    argparser.add_argument('--mol_cutoff', type=int, dest='mol_cutoff',
-                            help="The biggest molecule present in the generated reaction mechanism.")
-    argparser.add_argument('--metal', type=str, dest='metal',
+    argparser.add_argument('-ncc', type=int, dest='ncc',
+                            help="Network Carbon Cutoff (ncc). It defines the maximum number of carbon atoms allowed during the reaction network generation.")
+    argparser.add_argument('-m', type=str, dest='m',
                             help="Metal of interest. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
     argparser.add_argument('-hkl', type=str, dest='hkl',
                             help="Surface facet of the metal. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11")
@@ -45,33 +45,25 @@ if __name__ == "__main__":
     os.makedirs(args.o, exist_ok=True)
     time0 = time.time()
     
-    backbone_carbon_class = args.mol_cutoff
-    metal = args.metal
-    surface_facet = args.hkl
-
-    # Loading metal surface from ASE database
+    # Loading surface from database
     surf_db = connect(os.path.abspath(DB_PATH))
-    metal_struct = metal_structure_dict[metal]
-    full_facet = f"{metal_struct}({surface_facet})"
-    surface = surf_db.get_atoms(metal=metal, facet=full_facet)
-    surface = Surface(surface, surface_facet)
-    # surface.info["surface_orientation"] = full_facet
+    metal_struct = metal_structure_dict[args.m]
+    full_facet = f"{metal_struct}({args.hkl})"
+    surface = surf_db.get_atoms(metal=args.m, facet=full_facet)
+    surface = Surface(surface, args.hkl)
 
-    # Load GAME-Net UQ 
+    # Loading GAME-Net UQ 
     one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
     node_features_list = one_hot_encoder_elements.categories_[0].tolist()
     model_elements = one_hot_encoder_elements.categories_[0].tolist()
     node_features_list.extend(["Valence", "Gcn", "Magnetization"])
-    model = UQTestNet(features_list=node_features_list, 
-                      scaling_params={"scaling":"std", "mean": -52.052330, "std": 29.274139},
-                      dim=176, 
-                      N_linear=0, 
-                      N_conv=3, 
-                      bias=False, 
-                      pool_heads=1)
+    scaling_params = {"scaling":"std", "mean": -52.052330, "std": 29.274139}
+    model = UQTestNet(features_list=node_features_list, scaling_params=scaling_params,
+                      dim=176, N_linear=0, N_conv=3, 
+                      bias=False, pool_heads=1)
     model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
 
-    # load dict from input.txt
+    # Loading geometry->graph conversion parameters
     with open(MODEL_PATH+'/input.txt', 'r') as f:
             configuration_dict = eval(f.read())
     graph_params = configuration_dict["graph"]
@@ -79,25 +71,24 @@ if __name__ == "__main__":
 
     # Generating all the possible intermediates
     print('Generating intermediates...')
-    intermediate_dict, map_dict = generate_intermediates(backbone_carbon_class)
-    print('Time to generate intermediates: ', time.time() - time0)
-    # Saving the map dictionary as a pickle file
-    with open(f"{args.o}/map_dict.pkl", "wb") as outfile:
-        pickle.dump(map_dict, outfile)
+    intermediate_dict, rxn_dict = generate_intermediates(args.ncc)
+    print('Time to generate intermediates: {:.2f} s'.format(time.time()-time0))
+    # Saving the rxn and intermediate dictionaries as pickle files
+    with open(f"{args.o}/rxn_dict.pkl", "wb") as outfile:
+        pickle.dump(rxn_dict, outfile)
         print(
-            f"The intermediate map dictionary pickle file has been generated")
-    # Saving the intermediate dictionary as a pickle file
+            f"The rxn dictionary pickle file has been generated")
     with open(f"{args.o}/intermediate_dict.pkl", "wb") as outfile:
         pickle.dump(intermediate_dict, outfile)
         print(
             f"The intermediate dictionary pickle file has been generated")
     # Generating the reaction network
     print('\nGenerating reaction network...')
-    rxn_net = generate_rxn_net(surface.slab, intermediate_dict, map_dict)
+    rxn_net = generate_rxn_net(surface.slab, intermediate_dict, rxn_dict)
     print('The reaction network has been generated')
     # Converting the reaction network as a dictionary
     rxn_net_dict = rxn_net.to_dict()
-    rxn_net_dict['ncc'] = backbone_carbon_class
+    rxn_net_dict['ncc'] = args.ncc
     rxn_net_dict['surface'] = surface
 
     # Exporting the reaction network as a pickle file

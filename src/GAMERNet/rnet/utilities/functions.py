@@ -28,7 +28,7 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "Xe": 1.40, "Yb": 1.87, "Y" : 1.90, "Zn": 1.22, "Zr": 1.75}
 
 
-MolPack = namedtuple('MolPack',['code', 'mol','graph', 'subs'])
+MolPack = namedtuple('MolPack',['code', 'ase_mol','nx_graph', 'num_H_removed'])
 
 def get_voronoi_neighbourlist(atoms: Atoms,
                               tolerance: float,
@@ -69,9 +69,35 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             pairs_lst.append(pair)
     return np.sort(np.array(pairs_lst), axis=1)
 
-def generate_pack(ase_molecule_obj: Atoms, niter: int, group: int) -> dict[int, list[MolPack]]:
-    ase_molecule_obj.arrays["conn_pairs"] = get_voronoi_neighbourlist(ase_molecule_obj, 0.25, 1.0, ['C', 'H', 'O']) 
-    return generate_range(ase_molecule_obj, 'H', niter, group)
+def generate_pack(molecule: Atoms,  
+                  group: int) -> dict[int, list[MolPack]]:
+    """
+    Given a molecule, generate all the possible intermediates by removing up to n_H hydrogens.
+
+    Parameters
+    ----------
+    molecule : ase.Atoms
+        ASE Atoms object of the molecule.
+    group : int
+        Group number of the molecule. For labeling purposes
+    """
+    n_H = molecule.get_chemical_symbols().count("H")
+    molecule.arrays["conn_pairs"] = get_voronoi_neighbourlist(molecule, 0.25, 1.0, ['C', 'H', 'O']) 
+    mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, digraph(molecule, coords=False), {})]}
+
+    for index in range(n_H):
+        
+        pack = get_all_subs(molecule, index + 1, 'H')
+        unique = get_unique(pack[1], 'H')
+        
+        tmp_pack = []
+        for i_code, struct in enumerate(unique):
+            mol_sel = pack[0][struct]
+            tmp_pack.append(MolPack(code_name(mol_sel, group, i_code+1), mol_sel, pack[1][struct], {'H': index+1}))
+
+        mg_pack[index+1] = tmp_pack
+    return mg_pack
+
 
 def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: float) -> float:
     """Get the cutoff distance for two atoms to be considered connected using Cordero's atomic radii.
@@ -183,7 +209,8 @@ def search_code(mg_pack: dict[int, list[MolPack]], code: str):
     else:
         return False
 
-def generate_map(packing: list[MolPack], elem: str):
+def generate_map(packing: list[MolPack],
+                    elem: str) -> nx.DiGraph:
     """Generate the map of the packing.
 
     Parameters
@@ -201,10 +228,10 @@ def generate_map(packing: list[MolPack], elem: str):
     g = nx.DiGraph()
     em = iso.categorical_node_match('elem', elem)
     for index in range(len(packing) - 1):
-        for father, son in product(packing[index], packing[index+1]):
-            xx = nx.isomorphism.DiGraphMatcher(father.graph, son.graph, node_match=em)
+        for parent, child in product(packing[index], packing[index+1]):
+            xx = nx.isomorphism.DiGraphMatcher(parent.nx_graph, child.nx_graph, node_match=em)
             if xx.subgraph_is_isomorphic():
-                g.add_edge(father.code, son.code)
+                g.add_edge(parent.code, child.code)
     return g
     
 

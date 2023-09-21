@@ -1,15 +1,11 @@
-import pprint as pp
 from rdkit import Chem
-from rdkit.Chem import Draw
 from rdkit.Chem import AllChem
 from ase import Atoms, Atom
 from itertools import product, combinations
 import networkx as nx
 import copy
-from collections import defaultdict
-from PIL import Image
 
-from GAMERNet.rnet.utilities import functions as fn
+from GAMERNet.rnet.utilities.functions import generate_map, generate_pack
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
@@ -54,7 +50,10 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
     element_j = node_j.symbol
     return CORDERO[element_i] + CORDERO[element_j] + tolerance
 
-def generate_alkanes_recursive(G, remaining_c, unique_alkanes):
+def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: list[str]):
+    """
+    Generate all alkanes with a given number of carbon atoms in smiles format.
+    """
     if remaining_c == 0:
         if nx.is_connected(G) and nx.is_tree(G):
             mol = nx_to_mol(G)
@@ -107,22 +106,22 @@ def rdkit_to_ase(rdkit_molecule):
 
     return ase_atoms
 
-def add_oxygens_to_molecule(mol):
+def add_oxygens_to_molecule(mol: Chem.Mol) -> set[str]:
     """Add as many oxygen atoms as possible to suitable carbon atoms in the molecule."""
     unique_molecules = set()
 
-    # Identify suitable carbons with less than 4 bonds
+    # All RDkit molecules are unsaturated, i.e., C2H6 is represented as C2 (no H atoms)
     suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
 
     # Generate all combinations of adding 0 to 'num_free_sites' oxygens for each suitable carbon
-    combos = [list(range(num+1)) for idx, num in suitable_carbons]
+    combos = [list(range(num+1)) for _, num in suitable_carbons]
 
     for combo in product(*combos):
         total_oxygens = sum(combo)
         if total_oxygens == 0:  # Skip molecules with no oxygens added
             continue
             
-        tmp_mol = Chem.RWMol(mol)
+        tmp_mol = Chem.RWMol(mol) # readible and writable mol object
         for (num_oxygens, (carbon_idx, _)) in zip(combo, suitable_carbons):
             for _ in range(num_oxygens):
                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
@@ -137,9 +136,6 @@ def add_oxygens_to_molecule(mol):
 
     return unique_molecules
 
-def count_carbons(mol):
-    """Count the number of carbon atoms in the molecule."""
-    return sum(1 for atom in mol.GetAtoms() if atom.GetSymbol() == 'C')
 
 def id_group_dict(molecules_dict: dict) -> dict:
     """Corrects the labeling for isomeric systems.
@@ -237,8 +233,8 @@ def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
     return nx_graph
 
 def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
-    print('n_carbon: ', type(n_carbon))
-    """Generates all the possible intermediates for a given number of carbon atoms.
+    """
+    Generates all the possible intermediates for a given number of carbon atoms.
     Limitation: Only intermediates derived from alkanes and alcohols are generated.
 
     Parameters
@@ -249,7 +245,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
     Returns
     -------
     tuple[dict, dict]
-        _description_
+        
     """
 
     unique_alkanes = set()
@@ -294,27 +290,21 @@ def generate_intermediates(n_carbon: int) -> tuple[dict, dict]:
     isomeric_groups = id_group_dict(inter_precursor_dict)
 
     # Generating all possible intermediates by H abstraction
-    # + Storing in dictionaries
     inter_dict = {}
     repeat_molec = []
     for name, molec in isomeric_groups.items():
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
-                mol_ase_obj = inter_precursor_dict[molec_grp]['Atoms']
-                intermediate = fn.generate_pack(mol_ase_obj, sum(1 for atom in mol_ase_obj if atom.symbol == 'H'), isomeric_groups[name].index(molec_grp) + 1)
+                molecule = inter_precursor_dict[molec_grp]['Atoms']
+                intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
                 inter_dict[molec_grp] = intermediate
-
+    
+    # Generating the connections between the intermediates via graph theory
     map_dict = {}
     for molecule in inter_dict.keys():
         intermediate = inter_dict[molecule]
-        map_tmp = fn.generate_map(intermediate, 'H')
+        map_tmp = generate_map(intermediate, 'H')
         map_dict[molecule] = map_tmp
 
     return inter_dict, map_dict
-
-# import time
-# time0 = time.time()
-# inter_dict, map_dict = generate_intermediates(10)
-# pp.pprint(inter_dict)
-# print('Time to generate intermediates: ', time.time() - time0)

@@ -1,9 +1,6 @@
 import itertools as it
 import pickle
 
-from rdkit import Chem
-from rdkit.Chem import rdDetermineBonds
-from ase import Atoms
 import networkx as nx
 import numpy as np
 
@@ -28,25 +25,25 @@ metal_structure_dict = {
     "Zn": "hcp"
 }
 
-def generate_dict(lot1: dict) -> dict:
+def generate_dict(inter_dict: dict) -> dict:
     """
     missing docstring
     """
     lot1_att = {}
-    for network, subs in lot1.items(): #reading the pickle file and making a dictionary
+    for network, subs in inter_dict.items(): #reading the pickle file and making a dictionary
         lot1_att[network] = {}
         tmp_dict = lot1_att[network]
         for mol_lst in subs.values():
             for inter in mol_lst:
-                tmp_dict[inter.code] = {'mol': inter.mol, 'graph': inter.graph, 'energy': 0.0, 'entropy': 0.0}
+                tmp_dict[inter.code] = {'mol': inter.ase_mol, 'graph': inter.nx_graph, 'energy': 0.0, 'entropy': 0.0}
     return lot1_att
 
-def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Intermediate) -> dict:
+def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Intermediate) -> dict:
     """
     missing docstring
     """
     network_dict = {} 
-    for key, network in map1.items():
+    for key, network in rxn_dict.items():
         network_dict[key] = {'intermediates': {}, 'ts': []}
         for node in network.nodes():
             try:
@@ -61,6 +58,7 @@ def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Interme
                 new_inter._graph = new_inter.gen_graph()
                 network_dict[key]['intermediates'][node] = new_inter
             except KeyError:
+                print("KeyError: Node {} not found in the dictionary".format(node))
                 pass
         
         for edge in list(network.edges()):
@@ -68,19 +66,20 @@ def generate_network_dict(map1: dict, surf_inter: Intermediate, h_inter: Interme
                 inters = (network_dict[key]['intermediates'][edge[0]], network_dict[key]['intermediates'][edge[1]])
 
                 if len(inters[0].molecule) > len(inters[1].molecule):
-                    comp_1 = (inters[0], surf_inter)
-                    comp_2 = (inters[1], h_inter)
+                    rxn_lhs = (inters[0], surf_inter)
+                    rxn_rhs = (inters[1], h_inter)
                 else:
-                    comp_1 = (inters[1], surf_inter)
-                    comp_2 = (inters[0], h_inter)
-                inters = (comp_1, comp_2)
+                    rxn_lhs = (inters[1], surf_inter)
+                    rxn_rhs = (inters[0], h_inter)
+                inters = (rxn_lhs, rxn_rhs)  # elementary reaction: lhs -> rhs
                 new_ts = ElementaryReaction(components=inters, r_type='C-H')
                 for t_state in network_dict[key]['ts']:
                     if t_state.components == new_ts.components:
                         break
-                else:
+                else: # if the for loop is not broken
                     network_dict[key]['ts'].append(new_ts)
             except KeyError:
+                print("Key Error: Edge {} not found in the dictionary".format(edge))
                 pass
     return network_dict
 

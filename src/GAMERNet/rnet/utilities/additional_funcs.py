@@ -1616,9 +1616,9 @@ def adjust_electrons(ase_atoms_obj: Atoms):
         elements_dict (dict): C, O, H as key and the number of atoms for every
             element as value.
     """
-    elements_dict = {'C': sum([1 for atom in ase_atoms_obj if atom.symbol == 'C']),
-                'H': sum([1 for atom in ase_atoms_obj if atom.symbol == 'H']),
-                'O': sum([1 for atom in ase_atoms_obj if atom.symbol == 'O'])}
+    elements_dict = {'C': ase_atoms_obj.get_chemical_symbols().count('C'),
+                'H': ase_atoms_obj.get_chemical_symbols().count('H'),
+                'O': ase_atoms_obj.get_chemical_symbols().count('O')}
 
     n_electrons = (4 * elements_dict['C'] + elements_dict['H']
                  - 2 * elements_dict['O'])

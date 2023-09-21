@@ -2,13 +2,13 @@ from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
 from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, oh_bond_breaks
-from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
+from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist, MolPack
 import networkx as nx
 from ase import Atoms
 
 def generate_rxn_net(slab_ase_obj: Atoms, 
                      intermediate_dict: dict[int, list], 
-                     map_dict: dict[int, nx.DiGraph]) -> ReactionNetwork:
+                     rxn_dict: dict[int, nx.DiGraph]) -> ReactionNetwork:
     """
     Generates the entire reaction network from the intermediate dictionary and the map dictionary.
 
@@ -34,10 +34,10 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     h_inter.electrons = 1
 
     inter_att = generate_dict(intermediate_dict)
-    for network, graph in map_dict.items():
+    for network, graph in rxn_dict.items():
         nx.set_node_attributes(graph, inter_att[network])
 
-    network_dict = generate_network_dict(map_dict, surf_inter, h_inter)
+    network_dict = generate_network_dict(rxn_dict, surf_inter, h_inter)
 
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
 
