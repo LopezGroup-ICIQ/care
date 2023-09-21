@@ -6,6 +6,8 @@ from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 
+PHASES = ['gas', 'ads', 'surf']
+
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
 
@@ -45,10 +47,12 @@ class Intermediate:
         self.smiles = self.get_smiles()
         
         if self.is_surface:
-            self.phase = 'surface'
+            self.phase = 'surf'
             self.closed_shell = None
         else:
             self.closed_shell = self.is_closed_shell()
+            if phase not in PHASES:
+                raise ValueError(f"Phase must be one of {PHASES}")
             self.phase = phase
         self.t_states = [{}, {}]
 

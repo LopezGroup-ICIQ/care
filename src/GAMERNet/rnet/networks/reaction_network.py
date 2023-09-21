@@ -48,9 +48,9 @@ class ReactionNetwork:
         self._surface = None
         self.ncc = ncc
         self.surface = surface
-        self.num_intermediates = len(self.intermediates)
         self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell]
-        self.num_closed_shell_mols = len(self.closed_shells)
+        self.num_closed_shell_mols = int(len(self.closed_shells) / 2)  
+        self.num_intermediates = len(self.intermediates) - self.num_closed_shell_mols - 1
         self.num_reactions = len(self.t_states)
 
     def __getitem__(self, other):
@@ -113,12 +113,13 @@ class ReactionNetwork:
 
         new_net.intermediates = int_list_gen
         new_net.t_states = ts_list_gen
-        new_net.num_intermediates = len(new_net.intermediates)        
-        new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell]
-        new_net.num_closed_shell_mols = len(new_net.closed_shells)
+        new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
+        new_net.num_closed_shell_mols = len(new_net.closed_shells)  
+        new_net.num_intermediates = len(new_net.intermediates) - new_net.num_closed_shell_mols - 1
         new_net.num_reactions = len(new_net.t_states)
         new_net.ncc = net_dict['ncc']
         new_net.surface = net_dict['surface']
+        new_net.graph = new_net.gen_graph()
         return new_net
 
     def to_dict(self):
@@ -233,44 +234,40 @@ class ReactionNetwork:
             obj:`nx.DiGraph` of the network.
         """
         nx_graph = nx.DiGraph()
-        surface = self.get_surface()[0]
-
         for inter in self.intermediates.values():
             fig_path = abspath(path+"/{}.png".format(inter.code))
             write(fig_path, inter.molecule, show_unit_cell=0)
-            nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
+            if inter.phase == 'surf':
+                nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()),
+                                    category='surface', 
+                                    gas_atoms=inter.molecule, 
+                                    code=inter.code, 
+                                    formula=inter.molecule.get_chemical_formula()+"*", 
+                                    fig_path=fig_path, 
+                                    facet=self.surface.facet)
+            elif inter.phase == 'gas':
+                nx_graph.add_node(inter.code+"({}(g))".format(inter.molecule.get_chemical_formula()),
+                                    category='gas', 
+                                    gas_atoms=inter.molecule, 
+                                    code=inter.code, 
+                                    formula=inter.molecule.get_chemical_formula()+"(g)", 
+                                    fig_path=fig_path)
+            else:
+                nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
                                category='intermediate', 
                                gas_atoms=inter.molecule, 
                                code=inter.code, 
                                formula=inter.molecule.get_chemical_formula()+"*", 
                                fig_path=fig_path)
-            if inter.is_surface:
-                nx_graph.nodes[inter.code+"({}*)".format(inter.molecule.get_chemical_formula())]['facet'] = self.surface.facet
-            if inter.closed_shell: # add gas-phase close-shell intermediate and desorption reaction
-                nx_graph.add_node(inter.code+"({}(g))".format(inter.molecule.get_chemical_formula()),
-                                  category='gas', 
-                                  gas_atoms=inter.molecule, 
-                                  code=inter.code, 
-                                  formula=inter.molecule.get_chemical_formula()+"(g)", 
-                                  fig_path=fig_path)
-                nx_graph.add_node(inter.code+"({}(g))des".format(inter.molecule.get_chemical_formula()),
-                                    category='desorption')  # desorption reaction node
-                nx_graph.add_edge(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
-                                  inter.code+"({}(g))des".format(inter.molecule.get_chemical_formula()))
-                nx_graph.add_edge(inter.code+"({}(g))des".format(inter.molecule.get_chemical_formula()),
-                                    inter.code+"({}(g))".format(inter.molecule.get_chemical_formula()))
-                nx_graph.add_edge(inter.code+"({}(g))des".format(inter.molecule.get_chemical_formula()),
-                                  "000000({}*)".format(surface.molecule.get_chemical_formula()))
             
         for reaction in self.t_states:  
-            nx_graph.add_node(reaction.code, category='surface_reaction')
+            category = 'desorption' if reaction.r_type == 'desorption' else 'surface_reaction'
+            nx_graph.add_node(reaction.code, category=category)
             for comp in reaction.components[0]: # reactants to reaction node
                 nx_graph.add_edge(comp.code+"({}*)".format(comp.molecule.get_chemical_formula()), 
-                                  reaction.code)
+                                      reaction.code)
             for comp in reaction.components[1]: # reaction node to products
-                nx_graph.add_edge(reaction.code, 
-                                  comp.code+"({}*)".format(comp.molecule.get_chemical_formula()))     
-
+                nx_graph.add_edge(reaction.code, comp.code+"({}*)".format(comp.molecule.get_chemical_formula()))  
         return nx_graph
 
     def get_min_max(self):

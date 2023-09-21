@@ -54,7 +54,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
                                          graph=sel_node['graph'], 
                                          energy=sel_node['energy'], 
                                          entropy=sel_node['entropy'], 
-                                         electrons=electrons, phase='cat')
+                                         electrons=electrons, phase='ads')
                 new_inter._graph = new_inter.gen_graph()
                 network_dict[key]['intermediates'][node] = new_inter
             except KeyError:
@@ -105,6 +105,19 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
                     inter.entropy = 0.0
                         # pass
     return network_dict
+
+def gen_desorption_reactions(rxn_net, surf_inter) -> list[ElementaryReaction]:
+    desorption_list = []
+    closed_shell_list = []
+    for inter in rxn_net.intermediates.values():
+        if inter.closed_shell:
+            # Defining new label for gas-phase species
+            gas_code = inter.code + 'g'
+            gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
+            closed_shell_list.append(gas_inter)            
+            desorption_list.append(ElementaryReaction(components=(frozenset([inter]), frozenset([surf_inter, gas_inter])), r_type='desorption'))
+    rxn_net.add_intermediates({inter.code: inter for inter in closed_shell_list})
+    return desorption_list
 
 def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
     """

@@ -10,7 +10,7 @@ class ElementaryReaction:
     """
     def __init__(self, 
                  code: str=None, 
-                 components: list[frozenset]=None, 
+                 components: tuple=None, 
                  energy: float=None,
                  r_type: str=None, 
                  is_electro: bool=False):

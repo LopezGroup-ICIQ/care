@@ -1,7 +1,8 @@
 from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
 from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks
+from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks, gen_desorption_reactions
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist, MolPack
 import networkx as nx
 from ase import Atoms
@@ -28,9 +29,9 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     """
     
     hydrogen_atom_ase = Atoms('H', positions=[[0, 0, 0]])
-    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='000000', energy=0.0, entropy=0.0, is_surface=True, phase='surface')
+    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='000000', energy=0.0, entropy=0.0, is_surface=True, phase='surf')
     surf_inter.electrons = 0
-    h_inter = Intermediate.from_molecule(hydrogen_atom_ase, code='010101', energy=0.0, entropy=0.0, phase='cat')
+    h_inter = Intermediate.from_molecule(hydrogen_atom_ase, code='010101', energy=0.0, entropy=0.0, phase='ads')
     h_inter.electrons = 1
 
     inter_att = generate_dict(intermediate_dict)
@@ -55,9 +56,9 @@ def generate_rxn_net(slab_ase_obj: Atoms,
 
     classify_oh_bond_breaks(rxn_net.t_states)
     breaking_ts = break_and_connect(rxn_net, surface=surf_inter)
-    
-    # Adding the TSs to the network
     rxn_net.add_ts(breaking_ts)
+    des_reactions = gen_desorption_reactions(rxn_net, surf_inter)
+    rxn_net.add_ts(des_reactions)
 
     for t_state in rxn_net.t_states:
          t_state.energy, t_state.entropy = 0.0, 0.0
