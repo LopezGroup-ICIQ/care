@@ -2,7 +2,6 @@ from ase import Atoms
 from networkx import Graph
 from GAMERNet.rnet.utilities import functions as fn
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
-# from GAMERNet.rnet.networks.utils import get_smiles, ase_to_rdkit
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 
@@ -12,7 +11,7 @@ class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
 
     Attributes:
-        code (str): Code of the intermediate.
+        code (str): Code of the intermediate. 6 digits.
         molecule (obj:`ase.atoms.Atoms`): Associated molecule.
         graph (obj:`nx.graph`): Associated molecule graph.
         energy (float): DFT energy of the intermediate.
@@ -33,13 +32,13 @@ class Intermediate:
                  phase: str=None):
         
         self.code = code
+        self.formula = formula
         self.molecule = molecule
         self.adsorbate = adsorbate
         self._graph = graph
         self.energy = energy
         self.std_energy = std_energy
         self.entropy = entropy
-        self.formula = formula
         self.electrons = electrons
         self.is_surface = is_surface
         self.bader = None
@@ -55,6 +54,10 @@ class Intermediate:
                 raise ValueError(f"Phase must be one of {PHASES}")
             self.phase = phase
         self.t_states = [{}, {}]
+        if self.phase in ('surf', 'ads'):
+            self.repr = self.code + '({}*)'.format(self.formula)
+        else:
+            self.repr = self.code + '({}(g))'.format(self.formula)
 
     def __hash__(self):
         return hash(self.code)
@@ -66,9 +69,8 @@ class Intermediate:
             return self.code == other.code
         raise NotImplementedError
 
-    def __repr__(self):
-        string = (self.code + '({})'.format(self.molecule.get_chemical_formula()))
-        return string
+    def __repr__(self):        
+        return self.repr
 
     # TODO: Use Santi function to generate the code
     # def draft(self):
@@ -92,7 +94,7 @@ class Intermediate:
         return self.energy - ((self.bader + self.electrons) * (-1.) * self.voltage)
 
     @classmethod
-    def from_molecule(cls, ase_atoms_obj, code=None, energy=None, std_energy=None,entropy=None, is_surface=False, phase=None):
+    def from_molecule(cls, ase_atoms_obj: Atoms, code=None, energy=None, std_energy=None,entropy=None, is_surface=False, phase=None):
         """Create an Intermediate using a molecule obj.
 
         Args:

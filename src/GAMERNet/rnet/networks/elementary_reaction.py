@@ -21,18 +21,16 @@ class ElementaryReaction:
         self._bader_energy = None
         self.r_type = r_type
         self.is_electro = is_electro
-
-    def __repr__(self):
         out_str = ''
         for comp in self.components:
             for inter in comp:
-                try:
-                    out_str += inter.molecule.get_chemical_formula() + '+'
-                except:
-                    out_str += inter.code + '+'
+                out_str += inter.repr + '+'
             out_str = out_str[:-1]
             out_str += '<->'
-        return out_str[:-3]
+        self.repr = out_str[:-3]
+
+    def __repr__(self):
+        return self.repr        
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
@@ -53,8 +51,10 @@ class ElementaryReaction:
         self._bader_energy = other
 
     def bb_order(self):
-        """Order the components of the transition state in the direction of the
-        bond breaking reaction.
+        """
+        Order the components of the elementary reaction in the direction of the
+        bond breaking reaction, e.g.:
+        CH4 + * -> CH3 + H*
 
         Returns:
             list of frozensets containing the reactants before the bond
@@ -80,6 +80,9 @@ class ElementaryReaction:
         return new_list
 
     def full_order(self):
+        """
+        missing docstring
+        """
         ordered = self.bb_order()
         react, prod = ordered
         react = list(react)
@@ -101,23 +104,23 @@ class ElementaryReaction:
                 order.append(mols)
         return order
 
-    def full_label(self):
-        """
-        xxx
-        """
-        order = self.full_order()
-        full_label = ''
-        for item in order:
-            for inter in item:
-                if inter.phase == ['cat']:
-                    full_label += 'i'
-                elif inter.code == 'e-':
-                    full_label += 'xxxxxxx'
-                    continue
-                else:
-                    full_label += 'g'
-                full_label += str(inter.code)
-        return full_label
+    # def full_label(self):
+    #     """
+    #     xxx
+    #     """
+    #     order = self.full_order()
+    #     full_label = ''
+    #     for item in order:
+    #         for inter in item:
+    #             if inter.phase == ['cat']:
+    #                 full_label += 'i'
+    #             elif inter.code == 'e-':
+    #                 full_label += 'xxxxxxx'
+    #                 continue
+    #             else:
+    #                 full_label += 'g'
+    #             full_label += str(inter.code)
+    #     return full_label
 
     def calc_activation_energy(self, reverse=False, bader=False):
         components = [list(item) for item in self.bb_order()]
@@ -173,7 +176,7 @@ class ElementaryReaction:
     @property
     def code(self):
         if self._code is None:
-            self._code = self.get_code(option='g')
+            self._code = self.repr
         return self._code
 
     @code.setter
@@ -190,28 +193,28 @@ class ElementaryReaction:
         new_pair = frozenset(pair)
         self.components.append(new_pair)
 
-    def get_code(self, option='g'):
-        """Automatically generate a code for the transition state using the
-        code of the intermediates.
+    # def get_code(self, option='g'):
+    #     """Automatically generate a code for the transition state using the
+    #     code of the intermediates.
 
-        Args:
-            option (str, optional): 'g' or 'i'. If 'g' the position of the
-                intermediates in the code is inverted. Defaults to None.
-        """
-        end_str = ''
-        in_str = 'i'
-        out_str = 'f'
-        act_comp = self.bb_order()
-        if option in ['inverse', 'i']:
-            act_comp = self.components[::-1]
-        elif option in ['general', 'g']:
-            out_str = 'i'
+    #     Args:
+    #         option (str, optional): 'g' or 'i'. If 'g' the position of the
+    #             intermediates in the code is inverted. Defaults to None.
+    #     """
+    #     end_str = ''
+    #     in_str = 'i'
+    #     out_str = 'f'
+    #     act_comp = self.bb_order()
+    #     if option in ['inverse', 'i']:
+    #         act_comp = self.components[::-1]
+    #     elif option in ['general', 'g']:
+    #         out_str = 'i'
 
-        for species in act_comp[0]:
-            end_str += in_str + str(species.code)
-        for species in act_comp[1]:
-            end_str += out_str + str(species.code)
-        return end_str
+    #     for species in act_comp[0]:
+    #         end_str += in_str + str(species.code)
+    #     for species in act_comp[1]:
+    #         end_str += out_str + str(species.code)
+    #     return end_str
 
     # def draft(self):
     #     """Draw a draft of the transition state using the drafts of the

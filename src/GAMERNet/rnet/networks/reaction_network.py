@@ -17,16 +17,18 @@ class ReactionNetwork:
     starting from the Intermediate and ElementaryReaction objects.
 
     Attributes:
-        intermediates (dict of obj:`Intermediate`): Intermediates that belong
-            to the network
-        t_states (list of obj:`ElementaryReaction`): List containing the
-            transition states associated to the network.
+        intermediates (dict of obj:`Intermediate`): Dictionary containing the
+            intermediates of the network.
+        reactions (list of obj:`ElementaryReaction`): List containing the   
+            elementary reactions of the network.
+        gasses (dict of obj:`Intermediate`): Dictionary containing the gas species
+            of the network.
         surface (obj:`Surface`): Surface of the network.
-        graph (obj:`nx.DiGraph`): Graph of the network.
+        ncc (int): Carbon cutoff of the network.
     """
     def __init__(self, 
                  intermediates: dict[str, Intermediate]=None, 
-                 t_states: list[ElementaryReaction]=None, 
+                 reactions: list[ElementaryReaction]=None, 
                  gasses: dict[str, Intermediate]=None,
                  surface: Surface=None, 
                  ncc: int=None):
@@ -35,10 +37,10 @@ class ReactionNetwork:
             self.intermediates = {}
         else:
             self.intermediates = intermediates
-        if t_states is None:
-            self.t_states = []
+        if reactions is None:
+            self.reactions = []
         else:
-            self.t_states = t_states
+            self.reactions = reactions
         if gasses is None:
             self.gasses = {}
         else:
@@ -48,10 +50,10 @@ class ReactionNetwork:
         self._surface = None
         self.ncc = ncc
         self.surface = surface
-        self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell]
-        self.num_closed_shell_mols = int(len(self.closed_shells) / 2)  
-        self.num_intermediates = len(self.intermediates) - self.num_closed_shell_mols - 1
-        self.num_reactions = len(self.t_states)
+        self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
+        self.num_closed_shell_mols = len(self.closed_shells)
+        self.num_intermediates = len(self.intermediates) - self.num_closed_shell_mols - 1  # -1 for the surface
+        self.num_reactions = len(self.reactions)
 
     def __getitem__(self, other):
         if other in self.intermediates:
@@ -63,8 +65,8 @@ class ReactionNetwork:
     
     def __str__(self):
         string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(self.num_intermediates, 
-                                                                                                                self.num_closed_shell_mols, 
-                                                                                                                self.num_reactions)
+                                                                                                            self.num_closed_shell_mols, 
+                                                                                                            self.num_reactions)
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         return string
@@ -91,13 +93,11 @@ class ReactionNetwork:
             curr_inter = Intermediate(**inter)
             int_list_gen[curr_inter.code] = curr_inter
 
-        for ts in net_dict['ts']:
-
+        for reaction in net_dict['ts']:
             ts_comp_list = []
-
-            for i in ts.keys():
+            for i in reaction.keys():
                 if i == 'components':
-                    comp_data_list = ts[i]
+                    comp_data_list = reaction[i]
                     ts_couple = []
                     for int_data in comp_data_list:
                         tupl_int = []
@@ -107,16 +107,16 @@ class ReactionNetwork:
                         ts_couple.append(frozenset(tuple(tupl_int)))
                     ts_comp_list.append(ts_couple)
 
-            ts.pop('components')
-            curr_ts = ElementaryReaction(**ts, components=ts_comp_list[0])
+            reaction.pop('components')
+            curr_ts = ElementaryReaction(**reaction, components=ts_comp_list[0])
             ts_list_gen.append(curr_ts)
 
         new_net.intermediates = int_list_gen
-        new_net.t_states = ts_list_gen
+        new_net.reactions = ts_list_gen
         new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
         new_net.num_closed_shell_mols = len(new_net.closed_shells)  
         new_net.num_intermediates = len(new_net.intermediates) - new_net.num_closed_shell_mols - 1
-        new_net.num_reactions = len(new_net.t_states)
+        new_net.num_reactions = len(new_net.reactions)
         new_net.ncc = net_dict['ncc']
         new_net.surface = net_dict['surface']
         new_net.graph = new_net.gen_graph()
@@ -124,7 +124,7 @@ class ReactionNetwork:
 
     def to_dict(self):
         intermediate_list = []
-        ts_list = []
+        reaction_list = []
 
         for intermediate in self.intermediates.values():
             curr_inter = {}
@@ -141,12 +141,12 @@ class ReactionNetwork:
             curr_inter['phase']=intermediate.phase
             intermediate_list.append(curr_inter)
 
-        for ts in self.t_states:
+        for reaction in self.reactions:
             curr_ts = {}
-            curr_ts["code"]=ts.code
+            curr_ts["code"]=reaction.code
             ts_i_list = []
 
-            for j in ts.components:
+            for j in reaction.components:
                 tupl_comp_list = []
                 for i in j:
                     curr_ts_i_dict = {}
@@ -163,12 +163,12 @@ class ReactionNetwork:
                     tupl_comp_list.append(curr_ts_i_dict)
                 ts_i_list.append(tupl_comp_list)
             curr_ts["components"]=ts_i_list
-            curr_ts["energy"]=ts.energy
-            curr_ts["r_type"]=ts.r_type
-            curr_ts["is_electro"]=ts.is_electro
-            ts_list.append(curr_ts)
+            curr_ts["energy"]=reaction.energy
+            curr_ts["r_type"]=reaction.r_type
+            curr_ts["is_electro"]=reaction.is_electro
+            reaction_list.append(curr_ts)
 
-        export_dict = {'intermediates':intermediate_list, 'ts':ts_list}
+        export_dict = {'intermediates': intermediate_list, 'ts': reaction_list}
         return export_dict
 
     def add_intermediates(self, inter_dict):
@@ -196,7 +196,7 @@ class ReactionNetwork:
             ts_lst (list of obj:`ElementaryReaction`): List containing the
                 transition states that will be added to network.
         """
-        self.t_states += ts_lst
+        self.reactions += ts_lst
 
     def add_dict(self, net_dict):
         """Add dictionary containing two different keys: intermediates and ts.
@@ -207,7 +207,7 @@ class ReactionNetwork:
               be added to the dictionary.
         """
         self.intermediates.update(net_dict['intermediates'])
-        self.t_states += net_dict['ts']
+        self.reactions += net_dict['ts']
 
     def search_graph(self, mol_graph, cate=None):
         """Search for an intermediate with a isomorphic graph.
@@ -237,37 +237,39 @@ class ReactionNetwork:
         for inter in self.intermediates.values():
             fig_path = abspath(path+"/{}.png".format(inter.code))
             write(fig_path, inter.molecule, show_unit_cell=0)
-            if inter.phase == 'surf':
-                nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()),
-                                    category='surface', 
+            phase = inter.phase
+            if phase == 'surf':
+                nx_graph.add_node(inter.code,
+                                    category=phase, 
                                     gas_atoms=inter.molecule, 
                                     code=inter.code, 
                                     formula=inter.molecule.get_chemical_formula()+"*", 
                                     fig_path=fig_path, 
                                     facet=self.surface.facet)
-            elif inter.phase == 'gas':
-                nx_graph.add_node(inter.code+"({}(g))".format(inter.molecule.get_chemical_formula()),
-                                    category='gas', 
+            elif phase == 'gas':
+                nx_graph.add_node(inter.code,
+                                    category=phase, 
                                     gas_atoms=inter.molecule, 
                                     code=inter.code, 
                                     formula=inter.molecule.get_chemical_formula()+"(g)", 
                                     fig_path=fig_path)
-            else:
-                nx_graph.add_node(inter.code+"({}*)".format(inter.molecule.get_chemical_formula()), 
-                               category='intermediate', 
+            else: # ads
+                nx_graph.add_node(inter.code, 
+                               category=phase, 
                                gas_atoms=inter.molecule, 
                                code=inter.code, 
                                formula=inter.molecule.get_chemical_formula()+"*", 
                                fig_path=fig_path)
-            
-        for reaction in self.t_states:  
+                            
+        for reaction in self.reactions:  
             category = 'desorption' if reaction.r_type == 'desorption' else 'surface_reaction'
             nx_graph.add_node(reaction.code, category=category)
             for comp in reaction.components[0]: # reactants to reaction node
-                nx_graph.add_edge(comp.code+"({}*)".format(comp.molecule.get_chemical_formula()), 
-                                      reaction.code)
+                nx_graph.add_edge(comp.code,
+                                    reaction.code)
             for comp in reaction.components[1]: # reaction node to products
-                nx_graph.add_edge(reaction.code, comp.code+"({}*)".format(comp.molecule.get_chemical_formula()))  
+                nx_graph.add_edge(reaction.code, comp.code)               
+            
         return nx_graph
 
     def get_min_max(self):
@@ -300,18 +302,10 @@ class ReactionNetwork:
         pos = nx.kamada_kawai_layout(graph)
         nx.set_node_attributes(graph, pos, 'pos')
         plot = nx.drawing.nx_pydot.to_pydot(graph)
-        # set shape of the figure to png
-        # plot.set_nodesep(0.1)
-        # plot.set_rankdir('TB')
-        # plot.set_margin(0.1)
-        # plot.set_pad(0.1)
-        # plot.set_size('"8.27,11.69!"')
-        
-        # plot.set_dpi(150)
-        # text in the node is the node attribute formula
         for node in plot.get_nodes():
             category = node.get_attributes()['category']
-            if category in ('intermediate', 'gas'):
+            print(category)
+            if category in ('ads', 'gas', 'surf'):
                 formula = node.get_attributes()['formula']
                 for num in re.findall(r'\d+', formula):
                     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
@@ -375,9 +369,9 @@ class ReactionNetwork:
                 for this transition state.
         """
         energy_dict = {}
-        for t_state in self.t_states:
-            energy = ener_func(self._graph[t_state.code])
-            energy_dict[t_state] = {'energy': energy}
+        for reaction in self.reactions:
+            energy = ener_func(self._graph[reaction.code])
+            energy_dict[reaction] = {'energy': energy}
         return energy_dict
 
     @property
@@ -470,17 +464,17 @@ class ReactionNetwork:
         """Add to the intermediates the transition states where they are
         involved.
         """
-        for t_state in self.t_states:
-            comp = t_state.bb_order()
-            r_type = t_state.r_type
+        for reaction in self.reactions:
+            comp = reaction.bb_order()
+            r_type = reaction.r_type
             for index, inter in enumerate(comp):
                 for react in list(inter):
-                    brk = react.t_states[index]
+                    brk = react.reactions[index]
                     if r_type not in brk:
                         brk[r_type] = []
-                    if t_state in brk[r_type]:
+                    if reaction in brk[r_type]:
                         continue
-                    brk[r_type].append(t_state)
+                    brk[r_type].append(reaction)
 
     def search_ts(self, init, final=None):
         """Given a list of codes or intermediates, search the related elementary reactions.
@@ -508,7 +502,7 @@ class ReactionNetwork:
                     new.append(item)
         new_init = frozenset(new_init)
         new_final = frozenset(new_final)
-        for t_state in self.t_states:
+        for t_state in self.reactions:
             comps = t_state.components
             if (new_init.issubset(comps[0]) and new_final.issubset(comps[1]) or
                 new_init.issubset(comps[1]) and new_final.issubset(comps[0])):
@@ -542,12 +536,12 @@ class ReactionNetwork:
                     new.append(item)
         new_init = frozenset(new_init)
         new_final = frozenset(new_final)
-        for t_state in self.t_states:
-            comps = t_state.components
+        for reaction in self.reactions:
+            comps = reaction.components
             if (new_init.issubset(comps[0]) and new_final.issubset(comps[1]) or
                 new_init.issubset(comps[1]) and new_final.issubset(comps[0])):
-                ts_lst.append(t_state)
-        return t_state
+                ts_lst.append(reaction)
+        return reaction
 
     def search_ts_by_code(self, code: str):
         """Given an arbitrary code, returns the TS with the matching code.
@@ -558,15 +552,15 @@ class ReactionNetwork:
         Returns:
             obj:`ElementaryReaction` with the matching code
         """
-        for t_state in self.t_states:
-            if t_state.code == code:
-                return t_state
+        for reaction in self.reactions:
+            if reaction.code == code:
+                return reaction
         return None
 
     def search_inter_by_elements(self, element_dict):
         """Given a dictionary with the elements as keys and the number of each
         element as value, returns all the intermediates that contains these
-        elements.
+        elements. The dictionary must contain the elements C, H and O.
 
         Args:
             element_dict (dict): Dictionary with the symbol of the elements as
@@ -577,9 +571,10 @@ class ReactionNetwork:
         """
         matches = []
         for inter in self.intermediates.values():
-            elem_tmp = {'C': sum([1 for elem in inter.molecule if elem.symbol == 'C']),
-                        'H': sum([1 for elem in inter.molecule if elem.symbol == 'H']),
-                        'O': sum([1 for elem in inter.molecule if elem.symbol == 'O'])}
+            formula = inter.molecule.get_chemical_formula()
+            elem_tmp = {'C': formula.count('C'),
+                        'H': formula.count('H'),
+                        'O': formula.count('O')}
             if elem_tmp == element_dict:
                 matches.append(inter)
         return tuple(matches)

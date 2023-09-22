@@ -49,12 +49,14 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
             try:
                 sel_node = network.nodes[node]
                 electrons = af.adjust_electrons(sel_node['mol'])
-                new_inter = Intermediate(code=node, 
+                new_inter = Intermediate(code=node+'*', 
                                          molecule=sel_node['mol'], 
                                          graph=sel_node['graph'], 
                                          energy=sel_node['energy'], 
                                          entropy=sel_node['entropy'], 
-                                         electrons=electrons, phase='ads')
+                                         electrons=electrons,
+                                         formula=sel_node['mol'].get_chemical_formula(),
+                                         phase='ads')
                 new_inter._graph = new_inter.gen_graph()
                 network_dict[key]['intermediates'][node] = new_inter
             except KeyError:
@@ -107,12 +109,16 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
     return network_dict
 
 def gen_desorption_reactions(rxn_net, surf_inter) -> list[ElementaryReaction]:
+    """
+    For all adsorbed intermediates which are closed-shell, 
+    include respective desorption reaction in the network, by adding the corresponding gas-phase species.
+    """
     desorption_list = []
     closed_shell_list = []
     for inter in rxn_net.intermediates.values():
         if inter.closed_shell:
             # Defining new label for gas-phase species
-            gas_code = inter.code + 'g'
+            gas_code = inter.code[:-1] + 'g'
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
             closed_shell_list.append(gas_inter)            
             desorption_list.append(ElementaryReaction(components=(frozenset([inter]), frozenset([surf_inter, gas_inter])), r_type='desorption'))
@@ -139,7 +145,7 @@ def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
         if reaction.r_type == 'C-H':
             for state in reaction.components:
                 for inter in list(state):
-                    if inter.is_surface or inter.code in ('010101', '020101'): #surface or a hydrogen atom,
+                    if inter.is_surface or inter.code in ('010101*', '020101*'): #surface or a hydrogen atom,
                         continue
                     else:
                         oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
@@ -166,14 +172,14 @@ def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
             is_components = reaction.components[1]
 
             for molecule in fs_components:
-                if molecule.code == '000000':
+                if molecule.code == '000000*':
                     continue
                 else:
                     fs_graph = molecule.graph
 
             is_graphs = []
             for molecule in is_components:
-                if molecule.code == '000000':
+                if molecule.code == '000000*':
                     continue
                 else:
                     is_graphs.append(molecule.graph)
