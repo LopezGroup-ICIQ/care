@@ -228,7 +228,7 @@ class ReactionNetwork:
         return coinc_lst
 
     
-    def gen_graph(self) -> nx.DiGraph:
+    def gen_graph(self, del_surf:bool=False) -> nx.DiGraph:
         """Generate a graph using the intermediates and the transition states
         contained in this object.
 
@@ -276,7 +276,10 @@ class ReactionNetwork:
                 nx_graph.add_edge(comp.code,
                                     reaction.code)
             for comp in reaction.components[1]: # reaction node to products
-                nx_graph.add_edge(reaction.code, comp.code)               
+                nx_graph.add_edge(reaction.code, comp.code)
+
+        if del_surf:
+            nx_graph.remove_node('000000*')               
             
         return nx_graph
 
@@ -305,8 +308,8 @@ class ReactionNetwork:
                 inter.is_surface]
 
     
-    def write_dotgraph(self, fig_path:str, filename: str):
-        graph = self.gen_graph()
+    def write_dotgraph(self, fig_path:str, filename: str, del_surf: bool=False):
+        graph = self.gen_graph(del_surf=del_surf)
         pos = nx.kamada_kawai_layout(graph)
         nx.set_node_attributes(graph, pos, 'pos')
         plot = nx.drawing.nx_pydot.to_pydot(graph)
@@ -359,7 +362,7 @@ class ReactionNetwork:
         a4_dims = (8.3, 11.7)  # In inches
         plot.set_size(f"{a4_dims[0],a4_dims[1]}!")
         plot.set_orientation("landscape")   
-        plot.write_png('.'+filename)
+        plot.write_png('./'+filename)
         # remove not empty tmp folder
         rmtree('tmp')
         
@@ -643,7 +646,6 @@ class ReactionNetwork:
             raise ValueError('First argument must be closed shell')
         if not self.intermediates[mol2_code].closed_shell:
             raise ValueError('Second argument must be closed shell')
-        
         
         
         graph = self.graph.to_undirected()
