@@ -1,5 +1,7 @@
 import re
 from os.path import abspath
+from os import makedirs
+from shutil import rmtree
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -226,7 +228,7 @@ class ReactionNetwork:
         return coinc_lst
 
     
-    def gen_graph(self, path: str=".") -> nx.DiGraph:
+    def gen_graph(self) -> nx.DiGraph:
         """Generate a graph using the intermediates and the transition states
         contained in this object.
 
@@ -234,8 +236,9 @@ class ReactionNetwork:
             obj:`nx.DiGraph` of the network.
         """
         nx_graph = nx.DiGraph()
+        makedirs('tmp', exist_ok=True)
         for inter in self.intermediates.values():
-            fig_path = abspath(path+"/{}.png".format(inter.code))
+            fig_path = abspath("tmp/{}.png".format(inter.code))
             write(fig_path, inter.molecule, show_unit_cell=0)
             phase = inter.phase
             if phase == 'surf':
@@ -356,7 +359,11 @@ class ReactionNetwork:
         a4_dims = (8.3, 11.7)  # In inches
         plot.set_size(f"{a4_dims[0],a4_dims[1]}!")
         plot.set_orientation("landscape")   
-        plot.write_png(filename)
+        plot.write_png('.'+filename)
+        # remove not empty tmp folder
+        rmtree('tmp')
+        
+
 
     @property
     def graph(self):
@@ -643,8 +650,12 @@ class ReactionNetwork:
         graph.remove_node('011101*')
         graph.remove_node('001101*')
         # return shortest path and nodes traversed
-        sp = nx.shortest_path(graph, mol1_code, mol2_code)
-        steps = [node for node in sp if '<->' in node]
+        rxn_condition = lambda node: '<->' in node
+        # sp = nx.shortest_path(graph, mol1_code, mol2_code)
+        # steps = [node for node in sp if '<->' in node]
+
+        # write customized dijkstra algorithm
+        # 
         return len(steps), steps
 
             
