@@ -2,7 +2,7 @@ from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks, gen_desorption_reactions
+from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks, gen_desorption_reactions, gen_associative_desorption_reactions
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist, MolPack
 import networkx as nx
 from ase import Atoms
@@ -58,6 +58,9 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     rxn_net.add_ts(breaking_ts)
     des_reactions = gen_desorption_reactions(rxn_net, surf_inter)
     rxn_net.add_ts(des_reactions)
+    ass_des_reactions = gen_associative_desorption_reactions(rxn_net, surf_inter)
+    rxn_net.add_ts(ass_des_reactions)
+
 
     for t_state in rxn_net.reactions:
          t_state.energy, t_state.entropy = 0.0, 0.0

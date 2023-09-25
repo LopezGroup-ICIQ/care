@@ -873,7 +873,7 @@ def break_and_connect(network, surface: Atoms) -> list[ElementaryReaction]:
                     continue
 
                 reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-                print(reaction.code, reaction.r_type)
+                print(reaction.code, reaction.r_type, reaction.stoic)
                 for item in reaction_list:
                     if item.components == reaction.components:
                         break
