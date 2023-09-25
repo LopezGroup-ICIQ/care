@@ -1,4 +1,4 @@
-REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'eley_rideal']
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal']
 
 class ElementaryReaction:
     """Class for representing elementary reactions.
@@ -32,6 +32,7 @@ class ElementaryReaction:
             out_str = out_str[:-1]
             out_str += '<->'
         self.repr = out_str[:-3]
+        self.stoic = self.solve_stoichiometry()
 
     def __repr__(self):
         return self.repr        
@@ -234,3 +235,41 @@ class ElementaryReaction:
     #             component.draft()
     #             counter += 1
     #     return plt.show()
+
+    def solve_stoichiometry(self):
+        """Solve the stoichiometry of the elementary reaction.
+
+        Returns:
+            dict containing the stoichiometry of the elementary reaction.
+        """
+        lhs_stoic = [-1 for intermediate in self.components[0]]
+        rhs_stoic = [1 for intermediate in self.components[1]]
+        lhs = {'C': 0, 'H': 0, 'O': 0, '*': 0}
+        rhs = {'C': 0, 'H': 0, 'O': 0, '*': 0}
+        for inter in self.components[0]:
+            lhs['C'] += inter.molecule.get_chemical_symbols().count('C')
+            lhs['H'] += inter.molecule.get_chemical_symbols().count('H')
+            lhs['O'] += inter.molecule.get_chemical_symbols().count('O')
+            # if inter.phase != 'gas':
+            #     lhs['*'] += 1
+        for inter in self.components[1]:
+            rhs['C'] += inter.molecule.get_chemical_symbols().count('C')
+            rhs['H'] += inter.molecule.get_chemical_symbols().count('H')
+            rhs['O'] += inter.molecule.get_chemical_symbols().count('O')
+            # if inter.phase != 'gas':
+            #     rhs['*'] += 1
+        # if list(lhs.values()) == list(rhs.values()):
+        #     return [lhs_stoic, rhs_stoic]
+        # else:
+        #     print(self)
+        #     print(lhs.values())
+        #     print(rhs.values())
+        #     raise ValueError('The stoichiometry of the elementary reaction is not balanced.')
+        condition = list(lhs.values()) == list(rhs.values())
+        while not condition:
+            rhs_stoic = [item * 2 for item in rhs_stoic]
+            rhs = {key: value * 2 for key, value in rhs.items()}
+            condition = list(lhs.values()) == list(rhs.values())
+        return [lhs_stoic, rhs_stoic]
+            
+                
