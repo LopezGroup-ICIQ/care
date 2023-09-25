@@ -788,7 +788,7 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
         The C-OH bond is considered for electrochemical reactions purposes.
     """
     connections = connectivity_helper(molecule)
-    bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': []}  # C-H and O-H already considered
+    bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': [], 'O-OH': []}  # C-H and O-H already considered
     bond_pack = bond_analysis(molecule)
     mol_graph = ase_coord_2_graph(molecule, coords=False)
     for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
@@ -810,7 +810,17 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
                 else:
                     bonds['C-O'].append(sub_graphs)
             elif ('O', 'O') == bond_type:
-                bonds['O-O'].append(sub_graphs)
+                oh_bond = False
+                for atom in pair.atoms: # check if O is connected to H
+                    if atom.symbol == 'O':
+                        if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
+                            oh_bond = True
+                    else:
+                        continue
+                if oh_bond:
+                    bonds['O-OH'].append(sub_graphs)
+                else:
+                    bonds['O-O'].append(sub_graphs)
             elif ('H', 'H') == bond_type:
                 bonds['H-H'].append(sub_graphs)
             else:

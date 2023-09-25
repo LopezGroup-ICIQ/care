@@ -617,7 +617,7 @@ class ReactionNetwork:
                                       r_type='eley_rideal')
         self.add_ts([reaction])
 
-    def get_shortest_path(self, mol1_code : str, mol2_code: str) -> int:
+    def get_shortest_path(self, mol1_code: str, mol2_code: str) -> int:
         """
         Given a reactant and a product, return the minimum number of reactions to go from one to the other.
         
@@ -633,7 +633,8 @@ class ReactionNetwork:
         int
             Minimum number of reactions to go from one to the other.
         """
-        # check that both are closed shell and in the network
+
+        # NOT FINISHED
         if mol1_code not in self.intermediates.keys():
             raise ValueError('First argument must be in the network')
         if mol2_code not in self.intermediates.keys():
@@ -643,6 +644,8 @@ class ReactionNetwork:
         if not self.intermediates[mol2_code].closed_shell:
             raise ValueError('Second argument must be closed shell')
         
+        
+        
         graph = self.graph.to_undirected()
         # remove nodes that do not contain C* as they provide a shortcut
         graph.remove_node('000000*')
@@ -651,7 +654,19 @@ class ReactionNetwork:
         graph.remove_node('001101*')
         # return shortest path and nodes traversed
         rxn_condition = lambda node: '<->' in node
-        # sp = nx.shortest_path(graph, mol1_code, mol2_code)
+
+        nC1 = self.intermediates[mol1_code].molecule.get_chemical_formula().count('C')
+        nC2 = self.intermediates[mol2_code].molecule.get_chemical_formula().count('C')
+        if nC1 == nC2:
+            for intermediate in self.intermediates.values():
+                if intermediate.molecule.get_chemical_formula().count('C') > max(nC1, nC2):
+                    graph.remove_node(intermediate.code)
+            sp = nx.shortest_path(graph, mol1_code, mol2_code)
+            steps = [node for node in sp if '<->' in node]
+        else:
+            sp = nx.shortest_path(graph, mol1_code, mol2_code)
+            steps = [node for node in sp if '<->' in node]
+
         # steps = [node for node in sp if '<->' in node]
 
         # write customized dijkstra algorithm
