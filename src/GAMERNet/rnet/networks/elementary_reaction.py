@@ -1,3 +1,5 @@
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'eley_rideal']
+
 class ElementaryReaction:
     """Class for representing elementary reactions.
 
@@ -20,6 +22,8 @@ class ElementaryReaction:
         self.energy = energy
         self._bader_energy = None
         self.r_type = r_type
+        if self.r_type not in REACTION_TYPES:
+            raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
         out_str = ''
         for comp in self.components:

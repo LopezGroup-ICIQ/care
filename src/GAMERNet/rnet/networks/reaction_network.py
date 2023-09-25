@@ -64,9 +64,9 @@ class ReactionNetwork:
         raise KeyError
     
     def __str__(self):
-        string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(self.num_intermediates, 
+        string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(len(self.intermediates) - self.num_closed_shell_mols - 1, 
                                                                                                             self.num_closed_shell_mols, 
-                                                                                                            self.num_reactions)
+                                                                                                            len(self.reactions))
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         return string
@@ -262,7 +262,12 @@ class ReactionNetwork:
                                fig_path=fig_path)
                             
         for reaction in self.reactions:  
-            category = 'desorption' if reaction.r_type == 'desorption' else 'surface_reaction'
+            if reaction.r_type == 'desorption':
+                category = 'desorption'
+            elif reaction.r_type == 'eley_rideal':
+                category = 'eley_rideal'
+            else:
+                category = 'surface_reaction'
             nx_graph.add_node(reaction.code, category=category)
             for comp in reaction.components[0]: # reactants to reaction node
                 nx_graph.add_edge(comp.code,
@@ -304,7 +309,6 @@ class ReactionNetwork:
         plot = nx.drawing.nx_pydot.to_pydot(graph)
         for node in plot.get_nodes():
             category = node.get_attributes()['category']
-            print(category)
             if category in ('ads', 'gas', 'surf'):
                 formula = node.get_attributes()['formula']
                 for num in re.findall(r'\d+', formula):
@@ -339,11 +343,16 @@ class ReactionNetwork:
                 node.set_height("0.5")
                 if node.get_attributes()['category'] == 'desorption':
                     node.set_fillcolor("palegreen2")
+                elif node.get_attributes()['category'] == 'eley_rideal':
+                    node.set_fillcolor("mediumpurple1")
                 else:
                     node.set_fillcolor("steelblue3")
 
         for edge in plot.get_edges():
             edge.set_color("azure4")
+            # make edges bidirectional
+            # edge.set_dir("both")
+
         a4_dims = (8.3, 11.7)  # In inches
         plot.set_size(f"{a4_dims[0],a4_dims[1]}!")
         plot.set_orientation("landscape")   
@@ -400,12 +409,13 @@ class ReactionNetwork:
             sel_node = self.graph.nodes[node]
             try:
                 # color = colormap(norm(sel_node['energy']))
-                if sel_node['category'] == 'intermediate':
+                if sel_node['category'] in ('gas', 'ads', 'surf'):
                     node_inf['inter']['node_lst'].append(node)
                     node_inf['inter']['color'].append('blue')
                     # node_inf['inter']['color'].append(mpl.colors.to_hex(color))
                     node_inf['inter']['size'].append(20)
-                elif sel_node['category'] == 'ts':
+                # elif sel_node['category']  'ts':
+                else:
                     if 'electro' in sel_node:
                         if sel_node['electro']:
                             node_inf['ts']['node_lst'].append(node)
@@ -416,11 +426,11 @@ class ReactionNetwork:
                         node_inf['ts']['color'].append('green')
                         # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
                         node_inf['ts']['size'].append(5)
-                elif sel_node['electro']:
-                    node_inf['ts']['node_lst'].append(node)
-                    node_inf['ts']['color'].append('green')
-                    # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
-                    node_inf['ts']['size'].append(10)
+                # elif sel_node['electro']:
+                #     node_inf['ts']['node_lst'].append(node)
+                #     node_inf['ts']['color'].append('green')
+                #     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
+                #     node_inf['ts']['size'].append(10)
             except KeyError:
                 node_inf['ts']['node_lst'].append(node)
                 node_inf['ts']['color'].append('green')
@@ -439,7 +449,7 @@ class ReactionNetwork:
         fig.patch.set_visible(False)
         axes.axis('off')
 
-        pos = nx.drawing.layout.spring_layout(self.graph, iterations=200)
+        pos = nx.drawing.layout.kamada_kawai_layout(self.graph)
 
 
         nx.drawing.draw_networkx_nodes(self.graph, pos=pos, ax=axes,
@@ -456,6 +466,9 @@ class ReactionNetwork:
                                     #    edge_color=edge_cl, 
                                        width=0.3,
                                        arrowsize=0.1)
+        # add white background to the plot
+        axes.set_facecolor('white')
+
         fig.tight_layout()
 
         return fig
@@ -578,3 +591,61 @@ class ReactionNetwork:
             if elem_tmp == element_dict:
                 matches.append(inter)
         return tuple(matches)
+    
+    def add_eley_rideal(self, gas_mol: str, ads_int1: str, ads_int2: str): 
+        """Add an Eley-Rideal reaction to the network.
+
+        Args:
+            gas_mol (str): Code of the gas molecule.
+            ads_int (str): Code of the adsorbed intermediate.
+        """
+        # check that gas_mol is closed shell and in gas phase
+        if self.intermediates[gas_mol].phase != 'gas':
+            raise ValueError('First argument must be gas phase')
+        if self.intermediates[ads_int1].phase != 'ads':
+            raise ValueError('Second argument must be adsorbed')
+        if self.intermediates[ads_int2].phase != 'ads':
+            raise ValueError('Third argument must be adsorbed')
+        reaction = ElementaryReaction(components=[[self.intermediates[ads_int2]], [self.intermediates[gas_mol], self.intermediates[ads_int1]]],
+                                      r_type='eley_rideal')
+        self.add_ts([reaction])
+
+    def get_shortest_path(self, mol1_code : str, mol2_code: str) -> int:
+        """
+        Given a reactant and a product, return the minimum number of reactions to go from one to the other.
+        
+        Parameters
+        ----------
+        mol1_code : str
+            Code of the reactant.
+        mol2_code : str
+            Code of the product.
+        
+        Returns
+        -------
+        int
+            Minimum number of reactions to go from one to the other.
+        """
+        # check that both are closed shell and in the network
+        if mol1_code not in self.intermediates.keys():
+            raise ValueError('First argument must be in the network')
+        if mol2_code not in self.intermediates.keys():
+            raise ValueError('Second argument must be in the network')
+        if not self.intermediates[mol1_code].closed_shell:
+            raise ValueError('First argument must be closed shell')
+        if not self.intermediates[mol2_code].closed_shell:
+            raise ValueError('Second argument must be closed shell')
+        
+        graph = self.graph.to_undirected()
+        # remove nodes that do not contain C* as they provide a shortcut
+        graph.remove_node('000000*')
+        graph.remove_node('010101*')
+        graph.remove_node('011101*')
+        graph.remove_node('001101*')
+        # return shortest path and nodes traversed
+        sp = nx.shortest_path(graph, mol1_code, mol2_code)
+        steps = [node for node in sp if '<->' in node]
+        return len(steps), steps
+
+            
+        
