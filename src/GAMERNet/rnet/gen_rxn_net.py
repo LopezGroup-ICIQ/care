@@ -57,8 +57,12 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     breaking_ts = break_and_connect(rxn_net, surface=surf_inter)
     rxn_net.add_ts(breaking_ts)
     des_reactions = gen_desorption_reactions(rxn_net, surf_inter)
+    for reaction in des_reactions:
+        print(reaction.code, reaction.r_type, reaction.stoic)
     rxn_net.add_ts(des_reactions)
     ass_des_reactions = gen_associative_desorption_reactions(rxn_net, surf_inter)
+    for reaction in ass_des_reactions:
+        print(reaction.code, reaction.r_type, reaction.stoic)
     rxn_net.add_ts(ass_des_reactions)
 
 

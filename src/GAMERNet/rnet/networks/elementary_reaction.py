@@ -1,5 +1,6 @@
 import numpy as np
 from math import ceil
+import copy
 
 REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal']
 
@@ -239,6 +240,43 @@ class ElementaryReaction:
     #             counter += 1
     #     return plt.show()
 
+    # def solve_stoichiometry(self):
+    #     """Solve the stoichiometry of the elementary reaction.
+
+    #     Returns:
+    #         dict containing the stoichiometry of the elementary reaction.
+    #     """
+
+    #     s_matrix = np.zeros((4, len(self.components[0])+len(self.components[1])))
+    #     for index, inter in enumerate(self.components[0]):
+    #         s_matrix[0, index] = inter.molecule.get_chemical_symbols().count('C')
+    #         s_matrix[1, index] = inter.molecule.get_chemical_symbols().count('H')
+    #         s_matrix[2, index] = inter.molecule.get_chemical_symbols().count('O')
+    #         if inter.phase != 'gas':
+    #             s_matrix[3, index] = 1
+    #     for index, inter in enumerate(self.components[1]):
+    #         s_matrix[0, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('C')
+    #         s_matrix[1, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('H')
+    #         s_matrix[2, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('O')
+    #         if inter.phase != 'gas':
+    #             s_matrix[3, index+len(self.components[0])] = 1
+
+    #     U, S, Vt = np.linalg.svd(s_matrix)
+
+    #     rank = np.sum(S > 1e-10)
+
+    #     null_space = Vt[rank:].T
+
+    #     smallest_vector = null_space[:, 0]  # In this case, this will be the only vector in the null space
+        
+    #     entire_list = [abs(v) for v in smallest_vector]
+    #     min_val = min(entire_list)
+    #     slist_lhs = [int(abs(v/min_val)) for v in smallest_vector[:len(self.components[0])]]
+    #     slist_rhs = [int(abs(v/min_val)) for v in smallest_vector[len(self.components[0]):]]
+    #     if slist_lhs[0] > 0:
+    #         slist_lhs = [-v for v in slist_lhs]
+    #     return [slist_lhs, slist_rhs]
+
     def solve_stoichiometry(self):
         """Solve the stoichiometry of the elementary reaction.
 
@@ -246,34 +284,27 @@ class ElementaryReaction:
             dict containing the stoichiometry of the elementary reaction.
         """
 
-        s_matrix = np.zeros((4, len(self.components[0])+len(self.components[1])))
-        for index, inter in enumerate(self.components[0]):
-            s_matrix[0, index] = inter.molecule.get_chemical_symbols().count('C')
-            s_matrix[1, index] = inter.molecule.get_chemical_symbols().count('H')
-            s_matrix[2, index] = inter.molecule.get_chemical_symbols().count('O')
-            if inter.phase != 'gas':
-                s_matrix[3, index] = 1
-        for index, inter in enumerate(self.components[1]):
-            s_matrix[0, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('C')
-            s_matrix[1, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('H')
-            s_matrix[2, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('O')
-            if inter.phase != 'gas':
-                s_matrix[3, index+len(self.components[0])] = 1
+        stoic = [[], []]
+        react_n_atoms = 0
+        for inter in self.components[0]:
+            # Getting the number of atoms of each element in the molecule (first three digits)
+            react_n_atoms += int(inter.molecule.get_chemical_symbols().count('C') + inter.molecule.get_chemical_symbols().count('H') + inter.molecule.get_chemical_symbols().count('O'))
+        prod_n_atoms = 0
+        for inter in self.components[1]:
+            prod_n_atoms += int(inter.molecule.get_chemical_symbols().count('C') + inter.molecule.get_chemical_symbols().count('H') + inter.molecule.get_chemical_symbols().count('O'))
+        stoich_relation = int(react_n_atoms/prod_n_atoms)
 
-        U, S, Vt = np.linalg.svd(s_matrix)
+        # Adding the stoichiometry of the reactants
+        for idx, inter in enumerate(self.components[0]):
+            copied_list = list(self.components[0].copy())
+            copied_list.pop(idx)
+            remaining_elem = copied_list[0]
+            if stoich_relation != 1 and inter.is_surface and remaining_elem.phase == 'gas':
+                stoic[0].append(-stoich_relation)
+            else:
+                stoic[0].append(-1)
+        # Adding the stoichiometry of the products
+        for inter in self.components[1]:
+            stoic[1].append(stoich_relation)
 
-        rank = np.sum(S > 1e-10)
-
-        null_space = Vt[rank:].T
-
-        smallest_vector = null_space[:, 0]  # In this case, this will be the only vector in the null space
-        
-        entire_list = [abs(v) for v in smallest_vector]
-        min_val = min(entire_list)
-        slist_lhs = [int(abs(v/min_val)) for v in smallest_vector[:len(self.components[0])]]
-        slist_rhs = [int(abs(v/min_val)) for v in smallest_vector[len(self.components[0]):]]
-        if slist_lhs[0] > 0:
-            slist_lhs = [-v for v in slist_lhs]
-        return [slist_lhs, slist_rhs]
-
-        
+        return stoic

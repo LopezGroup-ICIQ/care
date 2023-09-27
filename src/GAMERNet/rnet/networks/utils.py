@@ -121,7 +121,7 @@ def gen_desorption_reactions(rxn_net, surf_inter) -> list[ElementaryReaction]:
             gas_code = inter.code[:-1] + 'g'
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
             closed_shell_list.append(gas_inter)            
-            desorption_list.append(ElementaryReaction(components=(frozenset([inter]), frozenset([surf_inter, gas_inter])), r_type='desorption'))
+            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='desorption'))
         else:
             continue
 
@@ -136,9 +136,9 @@ def gen_associative_desorption_reactions(rxn_net, surf_inter) -> list[Elementary
     desorption_list = []
     for inter in rxn_net.intermediates.values():
         if inter.code == '010101*':  # H* 
-            desorption_list.append(ElementaryReaction(components=(frozenset([inter]), frozenset([surf_inter, rxn_net.intermediates['020101g']])), r_type='desorption'))
+            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, rxn_net.intermediates['020101g']]), frozenset([inter])), r_type='desorption'))
         elif inter.code == '001101*':  # O*
-            desorption_list.append(ElementaryReaction(components=(frozenset([inter]), frozenset([surf_inter, rxn_net.intermediates['002101g']])), r_type='desorption'))
+            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, rxn_net.intermediates['002101g']]), frozenset([inter])), r_type='desorption'))
         else:
             continue
     return desorption_list
