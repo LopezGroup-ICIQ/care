@@ -287,7 +287,6 @@ class ElementaryReaction:
         stoic = [[], []]
         react_n_atoms = 0
         for inter in self.components[0]:
-            # Getting the number of atoms of each element in the molecule (first three digits)
             react_n_atoms += int(inter.molecule.get_chemical_symbols().count('C') + inter.molecule.get_chemical_symbols().count('H') + inter.molecule.get_chemical_symbols().count('O'))
         prod_n_atoms = 0
         for inter in self.components[1]:
