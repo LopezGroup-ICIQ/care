@@ -307,3 +307,10 @@ class ElementaryReaction:
             stoic[1].append(stoich_relation)
 
         return stoic
+    
+    def reverse(self):
+        """
+        Reverse the elementary reaction.
+        Example: A + B <-> C + D becomes C + D <-> A + B
+        """
+        pass

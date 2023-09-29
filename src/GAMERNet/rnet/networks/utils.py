@@ -108,40 +108,27 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
                         # pass
     return network_dict
 
-def gen_desorption_reactions(rxn_net, surf_inter) -> list[ElementaryReaction]:
+def gen_desorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    For all adsorbed intermediates which are closed-shell, 
-    include respective desorption reaction in the network, by adding the corresponding gas-phase species.
+    Generate all Intermediates that can desorb from the surface and the corresponding desorption reactions, including
+    the dissociative adsorption of H2 and O2.
     """
-    desorption_list = []
-    closed_shell_list = []
-    for inter in rxn_net.intermediates.values():
+    desorption_steps = []
+    gas_molecules = {}
+    for inter in intermediates.values():
         if inter.closed_shell:
-            # Defining new label for gas-phase species
             gas_code = inter.code[:-1] + 'g'
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
-            closed_shell_list.append(gas_inter)            
-            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='desorption'))
+            gas_molecules[gas_code] = gas_inter           
+            desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='desorption'))
         else:
             continue
 
-    rxn_net.add_intermediates({inter.code: inter for inter in closed_shell_list})
-    return desorption_list
+    desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['020101g']]), frozenset([intermediates['010101']])), r_type='desorption'))
+    desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['002101g']]), frozenset([intermediates['001101']])), r_type='desorption'))
 
-def gen_associative_desorption_reactions(rxn_net, surf_inter) -> list[ElementaryReaction]:
-    """
-    For all adsorbed intermediates which are closed-shell, 
-    include respective desorption reaction in the network, by adding the corresponding gas-phase species.
-    """
-    desorption_list = []
-    for inter in rxn_net.intermediates.values():
-        if inter.code == '010101*':  # H* 
-            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, rxn_net.intermediates['020101g']]), frozenset([inter])), r_type='desorption'))
-        elif inter.code == '001101*':  # O*
-            desorption_list.append(ElementaryReaction(components=(frozenset([surf_inter, rxn_net.intermediates['002101g']]), frozenset([inter])), r_type='desorption'))
-        else:
-            continue
-    return desorption_list
+    return gas_molecules, desorption_steps
+
 
 def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
     """

@@ -62,7 +62,7 @@ def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: li
         return
     
     for node in G.nodes():
-        if G.degree(node) < 4:  # Carbon can form at most 4 bonds
+        if G.degree(node) < 4:  
             for neighbor in range(max(G.nodes()) + 1, max(G.nodes()) + 1 + remaining_c):
                 G_new = copy.deepcopy(G)
                 G_new.add_edge(node, neighbor)
@@ -137,7 +137,7 @@ def add_oxygens_to_molecule(mol: Chem.Mol) -> set[str]:
     return unique_molecules
 
 
-def id_group_dict(molecules_dict: dict) -> dict:
+def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
     """Corrects the labeling for isomeric systems.
 
     Parameters
@@ -162,13 +162,10 @@ def id_group_dict(molecules_dict: dict) -> dict:
     molec_combinations = combinations(molecules_dict.keys(), 2)
 
     for molec_1, molec_2 in molec_combinations:
-        # Ignores systems with different molecular formula.
         if molecules_dict[molec_1]['Formula'] != molecules_dict[molec_2]['Formula']:
             continue
-
         graph_1 = molecules_dict[molec_1]['Graph']
         graph_2 = molecules_dict[molec_2]['Graph']
-
         if not nx.is_isomorphic(graph_1, graph_2, node_match=lambda x, y: x["elem"] == y["elem"]):
             molec_dict.setdefault(molec_1, []).append(molec_1)
             molec_dict.setdefault(molec_1, []).append(molec_2)
@@ -232,10 +229,19 @@ def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
 
     return nx_graph
 
+def gen_alkanes_smiles(n_carbon: int) -> set[str]:
+    """Generate all alkanes with a given number of carbon atoms in smiles format."""
+    alkanes_smiles = set()
+    for nC in range(n_carbon):  # Generating alkanes with 1 to n_carbon atoms
+        G = nx.Graph()
+        G.add_node(0)  # Start with a single carbon atom
+        generate_alkanes_recursive(G, nC, alkanes_smiles)
+    return alkanes_smiles
+
 def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
     """
-    Generates all the possible intermediates for a given number of carbon atoms.
-    Limitation: Only intermediates derived from alkanes and alcohols are generated.
+    Generates all the possible intermediates for a given number of carbon atoms 
+    starting from the set of fully saturated CHO molecules (alkanes, alcohols, etc.).
 
     Parameters
     ----------
@@ -248,38 +254,21 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
         
     """
 
-    unique_alkanes = set()
-    for n in range(1, n_carbon+1):  # Generating alkanes with 1 to n_carbon atoms
-        G = nx.Graph()
-        G.add_node(0)  # Start with a single carbon atom
-        generate_alkanes_recursive(G, n - 1, unique_alkanes)
-    
-    # Generating the RDKit molecules from the SMILES strings and storing them in a list
-    unique_alkanes = list(unique_alkanes)
-    mol_unique_alkanes = [Chem.MolFromSmiles(smiles) for smiles in unique_alkanes]
-    # Adding as many oxygen atoms as possible to suitable carbon atoms in the molecule
-    oxy_alkanes_smiles = [add_oxygens_to_molecule(mol) for mol in mol_unique_alkanes]
-    # Transforming the list of sets into a list of SMILES strings
-    oxy_alkanes_smiles = [smiles for smiles_set in oxy_alkanes_smiles for smiles in smiles_set]
-    # Adding water and hydrogen peroxide smiles to oxy_alkanes_smiles
-    oxy_alkanes_smiles.append("O")
-    oxy_alkanes_smiles.append("OO")
-    # Adding diatomic hydrogen to oxy_alkanes_smiles
-    oxy_alkanes_smiles.append("[H][H]")
-    # Generating the RDKit molecules from the SMILES strings
-    oxy_alkanes = [Chem.MolFromSmiles(smiles) for smiles in oxy_alkanes_smiles]
-    # Unifying the mol_unique_alkanes and oxy_alkanes lists 
-    alcohol_alkanes_intermediates = mol_unique_alkanes + oxy_alkanes
+    # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)
+    alkanes_smiles = gen_alkanes_smiles(n_carbon)    
+    mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
+    alcohols_smiles = [add_oxygens_to_molecule(mol) for mol in mol_alkanes] 
+    alcohols_smiles = [smiles for smiles_set in alcohols_smiles for smiles in smiles_set]  # flatten list of lists
+    alcohols_smiles += ['O', 'OO', '[H][H]'] 
+    mol_alcohols = [Chem.MolFromSmiles(smiles) for smiles in alcohols_smiles]
 
-    # For each intermediate, generate the corresponding ASE Atoms object, graph and chemical formula as separate lists
-    ase_intermediates = [rdkit_to_ase(intermediate) for intermediate in alcohol_alkanes_intermediates]
-    intermediates_formula = [intermediate.get_chemical_formula() for intermediate in ase_intermediates]
-    intermediates_graph = [atoms_2_graph(intermediate, coords=True) for intermediate in ase_intermediates]
-    intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in alcohol_alkanes_intermediates]
+    intermediates_ase = [rdkit_to_ase(intermediate) for intermediate in mol_alkanes + mol_alcohols]
+    intermediates_formula = [intermediate.get_chemical_formula() for intermediate in intermediates_ase]
+    intermediates_graph = [atoms_2_graph(intermediate, coords=True) for intermediate in intermediates_ase]
+    intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_alcohols]
 
-    # Dictionary containing all the intermediates
     inter_precursor_dict = {}
-    for smiles, formula, graph, ase_obj, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, ase_intermediates, alcohol_alkanes_intermediates):
+    for smiles, formula, graph, ase_obj, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, intermediates_ase, mol_alkanes + mol_alcohols):
         inter_precursor_dict[smiles] = {
             'Smiles': smiles,
             'Formula': formula, 
@@ -288,12 +277,10 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
             'RDKit': rdkit_obj,
             }
 
-    # Correcting labeling for isomeric systems
-    isomeric_groups = id_group_dict(inter_precursor_dict)
+    isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
 
-    # Generating all possible intermediates by H abstraction
-    inter_dict = {}
-    repeat_molec = []
+    # 2) Generate all possible open-shell intermediates by H abstraction
+    inter_dict, repeat_molec = {}, []
     for name, molec in isomeric_groups.items():
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
@@ -302,7 +289,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
                 intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
                 inter_dict[molec_grp] = intermediate
     
-    # Generating the connections between the intermediates via graph theory
+    # 3) Generate the connections between the intermediates via graph theory
     map_dict = {}
     for molecule in inter_dict.keys():
         intermediate = inter_dict[molecule]

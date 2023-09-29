@@ -31,7 +31,6 @@ class ReactionNetwork:
     def __init__(self, 
                  intermediates: dict[str, Intermediate]=None, 
                  reactions: list[ElementaryReaction]=None, 
-                 gasses: dict[str, Intermediate]=None,
                  surface: Surface=None, 
                  ncc: int=None):
         
@@ -43,10 +42,6 @@ class ReactionNetwork:
             self.reactions = []
         else:
             self.reactions = reactions
-        if gasses is None:
-            self.gasses = {}
-        else:
-            self.gasses = dict(gasses)
         self.excluded = None
         self._graph = None
         self._surface = None
@@ -173,7 +168,7 @@ class ReactionNetwork:
         export_dict = {'intermediates': intermediate_list, 'ts': reaction_list}
         return export_dict
 
-    def add_intermediates(self, inter_dict):
+    def add_intermediates(self, inter_dict: dict[str, Intermediate]):
         """Add intermediates to the ReactionNetwork.
 
         Args:
@@ -182,23 +177,14 @@ class ReactionNetwork:
         """
         self.intermediates.update(inter_dict)
 
-    def add_gasses(self, gasses_dict):
-        """Add Gasses to the ReactionNetwork.
-
-        Args:
-            gasses_dict (dict of obj:`Intermediate`): Dictionary
-                containing the gasses that will be added to the network
-        """
-        self.gasses.update(gasses_dict)
-
-    def add_ts(self, ts_lst):
+    def add_reactions(self, rxn_lst: list[ElementaryReaction]):
         """Add transition states to the network.
 
         Args:
             ts_lst (list of obj:`ElementaryReaction`): List containing the
                 transition states that will be added to network.
         """
-        self.reactions += ts_lst
+        self.reactions += rxn_lst
 
     def add_dict(self, net_dict):
         """Add dictionary containing two different keys: intermediates and ts.
@@ -603,7 +589,10 @@ class ReactionNetwork:
         return tuple(matches)
     
     def add_eley_rideal(self, gas_mol: str, ads_int1: str, ads_int2: str): 
-        """Add an Eley-Rideal reaction to the network.
+        """
+        Add an Eley-Rideal reaction to the network.
+
+        A(g) + B* <-> C*
 
         Args:
             gas_mol (str): Code of the gas molecule.
@@ -618,7 +607,7 @@ class ReactionNetwork:
             raise ValueError('Third argument must be adsorbed')
         reaction = ElementaryReaction(components=[[self.intermediates[ads_int2]], [self.intermediates[gas_mol], self.intermediates[ads_int1]]],
                                       r_type='eley_rideal')
-        self.add_ts([reaction])
+        self.add_reactions([reaction])
 
     def get_shortest_path(self, mol1_code: str, mol2_code: str) -> int:
         """

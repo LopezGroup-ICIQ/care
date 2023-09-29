@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 import networkx.algorithms.isomorphism as iso
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
+from GAMERNet.rnet.networks.intermediate import Intermediate
 from matplotlib.colors import to_hex
 from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
@@ -827,7 +828,7 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
                 bonds['C-C'].append(sub_graphs)
     return bonds
 
-def break_and_connect(network, surface: Atoms) -> list[ElementaryReaction]:
+def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
     """
     For an entire network, perform a breakage search (see `break_bonds`) for
     all the intermediates, search if the generated submolecules belong to the
@@ -846,13 +847,13 @@ def break_and_connect(network, surface: Atoms) -> list[ElementaryReaction]:
     """
     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
     reaction_list = []
-    for intermediate in network.intermediates.values():
+    for intermediate in intermediates_dict.values():
         sub_graphs = break_bonds(intermediate.molecule)  # generate all possible bond-breakages
         for bond_breaking_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
                 in_comp = [[surface, intermediate], []]
                 for graph in graph_pair:
-                    for loop_inter in network.intermediates.values():
+                    for loop_inter in intermediates_dict.values():
                         if len(loop_inter.graph.to_undirected()) != len(graph):
                             continue
                         if elem_inf(loop_inter.graph.to_undirected()) != elem_inf(graph):
@@ -873,7 +874,6 @@ def break_and_connect(network, surface: Atoms) -> list[ElementaryReaction]:
                     continue
 
                 reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-                print(reaction.code, reaction.r_type, reaction.stoic)
                 for item in reaction_list:
                     if item.components == reaction.components:
                         break

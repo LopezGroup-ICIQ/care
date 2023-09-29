@@ -7,7 +7,6 @@ from ase.db import connect
 from torch import load
 
 from GAMERNet import DB_PATH, MODEL_PATH
-from GAMERNet.rnet.gen_intermediates import generate_intermediates
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.rnet.dock_ads_surf.gen_ads_surf import run_docksurf
 from GAMERNet.gnn_eads.nets import UQTestNet
@@ -69,23 +68,12 @@ if __name__ == "__main__":
     graph_params = configuration_dict["graph"]
     # graph_params['structure']['scaling_factor'] = 1.6  # solve this later
 
-    # Generating all the possible intermediates
-    print('Generating intermediates...')
-    intermediate_dict, rxn_dict = generate_intermediates(args.ncc)
-    print('Time to generate intermediates: {:.2f} s'.format(time.time()-time0))
-    # Saving the rxn and intermediate dictionaries as pickle files
-    with open(f"{args.o}/rxn_dict.pkl", "wb") as outfile:
-        pickle.dump(rxn_dict, outfile)
-        print(
-            f"The rxn dictionary pickle file has been generated")
-    with open(f"{args.o}/intermediate_dict.pkl", "wb") as outfile:
-        pickle.dump(intermediate_dict, outfile)
-        print(
-            f"The intermediate dictionary pickle file has been generated")
     # Generating the reaction network
     print('\nGenerating reaction network...')
-    rxn_net = generate_rxn_net(surface.slab, intermediate_dict, rxn_dict)
-    print('The reaction network has been generated')
+    rxn_net = generate_rxn_net(surface.slab, args.ncc)
+    print('\nReaction network generated')
+    print(rxn_net)
+    print('\nTime taken to generate the reaction network: {:.2f} s'.format(time.time() - time0))
     # Converting the reaction network as a dictionary
     rxn_net_dict = rxn_net.to_dict()
     rxn_net_dict['ncc'] = args.ncc
