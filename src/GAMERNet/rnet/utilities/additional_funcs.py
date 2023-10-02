@@ -828,57 +828,152 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
                 bonds['C-C'].append(sub_graphs)
     return bonds
 
+# def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
+#     """
+#     For an entire network, perform a breakage search (see `break_bonds`) for
+#     all the intermediates, search if the generated submolecules belong to the
+#     network and if affirmative, create an obj:`networks.ElementaryReaction` object
+#     that connect all the species.
+
+#     Args:
+#         network (obj:`networks.ReactionNetwork`): Network in which the function
+#             will be performed.
+#         surface (obj:`networks.Intermediate`, optional): Surface intermediate.
+#             defaults to '000000'.
+
+#     Returns:
+#         list of obj:`networks.ElementaryReaction` with all the generated
+#         transition states.
+#     """
+#     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+#     reaction_list = []
+#     for intermediate in intermediates_dict.values():
+#         sub_graphs = break_bonds(intermediate.molecule)  # generate all possible bond-breakages
+#         for bond_breaking_type, graph_pairs in sub_graphs.items():
+#             for graph_pair in graph_pairs:
+#                 in_comp = [[surface, intermediate], []]
+#                 for graph in graph_pair:
+#                     for loop_inter in intermediates_dict.values():
+#                         if len(loop_inter.graph.to_undirected()) != len(graph):
+#                             continue
+#                         if elem_inf(loop_inter.graph.to_undirected()) != elem_inf(graph):
+#                             continue
+#                         if nx.is_isomorphic(loop_inter.graph.to_undirected(), graph,
+#                                             node_match=cate):
+#                             in_comp[1].append(loop_inter)
+#                             if len(in_comp[1]) == 2:
+#                                 break
+#                 chk_lst = [0, 0]
+#                 for index, item in enumerate(in_comp):
+#                     for mol in item:
+#                         if mol.is_surface:
+#                             continue
+#                         chk_lst[index] += len(mol.molecule)
+
+#                 if chk_lst[0] != chk_lst[1] and chk_lst[0] != chk_lst[1]/2:
+#                     continue
+
+#                 reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+#                 for item in reaction_list:
+#                     if item.components == reaction.components:
+#                         break
+#                 else:
+#                     reaction_list.append(reaction)
+#     return reaction_list
+
+def find_matching_intermediates(graph, intermediates_dict, cate, cached_graphs):
+    """
+    Finds intermediates in the network that match the given graph.
+    
+    Args:
+        graph (NetworkX Graph): The graph to match.
+        intermediates_dict (dict): Dictionary of intermediates in the network.
+        cate (categorical_node_match): Node matching function for isomorphism check.
+        cached_graphs (dict): Cached graph and element information for intermediates.
+        
+    Returns:
+        list: Matching intermediates.
+    """
+    matching_intermediates = []
+    graph_info = (len(graph), elem_inf(graph))
+    
+    for loop_inter, (cached_graph, cached_elem_inf) in cached_graphs.items():
+        graph_len, elem_info = graph_info
+        if cached_elem_inf != elem_info or len(cached_graph) != graph_len:
+            continue
+
+        if nx.is_isomorphic(cached_graph, graph, node_match=cate):
+            matching_intermediates.append(loop_inter)
+            if len(matching_intermediates) == 2:
+                break
+    return matching_intermediates
+
+def validate_components(in_comp):
+    """
+    Validates the components based on the length of the molecule.
+    
+    Args:
+        in_comp (list): List of components.
+        
+    Returns:
+        bool: True if components are valid, False otherwise.
+    """
+    chk_lst = [0, 0]
+    for index, item in enumerate(in_comp):
+        for mol in item:
+            if mol.is_surface:
+                continue
+            chk_lst[index] += len(mol.molecule)
+    return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]/2
+
+def create_or_append_reaction(reaction, reaction_set, reaction_list):
+    """
+    Adds a new reaction to the list or updates an existing one.
+    
+    Args:
+        reaction (ElementaryReaction): The reaction to add or update.
+        reaction_set (set): Set of existing reactions for quick lookup.
+        reaction_list (list): List of reactions.
+    """
+    if reaction.components not in reaction_set:
+        reaction_set.add(reaction.components)
+        reaction_list.append(reaction)
+
 def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
     """
-    For an entire network, perform a breakage search (see `break_bonds`) for
-    all the intermediates, search if the generated submolecules belong to the
-    network and if affirmative, create an obj:`networks.ElementaryReaction` object
-    that connect all the species.
-
+    For an entire network, perform a breakage search for all the intermediates,
+    search if the generated submolecules belong to the network and if so, create
+    an ElementaryReaction object that connects all the species.
+    
     Args:
-        network (obj:`networks.ReactionNetwork`): Network in which the function
-            will be performed.
-        surface (obj:`networks.Intermediate`, optional): Surface intermediate.
-            defaults to '000000'.
-
+        intermediates_dict (dict): Dictionary of intermediates in the network.
+        surface (Atoms): Surface intermediate.
+        
     Returns:
-        list of obj:`networks.ElementaryReaction` with all the generated
-        transition states.
+        list: List of ElementaryReaction objects.
     """
     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+    reaction_set = set()
     reaction_list = []
-    for intermediate in intermediates_dict.values():
-        sub_graphs = break_bonds(intermediate.molecule)  # generate all possible bond-breakages
+
+    intermediates_values = list(intermediates_dict.values())
+    cached_graphs = {inter: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
+
+    for intermediate in intermediates_values:
+        sub_graphs = break_bonds(intermediate.molecule)
+        
         for bond_breaking_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
                 in_comp = [[surface, intermediate], []]
+
                 for graph in graph_pair:
-                    for loop_inter in intermediates_dict.values():
-                        if len(loop_inter.graph.to_undirected()) != len(graph):
-                            continue
-                        if elem_inf(loop_inter.graph.to_undirected()) != elem_inf(graph):
-                            continue
-                        if nx.is_isomorphic(loop_inter.graph.to_undirected(), graph,
-                                            node_match=cate):
-                            in_comp[1].append(loop_inter)
-                            if len(in_comp[1]) == 2:
-                                break
-                chk_lst = [0, 0]
-                for index, item in enumerate(in_comp):
-                    for mol in item:
-                        if mol.is_surface:
-                            continue
-                        chk_lst[index] += len(mol.molecule)
+                    matching_intermediates = find_matching_intermediates(graph, intermediates_dict, cate, cached_graphs)
+                    in_comp[1].extend(matching_intermediates)
 
-                if chk_lst[0] != chk_lst[1] and chk_lst[0] != chk_lst[1]/2:
-                    continue
+                if validate_components(in_comp):
+                    reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+                    create_or_append_reaction(reaction, reaction_set, reaction_list)
 
-                reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-                for item in reaction_list:
-                    if item.components == reaction.components:
-                        break
-                else:
-                    reaction_list.append(reaction)
     return reaction_list
 
 def change_r_type(network):
