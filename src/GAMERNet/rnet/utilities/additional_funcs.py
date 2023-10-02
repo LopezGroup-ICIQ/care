@@ -966,7 +966,7 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atom
                 in_comp = [[surface, intermediate], []]
 
                 for graph in graph_pair:
-                    matching_intermediates = find_matching_intermediates(graph, intermediates_dict, cate, cached_graphs)
+                    matching_intermediates = find_matching_intermediates(graph, cate, cached_graphs)
                     in_comp[1].extend(matching_intermediates)
 
                 if validate_components(in_comp):
