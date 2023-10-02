@@ -881,13 +881,12 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
 #                     reaction_list.append(reaction)
 #     return reaction_list
 
-def find_matching_intermediates(graph, intermediates_dict, cate, cached_graphs):
+def find_matching_intermediates(graph, cate, cached_graphs):
     """
     Finds intermediates in the network that match the given graph.
     
     Args:
         graph (NetworkX Graph): The graph to match.
-        intermediates_dict (dict): Dictionary of intermediates in the network.
         cate (categorical_node_match): Node matching function for isomorphism check.
         cached_graphs (dict): Cached graph and element information for intermediates.
         
