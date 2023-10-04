@@ -2,7 +2,7 @@ import numpy as np
 from math import ceil
 import copy
 
-REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal']
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption']
 
 class ElementaryReaction:
     """Class for representing elementary reactions.
@@ -17,12 +17,14 @@ class ElementaryReaction:
     def __init__(self, 
                  code: str=None, 
                  components: tuple=None, 
-                 energy: float=None,
+                 energy: float=0.0,
                  r_type: str=None, 
                  is_electro: bool=False):
         self._code = code
         self._components = None
         self.components = components
+        self.reactants = self.components[0]
+        self.products = self.components[1]
         self.energy = energy
         self._bader_energy = None
         self.r_type = r_type
@@ -313,4 +315,20 @@ class ElementaryReaction:
         Reverse the elementary reaction.
         Example: A + B <-> C + D becomes C + D <-> A + B
         """
-        pass
+        self.components = self.components[::-1]
+        self.stoic = self.stoic[::-1]
+        for v in range(len(self.stoic[0])):
+            self.stoic[0][v] *= -1
+        for v in range(len(self.stoic[1])):
+            self.stoic[1][v] *= -1
+        self.energy = -self.energy if self.energy is not None else None
+        if self.r_type in ('adsorption', 'desorption'):
+            self.r_type = 'desorption' if self.r_type == 'adsorption' else 'adsorption'
+        out_str = ''
+        for comp in self.components:
+            for inter in comp:
+                out_str += inter.repr + '+'
+            out_str = out_str[:-1]
+            out_str += '<->'
+        self.repr = out_str[:-3]
+        self.reactants, self.products = self.products, self.reactants

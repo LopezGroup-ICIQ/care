@@ -30,13 +30,13 @@ metal_structure_dict = {
 }
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser(description="Generate reaction network with R-Nets for reaction involving C, H, O on transition metal surfaces.")
+    argparser = argparse.ArgumentParser(description="Generate reaction network blueprint for processes involving C, H, O on transition metal surfaces.")
     argparser.add_argument('-ncc', type=int, dest='ncc',
-                            help="Network Carbon Cutoff (ncc). It defines the maximum number of carbon atoms allowed during the reaction network generation.")
+                            help="Network Carbon Cutoff (ncc). It defines the size of the reaction network based on the maximum number of carbon atoms in the intermediates.")
     argparser.add_argument('-m', type=str, dest='m',
-                            help="Metal of interest. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
+                            help="Metal of the surface. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
     argparser.add_argument('-hkl', type=str, dest='hkl',
-                            help="Surface facet of the metal. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11")
+                            help="Surface facet. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11")
     argparser.add_argument('-o', type=str, 
                            help="Output directory for the generated results")
     args = argparser.parse_args()

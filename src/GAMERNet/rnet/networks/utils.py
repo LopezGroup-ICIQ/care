@@ -121,8 +121,6 @@ def gen_desorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
             gas_molecules[gas_code] = gas_inter           
             desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='desorption'))
-        else:
-            continue
 
     desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['020101g']]), frozenset([intermediates['010101']])), r_type='desorption'))
     desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['002101g']]), frozenset([intermediates['001101']])), r_type='desorption'))
