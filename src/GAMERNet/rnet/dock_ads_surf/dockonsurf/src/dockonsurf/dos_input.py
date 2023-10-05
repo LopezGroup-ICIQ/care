@@ -294,11 +294,14 @@ def check_inp_files(inp_files, code: str, potcar_dir=None):
 
 # Global
 
-def get_run_type():
+def get_run_type(dos_inp):
     isolated, screening, refinement = (False, False, False)
     run_type_vals = ['isolated', 'screening', 'refinement', 'adsorption',
                      'full']
-    run_types = dos_inp.get('Global', 'run_type').split()
+    if isinstance(dos_inp, ConfigParser):
+        run_types = dos_inp.get('Global', 'run_type').split()
+    else:
+        run_types = [dos_inp['run_type']]
     for run_type in run_types:
         check_expect_val(run_type.lower(), run_type_vals)
         if 'isol' in run_type.lower():
@@ -315,33 +318,47 @@ def get_run_type():
     return isolated, screening, refinement
 
 
-def get_code():
+def get_code(dos_inp):
     code_vals = ['cp2k', 'vasp']
-    check_expect_val(dos_inp.get('Global', 'code').lower(), code_vals)
-    code = dos_inp.get('Global', 'code').lower()
+    if isinstance(dos_inp, ConfigParser):
+        check_expect_val(dos_inp.get('Global', 'code').lower(), code_vals)
+        code = dos_inp.get('Global', 'code').lower()
+    else:
+        code = dos_inp['code'].lower()
+
     return code
 
 
-def get_batch_q_sys():
+def get_batch_q_sys(dos_inp):
     batch_q_sys_vals = ['sge', 'slurm', 'lsf', 'irene', 'local'] + turn_false_answers
-    check_expect_val(dos_inp.get('Global', 'batch_q_sys').lower(),
-                     batch_q_sys_vals)
-    batch_q_sys = dos_inp.get('Global', 'batch_q_sys').lower()
+    if isinstance(dos_inp, ConfigParser):
+        check_expect_val(dos_inp.get('Global', 'batch_q_sys').lower(),
+                        batch_q_sys_vals)
+        batch_q_sys = dos_inp.get('Global', 'batch_q_sys').lower()
+    else:
+        batch_q_sys = dos_inp['batch_q_sys'].lower()
     if batch_q_sys.lower() in turn_false_answers:
         return False
     else:
         return batch_q_sys
 
 
-def get_pbc_cell():
+def get_pbc_cell(dos_inp):
     from ase.atoms import Cell
     err_msg = "'pbc_cell' must be either 3 vectors of size 3 or False."
-    pbc_cell_str = dos_inp.get('Global', 'pbc_cell', fallback="False")
-    if pbc_cell_str.lower() in turn_false_answers:
-        return False
+    if isinstance(dos_inp, ConfigParser):
+        pbc_cell_str = dos_inp.get('Global', 'pbc_cell', fallback="False")
+    
+        if pbc_cell_str.lower() in turn_false_answers:
+            return False
     else:
-        pbc_cell = np.array(try_command(str2lst, [(ValueError, err_msg)],
-                                        pbc_cell_str, float))
+        
+        if isinstance(dos_inp, ConfigParser):
+            pbc_cell = np.array(try_command(str2lst, [(ValueError, err_msg)],
+                                            pbc_cell_str, float))
+        else:
+            pbc_cell = np.array(dos_inp['pbc_cell'])
+
         if pbc_cell.shape != (3, 3):
             logger.error(err_msg)
             raise ValueError(err_msg)
@@ -352,7 +369,7 @@ def get_pbc_cell():
         return Cell(pbc_cell)
 
 
-def get_subm_script():
+def get_subm_script(dos_inp):
     subm_script = dos_inp.get('Global', 'subm_script')
     if not os.path.isfile(subm_script):
         logger.error(f'File {subm_script} not found.')
@@ -360,12 +377,15 @@ def get_subm_script():
     return subm_script
 
 
-def get_project_name():
-    project_name = dos_inp.get('Global', 'project_name', fallback='')
+def get_project_name(dos_inp):
+    if isinstance(dos_inp, ConfigParser):
+        project_name = dos_inp.get('Global', 'project_name', fallback='')
+    else:
+        project_name = dos_inp['project_name']
     return project_name
 
 
-def get_relaunch_err():
+def get_relaunch_err(dos_inp):
     # WARNING: OPTION NOT IMPLEMENTED
     relaunch_err_vals = ['geo_not_conv']
     relaunch_err = dos_inp.get('Global', 'relaunch_err',
@@ -377,7 +397,7 @@ def get_relaunch_err():
     return relaunch_err
 
 
-def get_max_jobs():
+def get_max_jobs(dos_inp):
     import re
     err_msg = "'max_jobs' must be a list of, number plus 'p', 'q' or 'r', or " \
               "a combination of them without repeating letters.\n" \
@@ -409,12 +429,15 @@ def get_max_jobs():
     return max_jobs
 
 
-def get_special_atoms():
+def get_special_atoms(dos_inp):
     from ase.data import chemical_symbols
 
     spec_at_err = '\'special_atoms\' does not have an adequate format.\n' \
                   'Adequate format: (Fe1 Fe) (O1 O)'
-    special_atoms = dos_inp.get('Global', 'special_atoms', fallback="False")
+    if isinstance(dos_inp, ConfigParser):
+        special_atoms = dos_inp.get('Global', 'special_atoms', fallback="False")
+    else:
+        special_atoms = dos_inp['special_atoms']
     if special_atoms.lower() in turn_false_answers:
         special_atoms = []
     else:
@@ -450,16 +473,17 @@ def get_special_atoms():
     return special_atoms
 
 
-def get_potcar_dir():
-    potcar_dir = dos_inp.get('Global', 'potcar_dir', fallback="False")
-    if potcar_dir.lower() in turn_false_answers:
-        return False
-    elif not os.path.isdir(potcar_dir):
-        err_msg = "'potcar_dir' must be either False or a directory."
-        logger.error(err_msg)
-        raise ValueError(err_msg)
+def get_potcar_dir(dos_inp):
+    if isinstance(dos_inp, ConfigParser):
+        potcar_dir = dos_inp.get('Global', 'potcar_dir', fallback="False")
+        if potcar_dir.lower() in turn_false_answers:
+            return False
+        elif not os.path.isdir(potcar_dir):
+            err_msg = "'potcar_dir' must be either False or a directory."
+            logger.error(err_msg)
+            raise ValueError(err_msg)
     else:
-        return potcar_dir
+        return False
 
 
 # Isolated
@@ -471,7 +495,7 @@ def get_isol_inp_file(code, potcar_dir=None):  # TODO allow spaces in path names
     return inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst
 
 
-def get_molec_file():
+def get_molec_file(dos_inp):
     molec_file = dos_inp.get('Isolated', 'molec_file')
     if not os.path.isfile(molec_file):
         logger.error(f'File {molec_file} not found.')
@@ -479,7 +503,7 @@ def get_molec_file():
     return molec_file
 
 
-def get_num_conformers():
+def get_num_conformers(dos_inp):
     err_msg = num_error % ('num_conformers', 'positive integer')
     num_conformers = try_command(dos_inp.getint, [(ValueError, err_msg)],
                                  'Isolated', 'num_conformers', fallback=100)
@@ -489,7 +513,7 @@ def get_num_conformers():
     return num_conformers
 
 
-def get_pre_opt():
+def get_pre_opt(dos_inp):
     pre_opt_vals = ['uff', 'mmff'] + turn_false_answers
     check_expect_val(dos_inp.get('Isolated', 'pre_opt').lower(), pre_opt_vals)
     pre_opt = dos_inp.get('Isolated', 'pre_opt').lower()
@@ -501,31 +525,40 @@ def get_pre_opt():
 
 # Screening
 
-def get_screen_inp_file(code,
+def get_screen_inp_file(dos_inp, code,
                         potcar_dir=None):  # TODO allow spaces in path names
-    inp_file_lst = dos_inp.get('Screening', 'screen_inp_file').split()
-    check_inp_files(inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst,
-                    code, potcar_dir)
-    return inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst
+    if isinstance(dos_inp, ConfigParser):
+        inp_file_lst = dos_inp.get('Screening', 'screen_inp_file').split()
+        check_inp_files(inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst,
+                        code, potcar_dir)
+        return inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst
+    else:
+        return None
 
 
-def get_surf_file():
-    surf_file = dos_inp.get('Screening', 'surf_file')
-    if not os.path.isfile(surf_file):
-        logger.error(f'File {surf_file} not found.')
-        raise FileNotFoundError(f'File {surf_file} not found')
+def get_surf_file(dos_inp):
+    if isinstance(dos_inp, ConfigParser):
+        surf_file = dos_inp.get('Screening', 'surf_file')
+        if not os.path.isfile(surf_file):
+            logger.error(f'File {surf_file} not found.')
+            raise FileNotFoundError(f'File {surf_file} not found')
+    else:
+        surf_file = dos_inp['surf_file']
     return surf_file
 
 
-def get_sites():
+def get_sites(dos_inp):
     err_msg = 'The value of sites should be a list of atom numbers ' \
               '(ie. positive integers) or groups of atom numbers ' \
               'grouped by parentheses-like enclosers. \n' \
               'eg. 128,(135 138;141) 87 {45, 68}'
     # Convert the string into a list of lists
-    sites = try_command(str2lst,
-                        [(ValueError, err_msg), (AttributeError, err_msg)],
-                        dos_inp.get('Screening', 'sites'))
+    if isinstance(dos_inp, ConfigParser):
+        sites = try_command(str2lst,
+                            [(ValueError, err_msg), (AttributeError, err_msg)],
+                            dos_inp.get('Screening', 'sites'))
+    else:
+        sites = dos_inp['sites']
     # Check all elements of the list (of lists) are positive integers
     for site in sites:
         if type(site) is list:
@@ -544,15 +577,19 @@ def get_sites():
     return sites
 
 
-def get_surf_ctrs2():
+def get_surf_ctrs2(dos_inp):
     err_msg = 'The value of surf_ctrs2 should be a list of atom numbers ' \
               '(ie. positive integers) or groups of atom numbers ' \
               'grouped by parentheses-like enclosers. \n' \
               'eg. 128,(135 138;141) 87 {45, 68}'
+    
     # Convert the string into a list of lists
-    surf_ctrs2 = try_command(str2lst,
-                             [(ValueError, err_msg), (AttributeError, err_msg)],
-                             dos_inp.get('Screening', 'surf_ctrs2'))
+    if isinstance(dos_inp, ConfigParser):
+        surf_ctrs2 = try_command(str2lst,
+                                [(ValueError, err_msg), (AttributeError, err_msg)],
+                                dos_inp.get('Screening', 'surf_ctrs2'))
+    else:
+        surf_ctrs2 = dos_inp['surf_ctrs2']
     # Check all elements of the list (of lists) are positive integers
     for ctr in surf_ctrs2:
         if type(ctr) is list:
@@ -571,16 +608,20 @@ def get_surf_ctrs2():
     return surf_ctrs2
 
 
-def get_molec_ctrs():
+def get_molec_ctrs(dos_inp):
     err_msg = 'The value of molec_ctrs should be a list of atom' \
               ' numbers (ie. positive integers) or groups of atom ' \
               'numbers enclosed by parentheses-like characters. \n' \
               'eg. 128,(135 138;141) 87 {45, 68}'
+    
     # Convert the string into a list of lists
-    molec_ctrs = try_command(str2lst,
-                             [(ValueError, err_msg),
-                              (AttributeError, err_msg)],
-                             dos_inp.get('Screening', 'molec_ctrs'))
+    if isinstance(dos_inp, ConfigParser):
+        molec_ctrs = try_command(str2lst,
+                                [(ValueError, err_msg),
+                                (AttributeError, err_msg)],
+                                dos_inp.get('Screening', 'molec_ctrs'))
+    else:
+        molec_ctrs = dos_inp['molec_ctrs']
     # Check all elements of the list (of lists) are positive integers
     for ctr in molec_ctrs:
         if isinstance(ctr, list):
@@ -599,15 +640,19 @@ def get_molec_ctrs():
     return molec_ctrs
 
 
-def get_molec_ctrs2():
+def get_molec_ctrs2(dos_inp):
     err_msg = 'The value of molec_ctrs2 should be a list of atom ' \
               'numbers (ie. positive integers) or groups of atom ' \
               'numbers enclosed by parentheses-like characters. \n' \
               'eg. 128,(135 138;141) 87 {45, 68}'
+    
     # Convert the string into a list of lists
-    molec_ctrs2 = try_command(str2lst, [(ValueError, err_msg),
-                                        (AttributeError, err_msg)],
-                              dos_inp.get('Screening', 'molec_ctrs2'))
+    if isinstance(dos_inp, ConfigParser):
+        molec_ctrs2 = try_command(str2lst, [(ValueError, err_msg),
+                                            (AttributeError, err_msg)],
+                                dos_inp.get('Screening', 'molec_ctrs2'))
+    else:
+        molec_ctrs2 = dos_inp['molec_ctrs2']
 
     # Check all elements of the list (of lists) are positive integers
     for ctr in molec_ctrs2:
@@ -627,15 +672,19 @@ def get_molec_ctrs2():
     return molec_ctrs2
 
 
-def get_molec_ctrs3():
+def get_molec_ctrs3(dos_inp):
     err_msg = 'The value of molec_ctrs3 should be a list of atom ' \
               'numbers (ie. positive integers) or groups of atom ' \
               'numbers enclosed by parentheses-like characters. \n' \
               'eg. 128,(135 138;141) 87 {45, 68}'
+    
     # Convert the string into a list of lists
-    molec_ctrs3 = try_command(str2lst, [(ValueError, err_msg),
-                                        (AttributeError, err_msg)],
-                              dos_inp.get('Screening', 'molec_ctrs3'))
+    if isinstance(dos_inp, ConfigParser):
+        molec_ctrs3 = try_command(str2lst, [(ValueError, err_msg),
+                                            (AttributeError, err_msg)],
+                                dos_inp.get('Screening', 'molec_ctrs3'))
+    else:
+        molec_ctrs3 = dos_inp['molec_ctrs3']
 
     # Check all elements of the list (of lists) are positive integers
     for ctr in molec_ctrs3:
@@ -655,11 +704,16 @@ def get_molec_ctrs3():
     return molec_ctrs3
 
 
-def get_max_helic_angle():
+def get_max_helic_angle(dos_inp):
     err_msg = "'max_helic_angle' must be a positive number in degrees"
-    max_helic_angle = try_command(dos_inp.getfloat, [(ValueError, err_msg)],
-                                  'Screening', 'max_helic_angle',
-                                  fallback=180.0)
+    
+    if isinstance(dos_inp, ConfigParser):
+        max_helic_angle = try_command(dos_inp.getfloat, [(ValueError, err_msg)],
+                                    'Screening', 'max_helic_angle',
+                                    fallback=180.0)
+    else:
+        max_helic_angle = dos_inp['max_helic_angle']
+
     if max_helic_angle < 0:
         logger.error(err_msg)
         raise ValueError(err_msg)
@@ -667,10 +721,15 @@ def get_max_helic_angle():
     return max_helic_angle
 
 
-def get_select_magns():
+def get_select_magns(dos_inp):
     select_magns_vals = ['energy', 'moi']
-    select_magns_str = dos_inp.get('Screening', 'select_magns',
-                                   fallback='moi')
+    
+    if isinstance(dos_inp, ConfigParser):
+        select_magns_str = dos_inp.get('Screening', 'select_magns',
+                                    fallback='moi')
+    else:
+        select_magns_str = dos_inp['select_magns']
+
     select_magns_str.replace(',', ' ').replace(';', ' ')
     select_magns = select_magns_str.split(' ')
     select_magns = [m.lower() for m in select_magns]
@@ -679,24 +738,34 @@ def get_select_magns():
     return select_magns
 
 
-def get_confs_per_magn():
+def get_confs_per_magn(dos_inp):
     err_msg = num_error % ('confs_per_magn', 'positive integer')
-    confs_per_magn = try_command(dos_inp.getint, [(ValueError, err_msg)],
-                                 'Screening', 'confs_per_magn', fallback=2)
+    
+    if isinstance(dos_inp, ConfigParser):
+        confs_per_magn = try_command(dos_inp.getint, [(ValueError, err_msg)],
+                                    'Screening', 'confs_per_magn', fallback=2)
+    else:
+        confs_per_magn = dos_inp['confs_per_magn']
+    
     if confs_per_magn <= 0:
         logger.error(err_msg)
         raise ValueError(err_msg)
     return confs_per_magn
 
 
-def get_surf_norm_vect():
+def get_surf_norm_vect(dos_inp):
     err = "'surf_norm_vect' must be a 3 component vector, 'x', 'y' or 'z', " \
           "'auto' or 'asann'."
     cart_axes = {'x': [1.0, 0.0, 0.0], '-x': [-1.0, 0.0, 0.0],
                  'y': [0.0, 1.0, 0.0], '-y': [0.0, -1.0, 0.0],
                  'z': [0.0, 0.0, 1.0], '-z': [0.0, 0.0, -1.0]}
-    surf_norm_vect_str = dos_inp.get('Screening', 'surf_norm_vect',
-                                     fallback="auto").lower()
+
+    if isinstance(dos_inp, ConfigParser):
+        surf_norm_vect_str = dos_inp.get('Screening', 'surf_norm_vect',
+                                        fallback="auto").lower()
+    else:
+        surf_norm_vect_str = dos_inp['surf_norm_vect']
+
     if surf_norm_vect_str == "asann" or surf_norm_vect_str == "auto":
         return 'auto'
     if surf_norm_vect_str in cart_axes:
@@ -710,53 +779,76 @@ def get_surf_norm_vect():
     return np.array(surf_norm_vect) / np.linalg.norm(surf_norm_vect)
 
 
-def get_adsorption_height():
+def get_adsorption_height(dos_inp):
     err_msg = num_error % ('adsorption_height', 'positive number')
-    ads_height = try_command(dos_inp.getfloat, [(ValueError, err_msg)],
-                             'Screening', 'adsorption_height', fallback=2.5)
+
+    if isinstance(dos_inp, ConfigParser):
+        ads_height = try_command(dos_inp.getfloat, [(ValueError, err_msg)],
+                                'Screening', 'adsorption_height', fallback=2.5)
+    else:
+        ads_height = dos_inp['adsorption_height']
+
     if ads_height <= 0:
         logger.error(err_msg)
         raise ValueError(err_msg)
     return ads_height
 
 
-def get_set_angles():
+def get_set_angles(dos_inp):
     set_vals = ['euler', 'internal']
-    check_expect_val(dos_inp.get('Screening', 'set_angles').lower(), set_vals)
-    set_angles = dos_inp.get('Screening', 'set_angles',
-                             fallback='euler').lower()
+    if isinstance(dos_inp, ConfigParser):
+        check_expect_val(dos_inp.get('Screening', 'set_angles').lower(), set_vals)
+        set_angles = dos_inp.get('Screening', 'set_angles',
+                                fallback='euler').lower()
+    else:
+        set_angles = dos_inp['set_angles']
+
     return set_angles
 
 
-def get_pts_per_angle():
+def get_pts_per_angle(dos_inp):
     err_msg = num_error % ('sample_points_per_angle', 'positive integer')
-    pts_per_angle = try_command(dos_inp.getint,
-                                [(ValueError, err_msg)],
-                                'Screening', 'sample_points_per_angle',
-                                fallback=3)
+    if isinstance(dos_inp, ConfigParser):
+        pts_per_angle = try_command(dos_inp.getint,
+                                    [(ValueError, err_msg)],
+                                    'Screening', 'sample_points_per_angle',
+                                    fallback=3)
+    else:
+        pts_per_angle = dos_inp['sample_points_per_angle']
+
     if pts_per_angle <= 0:
         logger.error(err_msg)
         raise ValueError(err_msg)
     return pts_per_angle
 
 
-def get_max_structures():
+def get_max_structures(dos_inp):
     err_msg = num_error % ('max_structures', 'positive integer')
-    max_structs = dos_inp.get('Screening', 'max_structures', fallback="False")
-    if max_structs.lower() in turn_false_answers:
-        return np.inf
+    
+    if isinstance(dos_inp, ConfigParser):
+        max_structs = dos_inp.get('Screening', 'max_structures',
+                                fallback="False")
+        if max_structs.lower() in turn_false_answers:
+            return np.inf
+    else:
+        max_structs = dos_inp['max_structures']
+
     if try_command(int, [(ValueError, err_msg)], max_structs) <= 0:
         logger.error(err_msg)
         raise ValueError(err_msg)
     return int(max_structs)
 
 
-def get_coll_thrsld():
+def get_coll_thrsld(dos_inp):
     err_msg = num_error % ('collision_threshold', 'positive number')
-    coll_thrsld_str = dos_inp.get('Screening', 'collision_threshold',
-                                  fallback="False")
-    if coll_thrsld_str.lower() in turn_false_answers:
-        return False
+    if isinstance(dos_inp, ConfigParser):
+        coll_thrsld_str = dos_inp.get('Screening', 'collision_threshold',
+                                    fallback="False")
+        if coll_thrsld_str.lower() in turn_false_answers:
+            return False
+    else:
+        coll_thrsld_str = dos_inp['collision_threshold']
+
     coll_thrsld = try_command(float, [(ValueError, err_msg)], coll_thrsld_str)
 
     if coll_thrsld <= 0:
@@ -766,12 +858,16 @@ def get_coll_thrsld():
     return coll_thrsld
 
 
-def get_min_coll_height(norm_vect):
+def get_min_coll_height(dos_inp, norm_vect):
     err_msg = num_error % ('min_coll_height', 'decimal number')
-    min_coll_height = dos_inp.get('Screening', 'min_coll_height',
-                                  fallback="false")
-    if min_coll_height.lower() in turn_false_answers:
-        return False
+    if isinstance(dos_inp, ConfigParser):
+        min_coll_height = dos_inp.get('Screening', 'min_coll_height',
+                                    fallback="False")
+        if min_coll_height.lower() in turn_false_answers:
+            return False
+    else:
+        min_coll_height = dos_inp['min_coll_height']
+
     min_coll_height = try_command(float, [(ValueError, err_msg)],
                                   min_coll_height)
     cart_axes = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
@@ -783,22 +879,35 @@ def get_min_coll_height(norm_vect):
     return min_coll_height
 
 
-def get_exclude_ads_ctr():
+def get_exclude_ads_ctr(dos_inp):
     err_msg = "exclude_ads_ctr must have a boolean value."
-    exclude_ads_ctr = try_command(dos_inp.getboolean, [(ValueError, err_msg)],
-                                  "Screening", "exclude_ads_ctr",
-                                  fallback=False)
+    
+    if isinstance(dos_inp, ConfigParser):
+        exclude_ads_ctr = try_command(dos_inp.getboolean, [(ValueError, err_msg)],
+                                    "Screening", "exclude_ads_ctr",
+                                    fallback=False)
+    else:
+        exclude_ads_ctr = dos_inp['exclude_ads_ctr']
+
     return exclude_ads_ctr
 
 
-def get_H_donor(spec_atoms):
+def get_H_donor(dos_inp, spec_atoms):
     from ase.data import chemical_symbols
     err_msg = "The value of 'h_donor' must be either False, a chemical symbol " \
               "or an atom index"
-    h_donor_str = dos_inp.get('Screening', 'h_donor', fallback="False")
+    
+    if isinstance(dos_inp, ConfigParser):
+        h_donor_str = dos_inp.get('Screening', 'h_donor', fallback="False")
+        if h_donor_str.lower() in turn_false_answers:
+            return False
+    else:
+        h_donor_str = dos_inp['h_donor']
+        if h_donor_str == False:
+            return False
+
+
     h_donor = []
-    if h_donor_str.lower() in turn_false_answers:
-        return False
     err = False
     for el in h_donor_str.split():
         try:
@@ -816,11 +925,16 @@ def get_H_donor(spec_atoms):
     return h_donor
 
 
-def get_H_acceptor(spec_atoms):
+def get_H_acceptor(dos_inp, spec_atoms):
     from ase.data import chemical_symbols
     err_msg = "The value of 'h_acceptor' must be either 'all', a chemical " \
               "symbol or an atom index."
-    h_acceptor_str = dos_inp.get('Screening', 'h_acceptor', fallback="all")
+    
+    if isinstance(dos_inp, ConfigParser):
+        h_acceptor_str = dos_inp.get('Screening', 'h_acceptor', fallback="all")
+    else:
+        h_acceptor_str = dos_inp['h_acceptor']
+
     if h_acceptor_str.lower() == "all":
         return "all"
     h_acceptor = []
@@ -841,28 +955,32 @@ def get_H_acceptor(spec_atoms):
     return h_acceptor
 
 
-def get_use_molec_file():
-    use_molec_file = dos_inp.get('Screening', 'use_molec_file',
-                                 fallback='False')
-    if use_molec_file.lower() in turn_false_answers:
-        return False
-    if not os.path.isfile(use_molec_file):
-        logger.error(f'File {use_molec_file} not found.')
-        raise FileNotFoundError(f'File {use_molec_file} not found')
+def get_use_molec_file(dos_inp):
+
+    if isinstance(dos_inp, ConfigParser):
+        use_molec_file = dos_inp.get('Screening', 'use_molec_file',
+                                    fallback='False')
+        if use_molec_file.lower() in turn_false_answers:
+            return False
+        if not os.path.isfile(use_molec_file):
+            logger.error(f'File {use_molec_file} not found.')
+            raise FileNotFoundError(f'File {use_molec_file} not found')
+    else:
+        use_molec_file = dos_inp['use_molec_file']
 
     return use_molec_file
 
 
 # Refinement
 
-def get_refine_inp_file(code, potcar_dir=None):
+def get_refine_inp_file(dos_inp,code, potcar_dir=None):
     inp_file_lst = dos_inp.get('Refinement', 'refine_inp_file').split()
     check_inp_files(inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst,
                     code, potcar_dir)
     return inp_file_lst[0] if len(inp_file_lst) == 1 else inp_file_lst
 
 
-def get_energy_cutoff():
+def get_energy_cutoff(dos_inp):
     err_msg = num_error % ('energy_cutoff', 'positive decimal number')
     energy_cutoff = try_command(dos_inp.getfloat,
                                 [(ValueError, err_msg)],
@@ -875,7 +993,7 @@ def get_energy_cutoff():
 
 # Read input parameters
 
-def read_input(in_file):
+def read_input(dos_inp):
     """Directs the reading of the parameters in the input file.
 
     @param in_file: The path to the DockOnSurf input file.
@@ -886,63 +1004,81 @@ def read_input(in_file):
 
     # Checks for errors in the Input file.
     err_msg = False
-    try:
-        dos_inp.read(in_file)
-    except MissingSectionHeaderError as e:
-        logger.error('There are options in the input file without a Section '
-                     'header.')
-        err_msg = e
-    except DuplicateOptionError as e:
-        logger.error('There is an option in the input file that has been '
-                     'specified more than once.')
-        err_msg = e
-    except Exception as e:
-        err_msg = e
-    else:
-        err_msg = False
-    finally:
-        if isinstance(err_msg, BaseException):
-            raise err_msg
+    # try:
+    #     dos_inp.read(in_file)
+    # except MissingSectionHeaderError as e:
+    #     logger.error('There are options in the input file without a Section '
+    #                  'header.')
+    #     err_msg = e
+    # except DuplicateOptionError as e:
+    #     logger.error('There is an option in the input file that has been '
+    #                  'specified more than once.')
+    #     err_msg = e
+    # except Exception as e:
+    #     err_msg = e
+    # else:
+    #     err_msg = False
+    # finally:
+    #     if isinstance(err_msg, BaseException):
+    #         raise err_msg
 
     inp_vars = {}
 
     # Global
-    if not dos_inp.has_section('Global'):
-        logger.error(no_sect_err % 'Global')
-        raise NoSectionError('Global')
+    if isinstance(dos_inp, ConfigParser):
+        if not dos_inp.has_section('Global'):
+            logger.error(no_sect_err % 'Global')
+            raise NoSectionError('Global')
+    else:
+        if dos_inp['Global'] == False:
+            logger.error(no_sect_err % 'Global')
+            raise NoSectionError('Global')
 
     # Mandatory options
     # Checks whether the mandatory options 'run_type', 'code', etc. are present.
     glob_mand_opts = ['run_type', 'code', 'batch_q_sys']
     for opt in glob_mand_opts:
-        if not dos_inp.has_option('Global', opt):
-            logger.error(no_opt_err % (opt, 'Global'))
-            raise NoOptionError(opt, 'Global')
+        if isinstance(dos_inp, ConfigParser):
+            if not dos_inp.has_option('Global', opt):
+                logger.error(no_opt_err % (opt, 'Global'))
+                raise NoOptionError(opt, 'Global')
+        # else:
+        #     if opt not in dos_inp[opt]:
+        #         logger.error(no_opt_err % (opt, 'Global'))
+        #         raise NoOptionError(opt, 'Global')
 
     # Mandatory options
-    isolated, screening, refinement = get_run_type()
+    # if isinstance(dos_inp, ConfigParser):
+    isolated, screening, refinement = get_run_type(dos_inp=dos_inp)
     inp_vars['isolated'] = isolated
     inp_vars['screening'] = screening
     inp_vars['refinement'] = refinement
-    inp_vars['code'] = get_code()
-    inp_vars['batch_q_sys'] = get_batch_q_sys()
-
+    inp_vars['code'] = get_code(dos_inp=dos_inp)
+    inp_vars['batch_q_sys'] = get_batch_q_sys(dos_inp=dos_inp)
+    # else:
+    #     isolated, screening, refinement = (False,True,False)
+    #     inp_vars['isolated'] = isolated
+    #     inp_vars['screening'] = screening
+    #     inp_vars['refinement'] = refinement
+    #     inp_vars['code'] = dos_inp['code'].lower()
+    #     inp_vars['batch_q_sys'] = dos_inp['batch_q_sys']
+    
     # Dependent options:
     if inp_vars['batch_q_sys']:
-        inp_vars['max_jobs'] = get_max_jobs()
+        inp_vars['max_jobs'] = get_max_jobs(dos_inp=dos_inp)
         if inp_vars['batch_q_sys'] != 'local':
             if not dos_inp.has_option('Global', 'subm_script'):
                 logger.error(no_opt_err % ('subm_script', 'Global'))
                 raise NoOptionError('subm_script', 'Global')
-            inp_vars['subm_script'] = get_subm_script()
+            inp_vars['subm_script'] = get_subm_script(dos_inp=dos_inp)
     if inp_vars['code'] == "vasp":
-        inp_vars['potcar_dir'] = get_potcar_dir()
+        inp_vars['potcar_dir'] = get_potcar_dir(dos_inp=dos_inp)
 
     # Facultative options (Default/Fallback value present)
-    inp_vars['pbc_cell'] = get_pbc_cell()
-    inp_vars['project_name'] = get_project_name()
+    inp_vars['pbc_cell'] = get_pbc_cell(dos_inp=dos_inp)
+    inp_vars['project_name'] = get_project_name(dos_inp=dos_inp)
     # inp_vars['relaunch_err'] = get_relaunch_err()
-    inp_vars['special_atoms'] = get_special_atoms()
+    inp_vars['special_atoms'] = get_special_atoms(dos_inp=dos_inp)
 
     # Isolated
     if isolated:
@@ -991,31 +1127,39 @@ def read_input(in_file):
 
     # Screening
     if screening:
-        if not dos_inp.has_section('Screening'):
-            logger.error(no_sect_err % 'Screening')
-            raise NoSectionError('Screening')
-        # Mandatory options:
-        # Checks whether the mandatory options are present.
-        # Mandatory options
-        screen_mand_opts = ['screen_inp_file', 'surf_file', 'sites',
-                            'molec_ctrs']
-        for opt in screen_mand_opts:
-            if not dos_inp.has_option('Screening', opt):
-                logger.error(no_opt_err % (opt, 'Screening'))
-                raise NoOptionError(opt, 'Screening')
-        if 'potcar_dir' in inp_vars:
-            inp_vars['screen_inp_file'] = get_screen_inp_file(inp_vars['code'],
-                                                              inp_vars[
-                                                                  'potcar_dir'])
-        else:
-            inp_vars['screen_inp_file'] = get_screen_inp_file(inp_vars['code'])
-        inp_vars['surf_file'] = get_surf_file()
-        inp_vars['sites'] = get_sites()
-        inp_vars['molec_ctrs'] = get_molec_ctrs()
+        if isinstance(dos_inp, ConfigParser):
+            if not dos_inp.has_section('Screening'):
+                logger.error(no_sect_err % 'Screening')
+                raise NoSectionError('Screening')
+            # Mandatory options:
+            # Checks whether the mandatory options are present.
+            # Mandatory options
+            screen_mand_opts = ['screen_inp_file', 'surf_file', 'sites',
+                                'molec_ctrs']
+            for opt in screen_mand_opts:
+                if isinstance(dos_inp, ConfigParser):
+                    if not dos_inp.has_option('Screening', opt):
+                        logger.error(no_opt_err % (opt, 'Screening'))
+                        raise NoOptionError(opt, 'Screening')
+            if 'potcar_dir' in inp_vars:
+                inp_vars['screen_inp_file'] = 'test'
+            else:
+                inp_vars['screen_inp_file'] = 'test'
+        inp_vars['surf_file'] = get_surf_file(dos_inp=dos_inp)
+        inp_vars['sites'] = get_sites(dos_inp=dos_inp)
+        inp_vars['molec_ctrs'] = get_molec_ctrs(dos_inp=dos_inp)
+        # else:
+        #     inp_vars['screen_inp_file'] = 'test'
+        #     inp_vars['surf_file'] = dos_inp['surf_file']
+        #     inp_vars['sites'] = dos_inp['sites']
+
 
         # Checks for PBC
-        atms = adapt_format('ase', inp_vars['surf_file'],
-                            inp_vars['special_atoms'])
+        if isinstance(dos_inp, ConfigParser):
+            atms = adapt_format('ase', inp_vars['surf_file'],
+                                inp_vars['special_atoms'])
+        else:
+            atms = inp_vars['surf_file']
         if inp_vars['code'] == 'vasp' and np.linalg.det(atms.cell) == 0.0 \
                 and inp_vars['pbc_cell'] is False:
             err_msg = "When running calculations with 'VASP', the PBC cell " \
@@ -1036,23 +1180,22 @@ def read_input(in_file):
                            "'pbc_cell' value will be used.")
 
         # Facultative options (Default value present)
-        inp_vars['select_magns'] = get_select_magns()
-        inp_vars['confs_per_magn'] = get_confs_per_magn()
-        inp_vars['surf_norm_vect'] = get_surf_norm_vect()
-        inp_vars['adsorption_height'] = get_adsorption_height()
-        inp_vars['set_angles'] = get_set_angles()
-        inp_vars['sample_points_per_angle'] = get_pts_per_angle()
-        inp_vars['collision_threshold'] = get_coll_thrsld()
-        inp_vars['min_coll_height'] = get_min_coll_height(
-            inp_vars['surf_norm_vect'])
+        inp_vars['select_magns'] = get_select_magns(dos_inp=dos_inp)
+        # inp_vars['confs_per_magn'] = get_confs_per_magn(dos_inp=dos_inp)
+        inp_vars['surf_norm_vect'] = get_surf_norm_vect(dos_inp=dos_inp)
+        inp_vars['adsorption_height'] = get_adsorption_height(dos_inp=dos_inp)
+        inp_vars['set_angles'] = get_set_angles(dos_inp=dos_inp)
+        inp_vars['sample_points_per_angle'] = get_pts_per_angle(dos_inp=dos_inp)
+        inp_vars['collision_threshold'] = get_coll_thrsld(dos_inp=dos_inp)
+        inp_vars['min_coll_height'] = get_min_coll_height(dos_inp, inp_vars['surf_norm_vect'])
         if inp_vars['min_coll_height'] is False \
                 and inp_vars['collision_threshold'] is False:
             logger.warning("Collisions are deactivated: Overlapping of "
                            "adsorbate and surface is possible")
-        inp_vars['exclude_ads_ctr'] = get_exclude_ads_ctr()
-        inp_vars['h_donor'] = get_H_donor(inp_vars['special_atoms'])
-        inp_vars['max_structures'] = get_max_structures()
-        inp_vars['use_molec_file'] = get_use_molec_file()
+        inp_vars['exclude_ads_ctr'] = get_exclude_ads_ctr(dos_inp=dos_inp)
+        inp_vars['h_donor'] = get_H_donor(dos_inp, inp_vars['special_atoms'])
+        inp_vars['max_structures'] = get_max_structures(dos_inp=dos_inp)
+        inp_vars['use_molec_file'] = get_use_molec_file(dos_inp=dos_inp)
 
         # Options depending on the value of others
         if inp_vars['set_angles'] == "internal":
@@ -1062,10 +1205,10 @@ def read_input(in_file):
                 if not dos_inp.has_option('Screening', opt):
                     logger.error(no_opt_err % (opt, 'Screening'))
                     raise NoOptionError(opt, 'Screening')
-            inp_vars['max_helic_angle'] = get_max_helic_angle()
-            inp_vars['molec_ctrs2'] = get_molec_ctrs2()
-            inp_vars['molec_ctrs3'] = get_molec_ctrs3()
-            inp_vars['surf_ctrs2'] = get_surf_ctrs2()
+            inp_vars['max_helic_angle'] = get_max_helic_angle(dos_inp=dos_inp)
+            inp_vars['molec_ctrs2'] = get_molec_ctrs2(dos_inp=dos_inp)
+            inp_vars['molec_ctrs3'] = get_molec_ctrs3(dos_inp=dos_inp)
+            inp_vars['surf_ctrs2'] = get_surf_ctrs2(dos_inp=dos_inp)
             if len(inp_vars["molec_ctrs2"]) != len(inp_vars['molec_ctrs']) \
                     or len(inp_vars["molec_ctrs3"]) != \
                     len(inp_vars['molec_ctrs']) \
@@ -1093,19 +1236,17 @@ def read_input(in_file):
                 logger.error(no_opt_err % (opt, 'Refinement'))
                 raise NoOptionError(opt, 'Refinement')
         if 'potcar_dir' in inp_vars:
-            inp_vars['refine_inp_file'] = get_refine_inp_file(inp_vars['code'],
-                                                              inp_vars[
-                                                                  'potcar_dir'])
+            inp_vars['refine_inp_file'] = get_refine_inp_file(dos_inp, inp_vars['code'], inp_vars['potcar_dir'])
         else:
-            inp_vars['refine_inp_file'] = get_refine_inp_file(inp_vars['code'])
+            inp_vars['refine_inp_file'] = get_refine_inp_file(dos_inp, inp_vars['code'])
 
         # Facultative options (Default value present)
-        inp_vars['energy_cutoff'] = get_energy_cutoff()
+        inp_vars['energy_cutoff'] = get_energy_cutoff(dos_inp=dos_inp)
         # end energy_cutoff
 
     return_vars_str = "\n\t".join([str(key) + ": " + str(value)
                                    for key, value in inp_vars.items()])
-    logger.info(f'Correctly read {in_file} parameters:'
+    logger.info(f'Correctly read {dos_inp} parameters:'
                 f' \n\n\t{return_vars_str}\n')
 
     return inp_vars

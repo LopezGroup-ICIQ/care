@@ -220,7 +220,6 @@ def align_molec(orig_molec, ctr_coord, ref_vect):
         axis = cart_axes[int(np.argmax([np.linalg.norm(np.cross(ax, nn_vect))
                                         for ax in cart_axes]))]
         target_vect = np.cross(axis, nn_vect)
-
     rot_vect = np.cross(target_vect, ref_vect)
     if np.allclose(rot_vect, 0):
         cart_axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
@@ -253,6 +252,7 @@ def add_adsorbate(slab, adsorbate, site_coord, ctr_coord, height, offset=None,
     @param norm_vect: The vector perpendicular to the surface.
     """
     from copy import deepcopy
+    from ase import Atoms
     info = slab.info.get('adsorbate_info', {})
     pos = np.array([0.0, 0.0, 0.0])  # part of absolute coordinates
     spos = np.array([0.0, 0.0, 0.0])  # part relative to unit cell
@@ -286,8 +286,11 @@ def add_adsorbate(slab, adsorbate, site_coord, ctr_coord, height, offset=None,
     # Move adsorbate into position
     ads.translate(pos - ctr_coord)
     # Attach the adsorbate
-    slab.extend(ads)
-
+    # slab.extend(ads)
+    slab = Atoms(symbols=slab.get_chemical_symbols() + ads.get_chemical_symbols(),
+                  positions=np.vstack([slab.get_positions(), ads.get_positions()]),
+                  cell=slab.get_cell(), pbc=slab.get_pbc())
+    return slab
 
 def check_collision(slab_molec, slab_num_atoms, min_height, vect, nn_slab=0,
                     nn_molec=0, coll_coeff=1.2, exclude_atom=False):
@@ -399,13 +402,13 @@ def correct_coll(molec, slab, ctr_coord, site_coord, num_pts,
         slab_molec = deepcopy(slab)
         molec.euler_rotate(k * d_angle, k * d_angle / 2, k * d_angle,
                            center=ctr_coord)
-        add_adsorbate(slab_molec, molec, site_coord, ctr_coord, height,
+        slab_ads = add_adsorbate(slab_molec, molec, site_coord, ctr_coord, height,
                       norm_vect=norm_vect)
-        collision = check_collision(slab_molec, slab_num_atoms, min_coll_height,
+        collision = check_collision(slab_ads, slab_num_atoms, min_coll_height,
                                     norm_vect, slab_nghbs, molec_nghbs,
                                     coll_coeff, excl_atom)
         num_corr += 1
-    return slab_molec, collision
+    return slab_ads, collision
 
 
 def dissociate_h(slab_molec_orig, h_idx, num_atoms_slab, h_acceptor,
@@ -757,38 +760,42 @@ def run_screening(inp_vars):
 
     logger.info('Carrying out procedures for the screening of adsorbate-surface'
                 ' structures.')
-    if inp_vars['use_molec_file']:
-        selected_confs = [adapt_format('ase', inp_vars['use_molec_file'],
-                                       inp_vars['special_atoms'])]
-        logger.info(f"Using '{inp_vars['use_molec_file']}' as only conformer.")
-    else:
-        if not os.path.isdir("isolated"):
-            err = "'isolated' directory not found. It is needed in order to " \
-                  "carry out the screening of structures to be adsorbed"
-            logger.error(err)
-            raise FileNotFoundError(err)
+    # if inp_vars['use_molec_file']:
+    #     # selected_confs == ase Atoms object (molecule)
+    #     selected_confs = [adapt_format('ase', inp_vars['use_molec_file'],
+    #                                    inp_vars['special_atoms'])]
+    #     logger.info(f"Using '{inp_vars['use_molec_file']}' as only conformer.")
+    # else:
+    #     if not os.path.isdir("isolated"):
+    #         err = "'isolated' directory not found. It is needed in order to " \
+    #               "carry out the screening of structures to be adsorbed"
+    #         logger.error(err)
+    #         raise FileNotFoundError(err)
 
-        finished_calcs, failed_calcs = check_finished_calcs('isolated',
-                                                            inp_vars['code'])
-        if not finished_calcs:
-            err_msg = "No calculations on 'isolated' finished normally."
-            logger.error(err_msg)
-            raise FileNotFoundError(err_msg)
+    #     finished_calcs, failed_calcs = check_finished_calcs('isolated',
+    #                                                         inp_vars['code'])
+    #     if not finished_calcs:
+    #         err_msg = "No calculations on 'isolated' finished normally."
+    #         logger.error(err_msg)
+    #         raise FileNotFoundError(err_msg)
 
-        logger.info(f"Found {len(finished_calcs)} structures of isolated "
-                    f"conformers whose calculation finished normally.")
-        if len(failed_calcs) != 0:
-            logger.warning(
-                f"Found {len(failed_calcs)} calculations more that "
-                f"did not finish normally: {failed_calcs}. \n"
-                f"Using only the ones that finished normally: "
-                f"{finished_calcs}.")
+    #     logger.info(f"Found {len(finished_calcs)} structures of isolated "
+    #                 f"conformers whose calculation finished normally.")
+    #     if len(failed_calcs) != 0:
+    #         logger.warning(
+    #             f"Found {len(failed_calcs)} calculations more that "
+    #             f"did not finish normally: {failed_calcs}. \n"
+    #             f"Using only the ones that finished normally: "
+    #             f"{finished_calcs}.")
 
-        conf_list = collect_confs(finished_calcs, inp_vars['code'], 'isolated',
-                                  inp_vars['special_atoms'])
-        selected_confs = select_confs(conf_list, inp_vars['select_magns'],
-                                      inp_vars['confs_per_magn'])
-    surf = adapt_format('ase', inp_vars['surf_file'], inp_vars['special_atoms'])
+    #     conf_list = collect_confs(finished_calcs, inp_vars['code'], 'isolated',
+    #                               inp_vars['special_atoms'])
+    #     selected_confs = select_confs(conf_list, inp_vars['select_magns'],
+    #                                   inp_vars['confs_per_magn'])
+    # surf == ase Atoms object (surface)
+    # surf = adapt_format('ase', inp_vars['surf_file'], inp_vars['special_atoms'])
+    surf = inp_vars['surf_file']
+    selected_confs = [inp_vars['use_molec_file']]
     surf.info = {}
     surf_ads_list = adsorb_confs(selected_confs, surf, inp_vars)
     if len(surf_ads_list) > inp_vars['max_structures']:
