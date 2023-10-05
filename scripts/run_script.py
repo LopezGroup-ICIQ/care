@@ -9,6 +9,7 @@ from torch import load
 from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.rnet.dock_ads_surf.gen_ads_surf import run_docksurf
+from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
 
@@ -45,10 +46,10 @@ if __name__ == "__main__":
     time0 = time.time()
     
     # Loading surface from database
-    surf_db = connect(os.path.abspath(DB_PATH))
+    data_db = connect(os.path.abspath(DB_PATH))
     metal_struct = metal_structure_dict[args.m]
     full_facet = f"{metal_struct}({args.hkl})"
-    surface = surf_db.get_atoms(metal=args.m, facet=full_facet)
+    surface = data_db.get_atoms(calc_type='surface',metal=args.m, facet=full_facet)
     surface = Surface(surface, args.hkl)
 
     # Loading GAME-Net UQ 
@@ -88,14 +89,41 @@ if __name__ == "__main__":
 
     list_ase_inter = list(rxn_net.intermediates.values())
     print('\nlist_ase_inter: ', list_ase_inter)
+    quit()
+    # for intermediate in rxn_net.intermediates.values():
+    #     print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
+    #     print('Intermediate phase: ', intermediate.phase)
 
-    for intermediate in rxn_net.intermediates.values():
-        print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
+    #     if intermediate.phase == 'surf':
+    #         # Retrieving the energy of the intermediate from the database
+    #         surface_energy = data_db.get(calc_type='surface',metal=args.m, facet=full_facet).e_slab
+        
+    #     if intermediate.phase == 'ads':
+    #         # Generating the graph of the intermediate with no surface
+    #         molec_graph = ase_coord_2_graph(intermediate.molecule, coords=False)
+    #         # Counting the number of C,H,O atoms in the graph
+    #         n_C, n_H, n_O = 0, 0, 0
+    #         for node in molec_graph.nodes:
+    #             if molec_graph.nodes[node]['elem'] == 'C':
+    #                 n_C += 1
+    #             elif molec_graph.nodes[node]['elem'] == 'H':
+    #                 n_H += 1
+    #             elif molec_graph.nodes[node]['elem'] == 'O':
+    #                 n_O += 1
+    #         print('n_C: ', n_C)
+    #         print('n_H: ', n_H)
+    #         print('n_O: ', n_O)
+
+
+
+
+
+
         # If the molecule has only one atom, pass (need to see how to overcome this)
-        if len(intermediate.molecule) == 1 or intermediate.code == '000000*':
-            continue
-        best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements)
-        print('best_eads: ', best_eads)
+        # if len(intermediate.molecule) == 1 or intermediate.code == '000000*':
+        #     continue
+        # best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements)
+        # print('best_eads: ', best_eads)
 
     # # Loading the reaction network from a pickle file
     # with open("results/rxn_net.pkl", "rb") as infile:

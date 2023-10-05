@@ -172,7 +172,6 @@ class Intermediate:
         Check if a molecule CxHyOz is closed-shell or not.
         """
         graph = self.graph
-        # print(graph.nodes()) list of node indexes, element symbol stored as "elem"
         molecule = self.molecule
         valence_electrons = {'C': 4, 'H': 1, 'O': 2}
         graph = graph.to_undirected()

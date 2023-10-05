@@ -49,7 +49,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
             try:
                 sel_node = network.nodes[node]
                 electrons = af.adjust_electrons(sel_node['mol'])
-                new_inter = Intermediate(code=node+'*', 
+                new_inter = Intermediate(code=node+'-*', 
                                          molecule=sel_node['mol'], 
                                          graph=sel_node['graph'], 
                                          energy=sel_node['energy'], 
@@ -122,8 +122,8 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
             gas_molecules[gas_code] = gas_inter           
             adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption'))
 
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['020101g']]), frozenset([intermediates['010101']])), r_type='adsorption'))
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['002101g']]), frozenset([intermediates['001101']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0-2-0-1-1-g']]), frozenset([intermediates['0-1-0-1-1']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0-0-2-1-1-g']]), frozenset([intermediates['0-0-1-1-1']])), r_type='adsorption'))
     return gas_molecules, adsorption_steps
 
 
@@ -147,7 +147,7 @@ def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
         if reaction.r_type == 'C-H':
             for state in reaction.components:
                 for inter in list(state):
-                    if inter.is_surface or inter.code in ('010101*', '020101*'): #surface or a hydrogen atom,
+                    if inter.is_surface or inter.code in ('0-1-0-1-1-*', '0-2-0-1-1-*'): #surface or a hydrogen atom,
                         continue
                     else:
                         oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
@@ -174,14 +174,14 @@ def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
             is_components = reaction.components[1]
 
             for molecule in fs_components:
-                if molecule.code == '000000*':
+                if molecule.code == '0-0-0-0-0-*':
                     continue
                 else:
                     fs_graph = molecule.graph
 
             is_graphs = []
             for molecule in is_components:
-                if molecule.code == '000000*':
+                if molecule.code == '0-0-0-0-0-*':
                     continue
                 else:
                     is_graphs.append(molecule.graph)

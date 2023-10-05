@@ -28,8 +28,8 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     """
     # 1) Generate all the intermediates
     intermediate_dict, map_dict = generate_intermediates(ncc)    
-    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='000000*', energy=0.0, entropy=0.0, is_surface=True, phase='surf')
-    h_inter = Intermediate.from_molecule(Atoms('H', positions=[[0, 0, 0]]), code='010101*', energy=0.0, entropy=0.0, phase='ads')
+    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0-0-0-0-0-*', energy=0.0, entropy=0.0, is_surface=True, phase='surf')
+    h_inter = Intermediate.from_molecule(Atoms('H', positions=[[0, 0, 0]]), code='0-1-0-1-1-*', energy=0.0, entropy=0.0, phase='ads')
     surf_inter.electrons = 0
     h_inter.electrons = 1
 
@@ -38,10 +38,11 @@ def generate_rxn_net(slab_ase_obj: Atoms,
         nx.set_node_attributes(graph, inter_att[network])
 
     network_dict = generate_network_dict(map_dict, surf_inter, h_inter)
+    print('network_dict: ', network_dict)
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
 
     rxn_net = ReactionNetwork(ncc=ncc)
-    rxn_net.add_intermediates({'000000': surf_inter})
+    rxn_net.add_intermediates({'0-0-0-0-0': surf_inter})
     for item in int_net:
         select_net = network_dict[item]
         rxn_net.add_intermediates(select_net['intermediates'])

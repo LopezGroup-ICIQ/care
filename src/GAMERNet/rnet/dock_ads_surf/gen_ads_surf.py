@@ -16,7 +16,6 @@ import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.surface import Surface
 
-from GAMERNet import DOCK_DATA
 
 def process_chunk(args):
     chunk, graph_params, model_elems, calc_type = args

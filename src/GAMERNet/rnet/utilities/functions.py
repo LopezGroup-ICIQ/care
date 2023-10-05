@@ -188,12 +188,12 @@ def code_name(molecule: Atoms, group: int, index: int) -> str: #name of the mole
     infor = {"C": nC, "H": nH, "O": nO}
     for item in name_elem:
         try:
-            name_str += '{:01x}'.format(infor[item])
+            name_str += '-{}'.format(infor[item])
         except KeyError:
             name_str += str('0')
-    name_str += '{:01x}'.format(group)
-    name_str += '{:02x}'.format(index)
-    return name_str
+    name_str += '-{}'.format(group)
+    name_str += '-{}'.format(index)
+    return name_str[1:]
 
 def decode(code: str) -> dict[str, int]: #storing of data?
     decoded = {'C': int(code[0], 16),
