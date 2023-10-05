@@ -108,24 +108,23 @@ def add_energies_to_dict(network_dict, energ_entr_dict):
                         # pass
     return network_dict
 
-def gen_desorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate all Intermediates that can desorb from the surface and the corresponding desorption reactions, including
     the dissociative adsorption of H2 and O2.
     """
-    desorption_steps = []
+    adsorption_steps = []
     gas_molecules = {}
     for inter in intermediates.values():
         if inter.closed_shell:
             gas_code = inter.code[:-1] + 'g'
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
             gas_molecules[gas_code] = gas_inter           
-            desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='desorption'))
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption'))
 
-    desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['020101g']]), frozenset([intermediates['010101']])), r_type='desorption'))
-    desorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['002101g']]), frozenset([intermediates['001101']])), r_type='desorption'))
-
-    return gas_molecules, desorption_steps
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['020101g']]), frozenset([intermediates['010101']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['002101g']]), frozenset([intermediates['001101']])), r_type='adsorption'))
+    return gas_molecules, adsorption_steps
 
 
 def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:

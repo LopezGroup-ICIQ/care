@@ -8,6 +8,7 @@ import networkx.algorithms.isomorphism as iso
 from ase.io import write
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from pydot import Node
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
@@ -215,7 +216,8 @@ class ReactionNetwork:
 
     
     def gen_graph(self, del_surf:bool=False) -> nx.DiGraph:
-        """Generate a graph using the intermediates and the transition states
+        """
+        Generate a graph using the intermediates and the elementary reactions
         contained in this object.
 
         Returns:
@@ -251,10 +253,8 @@ class ReactionNetwork:
                                fig_path=fig_path)
                             
         for reaction in self.reactions:  
-            if reaction.r_type == 'desorption':
-                category = 'desorption'
-            elif reaction.r_type == 'eley_rideal':
-                category = 'eley_rideal'
+            if reaction.r_type in ('adsorption', 'desorption', 'eley_rideal'):
+                category = reaction.r_type
             else:
                 category = 'surface_reaction'
             nx_graph.add_node(reaction.code, category=category)
@@ -294,7 +294,11 @@ class ReactionNetwork:
                 inter.is_surface]
 
     
-    def write_dotgraph(self, fig_path:str, filename: str, del_surf: bool=False):
+    def write_dotgraph(self, 
+                       fig_path:str, 
+                       filename: str, 
+                       del_surf: bool=False, 
+                       highlight: list[str]=None):
         graph = self.gen_graph(del_surf=del_surf)
         pos = nx.kamada_kawai_layout(graph)
         nx.set_node_attributes(graph, pos, 'pos')
@@ -333,20 +337,28 @@ class ReactionNetwork:
                 node.set_label("")
                 node.set_width("0.5")
                 node.set_height("0.5")
-                if node.get_attributes()['category'] == 'desorption':
+                if node.get_attributes()['category'] in ('adsorption', 'desorption'):
                     node.set_fillcolor("palegreen2")
                 elif node.get_attributes()['category'] == 'eley_rideal':
                     node.set_fillcolor("mediumpurple1")
                 else:
                     node.set_fillcolor("steelblue3")
+            # highlight nodes contained in highlight list
+            if highlight is not None and node.to_string().split("\"")[1] not in highlight:
+                # set opacity to 0.2
+                node.set_style("filled, invis")
+                
 
         for edge in plot.get_edges():
             edge.set_color("azure4")
             # make edges bidirectional
             # edge.set_dir("both")
 
+        
+                    
+
         a4_dims = (8.3, 11.7)  # In inches
-        plot.set_size(f"{a4_dims[0],a4_dims[1]}!")
+        plot.set_size(f"{a4_dims[1],a4_dims[0]}!")
         plot.set_orientation("landscape")   
         plot.write_png('./'+filename)
         # remove not empty tmp folder
@@ -609,7 +621,8 @@ class ReactionNetwork:
                                       r_type='eley_rideal')
         self.add_reactions([reaction])
 
-    def get_shortest_path(self, mol1_code: str, mol2_code: str) -> int:
+        
+    def get_shortest_path(self, reactants: list[str], target: str) -> int:
         """
         Given a reactant and a product, return the minimum number of reactions to go from one to the other.
         
@@ -626,43 +639,89 @@ class ReactionNetwork:
             Minimum number of reactions to go from one to the other.
         """
 
-        # NOT FINISHED
-        if mol1_code not in self.intermediates.keys():
-            raise ValueError('First argument must be in the network')
-        if mol2_code not in self.intermediates.keys():
+        for reactant in reactants:
+            if reactant not in self.intermediates.keys():
+                raise ValueError('First argument must be in the network')
+            if not self.intermediates[reactant].closed_shell:
+                raise ValueError('First argument must be closed shell')
+        if target not in self.intermediates.keys():
             raise ValueError('Second argument must be in the network')
-        if not self.intermediates[mol1_code].closed_shell:
-            raise ValueError('First argument must be closed shell')
-        if not self.intermediates[mol2_code].closed_shell:
-            raise ValueError('Second argument must be closed shell')
-        
+        if not self.intermediates[target].closed_shell:
+            raise ValueError('Second argument must be closed shell')        
         
         graph = self.graph.to_undirected()
-        # remove nodes that do not contain C* as they provide a shortcut
-        graph.remove_node('000000*')
-        graph.remove_node('010101*')
-        graph.remove_node('011101*')
-        graph.remove_node('001101*')
-        # return shortest path and nodes traversed
-        rxn_condition = lambda node: '<->' in node
+        visited_inters = set([*reactants, '000000*'])  # starting point (gas reactants plus surface)
+        visited_steps = set()
+        source = reactants[0].replace('g', '*')  # TODO: automatic detection of source based on C balance
+        # add adsorbed intermediates to visited nodes
+        for reactant in reactants:
+            for step in graph.neighbors(reactant):
+                visited_steps.add(step)
+                inters = step.split('<->')
+                inters = inters[0].split('+') + inters[1].split('+')
+                # remove content between parentheses
+                inters = [re.sub(r'\(.*\)', '', inter) for inter in inters]
+                if source in inters:
+                    source_ads = step
+                for inter in inters:
+                    if inter not in visited_inters:
+                        visited_inters.add(inter)
+                visited_steps.add(step)
+        
+        def is_step_accessible(node, current_inter, visited_inters):
+            """
+            condition: one of the sides of the reaction equation contains only intermediates in visited_inters
+            Example: A + B <-> C + D
+            if A and B  or C and D are in visited_inters, then the reaction is accessible
+            """
+            inters = node.split('<->')
+            inters[0] = inters[0].split('+')
+            inters[1] = inters[1].split('+')
+            inters[0] = [re.sub(r'\(.*\)', '', inter) for inter in inters[0]]
+            inters[1] = [re.sub(r'\(.*\)', '', inter) for inter in inters[1]]
+            if current_inter in inters[0]:
+                for inter in inters[0]:
+                    if inter not in visited_inters:
+                        return False
+            else:
+                for inter in inters[1]:
+                    if inter not in visited_inters:
+                        return False
+            return True
+        
+        # define source as the argument which contains carbon
+        from collections import deque
+        queue = deque([(source, [reactants[0], source_ads, source])])  # Each element of the queue is a tuple (node, path_so_far)
+        counter =  0
+        while queue:
+            current_inter, path_so_far = queue.popleft()
+            counter += 1
+            print("ITERATION", counter)
+            print(current_inter)
+            print(path_so_far[-2])
+            print(visited_inters)
+            
+            if current_inter == target:
+                print("PATH FOUND!!! {}".format(target))
+                path = [item for item in path_so_far if '<->' in item]
+                print("Number of necessary steps from {} to {}: {}".format(reactants[0], target, len(set(path))))
+                return path, path_so_far
+                
 
-        nC1 = self.intermediates[mol1_code].molecule.get_chemical_formula().count('C')
-        nC2 = self.intermediates[mol2_code].molecule.get_chemical_formula().count('C')
-        if nC1 == nC2:
-            for intermediate in self.intermediates.values():
-                if intermediate.molecule.get_chemical_formula().count('C') > max(nC1, nC2):
-                    graph.remove_node(intermediate.code)
-            sp = nx.shortest_path(graph, mol1_code, mol2_code)
-            steps = [node for node in sp if '<->' in node]
-        else:
-            sp = nx.shortest_path(graph, mol1_code, mol2_code)
-            steps = [node for node in sp if '<->' in node]
+            for step in graph.neighbors(current_inter):
+                if step not in visited_steps and is_step_accessible(step, current_inter, visited_inters):
+                    visited_steps.add(step)                    
+                    for product in graph.neighbors(step):
+                        if product not in visited_inters:
+                            path_so_far = path_so_far + [step, product]
+                            queue.append((product, path_so_far))
+                            visited_inters.add(product)
+                else:
+                    continue
 
-        # steps = [node for node in sp if '<->' in node]
+        return "No path found"
 
-        # write customized dijkstra algorithm
-        # 
-        return len(steps), steps
+    
 
             
         

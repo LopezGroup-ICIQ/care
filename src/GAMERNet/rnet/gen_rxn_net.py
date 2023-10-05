@@ -1,8 +1,7 @@
 from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
 from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks, gen_desorption_reactions
+from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, classify_oh_bond_breaks, gen_adsorption_reactions
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from GAMERNet.rnet.gen_intermediates import generate_intermediates
 import networkx as nx
@@ -48,18 +47,15 @@ def generate_rxn_net(slab_ase_obj: Atoms,
         rxn_net.add_intermediates(select_net['intermediates'])
         rxn_net.add_reactions(select_net['ts'])
 
-    print(rxn_net.intermediates)
-
-    for inter in rxn_net.intermediates.values():
-            if 'conn_pairs' in list(inter.molecule.arrays.keys()):
-                del inter.molecule.arrays['conn_pairs']
-            inter.molecule.arrays['conn_pairs'] = get_voronoi_neighbourlist(inter.molecule, 0.25, 1, ['C', 'H', 'O'])
+    # for inter in rxn_net.intermediates.values():
+    #         if 'conn_pairs' in list(inter.molecule.arrays.keys()):
+    #             del inter.molecule.arrays['conn_pairs']
+    #         inter.molecule.arrays['conn_pairs'] = get_voronoi_neighbourlist(inter.molecule, 0.25, 1, ['C', 'H', 'O'])
 
     classify_oh_bond_breaks(rxn_net.reactions)
     breaking_ts = break_and_connect(rxn_net.intermediates, surf_inter)
     rxn_net.add_reactions(breaking_ts)
-    gas_molecules, desorption_reactions = gen_desorption_reactions(rxn_net.intermediates, surf_inter)
+    gas_molecules, desorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)
     rxn_net.add_intermediates(gas_molecules)
     rxn_net.add_reactions(desorption_reactions)
-
     return rxn_net

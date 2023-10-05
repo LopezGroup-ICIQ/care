@@ -283,7 +283,7 @@ class Intermediate:
         coords = self.molecule.get_positions()
         for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
             for j in range(len(coords[i])):
-                if abs(coords[i][j]) < 1.0e-6:
+                if abs(coords[i][j]) < 1.0e-3:
                     coords[i][j] = 0.0
         xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
         xyz = "{}\n\n{}".format(len(self.molecule), xyz)
