@@ -157,6 +157,10 @@ def get_atom_valence(atoms_obj: Atoms,
             molecule_atoms_obj.append(atom)
     atomic_symbols = molecule_atoms_obj.get_chemical_symbols()
     coordinates = molecule_atoms_obj.get_positions()
+    for i in range(len(coordinates)):  # needed for RDKit to read properly the coordinates
+            for j in range(len(coordinates[i])):
+                if abs(coordinates[i][j]) < 1.0e-3:
+                    coordinates[i][j] = 0.0
     xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(atomic_symbols, coordinates))
     xyz = "{}\n\n{}".format(len(molecule_atoms_obj), xyz)
     rdkit_mol = Chem.MolFromXYZBlock(xyz)

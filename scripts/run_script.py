@@ -88,13 +88,13 @@ if __name__ == "__main__":
 
     list_ase_inter = list(rxn_net.intermediates.values())
     print('\nlist_ase_inter: ', list_ase_inter)
-    quit()
+
     for intermediate in rxn_net.intermediates.values():
         print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
         # If the molecule has only one atom, pass (need to see how to overcome this)
-        if len(intermediate.molecule) == 1 or intermediate.code == '000000':
+        if len(intermediate.molecule) == 1 or intermediate.code == '000000*':
             continue
-        best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements, args.o)
+        best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements)
         print('best_eads: ', best_eads)
 
     # # Loading the reaction network from a pickle file
