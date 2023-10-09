@@ -1,20 +1,20 @@
 """
-NetworkReduction class implementation.
-Given a network, it reduces it to a smaller network based on the rules provided by the user.
+ReactionNetworkSimplifier class implementation.
+Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
 """
 
 from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
+from GAMERNet.rnet.networks.intermediate import Intermediate
+from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 
-class NetworkReduction:
-    def __init__(self, 
-                 gas_reactants: list[str]):
+class ReactionNetworkSimplifier:
+    def __init__(self):  
         
-        
-        return None
+        pass
     
-    def del_by_elements(self, network: ReactionNetwork, elements: list) -> None:
+    def del_by_elements(self, network: ReactionNetwork, nc: int=None, nh: int=None, no: int=None) -> None:
         """
-        Deletes all the intermediates containing the elements in the list.
+        Deletes all the intermediates containing the specified number of atoms.
 
         Parameters
         ----------
@@ -23,9 +23,12 @@ class NetworkReduction:
         elements : list
             List of elements to be deleted.
         """
-        for inter in list(network.intermediates.values()):
-            if set(elements).issubset(set(inter.molecule.get_chemical_symbols())):
-                network.del_inter(inter.code)
+        pass
+
+    def del_by_chemical_family(self, network: ReactionNetwork, family: str, closed_shell_only: bool=True) -> None:
+        """
+        Delete from the reaction network all the intermediates belonging to the specified chemical family.
+        """
         return None
     
     def del_by_formula(self, network: ReactionNetwork, formula: str) -> None:
@@ -93,3 +96,20 @@ class NetworkReduction:
             if rxn.barrier > barrier - tol:
                 network.del_rxn(rxn.code)
         return None
+    
+
+def is_alkane(inter: Intermediate) -> bool:
+    """
+    Checks if the given intermediate is an alkane.
+
+    Parameters
+    ----------
+    inter : Intermediate
+        Intermediate.
+
+    Returns
+    -------
+    bool
+        True if the intermediate is an alkane, False otherwise.
+    """
+    return set(inter.molecule.get_chemical_symbols()) == set(['C', 'H'])
