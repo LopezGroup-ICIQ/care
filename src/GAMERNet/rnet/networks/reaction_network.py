@@ -128,11 +128,8 @@ class ReactionNetwork:
             curr_inter = {}
             curr_inter['code'] = intermediate.code
             curr_inter['molecule']=intermediate.molecule
-            curr_inter['adsorbate']=intermediate.adsorbate
             curr_inter['graph']=intermediate.graph
-            curr_inter['energy']=intermediate.energy
-            curr_inter['std_energy']=intermediate.std_energy
-            curr_inter['entropy']=intermediate.entropy
+            curr_inter['ads_configs']=intermediate.ads_configs
             curr_inter['formula']=intermediate.formula
             curr_inter['electrons']=intermediate.electrons
             curr_inter['is_surface']=intermediate.is_surface
@@ -150,10 +147,8 @@ class ReactionNetwork:
                     curr_ts_i_dict = {}
                     curr_ts_i_dict['code'] = i.code
                     curr_ts_i_dict['molecule']=i.molecule
-                    curr_ts_i_dict['adsorbate']=i.adsorbate
                     curr_ts_i_dict['graph']=i.graph
-                    curr_ts_i_dict['energy']=i.energy
-                    curr_ts_i_dict['entropy']=i.entropy
+                    curr_ts_i_dict['ads_configs']=i.ads_configs
                     curr_ts_i_dict['formula']=i.formula
                     curr_ts_i_dict['electrons']=i.electrons
                     curr_ts_i_dict['is_surface']=i.is_surface

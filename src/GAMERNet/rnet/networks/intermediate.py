@@ -21,11 +21,8 @@ class Intermediate:
     def __init__(self, 
                  code: str=None, 
                  molecule: Atoms=None,
-                 adsorbate: Atoms=None, 
                  graph: Graph=None, 
-                 energy: float=None,
-                 std_energy: float=None, 
-                 entropy: float=None,
+                 ads_configs: dict=None,
                  formula: str=None, 
                  electrons: int=None,
                  is_surface: bool=False,
@@ -34,11 +31,8 @@ class Intermediate:
         self.code = code
         self.formula = formula
         self.molecule = molecule
-        self.adsorbate = adsorbate
         self._graph = graph
-        self.energy = energy
-        self.std_energy = std_energy
-        self.entropy = entropy
+        self.ads_configs = ads_configs
         self.electrons = electrons
         self.is_surface = is_surface
         self.bader = None
@@ -114,7 +108,7 @@ class Intermediate:
         new_graph = ase_coord_2_graph(new_mol, coords=False)
         new_formula = new_mol.get_chemical_formula()
         return cls(code=code, molecule=new_mol, graph=new_graph,
-                        formula=new_formula, energy=energy, std_energy = std_energy, entropy=entropy,
+                        formula=new_formula,
                         is_surface=is_surface, phase=phase)
     
 

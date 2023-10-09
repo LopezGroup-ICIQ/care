@@ -51,9 +51,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
                 electrons = af.adjust_electrons(sel_node['mol'])
                 new_inter = Intermediate(code=node+'-*', 
                                          molecule=sel_node['mol'], 
-                                         graph=sel_node['graph'], 
-                                         energy=sel_node['energy'], 
-                                         entropy=sel_node['entropy'], 
+                                         graph=sel_node['graph'],  
                                          electrons=electrons,
                                          formula=sel_node['mol'].get_chemical_formula(),
                                          phase='ads')
@@ -118,7 +116,7 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
     for inter in intermediates.values():
         if inter.closed_shell:
             gas_code = inter.code[:-1] + 'g'
-            gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, energy=inter.energy, entropy=inter.entropy, phase='gas')
+            gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, phase='gas')
             gas_molecules[gas_code] = gas_inter           
             adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption'))
 

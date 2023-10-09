@@ -114,8 +114,12 @@ def connectivity_analysis(graph: nx.Graph) -> list:
 
     unsat_elems = [node for node in graph.nodes() if graph.degree(node) < max_conns.get(graph.nodes[node]["elem"], 0)]
     if not unsat_elems:
-        sat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] != 'H']
-        return list(set(sat_elems))
+        # If the molecule is H2, return the list of atoms
+        if len(graph.nodes()) == 2 and graph.nodes[0]["elem"] == 'H' and graph.nodes[1]["elem"] == 'H':
+            return list(set(graph.nodes()))
+        else:
+            sat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] != 'H']
+            return list(set(sat_elems))
     # Specifying the carbon monoxide case
     elif len(graph.nodes()) == 2 and ((graph.nodes[0]["elem"] == 'C' and graph.nodes[1]["elem"] == 'O') or (graph.nodes[0]["elem"] == 'O' and graph.nodes[1]["elem"] == 'C')):
         # Extracting only the Carbon atom index

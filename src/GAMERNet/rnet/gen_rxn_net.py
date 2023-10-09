@@ -28,8 +28,8 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     """
     # 1) Generate all the intermediates
     intermediate_dict, map_dict = generate_intermediates(ncc)    
-    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0-0-0-0-0-*', energy=0.0, entropy=0.0, is_surface=True, phase='surf')
-    h_inter = Intermediate.from_molecule(Atoms('H', positions=[[0, 0, 0]]), code='0-1-0-1-1-*', energy=0.0, entropy=0.0, phase='ads')
+    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0-0-0-0-0-*', is_surface=True, phase='surf')
+    h_inter = Intermediate.from_molecule(Atoms('H', positions=[[0, 0, 0]]), code='0-1-0-1-1-*', phase='ads')
     surf_inter.electrons = 0
     h_inter.electrons = 1
 
