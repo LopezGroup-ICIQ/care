@@ -215,7 +215,7 @@ class ReactionNetwork:
         return coinc_lst
 
     
-    def gen_graph(self, del_surf:bool=False) -> nx.DiGraph:
+    def gen_graph(self, del_surf: bool=False, highlight: list=None, show_steps: bool=True) -> nx.DiGraph:
         """
         Generate a graph using the intermediates and the elementary reactions
         contained in this object.
@@ -228,45 +228,64 @@ class ReactionNetwork:
         for inter in self.intermediates.values():
             fig_path = abspath("tmp/{}.png".format(inter.code))
             write(fig_path, inter.molecule, show_unit_cell=0)
-            phase = inter.phase
-            if phase == 'surf':
-                nx_graph.add_node(inter.code,
-                                    category=phase, 
-                                    gas_atoms=inter.molecule, 
-                                    code=inter.code, 
-                                    formula=inter.molecule.get_chemical_formula()+"*", 
-                                    fig_path=fig_path, 
-                                    facet=self.surface.facet)
-            elif phase == 'gas':
-                nx_graph.add_node(inter.code,
-                                    category=phase, 
-                                    gas_atoms=inter.molecule, 
-                                    code=inter.code, 
-                                    formula=inter.molecule.get_chemical_formula()+"(g)", 
-                                    fig_path=fig_path)
-            else: # ads
-                nx_graph.add_node(inter.code, 
-                               category=phase, 
-                               gas_atoms=inter.molecule, 
-                               code=inter.code, 
-                               formula=inter.molecule.get_chemical_formula()+"*", 
-                               fig_path=fig_path)
+            switch = None if highlight is None else True if re.sub(r'\(.*\)', '', inter.code) in highlight else False
+            formula = inter.molecule.get_chemical_formula() + ("(g)" if inter.phase == 'gas' else "*")
+            nx_graph.add_node(inter.code,
+                              category=inter.phase, 
+                              gas_atoms=inter.molecule, 
+                              code=inter.code, 
+                              formula=formula, 
+                              fig_path=fig_path, 
+                              facet=self.surface.facet, 
+                              switch=switch)
                             
-        for reaction in self.reactions:  
-            if reaction.r_type in ('adsorption', 'desorption', 'eley_rideal'):
-                category = reaction.r_type
-            else:
-                category = 'surface_reaction'
-            nx_graph.add_node(reaction.code, category=category)
-            for comp in reaction.components[0]: # reactants to reaction node
-                nx_graph.add_edge(comp.code,
-                                    reaction.code)
-            for comp in reaction.components[1]: # reaction node to products
-                nx_graph.add_edge(reaction.code, comp.code)
+        for reaction in self.reactions:
+            switch = None if highlight is None else True if reaction.code in highlight else False  
+            category = reaction.r_type if reaction.r_type in ('adsorption', 'desorption', 'eley_rideal') else 'surface_reaction'
+            if show_steps:
+                nx_graph.add_node(reaction.code, category=category, switch=switch)
+                for comp in reaction.components[0]: # reactants to reaction node
+                    nx_graph.add_edge(comp.code,
+                                        reaction.code, switch=switch)
+                for comp in reaction.components[1]: # reaction node to products
+                    nx_graph.add_edge(reaction.code, comp.code, switch=switch)
+            else: 
+                reacts, prods = [], []
+                for inter in reaction.reactants:
+                    if not inter.is_surface and inter.molecule.get_chemical_formula().count('C') != 0:
+                        reacts.append(inter)
+                for inter in reaction.products:
+                    if not inter.is_surface and inter.molecule.get_chemical_formula().count('C') != 0:
+                        prods.append(inter)
+                if len(reacts) == 0 or len(prods) == 0:
+                    continue
+                for react in reacts:
+                    for prod in prods:
+                        switch = None if highlight is None else True if react.code in highlight and prod.code in highlight else False
+                        nx_graph.add_edge(react.code, prod.code, category=category, switch=switch, code=reaction.code)
 
-        if del_surf:
-            nx_graph.remove_node('000000*')               
-            
+        for node in list(nx_graph.nodes):
+            if nx_graph.degree(node) == 0:
+                nx_graph.remove_node(node)       
+        if del_surf and show_steps:
+            nx_graph.remove_node('0-0-0-0-0-*')  
+
+        if highlight is not None and show_steps == False:
+            # # make graph undirected and define edge direction based on the reaction code
+            # nx_graph = nx_graph.to_undirected()
+            for i, inter in enumerate(highlight):
+                # check neighbours of the node and define edge direction to the only node whose code is in highlight
+                for neigh in nx_graph.neighbors(inter):
+                    if neigh in highlight:
+                        # check direction of the edge
+                        if nx_graph.has_edge(inter, neigh):
+                            pass
+                        else:
+                            # switch edge direction
+                            nx_graph.remove_edge(neigh, inter)
+                            nx_graph.add_edge(inter, neigh)
+                    if i == len(highlight) - 1:
+                        break
         return nx_graph
 
     def get_min_max(self):
@@ -298,9 +317,11 @@ class ReactionNetwork:
                        fig_path:str, 
                        filename: str, 
                        del_surf: bool=False, 
-                       highlight: list[str]=None):
-        graph = self.gen_graph(del_surf=del_surf)
+                       highlight: list[str]=None, 
+                       show_steps: bool=True):
+        graph = self.gen_graph(del_surf=del_surf, highlight=highlight, show_steps=show_steps)
         pos = nx.kamada_kawai_layout(graph)
+        # pos = nx.spring_layout(graph)
         nx.set_node_attributes(graph, pos, 'pos')
         plot = nx.drawing.nx_pydot.to_pydot(graph)
         for node in plot.get_nodes():
@@ -343,23 +364,29 @@ class ReactionNetwork:
                     node.set_fillcolor("mediumpurple1")
                 else:
                     node.set_fillcolor("steelblue3")
-            # highlight nodes contained in highlight list
-            if highlight is not None and node.to_string().split("\"")[1] not in highlight:
-                # set opacity to 0.2
-                node.set_style("filled, invis")
+            if highlight is not None and node.get_attributes()['switch'] == 'True':
+                node.set_color("red")
+                # increase node width
+                node.set_penwidth("3")
                 
 
         for edge in plot.get_edges():
-            edge.set_color("azure4")
-            # make edges bidirectional
-            # edge.set_dir("both")
+            if highlight is not None and edge.get_attributes()['switch'] == 'True':
+                edge.set_color("red")
+                # increase edge width
+                edge.set_penwidth("4")
+            else:
+                edge.set_color("azure4")
+                edge.set_penwidth("4")
 
         
                     
 
         a4_dims = (8.3, 11.7)  # In inches
         plot.set_size(f"{a4_dims[1],a4_dims[0]}!")
-        plot.set_orientation("landscape")   
+        plot.set_orientation("landscape")  
+        # define background color
+        plot.set_bgcolor("navyblue") 
         plot.write_png('./'+filename)
         # remove not empty tmp folder
         rmtree('tmp')
@@ -650,7 +677,7 @@ class ReactionNetwork:
             raise ValueError('Second argument must be closed shell')        
         
         graph = self.graph.to_undirected()
-        visited_inters = set([*reactants, '000000*'])  # starting point (gas reactants plus surface)
+        visited_inters = set([*reactants, '0-0-0-0-0-*'])  # starting point (gas reactants plus surface)
         visited_steps = set()
         source = reactants[0].replace('g', '*')  # TODO: automatic detection of source based on C balance
         # add adsorbed intermediates to visited nodes
@@ -669,11 +696,6 @@ class ReactionNetwork:
                 visited_steps.add(step)
         
         def is_step_accessible(node, current_inter, visited_inters):
-            """
-            condition: one of the sides of the reaction equation contains only intermediates in visited_inters
-            Example: A + B <-> C + D
-            if A and B  or C and D are in visited_inters, then the reaction is accessible
-            """
             inters = node.split('<->')
             inters[0] = inters[0].split('+')
             inters[1] = inters[1].split('+')
@@ -692,18 +714,34 @@ class ReactionNetwork:
         # define source as the argument which contains carbon
         from collections import deque
         queue = deque([(source, [reactants[0], source_ads, source])])  # Each element of the queue is a tuple (node, path_so_far)
+        # include in path so far all visited_inters and visited_steps
+        # path_so_far = []
+        # for inter in visited_inters:
+        #     path_so_far.append(inter)
+        # for step in visited_steps:
+        #     path_so_far.append(step)
+        # path_so_far += [reactants[0], source_ads, source]
+
+        # queue = deque([(source, path_so_far)])  # Each element of the queue is a tuple (node, path_so_far)
         counter =  0
         while queue:
             current_inter, path_so_far = queue.popleft()
             counter += 1
-            print("ITERATION", counter)
-            print(current_inter)
-            print(path_so_far[-2])
-            print(visited_inters)
             
             if current_inter == target:
                 print("PATH FOUND!!! {}".format(target))
                 path = [item for item in path_so_far if '<->' in item]
+                new_graph = nx.DiGraph()
+                for node in path_so_far:
+                    if node in graph.nodes:
+                        new_graph.add_node(node)
+                # check all nodes whose degree is one and if are not one of the input args, remove the entire branch of thebranch
+                condition = all([new_graph.degree(node) != 1 for node in new_graph.nodes if node not in reactants + [target]])
+                while not condition:
+                    for node in new_graph.nodes:
+                        if new_graph.degree(node) == 1 and node not in reactants + [target]:
+                            new_graph.remove_node(node)
+                print(new_graph.nodes)
                 print("Number of necessary steps from {} to {}: {}".format(reactants[0], target, len(set(path))))
                 return path, path_so_far
                 
@@ -720,6 +758,120 @@ class ReactionNetwork:
                     continue
 
         return "No path found"
+    
+
+    def get_shortest_path2(self, reactants: list[str], target: str):
+        """
+        Given a reactant and a product, return the minimum number of reactions to go from one to the other.
+        
+        Parameters
+        ----------
+        mol1_code : str
+            Code of the reactant.
+        mol2_code : str
+            Code of the product.
+        
+        Returns
+        -------
+        int
+            Minimum number of reactions to go from one to the other.
+        """
+
+        for reactant in reactants:
+            if reactant not in self.intermediates.keys():
+                raise ValueError('First argument must be in the network')
+            if not self.intermediates[reactant].closed_shell:
+                raise ValueError('First argument must be closed shell')
+        if target not in self.intermediates.keys():
+            raise ValueError('Second argument must be in the network')
+        if not self.intermediates[target].closed_shell:
+            raise ValueError('Second argument must be closed shell')        
+        
+        graph = self.gen_graph(del_surf=True, show_steps=False).to_undirected()
+        visited_inters = set([*reactants])  # starting point (gas reactants plus surface)
+        visited_steps = set()
+        source = reactants[0].replace('g', '*')  # TODO: automatic detection of source based on C balance
+        # add adsorbed intermediates to visited nodes
+        # for reactant in reactants:
+        #     for step in graph.neighbors(reactant):
+        #         visited_steps.add(step)
+        #         inters = step.split('<->')
+        #         inters = inters[0].split('+') + inters[1].split('+')
+        #         # remove content between parentheses
+        #         inters = [re.sub(r'\(.*\)', '', inter) for inter in inters]
+        #         if source in inters:
+        #             source_ads = step
+        #         for inter in inters:
+        #             if inter not in visited_inters:
+        #                 visited_inters.add(inter)
+        #         visited_steps.add(step)
+        
+        # def is_step_accessible(node, current_inter, visited_inters):
+        #     inters = node.split('<->')
+        #     inters[0] = inters[0].split('+')
+        #     inters[1] = inters[1].split('+')
+        #     inters[0] = [re.sub(r'\(.*\)', '', inter) for inter in inters[0]]
+        #     inters[1] = [re.sub(r'\(.*\)', '', inter) for inter in inters[1]]
+        #     if current_inter in inters[0]:
+        #         for inter in inters[0]:
+        #             if inter not in visited_inters:
+        #                 return False
+        #     else:
+        #         for inter in inters[1]:
+        #             if inter not in visited_inters:
+        #                 return False
+        #     return True
+        
+        # define source as the argument which contains carbon
+        # from collections import deque
+        # queue = deque([(source, [reactants[0], source_ads, source])])  # Each element of the queue is a tuple (node, path_so_far)
+        # # include in path so far all visited_inters and visited_steps
+        # # path_so_far = []
+        # # for inter in visited_inters:
+        # #     path_so_far.append(inter)
+        # # for step in visited_steps:
+        # #     path_so_far.append(step)
+        # # path_so_far += [reactants[0], source_ads, source]
+
+        # # queue = deque([(source, path_so_far)])  # Each element of the queue is a tuple (node, path_so_far)
+        # counter =  0
+        # while queue:
+        #     current_inter, path_so_far = queue.popleft()
+        #     counter += 1
+            
+        #     if current_inter == target:
+        #         print("PATH FOUND!!! {}".format(target))
+        #         path = [item for item in path_so_far if '<->' in item]
+        #         new_graph = nx.DiGraph()
+        #         for node in path_so_far:
+        #             if node in graph.nodes:
+        #                 new_graph.add_node(node)
+        #         # check all nodes whose degree is one and if are not one of the input args, remove the entire branch of thebranch
+        #         condition = all([new_graph.degree(node) != 1 for node in new_graph.nodes if node not in reactants + [target]])
+        #         while not condition:
+        #             for node in new_graph.nodes:
+        #                 if new_graph.degree(node) == 1 and node not in reactants + [target]:
+        #                     new_graph.remove_node(node)
+        #         print(new_graph.nodes)
+        #         print("Number of necessary steps from {} to {}: {}".format(reactants[0], target, len(set(path))))
+        #         return path, path_so_far
+                
+
+        #     for step in graph.neighbors(current_inter):
+        #         if step not in visited_steps and is_step_accessible(step, current_inter, visited_inters):
+        #             visited_steps.add(step)                    
+        #             for product in graph.neighbors(step):
+        #                 if product not in visited_inters:
+        #                     path_so_far = path_so_far + [step, product]
+        #                     queue.append((product, path_so_far))
+        #                     visited_inters.add(product)
+        #         else:
+        #             continue
+
+        # return "No path found"
+
+        shortest_path = nx.shortest_path(graph, source=reactants[0], target=target)
+        return shortest_path
 
     
 
