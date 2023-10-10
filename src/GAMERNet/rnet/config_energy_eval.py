@@ -25,7 +25,7 @@ def atoms_to_data_parallel(atoms_list, graph_params, model_elems, calc_type='ads
     # Flatten the list of results and return
     return [data for sublist in results for data in sublist]
 
-def energy_evaluator(total_config_list: list[Atoms],
+def intermediate_energy_evaluator(total_config_list: list[Atoms],
                      n_configs: int,
                      surface: Surface, 
                      model: Module, 

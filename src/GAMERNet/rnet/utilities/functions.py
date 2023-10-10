@@ -5,7 +5,10 @@ import networkx.algorithms.isomorphism as iso
 from ase import Atoms
 import numpy as np
 from scipy.spatial import Voronoi
-from copy import deepcopy
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from concurrent.futures import ThreadPoolExecutor
+
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
@@ -29,6 +32,12 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
 
 
 MolPack = namedtuple('MolPack',['code', 'ase_mol','nx_graph', 'num_H_removed'])
+
+def rdkit_to_ase(rdkit_molecule):
+    AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
+    positions = rdkit_molecule.GetConformer().GetPositions()
+    symbols = [atom.GetSymbol() for atom in rdkit_molecule.GetAtoms()]
+    return Atoms(symbols=symbols, positions=positions)
 
 def get_voronoi_neighbourlist(atoms: Atoms,
                               tolerance: float,
@@ -69,18 +78,24 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             pairs_lst.append(pair)
     return np.sort(np.array(pairs_lst), axis=1)
 
-def generate_pack(molecule: Atoms,  
+def generate_pack(rdkit_molecule: Chem,
                   group: int) -> dict[int, list[MolPack]]:
     """
     Given a molecule, generate all the possible intermediates by removing up to n_H hydrogens.
 
     Parameters
     ----------
-    molecule : ase.Atoms
-        ASE Atoms object of the molecule.
+    molecule : Chem
+        RDKit object of the molecule.
     group : int
         Group number of the molecule. For labeling purposes
     """
+    rdkit_molecule = Chem.AddHs(rdkit_molecule)
+    Chem.SanitizeMol(rdkit_molecule)
+    n_H = len([atom for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == 'H'])
+    
+    # Convert to ASE for your other tasks
+    molecule = rdkit_to_ase(rdkit_molecule)
     n_H = molecule.get_chemical_symbols().count("H")
     if molecule.get_chemical_formula() == 'H2':
         n_H = 1
@@ -89,7 +104,7 @@ def generate_pack(molecule: Atoms,
 
     for index in range(n_H):
         
-        pack = get_all_subs(molecule, index + 1, 'H')
+        pack = get_all_subs(rdkit_molecule, index + 1, 'H')
         unique = get_unique(pack[1], 'H')
         
         tmp_pack = []
@@ -174,34 +189,24 @@ def digraph(atoms: Atoms, coords: bool) -> nx.DiGraph:
 
     return nx_graph
 
-def code_name(molecule: Atoms, group: int, index: int) -> str: #name of the molecule
-    name_elem = ('C', 'H', 'O')
-    name_str = ''
-    nC, nH, nO = 0, 0, 0
-    for atom in molecule:
-        if atom.symbol == 'C':
-            nC += 1
-        elif atom.symbol == 'H':
-            nH += 1
-        elif atom.symbol == 'O':
-            nO += 1
-    infor = {"C": nC, "H": nH, "O": nO}
-    for item in name_elem:
-        try:
-            name_str += '-{}'.format(infor[item])
-        except KeyError:
-            name_str += str('0')
-    name_str += '-{}'.format(group)
-    name_str += '-{}'.format(index)
-    return name_str[1:]
+def code_name(molecule: Atoms, group: int, index: int) -> str: # Code name of the molecule
 
-def decode(code: str) -> dict[str, int]: #storing of data?
-    decoded = {'C': int(code[0], 16),
-               'H': int(code[1], 16),
-               'O': int(code[2], 16),
-               'grp': int(code[3], 16),
-               'iso': int(code[4:6], 16)}
-    return decoded
+    characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
+    
+    nC = molecule.get_chemical_symbols().count("C")
+    nH = molecule.get_chemical_symbols().count("H")
+    nO = molecule.get_chemical_symbols().count("O")
+
+    
+    if nC >= len(characters) or nH >= len(characters) or nO >= len(characters) or group >= len(characters) or index >= len(characters):
+        return "Atom count exceeds encoding capacity"
+    
+    encoded_name = characters[nC] + characters[nH] + characters[nO] + characters[group] + characters[index]
+    
+    if len(encoded_name) > 5:
+        return "Invalid encoded string length"
+    
+    return f"{encoded_name}"
 
 def search_code(mg_pack: dict[int, list[MolPack]], code: str):
     for _, pack in mg_pack.items():
@@ -293,32 +298,73 @@ def generate_range(ase_molecule: Atoms,
 
     return mg_pack
 
-
-
-def get_all_subs(ase_molecule_obj: Atoms, 
-                 n_sub: int, 
-                 element: str) -> tuple[list[Atoms], list[nx.DiGraph]]:
-    """function to what point you want to remove hydrogens
-    """
+def process_combination(comb, rdkit_molecule):
+    new_mol = Chem.RWMol(rdkit_molecule)
     
-    sel_atoms = [atom.index for atom in ase_molecule_obj if atom.symbol == element]
+    # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
+    for index in reversed(sorted(comb)):
+        atom = new_mol.GetAtomWithIdx(index)
+        
+        # Skip removal if the atom has no neighbors
+        if atom.GetDegree() == 0:
+            print(f"WARNING: not removing {atom.GetSymbol()} atom without neighbors")
+            continue
+        new_mol.RemoveAtom(index)
+
+    # Sanitize the molecule
+    Chem.SanitizeMol(new_mol)
+    # Skip removal if the atom has no neighbors
+    
+    # Convert the sanitized RDKit molecule back to ASE for further tasks
+    new_ase_mol = rdkit_to_ase(new_mol)
+    new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
+    
+    # Your existing code for generating a graph from the ASE object would go here
+    new_graph = digraph(new_ase_mol, coords=False)
+    
+    return new_ase_mol, new_graph
+
+def get_all_subs(rdkit_molecule, n_sub, element):
+    # Get the indices of all atoms of the specified element
+    sel_atoms = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
+    
     mol_pack, graph_pack = [], []
-
-    for comb in combinations(sel_atoms, n_sub):
-
-        new_mol = deepcopy(ase_molecule_obj)
-        del new_mol.arrays["conn_pairs"]
-
-        int_list = []
-        for index in comb:
-            int_list.append(index)
-        # Deleting the atoms which index is in int_list
-
-        del new_mol[int_list]
-        new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_mol, 0.25, 1.0, ['C', 'H', 'O'])
+    
+    # Use ThreadPoolExecutor to parallelize the function calls
+    with ThreadPoolExecutor() as executor:
+        # Map the process_combination function over all combinations of atoms
+        results = list(executor.map(lambda x: process_combination(x, rdkit_molecule), combinations(sel_atoms, n_sub)))
+        
+    for new_mol, new_graph in results:
         mol_pack.append(new_mol)
-        graph_pack.append(digraph(new_mol, coords=False))
+        graph_pack.append(new_graph)
+        
     return mol_pack, graph_pack
+
+# def get_all_subs(ase_molecule_obj: Atoms, 
+#                  n_sub: int, 
+#                  element: str) -> tuple[list[Atoms], list[nx.DiGraph]]:
+#     """function to what point you want to remove hydrogens
+#     """
+    
+#     sel_atoms = [atom.index for atom in ase_molecule_obj if atom.symbol == element]
+#     mol_pack, graph_pack = [], []
+
+#     for comb in combinations(sel_atoms, n_sub):
+
+#         new_mol = deepcopy(ase_molecule_obj)
+#         del new_mol.arrays["conn_pairs"]
+
+#         int_list = []
+#         for index in comb:
+#             int_list.append(index)
+#         # Deleting the atoms which index is in int_list
+
+#         del new_mol[int_list]
+#         new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_mol, 0.25, 1.0, ['C', 'H', 'O'])
+#         mol_pack.append(new_mol)
+#         graph_pack.append(digraph(new_mol, coords=False))
+#     return mol_pack, graph_pack
 
 def get_unique(graph_pack: list[nx.DiGraph], element: str) -> list[int]: #function to get unqiue configs
     

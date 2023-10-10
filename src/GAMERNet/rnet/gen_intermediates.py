@@ -285,7 +285,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
-                molecule = inter_precursor_dict[molec_grp]['Atoms']
+                molecule = inter_precursor_dict[molec_grp]['RDKit']
                 intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
                 inter_dict[molec_grp] = intermediate
     

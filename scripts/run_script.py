@@ -2,7 +2,6 @@ import os
 import pickle
 import time
 import argparse
-import pprint as pp
 
 from ase.db import connect
 from torch import load
@@ -12,7 +11,7 @@ from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
 from GAMERNet.rnet.adsorbate_placement import ads_placement
-from GAMERNet.rnet.config_energy_eval import energy_evaluator
+from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -90,6 +89,7 @@ if __name__ == "__main__":
 
     list_ase_inter = list(rxn_net.intermediates.values())
 
+    # Generating the adsorption configurations and evaluating the energy
     conf_per_act_site = 3
     for intermediate in rxn_net.intermediates.values():
         print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
@@ -102,11 +102,9 @@ if __name__ == "__main__":
         gen_ads_config = ads_placement(intermediate, surface)
 
         # Evaluating the adsorption configurations
-        data_dict_configs = energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
+        data_dict_configs = intermediate_energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
 
         # Updating the intermediate class
         intermediate.ads_configs = data_dict_configs
-
-        pp.pprint(intermediate.ads_configs)
-
+    
 
