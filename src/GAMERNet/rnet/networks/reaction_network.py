@@ -117,7 +117,7 @@ class ReactionNetwork:
         new_net.num_reactions = len(new_net.reactions)
         new_net.ncc = net_dict['ncc']
         new_net.surface = net_dict['surface']
-        new_net.graph = new_net.gen_graph()
+        new_net.graph = None
         return new_net
 
     def to_dict(self):
@@ -174,13 +174,54 @@ class ReactionNetwork:
         self.intermediates.update(inter_dict)
 
     def add_reactions(self, rxn_lst: list[ElementaryReaction]):
-        """Add transition states to the network.
+        """Add transition states to the network between present intermediates.
 
         Args:
             ts_lst (list of obj:`ElementaryReaction`): List containing the
                 transition states that will be added to network.
         """
         self.reactions += rxn_lst
+
+    def del_intermediates(self, inter_lst: list[str]):
+        """Delete intermediates from the network and all elementary reactions involving them.
+
+        Args:
+            inter_lst (list of str): List containing the codes of the
+                intermediates that will be deleted.
+        """
+        inter_counter = 0
+        rxn_counter = 0
+        for inter in inter_lst:
+            self.intermediates.pop(inter)
+            for i, reaction in enumerate(self.reactions):
+                if inter in reaction.reactants or inter in reaction.products:
+                    self.reactions.pop(i)
+                    rxn_counter += 1
+            inter_counter += 1
+        print(f"Deleted {inter_counter} intermediates and {rxn_counter} elementary reactions")
+
+    def del_reactions(self, rxn_lst: list[str]):
+        """Delete transition states from the network.
+
+        Args:
+            ts_lst (list of str): List containing the codes of the transition
+                states that will be deleted.
+        """
+        inter_counter = 0
+        rxn_counter = 0
+        for rxn in rxn_lst:
+            self.reactions.pop(rxn)
+            
+        # remove all intermediates that are not participating in any reaction
+        for inter in list(self.intermediates.keys()):
+            counter = 0
+            for reaction in self.reactions:
+                if inter in reaction.components[0] or inter in reaction.components[1]:
+                    counter += 1
+            if counter == 0:
+                self.intermediates.pop(inter)
+                inter_counter += 1
+        print(f"Deleted {inter_counter} intermediates and {rxn_counter} elementary reactions")
 
     def add_dict(self, net_dict):
         """Add dictionary containing two different keys: intermediates and ts.
@@ -215,6 +256,15 @@ class ReactionNetwork:
         Generate a graph using the intermediates and the elementary reactions
         contained in this object.
 
+        Args:
+            del_surf (bool, optional): If True, the surface will not be
+                included in the graph. Defaults to False.
+            highlight (list, optional): List containing the codes of the
+                intermediates that will be highlighted in the graph. Defaults
+                to None.
+            show_steps (bool, optional): If True, the elementary reactions will
+                be shown as single nodes. Defaults to True.
+
         Returns:
             obj:`nx.DiGraph` of the network.
         """
@@ -230,8 +280,7 @@ class ReactionNetwork:
                               gas_atoms=inter.molecule, 
                               code=inter.code, 
                               formula=formula, 
-                              fig_path=fig_path, 
-                              facet=self.surface.facet, 
+                              fig_path=fig_path,  
                               switch=switch)
                             
         for reaction in self.reactions:
@@ -262,25 +311,25 @@ class ReactionNetwork:
         for node in list(nx_graph.nodes):
             if nx_graph.degree(node) == 0:
                 nx_graph.remove_node(node)       
-        if del_surf and show_steps:
-            nx_graph.remove_node('0-0-0-0-0-*')  
+        # if del_surf and show_steps:
+        #     nx_graph.remove_node('0-0-0-0-0-*')  
 
-        if highlight is not None and show_steps == False:
-            # # make graph undirected and define edge direction based on the reaction code
-            # nx_graph = nx_graph.to_undirected()
-            for i, inter in enumerate(highlight):
-                # check neighbours of the node and define edge direction to the only node whose code is in highlight
-                for neigh in nx_graph.neighbors(inter):
-                    if neigh in highlight:
-                        # check direction of the edge
-                        if nx_graph.has_edge(inter, neigh):
-                            pass
-                        else:
-                            # switch edge direction
-                            nx_graph.remove_edge(neigh, inter)
-                            nx_graph.add_edge(inter, neigh)
-                    if i == len(highlight) - 1:
-                        break
+        # if highlight is not None and show_steps == False:
+        #     # # make graph undirected and define edge direction based on the reaction code
+        #     # nx_graph = nx_graph.to_undirected()
+        #     for i, inter in enumerate(highlight):
+        #         # check neighbours of the node and define edge direction to the only node whose code is in highlight
+        #         for neigh in nx_graph.neighbors(inter):
+        #             if neigh in highlight:
+        #                 # check direction of the edge
+        #                 if nx_graph.has_edge(inter, neigh):
+        #                     pass
+        #                 else:
+        #                     # switch edge direction
+        #                     nx_graph.remove_edge(neigh, inter)
+        #                     nx_graph.add_edge(inter, neigh)
+        #             if i == len(highlight) - 1:
+        #                 break
         return nx_graph
 
     def get_min_max(self):

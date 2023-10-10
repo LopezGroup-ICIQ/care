@@ -2,6 +2,8 @@ import numpy as np
 from math import ceil
 import copy
 
+from GAMERNet.rnet.networks.intermediate import Intermediate
+
 REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption']
 
 class ElementaryReaction:
@@ -16,7 +18,7 @@ class ElementaryReaction:
     """
     def __init__(self, 
                  code: str=None, 
-                 components: tuple=None, 
+                 components: tuple[frozenset[Intermediate]]=None, 
                  energy: float=0.0,
                  r_type: str=None, 
                  is_electro: bool=False):

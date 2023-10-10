@@ -90,23 +90,23 @@ if __name__ == "__main__":
 
     list_ase_inter = list(rxn_net.intermediates.values())
 
-    conf_per_act_site = 3
-    for intermediate in rxn_net.intermediates.values():
-        print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
-        # If the molecule has only one atom, pass (need to see how to overcome this)
-        if len(intermediate.molecule) == 1 or intermediate.is_surface == True:
-            continue
-        # best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements)
+    # conf_per_act_site = 3
+    # for intermediate in rxn_net.intermediates.values():
+    #     print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
+    #     # If the molecule has only one atom, pass (need to see how to overcome this)
+    #     if len(intermediate.molecule) == 1 or intermediate.is_surface == True:
+    #         continue
+    #     # best_eads = run_docksurf(intermediate, surface, model, graph_params, model_elements)
         
-        # Placing the adsorbate on the surface
-        gen_ads_config = ads_placement(intermediate, surface)
+    #     # Placing the adsorbate on the surface
+    #     gen_ads_config = ads_placement(intermediate, surface)
 
-        # Evaluating the adsorption configurations
-        data_dict_configs = energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
+    #     # Evaluating the adsorption configurations
+    #     data_dict_configs = energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
 
-        # Updating the intermediate class
-        intermediate.ads_configs = data_dict_configs
+    #     # Updating the intermediate class
+    #     intermediate.ads_configs = data_dict_configs
 
-        pp.pprint(intermediate.ads_configs)
+    #     pp.pprint(intermediate.ads_configs)
 
 
