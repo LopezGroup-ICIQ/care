@@ -4,6 +4,7 @@ from ase import Atoms, Atom
 from itertools import product, combinations
 import networkx as nx
 import copy
+from collections import defaultdict
 
 from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
@@ -229,6 +230,81 @@ def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
 
     return nx_graph
 
+def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
+    """Generates a NetworkX Graph from an RDKit molecule.
+
+    Parameters
+    ----------
+    mol : Chem.Mol
+        RDKit molecule.
+
+    Returns
+    -------
+    nx.Graph
+        NetworkX Graph of the molecule (with atomic coordinates and bond lengths).
+    """
+    
+    # Adding Hs to the molecule
+    mol = Chem.AddHs(mol)
+    # Generate 3D coordinates if not present
+    if mol.GetNumConformers() == 0:
+        AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+
+    conf = mol.GetConformer()
+    
+    nx_graph = nx.Graph()
+    # Add atoms to graph
+    for atom in mol.GetAtoms():
+        nx_graph.add_node(atom.GetIdx(),
+                   elem=atom.GetSymbol(),
+                   xyz=conf.GetAtomPosition(atom.GetIdx()))
+    
+    # Add bonds to graph
+    for bond in mol.GetBonds():
+        i = bond.GetBeginAtomIdx()
+        j = bond.GetEndAtomIdx()
+        
+        pos_i = nx_graph.nodes[i]['xyz']
+        pos_j = nx_graph.nodes[j]['xyz']
+        
+        length = pos_i.Distance(pos_j)
+        
+        nx_graph.add_edge(i, j, length=length)
+    
+    return nx_graph
+
+def formula_from_rdkit(mol: Chem.Mol) -> str:
+    """Get the molecular formula from an RDKit molecule.
+
+    Parameters
+    ----------
+    mol : Chem.Mol
+        RDKit molecule.
+
+    Returns
+    -------
+    str
+        Chemical formula of the molecule as CxHyOz.
+    """
+    counts = defaultdict(int)
+    
+    # Add hydrogens to the molecule
+    mol = Chem.AddHs(mol)
+
+    for atom in mol.GetAtoms():
+        elem = atom.GetSymbol()
+        counts[elem] += 1
+    
+    formula = ""
+    
+    for elem in ["C", "H", "O"]:
+        count = counts.get(elem, 0)
+        if count > 0:
+            formula += f"{elem}{count}"
+    
+    return formula
+
+
 def gen_alkanes_smiles(n_carbon: int) -> set[str]:
     """Generate all alkanes with a given number of carbon atoms in smiles format."""
     alkanes_smiles = set()
@@ -257,23 +333,22 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
     # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)
     alkanes_smiles = gen_alkanes_smiles(n_carbon)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
+    
     alcohols_smiles = [add_oxygens_to_molecule(mol) for mol in mol_alkanes] 
     alcohols_smiles = [smiles for smiles_set in alcohols_smiles for smiles in smiles_set]  # flatten list of lists
     alcohols_smiles += ['O', 'OO', '[H][H]'] 
     mol_alcohols = [Chem.MolFromSmiles(smiles) for smiles in alcohols_smiles]
 
-    intermediates_ase = [rdkit_to_ase(intermediate) for intermediate in mol_alkanes + mol_alcohols]
-    intermediates_formula = [intermediate.get_chemical_formula() for intermediate in intermediates_ase]
-    intermediates_graph = [atoms_2_graph(intermediate, coords=True) for intermediate in intermediates_ase]
+    intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_alcohols]
+    intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_alcohols]
     intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_alcohols]
 
     inter_precursor_dict = {}
-    for smiles, formula, graph, ase_obj, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, intermediates_ase, mol_alkanes + mol_alcohols):
+    for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_alcohols):
         inter_precursor_dict[smiles] = {
             'Smiles': smiles,
             'Formula': formula, 
             'Graph': graph, 
-            'Atoms': ase_obj, 
             'RDKit': rdkit_obj,
             }
 
