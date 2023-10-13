@@ -113,5 +113,5 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
         ads_config_dict[f'config_{counter}']['std'] = std_tensor[idx]
         
         counter += 1  
-
+    print(ads_config_dict)
     return ads_config_dict

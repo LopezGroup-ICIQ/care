@@ -80,30 +80,31 @@ if __name__ == "__main__":
     rxn_net_dict['ncc'] = args.ncc
     rxn_net_dict['surface'] = surface
 
-    # Exporting the reaction network as a pickle file
-    with open(f"{args.o}/rxn_net.pkl", "wb") as outfile:
-            pickle.dump(rxn_net_dict, outfile)
-            print(
-                f"The reaction network pickle file has been generated")
 
 
     # list_ase_inter = list(rxn_net.intermediates.values())
 
     # Generating the adsorption configurations and evaluating the energy
     conf_per_act_site = 3
-    for intermediate in rxn_net.intermediates.values():
+    for key, intermediate in rxn_net.intermediates.items():
         print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
         # If the molecule has only one atom, pass (need to see how to overcome this)
-        if len(intermediate.molecule) == 1 or intermediate.is_surface == True:
+        if intermediate.is_surface == True:
             continue
-        
-        # Placing the adsorbate on the surface
-        gen_ads_config = ads_placement(intermediate, surface)
+        elif intermediate.phase == 'gas':
+              continue
+        else: 
+            gen_ads_config = ads_placement(intermediate, surface)
+            data_dict_configs = intermediate_energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
+            rxn_net.intermediates[key].ads_configs = data_dict_configs
+            print(len(intermediate.ads_configs))
 
-        # Evaluating the adsorption configurations
-        data_dict_configs = intermediate_energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
-
-        # Updating the intermediate class
-        intermediate.ads_configs = data_dict_configs
-    
+    # for int in rxn_net.intermediates.values():
+    #     print(int.ads_configs)
+    #     print('\n')
+    # Exporting the reaction network as a pickle file
+    with open(f"{args.o}/rxn_net.pkl", "wb") as outfile:
+            pickle.dump(rxn_net_dict, outfile)
+            print(
+                f"The reaction network pickle file has been generated")
 

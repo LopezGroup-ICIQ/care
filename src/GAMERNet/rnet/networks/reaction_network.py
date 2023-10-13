@@ -50,7 +50,7 @@ class ReactionNetwork:
         self.surface = surface
         self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
         self.num_closed_shell_mols = len(self.closed_shells)
-        self.num_intermediates = len(self.intermediates) - self.num_closed_shell_mols - 1  # -1 for the surface
+        self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
         self.num_reactions = len(self.reactions)
 
     def __getitem__(self, other):
@@ -62,7 +62,7 @@ class ReactionNetwork:
         raise KeyError
     
     def __str__(self):
-        string = "ReactionNetwork({} intermediates, {} closed-shell molecules, {} reactions)\n".format(len(self.intermediates) - self.num_closed_shell_mols - 1, 
+        string = "ReactionNetwork({} surface intermediates, {} gas molecules, {} elementary reactions)\n".format(len(self.intermediates) -  1, 
                                                                                                             self.num_closed_shell_mols, 
                                                                                                             len(self.reactions))
         string += "Surface: {}\n".format(self.surface)
@@ -113,7 +113,7 @@ class ReactionNetwork:
         new_net.reactions = ts_list_gen
         new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
         new_net.num_closed_shell_mols = len(new_net.closed_shells)  
-        new_net.num_intermediates = len(new_net.intermediates) - new_net.num_closed_shell_mols - 1
+        new_net.num_intermediates = len(new_net.intermediates) - 1
         new_net.num_reactions = len(new_net.reactions)
         new_net.ncc = net_dict['ncc']
         new_net.surface = net_dict['surface']
@@ -189,6 +189,7 @@ class ReactionNetwork:
             inter_lst (list of str): List containing the codes of the
                 intermediates that will be deleted.
         """
+        num_rxns_0, num_ints_0 = len(self.reactions), len(self.intermediates)
         inter_counter = 0
         rxn_counter = 0
         for inter in inter_lst:
@@ -199,6 +200,8 @@ class ReactionNetwork:
                     rxn_counter += 1
             inter_counter += 1
         print(f"Deleted {inter_counter} intermediates and {rxn_counter} elementary reactions")
+        print(f"Number of intermediates before: {num_ints_0}, after: {len(self.intermediates)}")
+        print(f"Number of reactions before: {num_rxns_0}, after: {len(self.reactions)}")
 
     def del_reactions(self, rxn_lst: list[str]):
         """Delete transition states from the network.
@@ -207,21 +210,25 @@ class ReactionNetwork:
             ts_lst (list of str): List containing the codes of the transition
                 states that will be deleted.
         """
+        num_rxns_0 = len(self.reactions)
         inter_counter = 0
         rxn_counter = 0
-        for rxn in rxn_lst:
-            self.reactions.pop(rxn)
+        for i, _ in enumerate(rxn_lst):
+            self.reactions.pop(i)
+            rxn_counter += 1
+        num_rxns_fin = len(self.reactions)
             
         # remove all intermediates that are not participating in any reaction
         for inter in list(self.intermediates.keys()):
             counter = 0
             for reaction in self.reactions:
-                if inter in reaction.components[0] or inter in reaction.components[1]:
+                if inter in reaction.reactants or inter in reaction.products:
                     counter += 1
             if counter == 0:
                 self.intermediates.pop(inter)
                 inter_counter += 1
         print(f"Deleted {inter_counter} intermediates and {rxn_counter} elementary reactions")
+        print(f"Number of reactions before: {num_rxns_0}, after: {num_rxns_fin}")
 
     def add_dict(self, net_dict):
         """Add dictionary containing two different keys: intermediates and ts.

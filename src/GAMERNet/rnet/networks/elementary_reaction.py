@@ -1,6 +1,4 @@
-import numpy as np
-from math import ceil
-import copy
+import matplotlib.pyplot as plt
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 
@@ -28,6 +26,7 @@ class ElementaryReaction:
         self.reactants = self.components[0]
         self.products = self.components[1]
         self.energy = energy
+        self.e_act = None
         self._bader_energy = None
         self.r_type = r_type
         if self.r_type not in REACTION_TYPES:
@@ -117,60 +116,41 @@ class ElementaryReaction:
                 order.append(mols)
         return order
 
-    # def full_label(self):
-    #     """
-    #     xxx
-    #     """
-    #     order = self.full_order()
-    #     full_label = ''
-    #     for item in order:
-    #         for inter in item:
-    #             if inter.phase == ['cat']:
-    #                 full_label += 'i'
-    #             elif inter.code == 'e-':
-    #                 full_label += 'xxxxxxx'
-    #                 continue
-    #             else:
-    #                 full_label += 'g'
-    #             full_label += str(inter.code)
-    #     return full_label
+    def calc_reaction_energy(self, bader=False, min_state=True):
+        """
+        Get the reaction energy of the elementary reaction.
 
-    def calc_activation_energy(self, reverse=False, bader=False):
-        components = [list(item) for item in self.bb_order()]
-        if reverse:
-            components = components[1]
+        Args:
+            reverse (bool, optional): If True, the reaction energy will be
+                calculated in the reverse direction. Defaults to False.
+            bader (bool, optional): If True, the reaction energy will be
+                calculated using the Bader energies of the intermediates.
+                Defaults to False.
+            min_state (bool, optional): If True, the reaction energy will be
+                calculated using the minimum energy of the intermediates.
+                Defaults to True.
+
+        Returns:
+            float: Reaction energy of the elementary reaction in eV.
+        """
+        e_initial = self.stoic[0]
+        e_final = self.stoic[1]
+        if min_state:
+            e_initial = [self.stoic[0][i] * min(inter.energy) for i,inter in enumerate(self.reactants)]
+            e_final = [self.stoic[1][i] * min(inter.energy) for i,inter in enumerate(self.products)]
         else:
-            components = components[0]
+            pass
+        return e_final - e_initial
 
-        if len(components) == 1:
-            components = components * 2
+    def calc_reaction_barrier(self, bader: bool=False, bep_params: list[float]=[0.2, 0.5], min_state: bool=True):
+        """
+        Get elementary reaction barrier with BEP theory.
 
-        if bader:
-            inter_ener = sum([inter.bader_energy for inter in components])
-            out_ener = self.bader_energy - inter_ener
-        else:
-            inter_ener = sum([inter.energy for inter in components])
-            out_ener = self.energy - inter_ener
-        return out_ener
+        """
+        rxn_energy = self.calc_reaction_energy(bader=bader, min_state=min_state)
+        q, m = bep_params
+        return q + m * rxn_energy
 
-    def calc_delta_energy(self, reverse=False, bader=False):
-        components = [list(item) for item in self.bb_order()]
-        start_comp, end_comp = components
-
-        if len(end_comp) == 1:
-            end_comp = end_comp * 2
-
-        if reverse:
-            start_comp, end_comp = end_comp, start_comp
-
-        if bader:
-            start_ener = sum([inter.bader_energy for inter in start_comp])
-            end_ener = sum([inter.bader_energy for inter in end_comp])
-        else:
-            start_ener = sum([inter.energy for inter in start_comp])
-            end_ener = sum([inter.energy for inter in end_comp])
-        out_ener = end_ener - start_ener
-        return out_ener
 
     @property
     def components(self):
@@ -206,81 +186,21 @@ class ElementaryReaction:
         new_pair = frozenset(pair)
         self.components.append(new_pair)
 
-    # def get_code(self, option='g'):
-    #     """Automatically generate a code for the transition state using the
-    #     code of the intermediates.
+    def draft(self):
+        """Draw a draft of the transition state using the drafts of the
+        components.
 
-    #     Args:
-    #         option (str, optional): 'g' or 'i'. If 'g' the position of the
-    #             intermediates in the code is inverted. Defaults to None.
-    #     """
-    #     end_str = ''
-    #     in_str = 'i'
-    #     out_str = 'f'
-    #     act_comp = self.bb_order()
-    #     if option in ['inverse', 'i']:
-    #         act_comp = self.components[::-1]
-    #     elif option in ['general', 'g']:
-    #         out_str = 'i'
-
-    #     for species in act_comp[0]:
-    #         end_str += in_str + str(species.code)
-    #     for species in act_comp[1]:
-    #         end_str += out_str + str(species.code)
-    #     return end_str
-
-    # def draft(self):
-    #     """Draw a draft of the transition state using the drafts of the
-    #     components.
-
-    #     Returns:
-    #         obj:`matplotlib.pyplot.Figure` containing the draft.
-    #     """
-    #     counter = 1
-    #     for item in self.components:
-    #         for component in item:
-    #             plt.subplot(2, 2, counter)
-    #             component.draft()
-    #             counter += 1
-    #     return plt.show()
-
-    # def solve_stoichiometry(self):
-    #     """Solve the stoichiometry of the elementary reaction.
-
-    #     Returns:
-    #         dict containing the stoichiometry of the elementary reaction.
-    #     """
-
-    #     s_matrix = np.zeros((4, len(self.components[0])+len(self.components[1])))
-    #     for index, inter in enumerate(self.components[0]):
-    #         s_matrix[0, index] = inter.molecule.get_chemical_symbols().count('C')
-    #         s_matrix[1, index] = inter.molecule.get_chemical_symbols().count('H')
-    #         s_matrix[2, index] = inter.molecule.get_chemical_symbols().count('O')
-    #         if inter.phase != 'gas':
-    #             s_matrix[3, index] = 1
-    #     for index, inter in enumerate(self.components[1]):
-    #         s_matrix[0, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('C')
-    #         s_matrix[1, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('H')
-    #         s_matrix[2, index+len(self.components[0])] = inter.molecule.get_chemical_symbols().count('O')
-    #         if inter.phase != 'gas':
-    #             s_matrix[3, index+len(self.components[0])] = 1
-
-    #     U, S, Vt = np.linalg.svd(s_matrix)
-
-    #     rank = np.sum(S > 1e-10)
-
-    #     null_space = Vt[rank:].T
-
-    #     smallest_vector = null_space[:, 0]  # In this case, this will be the only vector in the null space
-        
-    #     entire_list = [abs(v) for v in smallest_vector]
-    #     min_val = min(entire_list)
-    #     slist_lhs = [int(abs(v/min_val)) for v in smallest_vector[:len(self.components[0])]]
-    #     slist_rhs = [int(abs(v/min_val)) for v in smallest_vector[len(self.components[0]):]]
-    #     if slist_lhs[0] > 0:
-    #         slist_lhs = [-v for v in slist_lhs]
-    #     return [slist_lhs, slist_rhs]
-
+        Returns:
+            obj:`matplotlib.pyplot.Figure` containing the draft.
+        """
+        counter = 1
+        for item in self.components:
+            for component in item:
+                plt.subplot(2, 2, counter)
+                component.draft()
+                counter += 1
+        return plt.show()
+    
     def solve_stoichiometry(self):
         """Solve the stoichiometry of the elementary reaction.
 

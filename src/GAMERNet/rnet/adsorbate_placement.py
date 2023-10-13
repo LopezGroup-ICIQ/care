@@ -8,6 +8,7 @@ from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.surface import Surface
 from pymatgen.io.ase import AseAtomsAdaptor
 import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
+from ase import Atoms
 
 def generate_inp_vars(adsorbate: ase.Atoms, 
                       surface: ase.Atoms,
@@ -70,7 +71,7 @@ def generate_inp_vars(adsorbate: ase.Atoms,
     return inp_vars
 
 def ads_placement(intermediate: Intermediate, 
-                 surface: Surface) -> list:
+                 surface: Surface) -> list[Atoms]:
     """Generate a set of adsorption structures for a given intermediate and surface.
 
     Parameters
@@ -114,31 +115,53 @@ def ads_placement(intermediate: Intermediate,
     
     # Generate input files for DockonSurf
     active_sites = {"Site_{}".format(site["label"]): site["indices"] for site in surface.active_sites}
-
-    min_height = 2.5
-    max_height = 2.8
-    increment = 0.1
-    
-
-    t00 = time.time()
     total_config_list = []
-    for ads_height in arange(min_height, max_height, increment):
-        ads_height = '{:.2f}'.format(ads_height)
-        for _, site_idxs in active_sites.items():
-            if site_idxs != []:
-                inp_vars = generate_inp_vars(molec_ase_obj, 
-                                  aug_slab,
-                                  ads_height,
-                                  1.2,
-                                  5, 
-                                  1.5,
-                                  connect_sites_molec,
-                                  site_idxs,)
-                # Run DockonSurf
-                config_list = dos.dockonsurf(inp_vars)
-                total_config_list.extend(config_list)
-    
-    print('DockonSurf run time: {:.2f} s'.format(time.time()-t00))
-    print('Number of detected adsorption configurations: ', len(total_config_list))
 
-    return total_config_list
+    if len(molec_ase_obj) > 1:
+        min_height = 2.5
+        max_height = 2.8
+        increment = 0.1
+
+        if molec_ase_obj.get_chemical_formula() == 'H2':
+            min_height = 1.8
+            max_height = 2.4
+            increment = 0.1
+        
+        # if len(molec_ase_obj) < 3:
+        #     min_height = 1.6
+        #     max_height = 1.8
+        #     increment = 0.1
+
+        t00 = time.time()
+        for ads_height in arange(min_height, max_height, increment):
+            ads_height = '{:.2f}'.format(ads_height)
+            for _, site_idxs in active_sites.items():
+                if site_idxs != []:
+                    inp_vars = generate_inp_vars(molec_ase_obj, 
+                                    aug_slab,
+                                    ads_height,
+                                    1.2,
+                                    2, 
+                                    1.5,
+                                    connect_sites_molec,
+                                    site_idxs,)
+                    # Run DockonSurf
+                    config_list = dos.dockonsurf(inp_vars)
+                    total_config_list.extend(config_list)
+        
+        print('DockonSurf run time: {:.2f} s'.format(time.time()-t00))
+        print('Number of detected adsorption configurations: ', len(total_config_list))
+
+        return total_config_list
+    else:
+        # for all sites, add the atom to the site
+        for site in surface.active_sites:
+            atoms = aug_slab.copy()
+            # append unique atom in the defined position in active_sites
+            atoms.append(molec_ase_obj[0])
+            atoms.positions[-1] = site['position']
+            atoms.set_cell(surface.slab.get_cell())
+            atoms.set_pbc(surface.slab.get_pbc())
+            total_config_list.append(atoms)
+
+        return total_config_list
