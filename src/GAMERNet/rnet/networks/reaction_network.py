@@ -747,8 +747,17 @@ class ReactionNetwork:
         #     diagram.ax.add_artist(ab)
         # diagram.plot(ylabel="eV")
         if show_uncertainty:
+            from matplotlib.patches import Rectangle
             # define three boxes around the three levels defined
-            pass
+            artists = diagram.fig.get_default_bbox_extra_artists()
+            width = artists[2].get_position()[0] - artists[3].get_position()[0]
+            height_ts = 1.96*2*self.reactions[reaction_index].e_act[1]
+            anchor_point_ts = (min(artists[6].get_position()[0], artists[7].get_position()[0]), 
+                               round(self.reactions[reaction_index].e_act[0],2) - 0.5*height_ts)
+            ts_box = Rectangle(anchor_point_ts, width, height_ts, fill=True, color='#FFD1DC', linewidth=1.5, zorder=-1)
+            # add box to the plot
+            diagram.ax.add_patch(ts_box)
+            plt.tight_layout()
         return diagram
 
         
