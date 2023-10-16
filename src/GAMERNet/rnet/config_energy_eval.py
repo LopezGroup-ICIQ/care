@@ -115,3 +115,28 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
         counter += 1  
     print(ads_config_dict)
     return ads_config_dict
+
+
+def get_fragment_energy(atoms: Atoms) -> float:
+    """Calculate fragment energy from closed shell structures.
+    This function allows to calculate the energy of both open- and closed-shell structures, 
+    keeping the same reference.
+    Args:
+        structure (list[int]): list of atom numbers in the order C, H, O, N, S
+    Returns:
+        e_fragment (float): fragment energy in eV
+    """ 
+    # Count elemens in the structure
+    n_C = atoms.get_chemical_symbols().count('C')
+    n_H = atoms.get_chemical_symbols().count('H')
+    n_O = atoms.get_chemical_symbols().count('O')
+    n_N = atoms.get_chemical_symbols().count('N')
+    n_S = atoms.get_chemical_symbols().count('S')
+
+    # Reference DFT energy for C, H, O, N, S
+    e_H2O = -14.21877278  # O
+    e_H2 = -6.76639487    # H
+    e_NH3 = -19.54236910  # N
+    e_H2S = -11.20113092  # S
+    e_CO2 = -22.96215586  # C
+    return n_C * e_CO2 + (n_O - 2*n_C) * e_H2O + (4*n_C + n_H - 2*n_O - 3*n_N - 2*n_S) * e_H2 * 0.5 + (n_N * e_NH3) + (n_S * e_H2S)

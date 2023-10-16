@@ -6,9 +6,11 @@ from shutil import rmtree
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from ase.io import write
+from ase.visualize import view
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from pydot import Node
+from energydiagram import ED
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
@@ -30,24 +32,18 @@ class ReactionNetwork:
         ncc (int): Carbon cutoff of the network.
     """
     def __init__(self, 
-                 intermediates: dict[str, Intermediate]=None, 
-                 reactions: list[ElementaryReaction]=None, 
+                 intermediates: dict[str, Intermediate]={}, 
+                 reactions: list[ElementaryReaction]=[], 
                  surface: Surface=None, 
                  ncc: int=None):
         
-        if intermediates is None:
-            self.intermediates = {}
-        else:
-            self.intermediates = intermediates
-        if reactions is None:
-            self.reactions = []
-        else:
-            self.reactions = reactions
+        self.intermediates = intermediates
+        self.reactions = reactions
+        self.surface = surface
+        self.ncc = ncc
         self.excluded = None
         self._graph = None
         self._surface = None
-        self.ncc = ncc
-        self.surface = surface
         self.closed_shells = [inter for inter in self.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
         self.num_closed_shell_mols = len(self.closed_shells)
         self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
@@ -86,31 +82,30 @@ class ReactionNetwork:
         new_net = cls()
 
         int_list_gen = {}
-        ts_list_gen = []
+        rxn_list_gen = []
         for inter in net_dict['intermediates']:
             curr_inter = Intermediate(**inter)
             int_list_gen[curr_inter.code] = curr_inter
 
-        for reaction in net_dict['ts']:
-            ts_comp_list = []
+        for reaction in net_dict['reactions']:
+            rxn_comp_list = []
             for i in reaction.keys():
                 if i == 'components':
                     comp_data_list = reaction[i]
-                    ts_couple = []
+                    rxn_couple = []
                     for int_data in comp_data_list:
                         tupl_int = []
                         for ts_comp in int_data:
                             comp = Intermediate(**ts_comp)
                             tupl_int.append(comp)
-                        ts_couple.append(frozenset(tuple(tupl_int)))
-                    ts_comp_list.append(ts_couple)
-
+                        rxn_couple.append(frozenset(tuple(tupl_int)))
+                    rxn_comp_list.append(rxn_couple)
             reaction.pop('components')
-            curr_ts = ElementaryReaction(**reaction, components=ts_comp_list[0])
-            ts_list_gen.append(curr_ts)
+            curr_ts = ElementaryReaction(**reaction, components=rxn_comp_list[0])
+            rxn_list_gen.append(curr_ts)
 
         new_net.intermediates = int_list_gen
-        new_net.reactions = ts_list_gen
+        new_net.reactions = rxn_list_gen
         new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
         new_net.num_closed_shell_mols = len(new_net.closed_shells)  
         new_net.num_intermediates = len(new_net.intermediates) - 1
@@ -137,32 +132,31 @@ class ReactionNetwork:
             intermediate_list.append(curr_inter)
 
         for reaction in self.reactions:
-            curr_ts = {}
-            curr_ts["code"]=reaction.code
-            ts_i_list = []
+            curr_reaction = {}
+            curr_reaction["code"]=reaction.code
+            reaction_i_list = []
 
             for j in reaction.components:
                 tupl_comp_list = []
                 for i in j:
-                    curr_ts_i_dict = {}
-                    curr_ts_i_dict['code'] = i.code
-                    curr_ts_i_dict['molecule']=i.molecule
-                    curr_ts_i_dict['graph']=i.graph
-                    curr_ts_i_dict['ads_configs']=i.ads_configs
-                    curr_ts_i_dict['formula']=i.formula
-                    curr_ts_i_dict['electrons']=i.electrons
-                    curr_ts_i_dict['is_surface']=i.is_surface
-                    curr_ts_i_dict['phase']=i.phase
-                    tupl_comp_list.append(curr_ts_i_dict)
-                ts_i_list.append(tupl_comp_list)
-            curr_ts["components"]=ts_i_list
-            curr_ts["energy"]=reaction.energy
-            curr_ts["r_type"]=reaction.r_type
-            curr_ts["is_electro"]=reaction.is_electro
-            reaction_list.append(curr_ts)
+                    curr_reaction_i_dict = {}
+                    curr_reaction_i_dict['code'] = i.code
+                    curr_reaction_i_dict['molecule']=i.molecule
+                    curr_reaction_i_dict['graph']=i.graph
+                    curr_reaction_i_dict['ads_configs']=i.ads_configs
+                    curr_reaction_i_dict['formula']=i.formula
+                    curr_reaction_i_dict['electrons']=i.electrons
+                    curr_reaction_i_dict['is_surface']=i.is_surface
+                    curr_reaction_i_dict['phase']=i.phase
+                    tupl_comp_list.append(curr_reaction_i_dict)
+                reaction_i_list.append(tupl_comp_list)
+            curr_reaction["components"]=reaction_i_list
+            curr_reaction["energy"]=reaction.energy
+            curr_reaction["r_type"]=reaction.r_type
+            curr_reaction["is_electro"]=reaction.is_electro
+            reaction_list.append(curr_reaction)
 
-        export_dict = {'intermediates': intermediate_list, 'ts': reaction_list}
-        return export_dict
+        return {'intermediates': intermediate_list, 'reactions': reaction_list}
 
     def add_intermediates(self, inter_dict: dict[str, Intermediate]):
         """Add intermediates to the ReactionNetwork.
@@ -554,7 +548,6 @@ class ReactionNetwork:
                                        arrowsize=0.1)
         # add white background to the plot
         axes.set_facecolor('white')
-
         fig.tight_layout()
 
         return fig
@@ -698,6 +691,65 @@ class ReactionNetwork:
         reaction = ElementaryReaction(components=[[self.intermediates[ads_int2]], [self.intermediates[gas_mol], self.intermediates[ads_int1]]],
                                       r_type='eley_rideal')
         self.add_reactions([reaction])
+
+    def visualize_intermediate(self, inter_code: str):
+        """Visualize the molecule of an intermediate.
+
+        Args:
+            inter_code (str): Code of the intermediate.
+        """
+        # view all the available ads_configs ase atoms object
+        configs = [config['ase'] for _, config in self.intermediates[inter_code].ads_configs.items()]
+        view(configs)
+
+    def visualize_reaction(self, reaction_index: int, show_uncertainty: bool=False):
+        rxn = self.reactions[reaction_index].__repr__()
+        components = rxn.split("<->")
+        reactants = components[0].split("+")
+        products = components[1].split("+")
+        # keep only chars between parentheses
+        reactants = [re.findall(r'\((.*?)\)', reactant) for reactant in reactants]
+        products = [re.findall(r'\((.*?)\)', product) for product in products]
+        # flatten list of lists
+        reactants = [item for sublist in reactants for item in sublist]
+        products = [item for sublist in products for item in sublist]
+        for i, reactant in enumerate(reactants):
+            if abs(self.reactions[reaction_index].stoic[0][i]) != 1:
+                reactants[i] = str(abs(self.reactions[reaction_index].stoic[0][i])) + reactant
+            if '(g' in reactant:
+                reactants[i] += ')'
+        for i, product in enumerate(products):
+            if abs(self.reactions[reaction_index].stoic[1][i]) != 1:
+                products[i] = str(abs(self.reactions[reaction_index].stoic[1][i])) + product
+            if '(g' in product:
+                products[i] += ')'
+        rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
+        diagram = ED()
+        diagram.add_level(0, rxn_string.split(" -> ")[0])
+        diagram.add_level(round(self.reactions[reaction_index].e_act[0], 2), 'TS', color='r')
+        diagram.add_level(round(self.reactions[reaction_index].energy[0], 2), rxn_string.split(" -> ")[1])
+        diagram.add_link(0,1)
+        diagram.add_link(1,2)
+        y = diagram.plot(ylabel="Energy / eV") 
+        plt.title(rxn_string, fontname='Arial', fontweight='bold',
+                  y=1.05) 
+        # from os import makedirs
+        # from ase.io import write
+        # from os.path import abspath
+        # from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        # makedirs('tmp', exist_ok=True)
+        # for inter in step.reactants:        
+        #     fig_path = abspath("tmp/{}.png".format(inter.code))
+        #     write(fig_path, inter.molecule, show_unit_cell=0)
+        #     arr_img = plt.imread(fig_path)
+        #     im = OffsetImage(arr_img)
+        #     ab = AnnotationBbox(im, (1, 0), xycoords='axes fraction')
+        #     diagram.ax.add_artist(ab)
+        # diagram.plot(ylabel="eV")
+        if show_uncertainty:
+            # define three boxes around the three levels defined
+            pass
+        return diagram
 
         
     def get_shortest_path(self, reactants: list[str], target: str) -> int:

@@ -163,5 +163,4 @@ def ads_placement(intermediate: Intermediate,
             atoms.set_cell(surface.slab.get_cell())
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
-
         return total_config_list

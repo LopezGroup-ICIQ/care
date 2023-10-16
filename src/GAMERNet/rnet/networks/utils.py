@@ -34,28 +34,54 @@ def generate_dict(inter_dict: dict) -> dict:
                 tmp_dict[inter.code] = {'mol': inter.ase_mol, 'graph': inter.nx_graph}
     return lot1_att
 
-def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Intermediate) -> dict:
+def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
     """
     missing docstring
     """
     network_dict = {} 
     for key, network in rxn_dict.items():
-        network_dict[key] = {'intermediates': {}, 'ts': []}
-        for node in network.nodes():
-            try:
-                sel_node = network.nodes[node]
-                electrons = af.adjust_electrons(sel_node['mol'])
-                new_inter = Intermediate(code=node+'*', 
-                                         molecule=sel_node['mol'], 
-                                         graph=sel_node['graph'],  
-                                         electrons=electrons,
-                                         formula=sel_node['mol'].get_chemical_formula(),
-                                         phase='ads')
-                new_inter._graph = new_inter.gen_graph()
-                network_dict[key]['intermediates'][node] = new_inter
-            except KeyError:
-                print("KeyError: Node {} not found in the dictionary".format(node))
-                pass
+        if key == '[H][H]':
+            network_dict[key] = {'intermediates': {}, 'reactions': []}
+            for node in network.nodes():
+                try:
+                    sel_node = network.nodes[node]
+                    electrons = af.adjust_electrons(sel_node['mol'])
+                    new_inter = Intermediate(code=node+'*', 
+                                             molecule=sel_node['mol'], 
+                                             graph=sel_node['graph'],  
+                                             electrons=electrons,
+                                             formula=sel_node['mol'].get_chemical_formula(),
+                                             phase='ads')
+                    new_inter._graph = new_inter.gen_graph()
+                    network_dict[key]['intermediates'][node] = new_inter
+                except KeyError:
+                    print("KeyError: Node {} not found in the dictionary".format(node))
+                    pass
+    
+    true_h_inter = network_dict['[H][H]']['intermediates']['01011']
+    
+
+    for key, network in rxn_dict.items():
+        if key != '[H][H]':
+            network_dict[key] = {'intermediates': {}, 'reactions': []}
+
+            for node in network.nodes():
+                try:
+                    sel_node = network.nodes[node]
+                    electrons = af.adjust_electrons(sel_node['mol'])
+                    new_inter = Intermediate(code=node+'*', 
+                                            molecule=sel_node['mol'], 
+                                            graph=sel_node['graph'],  
+                                            electrons=electrons,
+                                            formula=sel_node['mol'].get_chemical_formula(),
+                                            phase='ads')
+                    new_inter._graph = new_inter.gen_graph()
+                    network_dict[key]['intermediates'][node] = new_inter
+                except KeyError:
+                    print("KeyError: Node {} not found in the dictionary".format(node))
+                    pass
+
+        
         
         for edge in list(network.edges()):
             try:
@@ -63,10 +89,10 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
 
                 if len(inters[0].molecule) > len(inters[1].molecule):
                     rxn_lhs = (inters[0], surf_inter)
-                    rxn_rhs = (inters[1], h_inter)
+                    rxn_rhs = (inters[1], true_h_inter)
                 else:
                     rxn_lhs = (inters[1], surf_inter)
-                    rxn_rhs = (inters[0], h_inter)
+                    rxn_rhs = (inters[0], true_h_inter)
                 rxn_sides = (rxn_lhs, rxn_rhs)  # elementary reaction: lhs -> rhs
                 new_ts = ElementaryReaction(components=rxn_sides, r_type='C-H')
                 # Specific r_typ case for H-H
@@ -74,11 +100,11 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate, h_inter: Int
                 condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
                 if condition1 and condition2:
                     new_ts.r_type = 'H-H'
-                for t_state in network_dict[key]['ts']:
+                for t_state in network_dict[key]['reactions']:
                     if t_state.components == new_ts.components:
                         break
                 else: # if the for loop is not broken
-                    network_dict[key]['ts'].append(new_ts)
+                    network_dict[key]['reactions'].append(new_ts)
             except KeyError:
                 print("Key Error: Edge {} not found in the dictionary".format(edge))
                 pass

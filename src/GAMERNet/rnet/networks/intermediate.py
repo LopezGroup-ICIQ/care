@@ -22,7 +22,7 @@ class Intermediate:
                  code: str=None, 
                  molecule: Atoms=None,
                  graph: Graph=None, 
-                 ads_configs: dict[str, dict]=None,
+                 ads_configs: dict[str, dict]={},
                  formula: str=None, 
                  electrons: int=None,
                  is_surface: bool=False,

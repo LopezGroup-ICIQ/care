@@ -11,7 +11,7 @@ from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
 from GAMERNet.rnet.adsorbate_placement import ads_placement
-from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator
+from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator, get_fragment_energy
 
 metal_structure_dict = {
     "Ag": "fcc",
@@ -31,7 +31,7 @@ metal_structure_dict = {
 }
 
 if __name__ == "__main__":
-    argparser = argparse.ArgumentParser(description="Generate reaction network blueprint for processes involving C, H, O on transition metal surfaces.")
+    argparser = argparse.ArgumentParser(description="Generate reaction network blueprint for processes involving C, H, O on surfaces.")
     argparser.add_argument('-ncc', type=int, dest='ncc',
                             help="Network Carbon Cutoff (ncc). It defines the size of the reaction network based on the maximum number of carbon atoms in the intermediates.")
     argparser.add_argument('-m', type=str, dest='m',
@@ -75,36 +75,26 @@ if __name__ == "__main__":
     print('\nReaction network generated')
     print(rxn_net)
     print('\nTime taken to generate the reaction network: {:.2f} s'.format(time.time() - time0))
-    # Converting the reaction network as a dictionary
-    rxn_net_dict = rxn_net.to_dict()
-    rxn_net_dict['ncc'] = args.ncc
-    rxn_net_dict['surface'] = surface
 
-
-
-    # list_ase_inter = list(rxn_net.intermediates.values())
-
-    # Generating the adsorption configurations and evaluating the energy
+    # Evaluate energy of intermediates
     conf_per_act_site = 3
     for key, intermediate in rxn_net.intermediates.items():
         print('\nIntermediate code(formula): {}({})'.format(intermediate.code, intermediate.molecule.get_chemical_formula()))
-        # If the molecule has only one atom, pass (need to see how to overcome this)
-        if intermediate.is_surface == True:
-            continue
-        elif intermediate.phase == 'gas':
-              continue
-        else: 
+        if intermediate.is_surface == True:  # empty surface
+            rxn_net.intermediates[key].ads_configs = {'surf': {'ase': intermediate.molecule, 'energy': 0.0, 'std': 0.0}}
+        elif intermediate.phase == 'gas':  # gas phase molecule
+            rxn_net.intermediates[key].ads_configs = {'gas': {'ase': intermediate.molecule, 'energy': get_fragment_energy(intermediate.molecule), 'std': 0.0}}  
+        else:  # adsorbed intermediate
             gen_ads_config = ads_placement(intermediate, surface)
             data_dict_configs = intermediate_energy_evaluator(gen_ads_config, conf_per_act_site, surface, model, graph_params, model_elements)
             rxn_net.intermediates[key].ads_configs = data_dict_configs
-            print(len(intermediate.ads_configs))
 
-    # for int in rxn_net.intermediates.values():
-    #     print(int.ads_configs)
-    #     print('\n')
-    # Exporting the reaction network as a pickle file
+    # Export reaction network as pickle file
+    print(rxn_net)
+    rxn_net_dict = rxn_net.to_dict()
+    rxn_net_dict['ncc'] = args.ncc
+    rxn_net_dict['surface'] = surface
     with open(f"{args.o}/rxn_net.pkl", "wb") as outfile:
-            pickle.dump(rxn_net_dict, outfile)
-            print(
-                f"The reaction network pickle file has been generated")
+        pickle.dump(rxn_net_dict, outfile)
+        print(f"The reaction network pickle file has been generated")
 

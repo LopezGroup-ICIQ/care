@@ -133,23 +133,45 @@ class ElementaryReaction:
         Returns:
             float: Reaction energy of the elementary reaction in eV.
         """
-        e_initial = self.stoic[0]
-        e_final = self.stoic[1]
         if min_state:
-            e_initial = [self.stoic[0][i] * min(inter.energy) for i,inter in enumerate(self.reactants)]
-            e_final = [self.stoic[1][i] * min(inter.energy) for i,inter in enumerate(self.products)]
+            v_h = []
+            var_h = []
+            for i, reactant in enumerate(self.reactants):
+                energy_list = [config['energy'] for _, config in reactant.ads_configs.items()]
+                std_list = [config['std'] for _, config in reactant.ads_configs.items()]
+                e_min_config = min(energy_list)
+                std_min_config = std_list[energy_list.index(e_min_config)]
+                v_h.append(self.stoic[0][i] * e_min_config)
+                var_h.append(self.stoic[0][i] * std_min_config**2)
+            for i, product in enumerate(self.products):
+                energy_list = [config['energy'] for _, config in product.ads_configs.items()]
+                std_list = [config['std'] for _, config in product.ads_configs.items()]
+                e_min_config = min(energy_list)
+                std_min_config = std_list[energy_list.index(e_min_config)]
+                v_h.append(self.stoic[1][i] * e_min_config)
+                var_h.append(self.stoic[1][i] * std_min_config**2)
         else:
             pass
-        return e_final - e_initial
+        # return sum(v_h), sum(var_h)**0.5
+        self.energy = sum(v_h), sum(var_h)**0.5
 
-    def calc_reaction_barrier(self, bader: bool=False, bep_params: list[float]=[0.2, 0.5], min_state: bool=True):
+    def calc_reaction_barrier(self, bader: bool=False, bep_params: list[float]=[0.4, 0.7], min_state: bool=True):
         """
         Get elementary reaction barrier with BEP theory.
 
         """
-        rxn_energy = self.calc_reaction_energy(bader=bader, min_state=min_state)
+        self.calc_reaction_energy(bader=bader, min_state=min_state)
         q, m = bep_params
-        return q + m * rxn_energy
+        if self.energy[0] < 0:
+            # return q + (m - 1) * rxn_energy, (m * std**2)**0.5
+            self.e_act = q + (m - 1) * self.energy[0], (m * self.energy[1]**2)**0.5
+        else: 
+            # return q + m * rxn_energy, (m * std**2)**0.5
+            self.e_act = q + m * self.energy[0], (m * self.energy[1]**2)**0.5
+            if self.e_act[0] < self.energy[0]:
+                # raise ValueError('The reaction barrier is lower than the reaction energy')
+                # warning
+                pass
 
 
     @property
