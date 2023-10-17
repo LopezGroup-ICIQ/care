@@ -722,9 +722,7 @@ class ReactionNetwork:
         """
         rxn = self.reactions[reaction_index].__repr__()
         components = rxn.split("<->")
-        reactants = components[0].split("+")
-        products = components[1].split("+")
-        # look whre the surface is looking for 00000* code
+        reactants, products = components[0].split("+"), components[1].split("+")
         for i, inter in enumerate(reactants):
             if '00000*' in inter:
                 where_surface = 'reactants'
@@ -808,11 +806,8 @@ class ReactionNetwork:
             anchor_point_ts = (min(artists[6].get_position()[0], artists[7].get_position()[0]), 
                                round(self.reactions[reaction_index].e_act[0],2) - 0.5*height_ts)
             ts_box = Rectangle(anchor_point_ts, width, height_ts, fill=True, color='#FFD1DC', linewidth=1.5, zorder=-1)
-            diagram.ax.add_patch(ts_box)
-            # plt.tight_layout()
-        
+            diagram.ax.add_patch(ts_box)       
         return diagram
-
 
     def find_all_paths(self, source, targets, graph, path=[], cutoff=None):
         path = path + [source]
@@ -905,7 +900,7 @@ class ReactionNetwork:
         else:                 
             return grouped_paths
         
-    def get_num_global_reactions(self, reactants: list[str], products: list[str]) -> list[ElementaryReaction]:
+    def get_num_global_reactions(self, reactants: list[str], products: list[str]) -> int:
         """
         Given gaseous reactants and a list of gas products, provide the 
         overall global reactions with stoichiometry.
@@ -916,16 +911,12 @@ class ReactionNetwork:
 
         Returns:        
         """
-
-        # check that all reactants and products are gas phase
         for reactant in reactants:
             if self.intermediates[reactant].phase != 'gas':
                 raise ValueError('All reactants must be gas phase')
         for product in products:
             if self.intermediates[product].phase != 'gas':
                 raise ValueError('All products must be gas phase')
-            
-        # get all chemical elements in the reactants and products
         reactants_formulas = [self.intermediates[reactant].molecule.get_chemical_formula() for reactant in reactants]
         products_formulas = [self.intermediates[product].molecule.get_chemical_formula() for product in products]
         print(f"Reactants: {reactants_formulas}")
@@ -935,23 +926,17 @@ class ReactionNetwork:
         for specie in species:
             elements += self.intermediates[specie].molecule.get_chemical_symbols()
         elements = list(set(elements))
-        nc = len(species)
-        na = len(elements)
-        # construct the matrix species x elements
+        nc, na = len(species), len(elements)
         matrix = np.zeros((nc, na))
         for i, specie in enumerate(species):
             for j, element in enumerate(elements):
                 matrix[i, j] = self.intermediates[specie].molecule.get_chemical_symbols().count(element)
-        # get rank of the matrix
         rank = np.linalg.matrix_rank(matrix)
-        # det = np.linalg.det(matrix)
-        ngr = nc - rank
         print(f"Number of chemical elements: {na}")
         print(f"Number of chemical species: {nc}")
         print(f"Rank of the species-element matrix: {rank}")
-        # print(f"Determinant of the species-element matrix: {det}")
-        print(f"Number of global reactions: {ngr}")
-        return ngr
+        print(f"Number of global reactions: {nc - rank}")
+        return nc - rank
         
         
             
