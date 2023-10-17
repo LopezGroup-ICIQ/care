@@ -8,9 +8,15 @@ import networkx.algorithms.isomorphism as iso
 from ase.io import write
 from ase.visualize import view
 import matplotlib.pyplot as plt
+from matplotlib.patches import BoxStyle, Rectangle
 from matplotlib import cm
 from pydot import Node
 from energydiagram import ED
+import numpy as np
+from os import makedirs
+from ase.io import write
+from os.path import abspath
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
@@ -703,14 +709,34 @@ class ReactionNetwork:
         view(configs)
 
     def visualize_reaction(self, reaction_index: int, show_uncertainty: bool=False):
+        """
+        Visualize the reaction energy diagram.
+
+        Args:
+            reaction_index (int): Index of the reaction in the list of reactions.
+            show_uncertainty (bool, optional): If True, the confidence interval
+                of the energy of the transition state will be shown. Defaults   
+                to False.
+        Returns:
+            obj:`ED` with the energy diagram of the reaction.
+        """
         rxn = self.reactions[reaction_index].__repr__()
         components = rxn.split("<->")
         reactants = components[0].split("+")
         products = components[1].split("+")
-        # keep only chars between parentheses
+        # look whre the surface is looking for 00000* code
+        for i, inter in enumerate(reactants):
+            if '00000*' in inter:
+                where_surface = 'reactants'
+                surf_index = i
+                break
+        for i, inter in enumerate(products):
+            if '00000*' in inter:
+                where_surface = 'products'
+                surf_index = i
+                break
         reactants = [re.findall(r'\((.*?)\)', reactant) for reactant in reactants]
         products = [re.findall(r'\((.*?)\)', product) for product in products]
-        # flatten list of lists
         reactants = [item for sublist in reactants for item in sublist]
         products = [item for sublist in products for item in sublist]
         for i, reactant in enumerate(reactants):
@@ -718,11 +744,15 @@ class ReactionNetwork:
                 reactants[i] = str(abs(self.reactions[reaction_index].stoic[0][i])) + reactant
             if '(g' in reactant:
                 reactants[i] += ')'
+            if where_surface == 'reactants' and i == surf_index:
+                reactants[i] = "*"
         for i, product in enumerate(products):
             if abs(self.reactions[reaction_index].stoic[1][i]) != 1:
                 products[i] = str(abs(self.reactions[reaction_index].stoic[1][i])) + product
             if '(g' in product:
                 products[i] += ')'
+            if where_surface == 'products' and i == surf_index:
+                products[i] = "*"
         rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
         diagram = ED()
         diagram.add_level(0, rxn_string.split(" -> ")[0])
@@ -733,31 +763,54 @@ class ReactionNetwork:
         y = diagram.plot(ylabel="Energy / eV") 
         plt.title(rxn_string, fontname='Arial', fontweight='bold',
                   y=1.05) 
-        # from os import makedirs
-        # from ase.io import write
-        # from os.path import abspath
-        # from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-        # makedirs('tmp', exist_ok=True)
-        # for inter in step.reactants:        
-        #     fig_path = abspath("tmp/{}.png".format(inter.code))
-        #     write(fig_path, inter.molecule, show_unit_cell=0)
-        #     arr_img = plt.imread(fig_path)
-        #     im = OffsetImage(arr_img)
-        #     ab = AnnotationBbox(im, (1, 0), xycoords='axes fraction')
-        #     diagram.ax.add_artist(ab)
-        # diagram.plot(ylabel="eV")
+        artists = diagram.fig.get_default_bbox_extra_artists()
+        size = artists[2].get_position()[0] - artists[3].get_position()[0]
+        ap_reactants = (artists[3].get_position()[0], artists[3].get_position()[1]+0.15)
+        ap_products = (artists[11].get_position()[0], artists[11].get_position()[1]+0.15)
+        from matplotlib.patches import Rectangle        
+        makedirs('tmp', exist_ok=True)
+        counter=0
+        for i, inter in enumerate(self.reactions[reaction_index].reactants):
+            if inter.is_surface:
+                pass
+            else:        
+                fig_path = abspath("tmp/reactant_{}.png".format(i))
+                write(fig_path, inter.molecule, show_unit_cell=0)
+                arr_img = plt.imread(fig_path)
+                im = OffsetImage(arr_img)
+                if where_surface == 'reactants':
+                    ab = AnnotationBbox(im, (ap_reactants[0]+size/2, ap_reactants[1]+size*(0.5+counter)), frameon=False)
+                    diagram.ax.add_artist(ab) 
+                    counter += 1
+                else:
+                    ab = AnnotationBbox(im, (ap_reactants[0]+size/2, ap_reactants[1]+size*(0.5+i)), frameon=False)
+                    diagram.ax.add_artist(ab)
+        counter = 0
+        for i, inter in enumerate(self.reactions[reaction_index].products):
+            if inter.is_surface:
+                pass        
+            else:
+                fig_path = abspath("tmp/product_{}.png".format(i))
+                write(fig_path, inter.molecule, show_unit_cell=0)
+                arr_img = plt.imread(fig_path)
+                im = OffsetImage(arr_img)
+                if where_surface == 'products':
+                    ab = AnnotationBbox(im, (ap_products[0]+size/2, ap_products[1]+size*(0.5+counter)), frameon=False)
+                    diagram.ax.add_artist(ab) 
+                    counter += 1
+                else:
+                    ab = AnnotationBbox(im, (ap_products[0]+size/2, ap_products[1]+size*(0.5+i)), frameon=False)
+                    diagram.ax.add_artist(ab)        
         if show_uncertainty:
             from matplotlib.patches import Rectangle
-            # define three boxes around the three levels defined
-            artists = diagram.fig.get_default_bbox_extra_artists()
             width = artists[2].get_position()[0] - artists[3].get_position()[0]
             height_ts = 1.96*2*self.reactions[reaction_index].e_act[1]
             anchor_point_ts = (min(artists[6].get_position()[0], artists[7].get_position()[0]), 
                                round(self.reactions[reaction_index].e_act[0],2) - 0.5*height_ts)
             ts_box = Rectangle(anchor_point_ts, width, height_ts, fill=True, color='#FFD1DC', linewidth=1.5, zorder=-1)
-            # add box to the plot
             diagram.ax.add_patch(ts_box)
-            plt.tight_layout()
+            # plt.tight_layout()
+        
         return diagram
 
 
@@ -851,4 +904,64 @@ class ReactionNetwork:
             return all_paths
         else:                 
             return grouped_paths
+        
+    def get_num_global_reactions(self, reactants: list[str], products: list[str]) -> list[ElementaryReaction]:
+        """
+        Given gaseous reactants and a list of gas products, provide the 
+        overall global reactions with stoichiometry.
+
+        Args:
+            reactants (list[str]): List of gaseous reactants.
+            products (list[str]): List of gaseous products.
+
+        Returns:        
+        """
+
+        # check that all reactants and products are gas phase
+        for reactant in reactants:
+            if self.intermediates[reactant].phase != 'gas':
+                raise ValueError('All reactants must be gas phase')
+        for product in products:
+            if self.intermediates[product].phase != 'gas':
+                raise ValueError('All products must be gas phase')
+            
+        # get all chemical elements in the reactants and products
+        reactants_formulas = [self.intermediates[reactant].molecule.get_chemical_formula() for reactant in reactants]
+        products_formulas = [self.intermediates[product].molecule.get_chemical_formula() for product in products]
+        print(f"Reactants: {reactants_formulas}")
+        print(f"Products: {products_formulas}")
+        species = reactants + products
+        elements = []
+        for specie in species:
+            elements += self.intermediates[specie].molecule.get_chemical_symbols()
+        elements = list(set(elements))
+        nc = len(species)
+        na = len(elements)
+        # construct the matrix species x elements
+        matrix = np.zeros((nc, na))
+        for i, specie in enumerate(species):
+            for j, element in enumerate(elements):
+                matrix[i, j] = self.intermediates[specie].molecule.get_chemical_symbols().count(element)
+        # get rank of the matrix
+        rank = np.linalg.matrix_rank(matrix)
+        # det = np.linalg.det(matrix)
+        ngr = nc - rank
+        print(f"Number of chemical elements: {na}")
+        print(f"Number of chemical species: {nc}")
+        print(f"Rank of the species-element matrix: {rank}")
+        # print(f"Determinant of the species-element matrix: {det}")
+        print(f"Number of global reactions: {ngr}")
+        return ngr
+        
+        
+            
+        
+        
+
+
+        
+        
+
+        
+        
         
