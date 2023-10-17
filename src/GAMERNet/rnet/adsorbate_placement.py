@@ -126,11 +126,6 @@ def ads_placement(intermediate: Intermediate,
             min_height = 1.8
             max_height = 2.4
             increment = 0.1
-        
-        # if len(molec_ase_obj) < 3:
-        #     min_height = 1.6
-        #     max_height = 1.8
-        #     increment = 0.1
 
         t00 = time.time()
         for ads_height in arange(min_height, max_height, increment):
@@ -149,9 +144,6 @@ def ads_placement(intermediate: Intermediate,
                     config_list = dos.dockonsurf(inp_vars)
                     total_config_list.extend(config_list)
         
-        print('DockonSurf run time: {:.2f} s'.format(time.time()-t00))
-        print('Number of detected adsorption configurations: ', len(total_config_list))
-
         return total_config_list
     else:
         # for all sites, add the atom to the site

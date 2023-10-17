@@ -6,7 +6,6 @@ from GAMERNet.rnet.gen_intermediates import generate_intermediates
 from GAMERNet.rnet.adsorbate_placement import ads_placement
 import networkx as nx
 from ase import Atoms
-import pprint as pp
 
 def generate_rxn_net(slab_ase_obj: Atoms, 
                      ncc: int) -> ReactionNetwork:

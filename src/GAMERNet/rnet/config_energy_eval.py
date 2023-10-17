@@ -1,26 +1,25 @@
 from ase import Atoms
 from ase.constraints import FixAtoms
-import time
 import numpy as np
-import multiprocessing
+import multiprocessing as mp
 import resource
 from torch_geometric.loader import DataLoader
 from torch.nn import Module
 from GAMERNet.gnn_eads.create_pyg_dataset import atoms_to_data
 from GAMERNet.rnet.networks.surface import Surface
+import itertools as it
 
-def process_chunk(args):
-    chunk, graph_params, model_elems, calc_type = args
-    return [atoms_to_data(structure, graph_params, model_elems, calc_type) for structure in chunk]
+def process_chunk(atoms, graph_params, model_elems, calc_type):
+    return [atoms_to_data(atoms, graph_params, model_elems, calc_type)]
 
 def atoms_to_data_parallel(atoms_list, graph_params, model_elems, calc_type='adsorption'):
     # Split atoms_list into chunks
-    num_cores = multiprocessing.cpu_count()
-    chunks = [(atoms_list[i::num_cores], graph_params, model_elems, calc_type) for i in range(num_cores)]
+    num_cores = mp.cpu_count()
+    # chunks = [(atoms_list[i::num_cores], graph_params, model_elems, calc_type) for i in range(num_cores)]
 
     # Use multiprocessing.Pool to parallelize the conversion
-    with multiprocessing.Pool(num_cores) as pool:
-        results = pool.map(process_chunk, chunks)
+    with mp.get_context('spawn').Pool(num_cores) as pool:
+        results = pool.starmap(process_chunk, zip(atoms_list, it.repeat(graph_params), it.repeat(model_elems), it.repeat(calc_type)))
 
     # Flatten the list of results and return
     return [data for sublist in results for data in sublist]
@@ -53,8 +52,6 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
     dict
         Dictionary containing the the key information of the n lowest configurations.
     """ 
-
-    t_0 = time.time()
     
     # Preparing the components for the energy evaluation
     # Removing the metal atoms with selective dynamics == False
@@ -75,13 +72,10 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 
     loader = DataLoader(ads_graph_list, batch_size=len(ads_graph_list), shuffle=False)
-    print('Time to convert adsorption configurations to graphs: {:.2f} s'.format(time.time()-t_0))
-    t_00 = time.time()
     for batch in loader:
         energy_list = model(batch)  # unitless (scaled values)
         mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
         std_tensor = energy_list.scale * model.scaling_params['std'] # eV
-    print('Time to evaluate adsorption configurations: {:.2f} s'.format(time.time()-t_00))
     
     # Transforming the tensor to numpy array
     mean_tensor = mean_tensor.detach().numpy()
@@ -113,7 +107,6 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
         ads_config_dict[f'config_{counter}']['std'] = std_tensor[idx]
         
         counter += 1  
-    print(ads_config_dict)
     return ads_config_dict
 
 
