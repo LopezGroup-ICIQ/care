@@ -760,232 +760,95 @@ class ReactionNetwork:
             plt.tight_layout()
         return diagram
 
-        
-    def get_shortest_path(self, reactants: list[str], target: str) -> int:
-        """
-        Given a reactant and a product, return the minimum number of reactions to go from one to the other.
-        
-        Parameters
-        ----------
-        mol1_code : str
-            Code of the reactant.
-        mol2_code : str
-            Code of the product.
-        
-        Returns
-        -------
-        int
-            Minimum number of reactions to go from one to the other.
-        """
 
-        for reactant in reactants:
-            if reactant not in self.intermediates.keys():
-                raise ValueError('First argument must be in the network')
-            if not self.intermediates[reactant].closed_shell:
-                raise ValueError('First argument must be closed shell')
-        if target not in self.intermediates.keys():
-            raise ValueError('Second argument must be in the network')
-        if not self.intermediates[target].closed_shell:
-            raise ValueError('Second argument must be closed shell')        
-        
-        graph = self.graph.to_undirected()
-        visited_inters = set([*reactants, '0-0-0-0-0-*'])  # starting point (gas reactants plus surface)
-        visited_steps = set()
-        source = reactants[0].replace('g', '*')  # TODO: automatic detection of source based on C balance
-        # add adsorbed intermediates to visited nodes
-        for reactant in reactants:
-            for step in graph.neighbors(reactant):
-                visited_steps.add(step)
-                inters = step.split('<->')
-                inters = inters[0].split('+') + inters[1].split('+')
-                # remove content between parentheses
-                inters = [re.sub(r'\(.*\)', '', inter) for inter in inters]
-                if source in inters:
-                    source_ads = step
-                for inter in inters:
-                    if inter not in visited_inters:
-                        visited_inters.add(inter)
-                visited_steps.add(step)
-        
-        def is_step_accessible(node, current_inter, visited_inters):
-            inters = node.split('<->')
-            inters[0] = inters[0].split('+')
-            inters[1] = inters[1].split('+')
-            inters[0] = [re.sub(r'\(.*\)', '', inter) for inter in inters[0]]
-            inters[1] = [re.sub(r'\(.*\)', '', inter) for inter in inters[1]]
-            if current_inter in inters[0]:
-                for inter in inters[0]:
-                    if inter not in visited_inters:
-                        return False
-            else:
-                for inter in inters[1]:
-                    if inter not in visited_inters:
-                        return False
-            return True
-        
-        # define source as the argument which contains carbon
-        from collections import deque
-        queue = deque([(source, [reactants[0], source_ads, source])])  # Each element of the queue is a tuple (node, path_so_far)
-        # include in path so far all visited_inters and visited_steps
-        # path_so_far = []
-        # for inter in visited_inters:
-        #     path_so_far.append(inter)
-        # for step in visited_steps:
-        #     path_so_far.append(step)
-        # path_so_far += [reactants[0], source_ads, source]
+    def find_all_paths(self, source, targets, graph, path=[], cutoff=None):
+        path = path + [source]
+        paths = []
 
-        # queue = deque([(source, path_so_far)])  # Each element of the queue is a tuple (node, path_so_far)
-        counter =  0
-        while queue:
-            current_inter, path_so_far = queue.popleft()
-            counter += 1
-            
-            if current_inter == target:
-                print("PATH FOUND!!! {}".format(target))
-                path = [item for item in path_so_far if '<->' in item]
-                new_graph = nx.DiGraph()
-                for node in path_so_far:
-                    if node in graph.nodes:
-                        new_graph.add_node(node)
-                # check all nodes whose degree is one and if are not one of the input args, remove the entire branch of thebranch
-                condition = all([new_graph.degree(node) != 1 for node in new_graph.nodes if node not in reactants + [target]])
-                while not condition:
-                    for node in new_graph.nodes:
-                        if new_graph.degree(node) == 1 and node not in reactants + [target]:
-                            new_graph.remove_node(node)
-                print(new_graph.nodes)
-                print("Number of necessary steps from {} to {}: {}".format(reactants[0], target, len(set(path))))
-                return path, path_so_far
-                
+        # Check if the path length has exceeded the cutoff
+        if cutoff is not None and len(path) > cutoff:
+            return []
 
-            for step in graph.neighbors(current_inter):
-                if step not in visited_steps and is_step_accessible(step, current_inter, visited_inters):
-                    visited_steps.add(step)                    
-                    for product in graph.neighbors(step):
-                        if product not in visited_inters:
-                            path_so_far = path_so_far + [step, product]
-                            queue.append((product, path_so_far))
-                            visited_inters.add(product)
-                else:
-                    continue
+        # Add the path if either it ends in the target or it has not exceeded the cutoff length
+        if source in targets or (cutoff is not None and len(path) <= cutoff):
+            paths.append(path)
 
-        return "No path found"
+        if not graph.has_node(source):
+            return []
+
+        for node in graph.neighbors(source):
+            if node not in path:
+                newpaths = self.find_all_paths(node, targets, graph, path, cutoff)
+                for newpath in newpaths:
+                    paths.append(newpath)
+        return paths
+
+
+    def find_all_paths_from_sources_to_targets(self, sources, targets, cutoff=None):
+        graph = self.gen_graph(del_surf=True, show_steps=False)
+        
+        for edge in list(graph.edges):
+            graph.add_edge(edge[1], edge[0])
+
+        all_paths = {}
+        for source in sources:
+            for target in targets:
+                if source != target:
+                    paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
+                    paths = [path for path in paths if path[-1] == target]
+                    all_paths[(source, target)] = paths
+        return all_paths
+
+
+
+    def find_paths_through_intermediate(self, source, target, intermediate, cutoff=None):
+        graph = self.gen_graph(del_surf=True, show_steps=False)
+        
+        for edge in list(graph.edges):
+            graph.add_edge(edge[1], edge[0])
+
+        paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
+        # Only storing those paths that end in the intermediate
+        paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
+        
+        paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
+        # Only storing those paths that end in the target
+        paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
+
+        # Concatenate the paths to get complete paths from source to target via intermediate
+        complete_paths = []
+        for path1 in paths_to_intermediate:
+            for path2 in paths_from_intermediate:
+                # Check if concatenating the paths exceeds the cutoff
+                if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
+                    # Remove the duplicate intermediate node before appending
+                    complete_path = path1 + path2[1:]
+                    complete_paths.append(complete_path)
+
+        return complete_paths
     
-
-    def get_shortest_path2(self, reactants: list[str], target: str):
-        """
-        Given a reactant and a product, return the minimum number of reactions to go from one to the other.
+    def filter_intersecting_paths(self, all_paths):
+        grouped_paths = {}
         
-        Parameters
-        ----------
-        mol1_code : str
-            Code of the reactant.
-        mol2_code : str
-            Code of the product.
-        
-        Returns
-        -------
-        int
-            Minimum number of reactions to go from one to the other.
-        """
-
-        for reactant in reactants:
-            if reactant not in self.intermediates.keys():
-                raise ValueError('First argument must be in the network')
-            if not self.intermediates[reactant].closed_shell:
-                raise ValueError('First argument must be closed shell')
-        if target not in self.intermediates.keys():
-            raise ValueError('Second argument must be in the network')
-        if not self.intermediates[target].closed_shell:
-            raise ValueError('Second argument must be closed shell')        
-        
-        graph = self.gen_graph(del_surf=True, show_steps=False).to_undirected()
-        visited_inters = set([*reactants])  # starting point (gas reactants plus surface)
-        visited_steps = set()
-        source = reactants[0].replace('g', '*')  # TODO: automatic detection of source based on C balance
-        # add adsorbed intermediates to visited nodes
-        # for reactant in reactants:
-        #     for step in graph.neighbors(reactant):
-        #         visited_steps.add(step)
-        #         inters = step.split('<->')
-        #         inters = inters[0].split('+') + inters[1].split('+')
-        #         # remove content between parentheses
-        #         inters = [re.sub(r'\(.*\)', '', inter) for inter in inters]
-        #         if source in inters:
-        #             source_ads = step
-        #         for inter in inters:
-        #             if inter not in visited_inters:
-        #                 visited_inters.add(inter)
-        #         visited_steps.add(step)
-        
-        # def is_step_accessible(node, current_inter, visited_inters):
-        #     inters = node.split('<->')
-        #     inters[0] = inters[0].split('+')
-        #     inters[1] = inters[1].split('+')
-        #     inters[0] = [re.sub(r'\(.*\)', '', inter) for inter in inters[0]]
-        #     inters[1] = [re.sub(r'\(.*\)', '', inter) for inter in inters[1]]
-        #     if current_inter in inters[0]:
-        #         for inter in inters[0]:
-        #             if inter not in visited_inters:
-        #                 return False
-        #     else:
-        #         for inter in inters[1]:
-        #             if inter not in visited_inters:
-        #                 return False
-        #     return True
-        
-        # define source as the argument which contains carbon
-        # from collections import deque
-        # queue = deque([(source, [reactants[0], source_ads, source])])  # Each element of the queue is a tuple (node, path_so_far)
-        # # include in path so far all visited_inters and visited_steps
-        # # path_so_far = []
-        # # for inter in visited_inters:
-        # #     path_so_far.append(inter)
-        # # for step in visited_steps:
-        # #     path_so_far.append(step)
-        # # path_so_far += [reactants[0], source_ads, source]
-
-        # # queue = deque([(source, path_so_far)])  # Each element of the queue is a tuple (node, path_so_far)
-        # counter =  0
-        # while queue:
-        #     current_inter, path_so_far = queue.popleft()
-        #     counter += 1
-            
-        #     if current_inter == target:
-        #         print("PATH FOUND!!! {}".format(target))
-        #         path = [item for item in path_so_far if '<->' in item]
-        #         new_graph = nx.DiGraph()
-        #         for node in path_so_far:
-        #             if node in graph.nodes:
-        #                 new_graph.add_node(node)
-        #         # check all nodes whose degree is one and if are not one of the input args, remove the entire branch of thebranch
-        #         condition = all([new_graph.degree(node) != 1 for node in new_graph.nodes if node not in reactants + [target]])
-        #         while not condition:
-        #             for node in new_graph.nodes:
-        #                 if new_graph.degree(node) == 1 and node not in reactants + [target]:
-        #                     new_graph.remove_node(node)
-        #         print(new_graph.nodes)
-        #         print("Number of necessary steps from {} to {}: {}".format(reactants[0], target, len(set(path))))
-        #         return path, path_so_far
+        for (source1, target1), paths1 in all_paths.items():
+            for path1 in paths1:
+                # Convert the list to a tuple to use it as a dictionary key
+                path1_tuple = tuple(path1)
+                end_node1 = path1[-1]  # End node of the path
+                if path1_tuple not in grouped_paths:
+                    grouped_paths[path1_tuple] = []
                 
+                for (source2, target2), paths2 in all_paths.items():
+                    # Make sure the source is different and the target is the same before proceeding
+                    if source1 != source2 and target1 == target2:
+                        for path2 in paths2:
+                            end_node2 = path2[-1]  # End node of the path
+                            if set(path1[1:-1]) & set(path2[1:-1]) and end_node1 == end_node2:
+                                grouped_paths[path1_tuple].append(path2)
 
-        #     for step in graph.neighbors(current_inter):
-        #         if step not in visited_steps and is_step_accessible(step, current_inter, visited_inters):
-        #             visited_steps.add(step)                    
-        #             for product in graph.neighbors(step):
-        #                 if product not in visited_inters:
-        #                     path_so_far = path_so_far + [step, product]
-        #                     queue.append((product, path_so_far))
-        #                     visited_inters.add(product)
-        #         else:
-        #             continue
-
-        # return "No path found"
-
-        shortest_path = nx.shortest_path(graph, source=reactants[0], target=target)
-        return shortest_path
-
-    
-
-            
+        # If grouped_paths.values is a dict of empty lists, return original all_paths
+        if not any(grouped_paths.values()):
+            return all_paths
+        else:                 
+            return grouped_paths
         
