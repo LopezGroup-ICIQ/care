@@ -454,7 +454,7 @@ class ReactionNetwork:
     def graph(self, other):
         self._graph = other
 
-    def calc_ts_energy(self, ener_func: callable):
+    def calc_reaction_energy(self, ener_func: callable):
         """Use a custom function to calculate the energy of the transition
         states and the energy of the edges.
 
@@ -574,7 +574,7 @@ class ReactionNetwork:
                         continue
                     brk[r_type].append(reaction)
 
-    def search_ts(self, init, final=None):
+    def search_reaction(self, init, final=None):
         """Given a list of codes or intermediates, search the related elementary reactions.
 
         Args:
@@ -607,7 +607,7 @@ class ReactionNetwork:
                 ts_lst.append(t_state)
         return tuple(ts_lst)
     
-    def search_ts_1(self, init, final=None):
+    def search_reaction_1(self, init, final=None):
         """Given a list of codes or intermediates, search the related
         related transition states.
 
@@ -641,7 +641,7 @@ class ReactionNetwork:
                 ts_lst.append(reaction)
         return reaction
 
-    def search_ts_by_code(self, code: str):
+    def search_reaction_by_code(self, code: str):
         """Given an arbitrary code, returns the TS with the matching code.
 
         Args:
