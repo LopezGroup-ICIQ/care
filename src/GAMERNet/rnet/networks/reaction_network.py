@@ -2,6 +2,7 @@ import re
 from os.path import abspath
 from os import makedirs
 from shutil import rmtree
+from typing import Union
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -55,21 +56,65 @@ class ReactionNetwork:
         self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
         self.num_reactions = len(self.reactions)
 
-    def __getitem__(self, other):
-        if other in self.intermediates:
+    def __getitem__(self, other: Union[str, int]):
+        if isinstance(other, str):
             return self.intermediates[other]
-        out_value = self.search_ts_by_code(other)
-        if out_value:
-            return out_value
-        raise KeyError
+        elif isinstance(other, int):
+            return self.reactions[other]
+        else:
+            raise TypeError("Index must be str or int")
     
     def __str__(self):
-        string = "ReactionNetwork({} surface intermediates, {} gas molecules, {} elementary reactions)\n".format(len(self.intermediates) -  1, 
+        string = "ReactionNetwork({} adsorbed intermediates, {} gas molecules, {} elementary reactions)\n".format(len(self.intermediates) - 1 - self.num_closed_shell_mols, 
                                                                                                             self.num_closed_shell_mols, 
                                                                                                             len(self.reactions))
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         return string
+    
+    def __repr__(self):
+        return self.__str__()
+    
+    def __len__(self):
+        return len(self.reactions)
+    
+    def __iter__(self):
+        return iter(self.reactions)
+    
+    def __contains__(self, other: Union[str, Intermediate, ElementaryReaction]):
+        if isinstance(other, str):
+            return other in self.intermediates
+        elif isinstance(other, Intermediate):
+            return other in self.intermediates.values()
+        elif isinstance(other, ElementaryReaction):
+            return other in self.reactions
+        else:
+            raise TypeError("Index must be str, Intermediate or ElementaryReaction")
+        
+    def __eq__(self, other):
+        if isinstance(other, ReactionNetwork):
+            return self.intermediates == other.intermediates and self.reactions == other.reactions
+        else:
+            return False
+        
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __add__(self, other):
+        if isinstance(other, ReactionNetwork):
+            new_net = ReactionNetwork()
+            new_net.intermediates = {**self.intermediates, **other.intermediates}
+            new_net.reactions = self.reactions + other.reactions
+            new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
+            new_net.num_closed_shell_mols = len(new_net.closed_shells)  
+            new_net.num_intermediates = len(new_net.intermediates) - 1
+            new_net.num_reactions = len(new_net.reactions)
+            new_net.ncc = self.ncc
+            new_net.surface = self.surface
+            new_net.graph = None
+            return new_net
+        else:
+            raise TypeError("Can only add ReactionNetwork to ReactionNetwork")
 
     @classmethod
     def from_dict(cls, net_dict: dict):
@@ -86,9 +131,7 @@ class ReactionNetwork:
             transition states of the dictionary.
         """
         new_net = cls()
-
-        int_list_gen = {}
-        rxn_list_gen = []
+        int_list_gen, rxn_list_gen = {}, []
         for inter in net_dict['intermediates']:
             curr_inter = Intermediate(**inter)
             int_list_gen[curr_inter.code] = curr_inter
@@ -122,8 +165,7 @@ class ReactionNetwork:
         return new_net
 
     def to_dict(self):
-        intermediate_list = []
-        reaction_list = []
+        intermediate_list, reaction_list = [], []
 
         for intermediate in self.intermediates.values():
             curr_inter = {}
@@ -141,7 +183,6 @@ class ReactionNetwork:
             curr_reaction = {}
             curr_reaction["code"]=reaction.code
             reaction_i_list = []
-
             for j in reaction.components:
                 tupl_comp_list = []
                 for i in j:
@@ -169,18 +210,9 @@ class ReactionNetwork:
 
         Args:
             inter_dict (dict of obj:`Intermediate`): Intermediates that will be
-            added the network.
+            added to the network.
         """
         self.intermediates.update(inter_dict)
-
-    def add_reactions(self, rxn_lst: list[ElementaryReaction]):
-        """Add transition states to the network between present intermediates.
-
-        Args:
-            ts_lst (list of obj:`ElementaryReaction`): List containing the
-                transition states that will be added to network.
-        """
-        self.reactions += rxn_lst
 
     def del_intermediates(self, inter_lst: list[str]):
         """Delete intermediates from the network and all elementary reactions involving them.
@@ -203,11 +235,24 @@ class ReactionNetwork:
         print(f"Number of intermediates before: {num_ints_0}, after: {len(self.intermediates)}")
         print(f"Number of reactions before: {num_rxns_0}, after: {len(self.reactions)}")
 
-    def del_reactions(self, rxn_lst: list[str]):
-        """Delete transition states from the network.
+    def add_reactions(self, rxn_lst: list[ElementaryReaction]):
+        """
+        Add elementary reactions to the network.
 
         Args:
-            ts_lst (list of str): List containing the codes of the transition
+            rxn_lst (list of obj:`ElementaryReaction`): List containing the
+                elementary reactions.
+        """
+        self.reactions += rxn_lst
+
+
+    def del_reactions(self, rxn_lst: list[str]):
+        """
+        Delete elementary reactions from the network. Additionally, delete
+        all intermediates that are not participating in any reaction.
+
+        Args:
+            rxn_lst (list of str): List containing the codes of the transition
                 states that will be deleted.
         """
         num_rxns_0 = len(self.reactions)
@@ -230,7 +275,7 @@ class ReactionNetwork:
         print(f"Deleted {inter_counter} intermediates and {rxn_counter} elementary reactions")
         print(f"Number of reactions before: {num_rxns_0}, after: {num_rxns_fin}")
 
-    def add_dict(self, net_dict):
+    def add_dict(self, net_dict: dict):
         """Add dictionary containing two different keys: intermediates and ts.
         The items of the dictionary will be added to the network.
 
@@ -239,7 +284,7 @@ class ReactionNetwork:
               be added to the dictionary.
         """
         self.intermediates.update(net_dict['intermediates'])
-        self.reactions += net_dict['ts']
+        self.reactions += net_dict['reactions']
 
     def search_graph(self, mol_graph, cate=None):
         """Search for an intermediate with a isomorphic graph.
@@ -340,8 +385,9 @@ class ReactionNetwork:
         return nx_graph
 
     def get_min_max(self):
-        """Returns the minimum and the maximum energy of the intermediates and
-        the transition states.
+        """
+        Return the minimum and the maximum energy of the intermediates and
+        the elementary reactions.
 
         Returns:
             list of two floats containing the min and max value.
@@ -372,7 +418,6 @@ class ReactionNetwork:
                        show_steps: bool=True):
         graph = self.gen_graph(del_surf=del_surf, highlight=highlight, show_steps=show_steps)
         pos = nx.kamada_kawai_layout(graph)
-        # pos = nx.spring_layout(graph)
         nx.set_node_attributes(graph, pos, 'pos')
         plot = nx.drawing.nx_pydot.to_pydot(graph)
         for node in plot.get_nodes():
@@ -418,19 +463,15 @@ class ReactionNetwork:
             if highlight is not None and node.get_attributes()['switch'] == 'True':
                 node.set_color("red")
                 # increase node width
-                node.set_penwidth("3")
-                
+                node.set_penwidth("3")                
 
         for edge in plot.get_edges():
             if highlight is not None and edge.get_attributes()['switch'] == 'True':
                 edge.set_color("red")
-                # increase edge width
                 edge.set_penwidth("4")
             else:
                 edge.set_color("azure4")
-                edge.set_penwidth("4")
-
-        
+                edge.set_penwidth("4")   
                     
 
         a4_dims = (8.3, 11.7)  # In inches
@@ -440,8 +481,7 @@ class ReactionNetwork:
         plot.set_bgcolor("navyblue") 
         plot.write_png('./'+filename)
         # remove not empty tmp folder
-        rmtree('tmp')
-        
+        rmtree('tmp')     
 
 
     @property
@@ -537,7 +577,6 @@ class ReactionNetwork:
 
         pos = nx.drawing.layout.kamada_kawai_layout(self.graph)
 
-
         nx.drawing.draw_networkx_nodes(self.graph, pos=pos, ax=axes,
                                        nodelist=node_inf['ts']['node_lst'],
                                        node_color=node_inf['ts']['color'],
@@ -555,11 +594,11 @@ class ReactionNetwork:
         # add white background to the plot
         axes.set_facecolor('white')
         fig.tight_layout()
-
         return fig
 
     def search_connections(self):
-        """Add to the intermediates the transition states where they are
+        """
+        Search for each intermediate the elementary reactions in which it is
         involved.
         """
         for reaction in self.reactions:
@@ -573,73 +612,21 @@ class ReactionNetwork:
                     if reaction in brk[r_type]:
                         continue
                     brk[r_type].append(reaction)
-
-    def search_reaction(self, init, final=None):
-        """Given a list of codes or intermediates, search the related elementary reactions.
-
-        Args:
-            init (list of str or obj:`Intermediate`): List containing the
-                reactants or the products of the wanted transition state.
-            final (list of str or obj:`Intermediate`, optional): List
-                containing the component at the another side of the reaction.
-                Defaults to a simple list.
-
-        Returns:
-            tuple of obj:`ElementaryReaction` containing all the matches.
-        """
-        if final is None:
-            final = []
-        ts_lst = []
-        new_init = []
-        new_final = []
-        for old, new in zip((init, final), (new_init, new_final)):
-            for item in old:
-                if isinstance(item, (str, int)):
-                    new.append(self.intermediates[str(item)])
-                else:
-                    new.append(item)
-        new_init = frozenset(new_init)
-        new_final = frozenset(new_final)
-        for t_state in self.reactions:
-            comps = t_state.components
-            if (new_init.issubset(comps[0]) and new_final.issubset(comps[1]) or
-                new_init.issubset(comps[1]) and new_final.issubset(comps[0])):
-                ts_lst.append(t_state)
-        return tuple(ts_lst)
     
-    def search_reaction_1(self, init, final=None):
-        """Given a list of codes or intermediates, search the related
-        related transition states.
+    def search_reaction_by_inter(self, inters: list[str]) -> list[ElementaryReaction]:
+        """
+        Return the elementary reactions that involve the given intermediates.
 
         Args:
-            init (list of str or obj:`Intermediate`): List containing the
-                reactants or the products of the wanted transition state.
-            final (list of str or obj:`Intermediate`, optional): List
-                containing the component at the another side of the reaction.
-                Defaults to a simple list.
+            inters (list of str): List containing the codes of the intermediates.
 
         Returns:
-            tuple of obj:`ElementaryReaction` containing all the matches.
+            list of obj:`ElementaryReaction` containing all the matches.
         """
-        if final is None:
-            final = []
-        ts_lst = []
-        new_init = []
-        new_final = []
-        for old, new in zip((init, final), (new_init, new_final)):
-            for item in old:
-                if isinstance(item, (str, int)):
-                    new.append(self.intermediates[str(item)])
-                else:
-                    new.append(item)
-        new_init = frozenset(new_init)
-        new_final = frozenset(new_final)
-        for reaction in self.reactions:
-            comps = reaction.components
-            if (new_init.issubset(comps[0]) and new_final.issubset(comps[1]) or
-                new_init.issubset(comps[1]) and new_final.issubset(comps[0])):
-                ts_lst.append(reaction)
-        return reaction
+        condition = lambda step: all([inter in step.reactants or inter in step.products for inter in inters])
+        rxn_list = [reaction for reaction in self.reactions if condition(reaction)]
+        print(f"{len(rxn_list)} elementary reactions involving the intermediates {inters}")
+        return rxn_list
 
     def search_reaction_by_code(self, code: str):
         """Given an arbitrary code, returns the TS with the matching code.
@@ -810,6 +797,9 @@ class ReactionNetwork:
         return diagram
 
     def find_all_paths(self, source, targets, graph, path=[], cutoff=None):
+        """
+        TODO: Add docstring
+        """
         path = path + [source]
         paths = []
 
@@ -833,6 +823,9 @@ class ReactionNetwork:
 
 
     def find_all_paths_from_sources_to_targets(self, sources, targets, cutoff=None):
+        """
+        TODO: Add docstring
+        """
         graph = self.gen_graph(del_surf=True, show_steps=False)
         
         for edge in list(graph.edges):
@@ -850,6 +843,8 @@ class ReactionNetwork:
 
 
     def find_paths_through_intermediate(self, source, target, intermediate, cutoff=None):
+        """TODO:  add docstring 
+        """
         graph = self.gen_graph(del_surf=True, show_steps=False)
         
         for edge in list(graph.edges):
@@ -937,16 +932,3 @@ class ReactionNetwork:
         print(f"Rank of the species-element matrix: {rank}")
         print(f"Number of global reactions: {nc - rank}")
         return nc - rank
-        
-        
-            
-        
-        
-
-
-        
-        
-
-        
-        
-        

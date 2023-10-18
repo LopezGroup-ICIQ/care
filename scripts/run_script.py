@@ -110,6 +110,12 @@ if __name__ == "__main__":
     print('Generating reaction network...')
     rxn_net = generate_rxn_net(surface.slab, args.ncc)
     print('Time taken to generate the reaction network: {:.2f} s\n'.format(time.time() - time0))
+    rxn_net_dict = rxn_net.to_dict()
+    rxn_net_dict['ncc'] = args.ncc
+    rxn_net_dict['surface'] = surface
+    with open(f"{args.o}/rxn_net_bp.pkl", "wb") as outfile:
+        pickle.dump(rxn_net_dict, outfile)
+        print(f"The reaction network pickle file has been generated\n")
 
     print('Generating adsorption configurations...')
     print('It can take some time, please be patient...')

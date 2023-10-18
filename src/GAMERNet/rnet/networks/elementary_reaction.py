@@ -276,3 +276,5 @@ class ElementaryReaction:
             out_str += '<->'
         self.repr = out_str[:-3]
         self.reactants, self.products = self.products, self.reactants
+        self.energy = -self.energy, self.energy[1]
+        self.e_act = self.e_act[0] - self.energy[0], self.e_act[1]
