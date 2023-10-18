@@ -326,8 +326,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
 
     Returns
     -------
-    tuple[dict, dict]
-        
+    tuple[dict, dict]        
     """
 
     # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)

@@ -45,66 +45,66 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
             for node in network.nodes():
                 try:
                     sel_node = network.nodes[node]
-                    electrons = af.adjust_electrons(sel_node['mol'])
                     new_inter = Intermediate(code=node+'*', 
                                              molecule=sel_node['mol'], 
                                              graph=sel_node['graph'],  
-                                             electrons=electrons,
-                                             formula=sel_node['mol'].get_chemical_formula(),
                                              phase='ads')
-                    new_inter._graph = new_inter.gen_graph()
                     network_dict[key]['intermediates'][node] = new_inter
                 except KeyError:
                     print("KeyError: Node {} not found in the dictionary".format(node))
-                    pass
-    
-    true_h_inter = network_dict['[H][H]']['intermediates']['01011']
-    
+                    pass    
+    h_inter = network_dict['[H][H]']['intermediates']['01011']    
 
     for key, network in rxn_dict.items():
         if key != '[H][H]':
             network_dict[key] = {'intermediates': {}, 'reactions': []}
-
             for node in network.nodes():
                 try:
                     sel_node = network.nodes[node]
-                    electrons = af.adjust_electrons(sel_node['mol'])
                     new_inter = Intermediate(code=node+'*', 
                                             molecule=sel_node['mol'], 
                                             graph=sel_node['graph'],  
-                                            electrons=electrons,
-                                            formula=sel_node['mol'].get_chemical_formula(),
                                             phase='ads')
-                    new_inter._graph = new_inter.gen_graph()
                     network_dict[key]['intermediates'][node] = new_inter
                 except KeyError:
                     print("KeyError: Node {} not found in the dictionary".format(node))
-                    pass
-
-        
+                    pass        
         
         for edge in list(network.edges()):
             try:
                 inters = (network_dict[key]['intermediates'][edge[0]], network_dict[key]['intermediates'][edge[1]])
-
                 if len(inters[0].molecule) > len(inters[1].molecule):
-                    rxn_lhs = (inters[0], surf_inter)
-                    rxn_rhs = (inters[1], true_h_inter)
+                    rxn_lhs, rxn_rhs = (inters[0], surf_inter), (inters[1], h_inter)
                 else:
-                    rxn_lhs = (inters[1], surf_inter)
-                    rxn_rhs = (inters[0], true_h_inter)
-                rxn_sides = (rxn_lhs, rxn_rhs)  # elementary reaction: lhs -> rhs
-                new_ts = ElementaryReaction(components=rxn_sides, r_type='C-H')
-                # Specific r_typ case for H-H
-                condition1 = 'C' not in inters[0].molecule.get_chemical_symbols() and 'C' not in inters[1].molecule.get_chemical_symbols()
-                condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
-                if condition1 and condition2:
-                    new_ts.r_type = 'H-H'
-                for t_state in network_dict[key]['reactions']:
-                    if t_state.components == new_ts.components:
+                    rxn_lhs, rxn_rhs = (inters[1], surf_inter), (inters[0], h_inter)
+                new_rxn = ElementaryReaction(components=(rxn_lhs, rxn_rhs), r_type='C-H')
+                # classify H-H and O-H
+                hh_condition1 = 'C' not in inters[0].molecule.get_chemical_symbols() and 'C' not in inters[1].molecule.get_chemical_symbols()
+                hh_condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
+                if hh_condition1 and hh_condition2:
+                    new_rxn.r_type = 'H-H'
+                check_bonds = []
+                for component in new_rxn.components:
+                    for inter in list(component):
+                        if inter.is_surface or inter.code in ('01011-*', '02011-*'): #surface or a hydrogen atom,
+                            continue
+                        else:
+                            oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
+                            if len(oxy) != 0:
+                                counter = 0
+                                for atom in oxy:
+                                    counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom.index)
+                                check_bonds.append(counter)
+                            else:
+                                check_bonds.append(0)
+                if check_bonds[0] != check_bonds[1]:
+                    new_rxn.r_type = 'O-H'
+                
+                for reaction in network_dict[key]['reactions']:
+                    if reaction.components == new_rxn.components:
                         break
                 else: # if the for loop is not broken
-                    network_dict[key]['reactions'].append(new_ts)
+                    network_dict[key]['reactions'].append(new_rxn)
             except KeyError:
                 print("Key Error: Edge {} not found in the dictionary".format(edge))
                 pass

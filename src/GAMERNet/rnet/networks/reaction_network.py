@@ -173,8 +173,6 @@ class ReactionNetwork:
             curr_inter['molecule']=intermediate.molecule
             curr_inter['graph']=intermediate.graph
             curr_inter['ads_configs']=intermediate.ads_configs
-            curr_inter['formula']=intermediate.formula
-            curr_inter['electrons']=intermediate.electrons
             curr_inter['is_surface']=intermediate.is_surface
             curr_inter['phase']=intermediate.phase
             intermediate_list.append(curr_inter)
@@ -191,14 +189,11 @@ class ReactionNetwork:
                     curr_reaction_i_dict['molecule']=i.molecule
                     curr_reaction_i_dict['graph']=i.graph
                     curr_reaction_i_dict['ads_configs']=i.ads_configs
-                    curr_reaction_i_dict['formula']=i.formula
-                    curr_reaction_i_dict['electrons']=i.electrons
                     curr_reaction_i_dict['is_surface']=i.is_surface
                     curr_reaction_i_dict['phase']=i.phase
                     tupl_comp_list.append(curr_reaction_i_dict)
                 reaction_i_list.append(tupl_comp_list)
             curr_reaction["components"]=reaction_i_list
-            curr_reaction["energy"]=reaction.energy
             curr_reaction["r_type"]=reaction.r_type
             curr_reaction["is_electro"]=reaction.is_electro
             reaction_list.append(curr_reaction)

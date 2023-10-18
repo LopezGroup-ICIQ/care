@@ -1,11 +1,13 @@
 from ase import Atoms
-from networkx import Graph
+from networkx import Graph, draw
 from GAMERNet.rnet.utilities import functions as fn
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
+from GAMERNet.gnn_eads.constants import CORDERO, RGB_COLORS
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 
 PHASES = ['gas', 'ads', 'surf']
+ELEMENTS = ['C', 'H', 'O']
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
@@ -23,18 +25,18 @@ class Intermediate:
                  molecule: Atoms=None,
                  graph: Graph=None, 
                  ads_configs: dict[str, dict]={},
-                 formula: str=None, 
-                 electrons: int=None,
                  is_surface: bool=False,
                  phase: str=None):
         
         self.code = code
-        self.formula = formula
         self.molecule = molecule
+        self.is_surface = is_surface
+        if not all(elem in ELEMENTS for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
+            raise ValueError(f"Molecule {self.molecule} contains elements other than C, H, O")
+        self.formula = molecule.get_chemical_formula()
         self._graph = graph
         self.ads_configs = ads_configs
-        self.electrons = electrons
-        self.is_surface = is_surface
+        self.electrons = self.get_num_electrons()
         self.bader = None
         self.voltage = None
         self.smiles = self.get_smiles()
@@ -66,7 +68,6 @@ class Intermediate:
     def __repr__(self):        
         return self.repr
 
-    # TODO: Use Santi function to generate the code
     # def draft(self):
     #     """Draft of the intermediate generated using the associated graph.
 
@@ -74,11 +75,11 @@ class Intermediate:
     #         obj:`matplotlib.pyplot.Figure` with the image of the draft.
     #     """
     #     color_map, node_size = [], []
-    #     for node in self.graph.nodes():
-    #         color_map.append(RGB_COLORS[node.element])
-    #         node_size.append(CORDERO[node.element] * 5000)
-    #     return nx.draw(self.graph, node_color=color_map,
-    #                    node_size=node_size, width=15)
+    #     for node in self.graph.nodes(data=True):
+    #         color_map.append(RGB_COLORS[node[1]['elem']])
+    #         node_size.append(CORDERO[node[1]['elem']])
+    #     return draw(self.graph, node_color=color_map,
+    #                    node_size=node_size)
 
     @property
     def bader_energy(self):
@@ -106,11 +107,8 @@ class Intermediate:
         new_mol = ase_atoms_obj.copy()
         new_mol.arrays['conn_pairs'] = fn.get_voronoi_neighbourlist(new_mol, 0.25, 1, ['C', 'H', 'O'])
         new_graph = ase_coord_2_graph(new_mol, coords=False)
-        new_formula = new_mol.get_chemical_formula()
         return cls(code=code, molecule=new_mol, graph=new_graph,
-                        formula=new_formula,
-                        is_surface=is_surface, phase=phase)
-    
+                        is_surface=is_surface, phase=phase)    
 
     @property
     def graph(self):
@@ -236,3 +234,9 @@ class Intermediate:
         Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
         smiles = Chem.MolToSmiles(conn_mol)
         return smiles
+    
+    def get_num_electrons(self):
+        """
+        Get the number of electrons of the intermediate.
+        """
+        return 4 * self.molecule.get_chemical_symbols().count('C') + self.molecule.get_chemical_symbols().count('H') - 2 * self.molecule.get_chemical_symbols().count('O')

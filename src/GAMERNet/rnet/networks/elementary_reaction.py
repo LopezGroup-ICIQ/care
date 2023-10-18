@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 
-REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption']
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption', 'pseudo']
 
 class ElementaryReaction:
     """Class for representing elementary reactions.
@@ -11,13 +11,11 @@ class ElementaryReaction:
         code (str): Code associated with the elementary reaction.
         components (list of frozensets): List containing the frozensets.
             with the components of the reaction.
-        energy (float): Transition state energy of the elementary reaction.
         r_type (str): Elementary reaction type.
     """
     def __init__(self, 
                  code: str=None, 
                  components: tuple[frozenset[Intermediate]]=None, 
-                 energy: float=0.0,
                  r_type: str=None, 
                  is_electro: bool=False):
         self._code = code
@@ -25,7 +23,7 @@ class ElementaryReaction:
         self.components = components
         self.reactants = self.components[0]
         self.products = self.components[1]
-        self.energy = energy
+        self.energy = None
         self.e_act = None
         self._bader_energy = None
         self.r_type = r_type
@@ -41,8 +39,11 @@ class ElementaryReaction:
         self.repr = out_str[:-3]
         self.stoic = self.solve_stoichiometry()
 
+    def __str__(self):
+        return self.repr
+
     def __repr__(self):
-        return self.repr        
+        return self.repr + f' [{self.r_type}]'        
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
@@ -50,7 +51,19 @@ class ElementaryReaction:
         return False
 
     def __hash__(self):
-        return hash((self.components))
+        return hash((self.components)) 
+
+    def __add__(self, other):
+        if isinstance(other, ElementaryReaction):
+            step = ElementaryReaction(components=(self.components[0] | other.components[0], self.components[1] | other.components[1]), r_type='pseudo')
+            if step.energy is None or other.energy is None:
+                step.energy = None
+            else:
+                step.energy = self.energy[0] + other.energy[0], (self.energy[1]**2 + other.energy[1]**2)**0.5
+            # TODO: fix stoichiometric coefficients
+            return step
+        else:
+            raise TypeError('The object is not an ElementaryReaction')   
 
     @property
     def bader_energy(self):
@@ -61,68 +74,37 @@ class ElementaryReaction:
     @bader_energy.setter
     def bader_energy(self, other):
         self._bader_energy = other
-
+    
     def bb_order(self):
         """
-        Order the components of the elementary reaction in the direction of the
-        bond breaking reaction, e.g.:
+        Set the elementary reaction in the bond-breaking direction, e.g.:
         CH4 + * -> CH3 + H*
-
-        Returns:
-            list of frozensets containing the reactants before the bond
-            breaking in the firs position and the products before the breakage.
+        If is not in the bond-breaking direction, reverse it
+        Adsorption steps are reversed to desorption steps, while desorption steps are preserved
         """
-        new_list = list(self.components)
-        flatten = [list(comp) for comp in self.components]
-        max_numb = 0
-        for index, item in enumerate(flatten):
-            for species in item:
-                if species.is_surface:
-                    new_list.insert(0, new_list.pop(index))
-                    break
-                tmp_numb = len(species.molecule)
-                if tmp_numb > max_numb:
-                    max_numb = tmp_numb
-                    index_numb = index
+        if self.r_type in ('adsorption', 'desorption'):
+            if self.r_type == 'adsorption':
+                self.reverse()
             else:
-                continue
-            break
+                pass
         else:
-            new_list.insert(0, new_list.pop(index_numb))
-        return new_list
-
-    def full_order(self):
-        """
-        missing docstring
-        """
-        ordered = self.bb_order()
-        react, prod = ordered
-        react = list(react)
-        prod = list(prod)
-        order = []
-        for item in [react, prod]:
-            try:
-                mols = [item[0],
-                        item[1]]
-            except IndexError:
-                mols = [item[0], item[0]]
-                
-            if mols[0].is_surface:
-                order.append(mols[::-1])
-            elif not mols[1].is_surface and (len(mols[0].molecule) <
-                                             len(mols[1].molecule)):
-                order.append(mols[::-1])
+            size_reactants, size_products = [], []
+            for reactant in self.reactants:
+                if not reactant.is_surface:
+                    size_reactants.append(len(reactant.molecule))
+            for product in self.products:
+                if not product.is_surface:
+                    size_products.append(len(product.molecule))
+            if max(size_reactants) < max(size_products):
+                self.reverse()
             else:
-                order.append(mols)
-        return order
+                pass
 
     def calc_reaction_energy(self, bader=False, min_state=True):
         """
         Get the reaction energy of the elementary reaction.
 
         Args:
-            reverse (bool, optional): If True, the reaction energy will be
-                calculated in the reverse direction. Defaults to False.
             bader (bool, optional): If True, the reaction energy will be
                 calculated using the Bader energies of the intermediates.
                 Defaults to False.
@@ -152,7 +134,6 @@ class ElementaryReaction:
                 var_h.append(self.stoic[1][i] * std_min_config**2)
         else:
             pass
-        # return sum(v_h), sum(var_h)**0.5
         self.energy = sum(v_h), sum(var_h)**0.5
 
     def calc_reaction_barrier(self, bader: bool=False, bep_params: list[float]=[0.4, 0.7], min_state: bool=True):
@@ -172,7 +153,6 @@ class ElementaryReaction:
                 # raise ValueError('The reaction barrier is lower than the reaction energy')
                 # warning
                 pass
-
 
     @property
     def components(self):
@@ -199,7 +179,7 @@ class ElementaryReaction:
         self._code = other
 
     def add_components(self, pair):
-        """Add components to the transition state.
+        """Add components to the elementary reaction.
 
         Args:
             pair (list of Intermediate): Intermediates that will be added to
@@ -208,20 +188,20 @@ class ElementaryReaction:
         new_pair = frozenset(pair)
         self.components.append(new_pair)
 
-    def draft(self):
-        """Draw a draft of the transition state using the drafts of the
-        components.
+    # def draft(self):
+    #     """Draw a draft of the transition state using the drafts of the
+    #     components.
 
-        Returns:
-            obj:`matplotlib.pyplot.Figure` containing the draft.
-        """
-        counter = 1
-        for item in self.components:
-            for component in item:
-                plt.subplot(2, 2, counter)
-                component.draft()
-                counter += 1
-        return plt.show()
+    #     Returns:
+    #         obj:`matplotlib.pyplot.Figure` containing the draft.
+    #     """
+    #     counter = 1
+    #     for component in self.components:
+    #         for intermediate in component:
+    #             plt.subplot(2, 2, counter)
+    #             intermediate.draft()
+    #             counter += 1
+    #     return plt.show()
     
     def solve_stoichiometry(self):
         """Solve the stoichiometry of the elementary reaction.
@@ -258,6 +238,7 @@ class ElementaryReaction:
         """
         Reverse the elementary reaction.
         Example: A + B <-> C + D becomes C + D <-> A + B
+        reaction energy and barrier are also reversed 
         """
         self.components = self.components[::-1]
         self.stoic = self.stoic[::-1]
@@ -276,5 +257,7 @@ class ElementaryReaction:
             out_str += '<->'
         self.repr = out_str[:-3]
         self.reactants, self.products = self.products, self.reactants
-        self.energy = -self.energy, self.energy[1]
-        self.e_act = self.e_act[0] - self.energy[0], self.e_act[1]
+        if self.energy != None:
+            self.energy = -self.energy[0], self.energy[1]
+        if self.e_act != None:
+            self.e_act = self.e_act[0] - self.energy[0], self.e_act[1]

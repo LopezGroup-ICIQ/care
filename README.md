@@ -1,10 +1,10 @@
-# care-AI
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 
-This is the repository of CARE, a framework for the automatic reaction mechanism generation of heterogeneous catalytic reactions with uncertainty-based energy estimators.
-It consists of 3 building blocks: 
- - R-Net, for the automatic construction and interactive reduction of reaction mechanisms for both thermal and electro heterogeneous catalytic processes.
- - GAME-Net, a graph neural networks (GNNs) for the fast estimation of the adsorption energy of molecules (containing C, H, O, N, S) on 14 transition metal surfaces.
- - pyMKM, a microkinetic modeling tool for representing experimental reactors.
+
+# FranCATstein
+
+CARE (*Catalysis Automatic Reaction Evaluator*) is a package for automatically building reaction networks for heterogeneous catalysis with energy estimation through uncertainty-based graph-neural networks.
 
 
 ## Installation
