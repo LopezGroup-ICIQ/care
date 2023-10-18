@@ -26,6 +26,7 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     
     # 1) Generate all the intermediates
     intermediate_dict, map_dict = generate_intermediates(ncc)    
+    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='00000*', is_surface=True, phase='surf')
     
     # 2) Generate the network dictionary
     inter_att = generate_dict(intermediate_dict)
@@ -35,7 +36,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
 
     # 3) Generate the reaction network
-    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='00000*', is_surface=True, phase='surf')
     rxn_net = ReactionNetwork(intermediates={'00000': surf_inter}, ncc=ncc)
     for item in int_net:
         select_net = network_dict[item]

@@ -6,6 +6,7 @@ from numpy import max, arange
 from GAMERNet.rnet.graphs.graph_fn import connectivity_analysis, ase_coord_2_graph
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.surface import Surface
+from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
 from pymatgen.io.ase import AseAtomsAdaptor
 import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
 from ase import Atoms
@@ -69,6 +70,30 @@ def generate_inp_vars(adsorbate: ase.Atoms,
         "potcar_dir": 'False',
     }
     return inp_vars
+
+def process_adsorbed_intermediate(key: str, rxn_net: ReactionNetwork, surface: Surface):
+    """
+    Generates the adsorption configurations for a given adsorbed intermediate and surface.
+
+    Parameters
+    ----------
+    key : str
+        Code of the adsorbed intermediate.
+    rxn_net : ReactionNetwork
+        Reaction network.
+    surface : Surface
+        Surface.
+
+    Returns
+    -------
+    key : str
+        Code of the adsorbed intermediate.
+    gen_ads_config : list[Atoms]
+        List of adsorption configurations.
+    """
+    intermediate = rxn_net.intermediates[key]
+    gen_ads_config = ads_placement(intermediate, surface)
+    return key, gen_ads_config
 
 def ads_placement(intermediate: Intermediate, 
                  surface: Surface) -> list[Atoms]:

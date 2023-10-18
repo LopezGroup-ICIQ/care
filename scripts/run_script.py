@@ -12,8 +12,7 @@ from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
-from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.adsorbate_placement import ads_placement
+from GAMERNet.rnet.adsorbate_placement import process_adsorbed_intermediate
 from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator, get_fragment_energy
 
 metal_structure_dict = {
@@ -32,30 +31,6 @@ metal_structure_dict = {
     "Ru": "hcp",
     "Zn": "hcp"
 }
-
-def process_adsorbed_intermediate(key: str, rxn_net: ReactionNetwork, surface: Surface):
-    """
-    Generates the adsorption configurations for a given adsorbed intermediate and surface.
-
-    Parameters
-    ----------
-    key : str
-        Code of the adsorbed intermediate.
-    rxn_net : ReactionNetwork
-        Reaction network.
-    surface : Surface
-        Surface.
-
-    Returns
-    -------
-    key : str
-        Code of the adsorbed intermediate.
-    gen_ads_config : list[Atoms]
-        List of adsorption configurations.
-    """
-    intermediate = rxn_net.intermediates[key]
-    gen_ads_config = ads_placement(intermediate, surface)
-    return key, gen_ads_config
 
 
 if __name__ == "__main__":

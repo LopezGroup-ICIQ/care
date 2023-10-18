@@ -465,15 +465,15 @@ class ReactionNetwork:
                 edge.set_color("red")
                 edge.set_penwidth("4")
             else:
-                edge.set_color("azure4")
-                edge.set_penwidth("4")   
+                edge.set_color("black")
+                edge.set_penwidth("1")   
                     
 
         a4_dims = (8.3, 11.7)  # In inches
         plot.set_size(f"{a4_dims[1],a4_dims[0]}!")
         plot.set_orientation("landscape")  
         # define background color
-        plot.set_bgcolor("navyblue") 
+        plot.set_bgcolor("white") 
         plot.write_png('./'+filename)
         # remove not empty tmp folder
         rmtree('tmp')     
@@ -837,7 +837,7 @@ class ReactionNetwork:
 
 
 
-    def find_paths_through_intermediate(self, source, target, intermediate, cutoff=None):
+    def find_paths_through_intermediate(self, source, target, intermediate=None, cutoff=None):
         """TODO:  add docstring 
         """
         graph = self.gen_graph(del_surf=True, show_steps=False)
@@ -845,25 +845,29 @@ class ReactionNetwork:
         for edge in list(graph.edges):
             graph.add_edge(edge[1], edge[0])
 
-        paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
-        # Only storing those paths that end in the intermediate
-        paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
-        
-        paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
-        # Only storing those paths that end in the target
-        paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
+        if intermediate:
+            paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
+            # Only storing those paths that end in the intermediate
+            paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
+            
+            paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
+            # Only storing those paths that end in the target
+            paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
+            # Concatenate the paths to get complete paths from source to target via intermediate
+            complete_paths = []
+            for path1 in paths_to_intermediate:
+                for path2 in paths_from_intermediate:
+                    # Check if concatenating the paths exceeds the cutoff
+                    if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
+                        # Remove the duplicate intermediate node before appending
+                        complete_path = path1 + path2[1:]
+                        complete_paths.append(complete_path)
 
-        # Concatenate the paths to get complete paths from source to target via intermediate
-        complete_paths = []
-        for path1 in paths_to_intermediate:
-            for path2 in paths_from_intermediate:
-                # Check if concatenating the paths exceeds the cutoff
-                if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
-                    # Remove the duplicate intermediate node before appending
-                    complete_path = path1 + path2[1:]
-                    complete_paths.append(complete_path)
+            return complete_paths
+        else:
+            paths_to_intermediate = self.find_all_paths(source, target, graph, cutoff=cutoff) 
+            return paths_to_intermediate        
 
-        return complete_paths
     
     def filter_intersecting_paths(self, all_paths):
         grouped_paths = {}
