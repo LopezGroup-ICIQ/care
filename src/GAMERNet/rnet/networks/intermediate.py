@@ -51,10 +51,6 @@ class Intermediate:
                 raise ValueError(f"Phase must be one of {PHASES}")
             self.phase = phase
         self.t_states = [{}, {}]
-        if self.phase in ('surf', 'ads'):
-            self.repr = self.code + '({}*)'.format(self.formula)
-        else:
-            self.repr = self.code + '({}(g))'.format(self.formula)
 
     def __hash__(self):
         return hash(self.code)
@@ -67,20 +63,14 @@ class Intermediate:
         raise NotImplementedError
 
     def __repr__(self):        
-        return self.repr
-
-    # def draft(self):
-    #     """Draft of the intermediate generated using the associated graph.
-
-    #     Returns:
-    #         obj:`matplotlib.pyplot.Figure` with the image of the draft.
-    #     """
-    #     color_map, node_size = [], []
-    #     for node in self.graph.nodes(data=True):
-    #         color_map.append(RGB_COLORS[node[1]['elem']])
-    #         node_size.append(CORDERO[node[1]['elem']])
-    #     return draw(self.graph, node_color=color_map,
-    #                    node_size=node_size)
+        if self.phase in ('surf', 'ads'):
+            txt = self.code + '({}*)'.format(self.formula)
+        else:
+            txt = self.code + '({}(g))'.format(self.formula)
+        return txt
+    
+    def __str__(self):
+        return self.__repr__()
 
     @property
     def bader_energy(self):
@@ -128,37 +118,6 @@ class Intermediate:
             obj:`nx.DiGraph` Of the associated molecule.
         """
         return fn.digraph(self.molecule, coords=False)
-    
-    # def is_closed_shell(self):
-    #     """
-    #     Check if a molecule is closed-shell or not.
-    #     IN PROGRESS
-    #     """
-
-    #     symbols = self.molecule.get_chemical_symbols()
-    #     coords = self.molecule.get_positions()
-    #     for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
-    #         for j in range(len(coords[i])):
-    #             if abs(coords[i][j]) < 1.0e-6:
-    #                 coords[i][j] = 0.0
-    #     xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
-    #     xyz = "{}\n\n{}".format(len(self.molecule), xyz)
-    #     rdkit_mol = Chem.MolFromXYZBlock(xyz)
-    #     conn_mol = Chem.Mol(rdkit_mol)
-    #     rdDetermineBonds.DetermineConnectivity(conn_mol)
-    #     Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
-    #     #TODO: Improve function as it is not working properly
-    #     # unpaired_electrons = 0
-    #     # for atom in conn_mol.GetAtoms():
-    #     #     unpaired_electrons += atom.GetNumRadicalElectrons()
-
-    #     # if unpaired_electrons == 0:
-    #     #     return True
-    #     # else:
-    #     #     return False
-    #     num_electrons = sum([Chem.GetPeriodicTable().GetNOuterElecs(atom.GetAtomicNum()) for atom in conn_mol.GetAtoms()])
-    #     is_open_shell = num_electrons % 2 == 1
-    #     return not is_open_shell
     
     def is_closed_shell(self):
         """
@@ -214,8 +173,7 @@ class Intermediate:
                         else:
                             node_valence_dict[max_degree_node][0] += 1
                             node_valence_dict[max_degree_node_unsat_neighbours[0]][0] += 1
-                return True                  
-
+                return True                
     
     def get_smiles(self):
         """

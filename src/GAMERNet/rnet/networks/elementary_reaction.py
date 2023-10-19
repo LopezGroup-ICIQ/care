@@ -17,7 +17,7 @@ class ElementaryReaction:
     """
     def __init__(self, 
                  code: str=None, 
-                 components: tuple[frozenset[Intermediate]]=None, 
+                 components: tuple[list[Intermediate]]=None, 
                  r_type: str=None, 
                  is_electro: bool=False):
         self._code = code
@@ -32,24 +32,22 @@ class ElementaryReaction:
         if self.r_type not in REACTION_TYPES:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
-        out_str = ''
-        for comp in self.components:
-            for inter in comp:
-                out_str += inter.repr + '+'
-            out_str = out_str[:-1]
-            out_str += '<->'
-        self.repr = out_str[:-3]
-        # print(self.reactants, self.products)
         if self.r_type != 'pseudo':
             self.stoic = self.solve_stoichiometry()
         else:
-            self.stoic = None
+            self.stoic = None      
 
-    def __str__(self):
-        return self.repr
+    def __str__(self) -> str:
+        return self.__repr__()
 
-    def __repr__(self):
-        return self.repr + f' [{self.r_type}]'        
+    def __repr__(self) -> str:
+        out_str = ''
+        for i, comp in enumerate(self.components):
+            for j, inter in enumerate(comp):
+                out_str += '[{}]'.format(str(abs(self.stoic[i][j]))) + inter.__str__() + '+'
+            out_str = out_str[:-1]
+            out_str += '<->'
+        return out_str[:-3]        
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
@@ -61,24 +59,22 @@ class ElementaryReaction:
 
     def __add__(self, other):
         if isinstance(other, ElementaryReaction):
-            stoic_1_dict = {}
+            stoic1_dict, stoic2_dict, stoic_dict = {}, {}, {}
             for i, inter in enumerate(self.reactants):
-                stoic_1_dict[inter] = self.stoic[0][i]
+                stoic1_dict[inter] = self.stoic[0][i]
             for i, inter in enumerate(self.products):
-                stoic_1_dict[inter] = self.stoic[1][i]
-            stoic_2_dict = {}
+                stoic1_dict[inter] = self.stoic[1][i]
             for i, inter in enumerate(other.reactants):
-                stoic_2_dict[inter] = other.stoic[0][i]
+                stoic2_dict[inter] = other.stoic[0][i]
             for i, inter in enumerate(other.products):
-                stoic_2_dict[inter] = other.stoic[1][i]
-            stoic_dict = {}
+                stoic2_dict[inter] = other.stoic[1][i]
             species = set(self.reactants) | set(self.products) | set(other.reactants) | set(other.products)
             for specie in species:
                 stoic_dict[specie] = 0
-            for specie in stoic_1_dict.keys():
-                stoic_dict[specie] += stoic_1_dict[specie]
-            for specie in stoic_2_dict.keys():
-                stoic_dict[specie] += stoic_2_dict[specie]
+            for specie in stoic1_dict.keys():
+                stoic_dict[specie] += stoic1_dict[specie]
+            for specie in stoic2_dict.keys():
+                stoic_dict[specie] += stoic2_dict[specie]
             reactants, products, stoic = [], [], [[], []]
             for specie in list(stoic_dict.keys()):
                 if stoic_dict[specie] == 0:
@@ -89,7 +85,7 @@ class ElementaryReaction:
                 else:
                     reactants.append(specie)
                     stoic[0].append(stoic_dict[specie])
-            step = ElementaryReaction(components=(reactants, products), r_type='pseudo')
+            step = ElementaryReaction(components=[reactants, products], r_type='pseudo')
             step.stoic = stoic
             if step.energy is None or other.energy is None:
                 step.energy = None
@@ -110,7 +106,7 @@ class ElementaryReaction:
             if step.energy is None:
                 step.energy = None
             else:
-                step.energy = self.energy[0] * other, self.energy[1] # TODO: check this
+                step.energy = self.energy[0] * other, self.energy[1]
             return step
         else:
             raise TypeError('The object is not an ElementaryReaction')
@@ -218,13 +214,13 @@ class ElementaryReaction:
         else:
             _ = []
             for item in other:
-                _.append(frozenset(item))
+                _.append(list(item))
             self._components = tuple(_)
 
     @property
     def code(self):
         if self._code is None:
-            self._code = self.repr
+            self._code = self.__repr__()
         return self._code
 
     @code.setter
@@ -238,23 +234,8 @@ class ElementaryReaction:
             pair (list of Intermediate): Intermediates that will be added to
                 the components.
         """
-        new_pair = frozenset(pair)
+        new_pair = list(pair)
         self.components.append(new_pair)
-
-    # def draft(self):
-    #     """Draw a draft of the transition state using the drafts of the
-    #     components.
-
-    #     Returns:
-    #         obj:`matplotlib.pyplot.Figure` containing the draft.
-    #     """
-    #     counter = 1
-    #     for component in self.components:
-    #         for intermediate in component:
-    #             plt.subplot(2, 2, counter)
-    #             intermediate.draft()
-    #             counter += 1
-    #     return plt.show()
     
     def solve_stoichiometry(self) -> list[list[int]]:
         """Solve the stoichiometry of the elementary reaction.
@@ -265,11 +246,6 @@ class ElementaryReaction:
         """
         reactants = [specie for specie in self.reactants]
         products = [specie for specie in self.products]
-        if self.r_type == 'pseudo':
-            # check if there is a common intermediate among the reactants and products
-            for reactant in reactants:
-                if reactant in products:
-                    print('intermediate found: ', reactant.repr)
         species = reactants + products
         elements = set()
         for specie in species:
@@ -306,18 +282,11 @@ class ElementaryReaction:
             self.stoic[0][v] *= -1
         for v in range(len(self.stoic[1])):
             self.stoic[1][v] *= -1
-        self.energy = -self.energy if self.energy is not None else None
         if self.r_type in ('adsorption', 'desorption'):
             self.r_type = 'desorption' if self.r_type == 'adsorption' else 'adsorption'
-        out_str = ''
-        for comp in self.components:
-            for inter in comp:
-                out_str += inter.repr + '+'
-            out_str = out_str[:-1]
-            out_str += '<->'
-        self.repr = out_str[:-3]
         self.reactants, self.products = self.products, self.reactants
         if self.energy != None:
             self.energy = -self.energy[0], self.energy[1]
         if self.e_act != None:
             self.e_act = self.e_act[0] - self.energy[0], self.e_act[1]
+        self.__repr__()
