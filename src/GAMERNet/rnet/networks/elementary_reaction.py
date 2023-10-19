@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.linalg import null_space
 
 from GAMERNet.rnet.networks.intermediate import Intermediate
 
@@ -37,7 +39,11 @@ class ElementaryReaction:
             out_str = out_str[:-1]
             out_str += '<->'
         self.repr = out_str[:-3]
-        self.stoic = self.solve_stoichiometry()
+        # print(self.reactants, self.products)
+        if self.r_type != 'pseudo':
+            self.stoic = self.solve_stoichiometry()
+        else:
+            self.stoic = None
 
     def __str__(self):
         return self.repr
@@ -55,15 +61,62 @@ class ElementaryReaction:
 
     def __add__(self, other):
         if isinstance(other, ElementaryReaction):
-            step = ElementaryReaction(components=(self.components[0] | other.components[0], self.components[1] | other.components[1]), r_type='pseudo')
+            stoic_1_dict = {}
+            for i, inter in enumerate(self.reactants):
+                stoic_1_dict[inter] = self.stoic[0][i]
+            for i, inter in enumerate(self.products):
+                stoic_1_dict[inter] = self.stoic[1][i]
+            stoic_2_dict = {}
+            for i, inter in enumerate(other.reactants):
+                stoic_2_dict[inter] = other.stoic[0][i]
+            for i, inter in enumerate(other.products):
+                stoic_2_dict[inter] = other.stoic[1][i]
+            stoic_dict = {}
+            species = set(self.reactants) | set(self.products) | set(other.reactants) | set(other.products)
+            for specie in species:
+                stoic_dict[specie] = 0
+            for specie in stoic_1_dict.keys():
+                stoic_dict[specie] += stoic_1_dict[specie]
+            for specie in stoic_2_dict.keys():
+                stoic_dict[specie] += stoic_2_dict[specie]
+            reactants, products, stoic = [], [], [[], []]
+            for specie in list(stoic_dict.keys()):
+                if stoic_dict[specie] == 0:
+                    pass
+                elif stoic_dict[specie] > 0:
+                    products.append(specie)
+                    stoic[1].append(stoic_dict[specie])
+                else:
+                    reactants.append(specie)
+                    stoic[0].append(stoic_dict[specie])
+            step = ElementaryReaction(components=(reactants, products), r_type='pseudo')
+            step.stoic = stoic
             if step.energy is None or other.energy is None:
                 step.energy = None
             else:
                 step.energy = self.energy[0] + other.energy[0], (self.energy[1]**2 + other.energy[1]**2)**0.5
-            # TODO: fix stoichiometric coefficients
             return step
         else:
-            raise TypeError('The object is not an ElementaryReaction')   
+            raise TypeError('The object is not an ElementaryReaction')
+
+    def __mul__(self, other):
+        if isinstance(other, float) or isinstance(other, int):
+            step = ElementaryReaction(components=(self.reactants, self.products), r_type='pseudo')
+            step.stoic = [[], []]
+            for v in range(len(self.stoic[0])):
+                step.stoic[0].append(self.stoic[0][v] * other)
+            for v in range(len(self.stoic[1])):
+                step.stoic[1].append(self.stoic[1][v] * other)
+            if step.energy is None:
+                step.energy = None
+            else:
+                step.energy = self.energy[0] * other, self.energy[1] # TODO: check this
+            return step
+        else:
+            raise TypeError('The object is not an ElementaryReaction')
+        
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     @property
     def bader_energy(self):
@@ -203,36 +256,43 @@ class ElementaryReaction:
     #             counter += 1
     #     return plt.show()
     
-    def solve_stoichiometry(self):
+    def solve_stoichiometry(self) -> list[list[int]]:
         """Solve the stoichiometry of the elementary reaction.
+        sum_i nu_i * S_i = 0 (nu_i are the stoichiometric coefficients and S_i are the species)
 
         Returns:
             dict containing the stoichiometry of the elementary reaction.
         """
-
-        stoic = [[], []]
-        react_n_atoms = 0
-        for inter in self.components[0]:
-            react_n_atoms += int(inter.molecule.get_chemical_symbols().count('C') + inter.molecule.get_chemical_symbols().count('H') + inter.molecule.get_chemical_symbols().count('O'))
-        prod_n_atoms = 0
-        for inter in self.components[1]:
-            prod_n_atoms += int(inter.molecule.get_chemical_symbols().count('C') + inter.molecule.get_chemical_symbols().count('H') + inter.molecule.get_chemical_symbols().count('O'))
-        stoich_relation = int(react_n_atoms/prod_n_atoms)
-
-        # Adding the stoichiometry of the reactants
-        for idx, inter in enumerate(self.components[0]):
-            copied_list = list(self.components[0].copy())
-            copied_list.pop(idx)
-            remaining_elem = copied_list[0]
-            if stoich_relation != 1 and inter.is_surface and remaining_elem.phase == 'gas':
-                stoic[0].append(-stoich_relation)
-            else:
-                stoic[0].append(-1)
-        # Adding the stoichiometry of the products
-        for inter in self.components[1]:
-            stoic[1].append(stoich_relation)
-
-        return stoic
+        reactants = [specie for specie in self.reactants]
+        products = [specie for specie in self.products]
+        if self.r_type == 'pseudo':
+            # check if there is a common intermediate among the reactants and products
+            for reactant in reactants:
+                if reactant in products:
+                    print('intermediate found: ', reactant.repr)
+        species = reactants + products
+        elements = set()
+        for specie in species:
+            if specie.phase != 'gas':
+                elements.add('*')
+            if not specie.is_surface:
+                elements.update(specie.molecule.get_chemical_symbols())
+        elements = list(elements)
+        nc, na = len(species), len(elements)
+        matrix = np.zeros((nc, na))
+        for i, inter in enumerate(species):
+            for j, element in enumerate(elements):
+                if element == '*' and inter.phase != 'gas':
+                    matrix[i, j] = 1
+                else:
+                    matrix[i, j] = species[i].molecule.get_chemical_symbols().count(element)
+        stoic = null_space(matrix.T)
+        min_abs = min([abs(x) for x in stoic])
+        stoic = np.round(stoic / min_abs).astype(int)
+        if stoic[0] > 0:
+            stoic = [-x for x in stoic]
+        stoic = [int(x[0]) for x in stoic]        
+        return [stoic[:len(reactants)], stoic[len(reactants):]]
     
     def reverse(self):
         """

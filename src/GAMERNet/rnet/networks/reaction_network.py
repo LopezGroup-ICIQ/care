@@ -688,7 +688,10 @@ class ReactionNetwork:
         """
         # view all the available ads_configs ase atoms object
         configs = [config['ase'] for _, config in self.intermediates[inter_code].ads_configs.items()]
-        view(configs)
+        if len(configs) == 0:
+            view(self.intermediates[inter_code].molecule)
+        else:
+            view(configs)
 
     def visualize_reaction(self, reaction_index: int, show_uncertainty: bool=False):
         """

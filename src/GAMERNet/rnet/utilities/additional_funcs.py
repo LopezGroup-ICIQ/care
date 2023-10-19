@@ -10,7 +10,6 @@ from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from collections import Counter
-# from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'C-H' : {'alpha': 0.63, 'beta': 0.81},

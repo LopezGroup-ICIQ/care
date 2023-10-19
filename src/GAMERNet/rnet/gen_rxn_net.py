@@ -9,7 +9,7 @@ from ase import Atoms
 def generate_rxn_net(slab_ase_obj: Atoms, 
                      ncc: int) -> ReactionNetwork:
     """
-    Generates the entire reaction network from the intermediate dictionary and the map dictionary.
+    Generate ReactionNetwork given surface and network carbon cutoff (ncc).
 
     Parameters
     ----------

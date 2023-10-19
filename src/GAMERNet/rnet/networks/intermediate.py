@@ -7,7 +7,7 @@ from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 
 PHASES = ['gas', 'ads', 'surf']
-ELEMENTS = ['C', 'H', 'O']
+ELEMENTS = ['C', 'H', 'O', '*']
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
@@ -20,6 +20,7 @@ class Intermediate:
         entropy (float): Entropy of the intermediate
         formula (str): Formula of the intermediate.
     """
+
     def __init__(self, 
                  code: str=None, 
                  molecule: Atoms=None,
