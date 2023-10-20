@@ -3,6 +3,7 @@ from os.path import abspath
 from os import makedirs
 from shutil import rmtree
 from typing import Union
+from copy import deepcopy
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -287,14 +288,28 @@ class ReactionNetwork:
             mol_graph (obj:`nx.DiGraph`): Digraph that will be used as query.
         """
         if cate is None:
-            cate = iso.categorical_node_match(['elem', 'elem'], ['H', 'O'])
-        coinc_lst = []
+            cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['C','H', 'O'])
+
         for inter in self.intermediates.values():
             if len(mol_graph) != len(inter.graph):
                 continue
-            if nx.is_isomorphic(mol_graph, inter.graph, node_match=cate):
-                coinc_lst.append(inter)
-        return coinc_lst
+            if nx.is_isomorphic(mol_graph.to_undirected(), inter.graph.to_undirected(), node_match=cate):
+                return inter
+
+    def search_graph_closed_shell(self, mol_graph, cate=None):
+        """Search for a gas-phase intermediate with a isomorphic graph.
+        
+        Args:
+            mol_graph (obj:`nx.DiGraph`): Digraph that will be used as query.
+        """
+        if cate is None:
+            cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['C','H', 'O'])
+        for inter in self.intermediates.values():
+            if inter.phase == 'gas':
+                if len(mol_graph) != len(inter.graph):
+                    continue
+                if nx.is_isomorphic(mol_graph.to_undirected(), inter.graph.to_undirected(), node_match=cate):
+                    return inter
 
     def gen_graph(self, del_surf: bool=False, highlight: list=None, show_steps: bool=True) -> nx.DiGraph:
         """
@@ -607,7 +622,7 @@ class ReactionNetwork:
         for reaction in self.reactions:
             if all([condition_dict[i](reaction) for i in condition_dict.keys()]):
                 matches.append(reaction)
-        print(f"{len(matches)} elementary reactions found")
+        # print(f"{len(matches)} elementary reactions found")
         return matches
 
     def search_inter_by_elements(self, element_dict):
@@ -792,12 +807,11 @@ class ReactionNetwork:
                     paths.append(newpath)
         return paths
 
-
-    def find_all_paths_from_sources_to_targets(self, sources, targets, cutoff=None):
+    def find_all_paths_from_sources_to_targets(self, sources, targets, intermediates=None, cutoff=None):
         """
         TODO: Add docstring
         """
-        graph = self.gen_graph(del_surf=True, show_steps=False)
+        graph = self.gen_graph(del_surf=False, show_steps=False)
         
         for edge in list(graph.edges):
             graph.add_edge(edge[1], edge[0])
@@ -809,66 +823,98 @@ class ReactionNetwork:
                     paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
                     paths = [path for path in paths if path[-1] == target]
                     all_paths[(source, target)] = paths
+        print('The shortest path goes through {} intermediates'.format(min([len(path) for path in all_paths.values() for path in path])))
+
+        if intermediates:
+            dict_copy = deepcopy(all_paths)
+            # Check if there are paths that go through the intermediate
+            for source_target in all_paths.values():
+                for path in source_target:
+                    # Check if the path goes through ALL the intermediates
+                    if not all([inter in path for inter in intermediates]):
+                    # if not any([inter in path for inter in intermediates]):
+                        # Deleting the path from the copy if it does not go through the intermediate
+                        dict_copy[(path[0], path[-1])].remove(path)
+            all_paths = dict_copy                        
+
         return all_paths
 
-
-
-    def find_paths_through_intermediate(self, source, target, intermediate=None, cutoff=None):
-        """TODO:  add docstring 
-        """
-        graph = self.gen_graph(del_surf=True, show_steps=False)
+    # def find_all_paths_from_sources_to_targets(self, sources, targets, cutoff=None):
+    #     """
+    #     TODO: Add docstring
+    #     """
+    #     graph = self.gen_graph(del_surf=True, show_steps=False)
         
-        for edge in list(graph.edges):
-            graph.add_edge(edge[1], edge[0])
+    #     for edge in list(graph.edges):
+    #         graph.add_edge(edge[1], edge[0])
 
-        if intermediate:
-            paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
-            # Only storing those paths that end in the intermediate
-            paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
+    #     all_paths = {}
+    #     for source in sources:
+    #         for target in targets:
+    #             if source != target:
+    #                 paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
+    #                 paths = [path for path in paths if path[-1] == target]
+    #                 all_paths[(source, target)] = paths
+    #     return all_paths
+
+
+
+    # def find_paths_through_intermediate(self, source, target, intermediate=None, cutoff=None):
+    #     """TODO:  add docstring 
+    #     """
+    #     graph = self.gen_graph(del_surf=True, show_steps=False)
+        
+    #     for edge in list(graph.edges):
+    #         graph.add_edge(edge[1], edge[0])
+
+    #     if intermediate:
+    #         paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
+    #         # Only storing those paths that end in the intermediate
+    #         paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
             
-            paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
-            # Only storing those paths that end in the target
-            paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
-            # Concatenate the paths to get complete paths from source to target via intermediate
-            complete_paths = []
-            for path1 in paths_to_intermediate:
-                for path2 in paths_from_intermediate:
-                    # Check if concatenating the paths exceeds the cutoff
-                    if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
-                        # Remove the duplicate intermediate node before appending
-                        complete_path = path1 + path2[1:]
-                        complete_paths.append(complete_path)
+    #         paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
+    #         # Only storing those paths that end in the target
+    #         paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
+    #         # Concatenate the paths to get complete paths from source to target via intermediate
+    #         complete_paths = []
+    #         for path1 in paths_to_intermediate:
+    #             for path2 in paths_from_intermediate:
+    #                 # Check if concatenating the paths exceeds the cutoff
+    #                 if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
+    #                     # Remove the duplicate intermediate node before appending
+    #                     complete_path = path1 + path2[1:]
+    #                     complete_paths.append(complete_path)
 
-            return complete_paths
-        else:
-            paths_to_intermediate = self.find_all_paths(source, target, graph, cutoff=cutoff) 
-            return paths_to_intermediate        
+    #         return complete_paths
+    #     else:
+    #         paths_to_intermediate = self.find_all_paths(source, target, graph, cutoff=cutoff) 
+    #         return paths_to_intermediate        
 
     
-    def filter_intersecting_paths(self, all_paths):
-        grouped_paths = {}
+    # def filter_intersecting_paths(self, all_paths):
+    #     grouped_paths = {}
         
-        for (source1, target1), paths1 in all_paths.items():
-            for path1 in paths1:
-                # Convert the list to a tuple to use it as a dictionary key
-                path1_tuple = tuple(path1)
-                end_node1 = path1[-1]  # End node of the path
-                if path1_tuple not in grouped_paths:
-                    grouped_paths[path1_tuple] = []
+    #     for (source1, target1), paths1 in all_paths.items():
+    #         for path1 in paths1:
+    #             # Convert the list to a tuple to use it as a dictionary key
+    #             path1_tuple = tuple(path1)
+    #             end_node1 = path1[-1]  # End node of the path
+    #             if path1_tuple not in grouped_paths:
+    #                 grouped_paths[path1_tuple] = []
                 
-                for (source2, target2), paths2 in all_paths.items():
-                    # Make sure the source is different and the target is the same before proceeding
-                    if source1 != source2 and target1 == target2:
-                        for path2 in paths2:
-                            end_node2 = path2[-1]  # End node of the path
-                            if set(path1[1:-1]) & set(path2[1:-1]) and end_node1 == end_node2:
-                                grouped_paths[path1_tuple].append(path2)
+    #             for (source2, target2), paths2 in all_paths.items():
+    #                 # Make sure the source is different and the target is the same before proceeding
+    #                 if source1 != source2 and target1 == target2:
+    #                     for path2 in paths2:
+    #                         end_node2 = path2[-1]  # End node of the path
+    #                         if set(path1[1:-1]) & set(path2[1:-1]) and end_node1 == end_node2:
+    #                             grouped_paths[path1_tuple].append(path2)
 
-        # If grouped_paths.values is a dict of empty lists, return original all_paths
-        if not any(grouped_paths.values()):
-            return all_paths
-        else:                 
-            return grouped_paths
+    #     # If grouped_paths.values is a dict of empty lists, return original all_paths
+    #     if not any(grouped_paths.values()):
+    #         return all_paths
+    #     else:                 
+    #         return grouped_paths
         
     def get_num_global_reactions(self, reactants: list[str], products: list[str]) -> int:
         """
