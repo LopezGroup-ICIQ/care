@@ -17,7 +17,7 @@ class ElementaryReaction:
     """
     def __init__(self, 
                  code: str=None, 
-                 components: tuple[list[Intermediate]]=None, 
+                 components: tuple[frozenset[Intermediate]]=None, 
                  r_type: str=None, 
                  is_electro: bool=False):
         self._code = code
@@ -44,7 +44,7 @@ class ElementaryReaction:
         out_str = ''
         for i, comp in enumerate(self.components):
             for j, inter in enumerate(comp):
-                out_str += '[{}]'.format(str(abs(self.stoic[i][j]))) + inter.__str__() + '+'
+                out_str += '[{}]'.format(str(abs(self.stoic[inter]))) + inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        
@@ -55,38 +55,41 @@ class ElementaryReaction:
         return False
 
     def __hash__(self):
-        return hash((self.components)) 
+        return hash((self.components))
+
+    def __getitem__(self, key):
+        # if key in self.reactants:
+        #     return self.reactants[key]
+        # elif key in self.products:
+        #     return self.products[key]
+        # else:
+        #     raise KeyError('The key is not in the reactants or products') 
+        pass
 
     def __add__(self, other):
         if isinstance(other, ElementaryReaction):
-            stoic1_dict, stoic2_dict, stoic_dict = {}, {}, {}
-            for i, inter in enumerate(self.reactants):
-                stoic1_dict[inter] = self.stoic[0][i]
-            for i, inter in enumerate(self.products):
-                stoic1_dict[inter] = self.stoic[1][i]
-            for i, inter in enumerate(other.reactants):
-                stoic2_dict[inter] = other.stoic[0][i]
-            for i, inter in enumerate(other.products):
-                stoic2_dict[inter] = other.stoic[1][i]
             species = set(self.reactants) | set(self.products) | set(other.reactants) | set(other.products)
+            stoic_dict = {}
+            for k, v in self.stoic.items():
+                stoic_dict[k] = v
+            for k, v in other.stoic.items():
+                if k in stoic_dict.keys():
+                    stoic_dict[k] += v
+                else:
+                    stoic_dict[k] = v
+            for k, v in list(stoic_dict.items()):
+                if v == 0:
+                    del stoic_dict[k]
+            reactants, products = [], []
             for specie in species:
-                stoic_dict[specie] = 0
-            for specie in stoic1_dict.keys():
-                stoic_dict[specie] += stoic1_dict[specie]
-            for specie in stoic2_dict.keys():
-                stoic_dict[specie] += stoic2_dict[specie]
-            reactants, products, stoic = [], [], [[], []]
-            for specie in list(stoic_dict.keys()):
-                if stoic_dict[specie] == 0:
+                if specie.code not in stoic_dict.keys():
                     pass
-                elif stoic_dict[specie] > 0:
+                elif stoic_dict[specie.code] > 0:
                     products.append(specie)
-                    stoic[1].append(stoic_dict[specie])
                 else:
                     reactants.append(specie)
-                    stoic[0].append(stoic_dict[specie])
             step = ElementaryReaction(components=[reactants, products], r_type='pseudo')
-            step.stoic = stoic
+            step.stoic = stoic_dict
             if step.energy is None or other.energy is None:
                 step.energy = None
             else:
@@ -98,11 +101,9 @@ class ElementaryReaction:
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, int):
             step = ElementaryReaction(components=(self.reactants, self.products), r_type='pseudo')
-            step.stoic = [[], []]
-            for v in range(len(self.stoic[0])):
-                step.stoic[0].append(self.stoic[0][v] * other)
-            for v in range(len(self.stoic[1])):
-                step.stoic[1].append(self.stoic[1][v] * other)
+            step.stoic = {}
+            for k, v in self.stoic.items():
+                step.stoic[k] = v * other
             if step.energy is None:
                 step.energy = None
             else:
@@ -214,7 +215,7 @@ class ElementaryReaction:
         else:
             _ = []
             for item in other:
-                _.append(list(item))
+                _.append(frozenset(item))
             self._components = tuple(_)
 
     @property
@@ -226,18 +227,8 @@ class ElementaryReaction:
     @code.setter
     def code(self, other):
         self._code = other
-
-    def add_components(self, pair):
-        """Add components to the elementary reaction.
-
-        Args:
-            pair (list of Intermediate): Intermediates that will be added to
-                the components.
-        """
-        new_pair = list(pair)
-        self.components.append(new_pair)
     
-    def solve_stoichiometry(self) -> list[list[int]]:
+    def solve_stoichiometry(self) -> dict[str, float]:
         """Solve the stoichiometry of the elementary reaction.
         sum_i nu_i * S_i = 0 (nu_i are the stoichiometric coefficients and S_i are the species)
 
@@ -267,8 +258,11 @@ class ElementaryReaction:
         stoic = np.round(stoic / min_abs).astype(int)
         if stoic[0] > 0:
             stoic = [-x for x in stoic]
-        stoic = [int(x[0]) for x in stoic]        
-        return [stoic[:len(reactants)], stoic[len(reactants):]]
+        stoic = [int(x[0]) for x in stoic] 
+        stoic_dict = {}
+        for i, specie in enumerate(species):
+            stoic_dict[specie.code] = stoic[i]       
+        return stoic_dict
     
     def reverse(self):
         """
@@ -277,11 +271,8 @@ class ElementaryReaction:
         reaction energy and barrier are also reversed 
         """
         self.components = self.components[::-1]
-        self.stoic = self.stoic[::-1]
-        for v in range(len(self.stoic[0])):
-            self.stoic[0][v] *= -1
-        for v in range(len(self.stoic[1])):
-            self.stoic[1][v] *= -1
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v        
         if self.r_type in ('adsorption', 'desorption'):
             self.r_type = 'desorption' if self.r_type == 'adsorption' else 'adsorption'
         self.reactants, self.products = self.products, self.reactants
