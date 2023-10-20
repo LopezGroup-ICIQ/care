@@ -21,6 +21,9 @@ class Intermediate:
         formula (str): Formula of the intermediate.
     """
 
+    phases = PHASES
+    elements = ELEMENTS
+    
     def __init__(self, 
                  code: str=None, 
                  molecule: Atoms=None,

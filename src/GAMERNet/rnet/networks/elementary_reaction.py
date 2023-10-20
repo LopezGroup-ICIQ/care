@@ -15,6 +15,9 @@ class ElementaryReaction:
             with the components of the reaction.
         r_type (str): Elementary reaction type.
     """
+
+    r_types = REACTION_TYPES
+    
     def __init__(self, 
                  code: str=None, 
                  components: tuple[frozenset[Intermediate]]=None, 
@@ -168,20 +171,20 @@ class ElementaryReaction:
         if min_state:
             v_h = []
             var_h = []
-            for i, reactant in enumerate(self.reactants):
+            for reactant in self.reactants:
                 energy_list = [config['energy'] for _, config in reactant.ads_configs.items()]
                 std_list = [config['std'] for _, config in reactant.ads_configs.items()]
                 e_min_config = min(energy_list)
                 std_min_config = std_list[energy_list.index(e_min_config)]
-                v_h.append(self.stoic[0][i] * e_min_config)
-                var_h.append(self.stoic[0][i] * std_min_config**2)
-            for i, product in enumerate(self.products):
+                v_h.append(self.stoic[reactant.code] * e_min_config)
+                var_h.append(self.stoic[reactant.code] * std_min_config**2)
+            for product in self.products:
                 energy_list = [config['energy'] for _, config in product.ads_configs.items()]
                 std_list = [config['std'] for _, config in product.ads_configs.items()]
                 e_min_config = min(energy_list)
                 std_min_config = std_list[energy_list.index(e_min_config)]
-                v_h.append(self.stoic[1][i] * e_min_config)
-                var_h.append(self.stoic[1][i] * std_min_config**2)
+                v_h.append(self.stoic[product.code] * e_min_config)
+                var_h.append(self.stoic[product.code] * std_min_config**2)
         else:
             pass
         self.energy = sum(v_h), sum(var_h)**0.5
@@ -194,15 +197,13 @@ class ElementaryReaction:
         self.calc_reaction_energy(bader=bader, min_state=min_state)
         q, m = bep_params
         if self.energy[0] < 0:
-            # return q + (m - 1) * rxn_energy, (m * std**2)**0.5
             self.e_act = q + (m - 1) * self.energy[0], (m * self.energy[1]**2)**0.5
         else: 
-            # return q + m * rxn_energy, (m * std**2)**0.5
             self.e_act = q + m * self.energy[0], (m * self.energy[1]**2)**0.5
             if self.e_act[0] < self.energy[0]:
-                # raise ValueError('The reaction barrier is lower than the reaction energy')
-                # warning
-                pass
+                print('The reaction barrier is lower than the reaction energy')
+                self.e_act = 0.0, 0.0
+            
 
     @property
     def components(self):

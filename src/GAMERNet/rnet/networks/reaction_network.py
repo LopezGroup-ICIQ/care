@@ -104,7 +104,7 @@ class ReactionNetwork:
         if isinstance(other, ReactionNetwork):
             new_net = ReactionNetwork()
             new_net.intermediates = {**self.intermediates, **other.intermediates}
-            new_net.reactions = self.reactions + other.reactions
+            new_net.reactions = list(set(self.reactions + other.reactions))
             new_net.closed_shells = [inter for inter in new_net.intermediates.values() if inter.closed_shell and inter.phase == 'gas']
             new_net.num_closed_shell_mols = len(new_net.closed_shells)  
             new_net.num_intermediates = len(new_net.intermediates) - 1
@@ -240,7 +240,6 @@ class ReactionNetwork:
         """
         self.reactions += rxn_lst
 
-
     def del_reactions(self, rxn_lst: list[str]):
         """
         Delete elementary reactions from the network. Additionally, delete
@@ -297,7 +296,6 @@ class ReactionNetwork:
                 coinc_lst.append(inter)
         return coinc_lst
 
-    
     def gen_graph(self, del_surf: bool=False, highlight: list=None, show_steps: bool=True) -> nx.DiGraph:
         """
         Generate a graph using the intermediates and the elementary reactions
@@ -393,17 +391,6 @@ class ReactionNetwork:
         # eners = [inter.energy for inter in self.intermediates.values()]
         # eners += [t_state.energy for t_state in self.t_states]
         return [min(eners), max(eners)]
-
-    def get_surface(self):
-        """Search for surfaces among the intermediates and return the matches.
-
-        Returns:
-            list of obj:`Intermediate` containing all the surfaces of the
-            network.
-        """
-        return [inter for inter in self.intermediates.values() if
-                inter.is_surface]
-
     
     def write_dotgraph(self, 
                        fig_path:str, 
@@ -478,7 +465,6 @@ class ReactionNetwork:
         # remove not empty tmp folder
         rmtree('tmp')     
 
-
     @property
     def graph(self):
         if self._graph is None:
@@ -503,16 +489,6 @@ class ReactionNetwork:
             energy = ener_func(self._graph[reaction.code])
             energy_dict[reaction] = {'energy': energy}
         return energy_dict
-
-    @property
-    def surface(self):
-        if self._surface is None:
-            self._surface = self.get_surface()
-        return self._surface
-
-    @surface.setter
-    def surface(self, other):
-        self._surface = other
 
     def draw_graph(self):
         """Create a networkx graph representing the network.
@@ -591,51 +567,48 @@ class ReactionNetwork:
         fig.tight_layout()
         return fig
 
-    def search_connections(self):
+    def search_reaction(self, inters: Union[list[str], str]=None, code: str=None, r_types: Union[list[str], str]=None) -> list[ElementaryReaction]:
         """
-        Search for each intermediate the elementary reactions in which it is
-        involved.
-        """
-        for reaction in self.reactions:
-            comp = reaction.bb_order()
-            r_type = reaction.r_type
-            for index, inter in enumerate(comp):
-                for react in list(inter):
-                    brk = react.reactions[index]
-                    if r_type not in brk:
-                        brk[r_type] = []
-                    if reaction in brk[r_type]:
-                        continue
-                    brk[r_type].append(reaction)
-    
-    def search_reaction_by_inter(self, inters: list[str]) -> list[ElementaryReaction]:
-        """
-        Return the elementary reactions that involve the given intermediates.
+        Search for elementary reactions that match the given parameters.
 
         Args:
-            inters (list of str): List containing the codes of the intermediates.
+            inters (list of str, optional): List containing the codes of the
+                intermediates that will be involved in the reaction. Defaults
+                to None.
+            code (str, optional): Code of the transition state. Defaults to None.
+            r_type (str, optional): Type of the reaction. Defaults to None.
 
         Returns:
             list of obj:`ElementaryReaction` containing all the matches.
         """
-        condition = lambda step: all([inter in step.reactants or inter in step.products for inter in inters])
-        rxn_list = [reaction for reaction in self.reactions if condition(reaction)]
-        print(f"{len(rxn_list)} elementary reactions involving the intermediates {inters}")
-        return rxn_list
+        if inters is None and code is None and r_types is None:
+            raise ValueError("At least one parameter must be given")
+        condition_dict, matches = {}, []
+        if inters is not None:
+            if isinstance(inters, str):
+                inters = [inters]
+            for inter in inters:
+                if inter not in self.intermediates.keys():
+                    raise ValueError(f"Intermediate {inter} not in the network")
+            inters_condition = lambda step: all([inter in step.reactants or inter in step.products for inter in inters])
+            condition_dict['inters'] = inters_condition
+        if code is not None:
+            code_condition = lambda step: step.code == code
+            condition_dict['code'] = code_condition
+        if r_types is not None:
+            if isinstance(r_types, str):
+                r_types = [r_types]
+            for r_type in r_types:
+                if r_type not in ElementaryReaction.r_types:
+                    raise ValueError(f"r_type must be one of {ElementaryReaction.r_types}")
+            r_type_condition = lambda step: step.r_type in r_types
+            condition_dict['r_types'] = r_type_condition
 
-    def search_reaction_by_code(self, code: str):
-        """Given an arbitrary code, returns the TS with the matching code.
-
-        Args:
-            code (str): Code of the transition state.
-
-        Returns:
-            obj:`ElementaryReaction` with the matching code
-        """
         for reaction in self.reactions:
-            if reaction.code == code:
-                return reaction
-        return None
+            if all([condition_dict[i](reaction) for i in condition_dict.keys()]):
+                matches.append(reaction)
+        print(f"{len(matches)} elementary reactions found")
+        return matches
 
     def search_inter_by_elements(self, element_dict):
         """Given a dictionary with the elements as keys and the number of each
