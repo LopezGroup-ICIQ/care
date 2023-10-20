@@ -42,8 +42,8 @@ class ElementaryReaction:
 
     def __repr__(self) -> str:
         out_str = ''
-        for i, comp in enumerate(self.components):
-            for j, inter in enumerate(comp):
+        for component in self.components:
+            for inter in component:
                 out_str += '[{}]'.format(str(abs(self.stoic[inter]))) + inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
@@ -57,16 +57,13 @@ class ElementaryReaction:
     def __hash__(self):
         return hash((self.components))
 
-    def __getitem__(self, key):
-        # if key in self.reactants:
-        #     return self.reactants[key]
-        # elif key in self.products:
-        #     return self.products[key]
-        # else:
-        #     raise KeyError('The key is not in the reactants or products') 
+    def __getitem__(self, key): 
         pass
 
     def __add__(self, other):
+        """
+        The result of adding two elementary reactions is a new elementary reaction with type 'pseudo'
+        """
         if isinstance(other, ElementaryReaction):
             species = set(self.reactants) | set(self.products) | set(other.reactants) | set(other.products)
             stoic_dict = {}
@@ -99,6 +96,9 @@ class ElementaryReaction:
             raise TypeError('The object is not an ElementaryReaction')
 
     def __mul__(self, other):
+        """
+        The result of multiplying an elementary reaction by a number is a new elementary reaction with type 'pseudo'
+        """
         if isinstance(other, float) or isinstance(other, int):
             step = ElementaryReaction(components=(self.reactants, self.products), r_type='pseudo')
             step.stoic = {}
