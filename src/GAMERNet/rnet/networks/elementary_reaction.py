@@ -254,7 +254,14 @@ class ElementaryReaction:
                     matrix[i, j] = 1
                 else:
                     matrix[i, j] = species[i].molecule.get_chemical_symbols().count(element)
+        print(elements, species, matrix)
+        print("matrix rank:", np.linalg.matrix_rank(matrix.T))
+        print("matrix null space:", null_space(matrix.T), rcond=1e-9)
         stoic = null_space(matrix.T)
+        # print(stoic.shape)
+        # remove columns that contain zeros or values close to zero
+        stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
+        # print(stoic)
         min_abs = min([abs(x) for x in stoic])
         stoic = np.round(stoic / min_abs).astype(int)
         if stoic[0] > 0:

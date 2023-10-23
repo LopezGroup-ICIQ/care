@@ -281,6 +281,41 @@ def connectivity_helper(atoms: Atoms) -> dict[int, list]:
         connections[index] = [element for row in selected_rows for element in row if element != index]
     return connections
 
+# from collections import defaultdict
+# import numpy as np
+# from ase import Atoms
+
+# def connectivity_helper(atoms: Atoms) -> dict[int, list]:
+#     """
+#     Return a dictionary whose key is the atom index and the value a list with the indices of the atoms connected to the key atom.
+
+#     Parameters
+#     ----------
+#     atoms : Atoms
+#         ASE atoms object.
+
+#     Returns
+#     -------
+#     dict[int, list]
+#         Dictionary with the connectivity information.
+#     """
+#     if len(atoms) == 1:
+#         return {}
+    
+#     conn_matrix = atoms.arrays.get(
+#         'conn_pairs',
+#         get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
+#     )
+#     atoms.arrays['conn_pairs'] = conn_matrix
+
+#     connections = defaultdict(list)
+#     for index in range(len(atoms)):
+#         selected_rows = conn_matrix[np.isin(conn_matrix, [index]).any(axis=1)]
+#         connections[index] = [elem for row in selected_rows for elem in row if elem != index]
+
+#     return dict(connections)  # Convert defaultdict back to regular dict if necessary
+
+
 
 def bond_analysis(mol: Atoms, comp_dist: bool=False) -> BondPackage:
     """
@@ -767,65 +802,100 @@ def mkm_g_file_TS(network, filename='g.mkm'):
 def calculate_weigth(elems):
     return sum([ELEM_WEIGTHS[key] * value for key, value in elems.items()])
 
+# def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
+#     """
+#     Where the magic happens.
+#     Generate all possible C-O, C-C and C-OH bonds for the given molecule.
+#     Returns a dictionary whose keys are the different types of bond breakages
+#     and the values are lists of obj:`nx.Graph` containing the generated
+#     molecules after the breakage.
+#     Keys: 'C-O', 'C-C', 'C-OH', 'O-O', 'H-H'
+
+#     Args:
+#         molecule (obj:`ase.atoms.Atoms`): Molecule that will be used
+#             to detect the breakeages.
+
+#     Returns:
+#         dict with the keys being the types of bond breakings containing the 
+#         obj:`nx.DiGraph` with the generated molecules after the breakage.
+
+#     Note:
+#         The C-OH bond is considered for electrochemical reactions purposes.
+#     """
+#     connections = connectivity_helper(molecule)
+#     bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': [], 'O-OH': []}  # C-H and O-H already considered
+#     bond_pack = bond_analysis(molecule)
+#     mol_graph = ase_coord_2_graph(molecule, coords=False)
+#     for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
+#         for pair in bond_pack.bond_search(bond_type):
+#             tmp_graph = mol_graph.copy()
+#             tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
+#             sub_graphs = [tmp_graph.subgraph(comp).copy() for comp in
+#                         nx.connected_components(tmp_graph)]
+#             if bond_type in (('O', 'C'), ('C', 'O')):
+#                 oh_bond = False
+#                 for atom in pair.atoms: # check if O is connected to H
+#                     if atom.symbol == 'O':
+#                         if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
+#                             oh_bond = True
+#                     else:
+#                         continue
+#                 if oh_bond:
+#                     bonds['C-OH'].append(sub_graphs)
+#                 else:
+#                     bonds['C-O'].append(sub_graphs)
+#             elif ('O', 'O') == bond_type:
+#                 oh_bond = False
+#                 for atom in pair.atoms: # check if O is connected to H
+#                     if atom.symbol == 'O':
+#                         if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
+#                             oh_bond = True
+#                     else:
+#                         continue
+#                 if oh_bond:
+#                     bonds['O-OH'].append(sub_graphs)
+#                 else:
+#                     bonds['O-O'].append(sub_graphs)
+#             elif ('H', 'H') == bond_type:
+#                 bonds['H-H'].append(sub_graphs)
+#             else:
+#                 bonds['C-C'].append(sub_graphs)
+#     return bonds
+
 def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
-    """
-    Where the magic happens.
-    Generate all possible C-O, C-C and C-OH bonds for the given molecule.
-    Returns a dictionary whose keys are the different types of bond breakages
-    and the values are lists of obj:`nx.Graph` containing the generated
-    molecules after the breakage.
-    Keys: 'C-O', 'C-C', 'C-OH', 'O-O', 'H-H'
-
-    Args:
-        molecule (obj:`ase.atoms.Atoms`): Molecule that will be used
-            to detect the breakeages.
-
-    Returns:
-        dict with the keys being the types of bond breakings containing the 
-        obj:`nx.DiGraph` with the generated molecules after the breakage.
-
-    Note:
-        The C-OH bond is considered for electrochemical reactions purposes.
-    """
     connections = connectivity_helper(molecule)
-    bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': [], 'O-OH': []}  # C-H and O-H already considered
+    bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': [], 'O-OH': []}
     bond_pack = bond_analysis(molecule)
     mol_graph = ase_coord_2_graph(molecule, coords=False)
+
+    def check_oh_bond(atom):
+        return 'H' in [molecule[con].symbol for con in connections[atom.index]]
+
     for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
         for pair in bond_pack.bond_search(bond_type):
             tmp_graph = mol_graph.copy()
             tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
-            sub_graphs = [tmp_graph.subgraph(comp).copy() for comp in
-                        nx.connected_components(tmp_graph)]
+            sub_graphs = [tmp_graph.subgraph(comp).copy() for comp in nx.connected_components(tmp_graph)]
+
             if bond_type in (('O', 'C'), ('C', 'O')):
-                oh_bond = False
-                for atom in pair.atoms: # check if O is connected to H
-                    if atom.symbol == 'O':
-                        if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
-                            oh_bond = True
-                    else:
-                        continue
+                oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
                 if oh_bond:
                     bonds['C-OH'].append(sub_graphs)
                 else:
                     bonds['C-O'].append(sub_graphs)
-            elif ('O', 'O') == bond_type:
-                oh_bond = False
-                for atom in pair.atoms: # check if O is connected to H
-                    if atom.symbol == 'O':
-                        if 'H' in [molecule[con].symbol for con in connections[atom.index]]:
-                            oh_bond = True
-                    else:
-                        continue
+            elif bond_type == ('O', 'O'):
+                oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
                 if oh_bond:
                     bonds['O-OH'].append(sub_graphs)
                 else:
                     bonds['O-O'].append(sub_graphs)
-            elif ('H', 'H') == bond_type:
+            elif bond_type == ('H', 'H'):
                 bonds['H-H'].append(sub_graphs)
             else:
                 bonds['C-C'].append(sub_graphs)
+
     return bonds
+
 
 
 def find_matching_intermediates(graph, cate, cached_graphs):
@@ -856,7 +926,7 @@ def find_matching_intermediates(graph, cate, cached_graphs):
 
 def validate_components(in_comp):
     """
-    Validates the components based on the length of the molecule.
+    Validates the components based on the element material balance.
     
     Args:
         in_comp (list): List of components.
@@ -870,9 +940,22 @@ def validate_components(in_comp):
             if mol.is_surface:
                 continue
             chk_lst[index] += len(mol.molecule)
-    return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]/2
+    return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]*2
 
-def create_or_append_reaction(reaction, reaction_set, reaction_list):
+# def create_or_append_reaction(reaction, reaction_set, reaction_list):
+#     """
+#     Adds a new reaction to the list or updates an existing one.
+    
+#     Args:
+#         reaction (ElementaryReaction): The reaction to add or update.
+#         reaction_set (set): Set of existing reactions for quick lookup.
+#         reaction_list (list): List of reactions.
+#     """
+#     if reaction.components not in reaction_set:
+#         reaction_set.add(reaction.components)
+#         reaction_list.append(reaction)
+
+def create_or_append_reaction(reaction: ElementaryReaction, reaction_set: set, reaction_list: list):
     """
     Adds a new reaction to the list or updates an existing one.
     
@@ -880,17 +963,66 @@ def create_or_append_reaction(reaction, reaction_set, reaction_list):
         reaction (ElementaryReaction): The reaction to add or update.
         reaction_set (set): Set of existing reactions for quick lookup.
         reaction_list (list): List of reactions.
+
+    Returns:
+        bool: True if the reaction was added, False otherwise.
     """
     if reaction.components not in reaction_set:
         reaction_set.add(reaction.components)
         reaction_list.append(reaction)
+        return True
+    return False
+
+
+# def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
+#     """
+#     For an entire network, perform a breakage search for all the intermediates,
+#     search if the generated submolecules belong to the network and if so, create
+#     an ElementaryReaction object that connects all the species.
+    
+#     Args:
+#         intermediates_dict (dict): Dictionary of intermediates in the network.
+#         surface (Atoms): Surface intermediate.
+        
+#     Returns:
+#         list: List of ElementaryReaction objects.
+#     """
+#     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+#     reaction_set = set()
+#     reaction_list = []
+
+#     intermediates_values = list(intermediates_dict.values())
+#     cached_graphs = {inter: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
+
+#     for intermediate in intermediates_values:
+#         sub_graphs = break_bonds(intermediate.molecule)
+        
+#         for bond_breaking_type, graph_pairs in sub_graphs.items():
+#             for graph_pair in graph_pairs:
+#                 in_comp = [[surface, intermediate], []]
+
+#                 for graph in graph_pair:
+#                     matching_intermediates = find_matching_intermediates(graph, cate, cached_graphs)
+#                     in_comp[1].extend(matching_intermediates)
+
+#                 if validate_components(in_comp):
+#                     reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+#                     create_or_append_reaction(reaction, reaction_set, reaction_list)
+
+#     return reaction_list
+
+def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
+    return [
+        find_matching_intermediates(graph, cate, cached_graphs)
+        for graph in graph_pair
+    ]
 
 def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
     """
     For an entire network, perform a breakage search for all the intermediates,
     search if the generated submolecules belong to the network and if so, create
     an ElementaryReaction object that connects all the species.
-    
+
     Args:
         intermediates_dict (dict): Dictionary of intermediates in the network.
         surface (Atoms): Surface intermediate.
@@ -907,20 +1039,29 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atom
 
     for intermediate in intermediates_values:
         sub_graphs = break_bonds(intermediate.molecule)
-        
+        if not sub_graphs:
+            continue
+
         for bond_breaking_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
                 in_comp = [[surface, intermediate], []]
 
-                for graph in graph_pair:
-                    matching_intermediates = find_matching_intermediates(graph, cate, cached_graphs)
-                    in_comp[1].extend(matching_intermediates)
-
-                if validate_components(in_comp):
-                    reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-                    create_or_append_reaction(reaction, reaction_set, reaction_list)
-
+                matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
+                
+                # Flatten the list of lists
+                flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
+                
+                in_comp[1].extend(list(set(flat_matching_intermediates)))
+                
+                if not validate_components(in_comp):
+                    print(in_comp)
+                    continue
+                reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+                create_or_append_reaction(reaction, reaction_set, reaction_list)
+                
     return reaction_list
+
+
 
 def change_r_type(network):
     """Given a network, search if the C-H breakages are correct, and if not
