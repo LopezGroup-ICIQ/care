@@ -239,6 +239,10 @@ class ElementaryReaction:
         reactants = [specie for specie in self.reactants]
         products = [specie for specie in self.products]
         species = reactants + products
+        # initialize stoic_dict as zeros for all species
+        stoic_dict = {}
+        for specie in species:
+            stoic_dict[specie.code] = 0
         elements = set()
         for specie in species:
             if specie.phase != 'gas':
@@ -254,22 +258,28 @@ class ElementaryReaction:
                     matrix[i, j] = 1
                 else:
                     matrix[i, j] = species[i].molecule.get_chemical_symbols().count(element)
-        print(elements, species, matrix)
-        print("matrix rank:", np.linalg.matrix_rank(matrix.T))
-        print("matrix null space:", null_space(matrix.T), rcond=1e-9)
-        stoic = null_space(matrix.T)
-        # print(stoic.shape)
-        # remove columns that contain zeros or values close to zero
-        stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
-        # print(stoic)
-        min_abs = min([abs(x) for x in stoic])
-        stoic = np.round(stoic / min_abs).astype(int)
-        if stoic[0] > 0:
-            stoic = [-x for x in stoic]
-        stoic = [int(x[0]) for x in stoic] 
-        stoic_dict = {}
-        for i, specie in enumerate(species):
-            stoic_dict[specie.code] = stoic[i]       
+        # print(elements, species, matrix)
+        # print("matrix rank:", np.linalg.matrix_rank(matrix.T))
+        # print("matrix null space:", null_space(matrix.T), rcond=1e-9)
+        rank = np.linalg.matrix_rank(matrix.T)
+        if rank < nc -1: # inifinite² solutions
+            for reactant in reactants:
+                stoic_dict[reactant.code] = -1
+            for product in products:
+                stoic_dict[product.code] = 1
+            return stoic_dict
+        else:
+            stoic = null_space(matrix.T)
+            # remove columns that contain zeros or values close to zero
+            stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
+            # print(stoic)
+            min_abs = min([abs(x) for x in stoic])
+            stoic = np.round(stoic / min_abs).astype(int)
+            if stoic[0] > 0:
+                stoic = [-x for x in stoic]
+            stoic = [int(x[0]) for x in stoic] 
+            for i, specie in enumerate(species):
+                stoic_dict[specie.code] = stoic[i]       
         return stoic_dict
     
     def reverse(self):
