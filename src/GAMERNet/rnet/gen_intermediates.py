@@ -5,6 +5,9 @@ from itertools import product, combinations
 import networkx as nx
 import copy
 from collections import defaultdict
+from multiprocessing import Pool
+import os
+import time
 
 from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
@@ -314,6 +317,17 @@ def gen_alkanes_smiles(n_carbon: int) -> set[str]:
         generate_alkanes_recursive(G, nC, alkanes_smiles)
     return alkanes_smiles
 
+def process_molecule(args):
+        name, molec_grp, inter_precursor_dict, isomeric_groups = args
+        molecule = inter_precursor_dict[molec_grp]['RDKit']
+        intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
+        return molec_grp, intermediate
+
+def process_intermediate(args):
+    molecule, intermediate = args
+    map_tmp = generate_map(intermediate, 'H')
+    return molecule, map_tmp
+
 def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
     """
     Generates all the possible intermediates for a given number of carbon atoms 
@@ -355,19 +369,25 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
 
     # 2) Generate all possible open-shell intermediates by H abstraction
     inter_dict, repeat_molec = {}, []
+    pool = Pool(os.cpu_count())
+
+    args_list = []
+
     for name, molec in isomeric_groups.items():
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
-                molecule = inter_precursor_dict[molec_grp]['RDKit']
-                intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
-                inter_dict[molec_grp] = intermediate
-    
-    # 3) Generate the connections between the intermediates via graph theory
-    map_dict = {}
-    for molecule in inter_dict.keys():
-        intermediate = inter_dict[molecule]
-        map_tmp = generate_map(intermediate, 'H')
-        map_dict[molecule] = map_tmp
+                args_list.append((name, molec_grp, inter_precursor_dict, isomeric_groups))
 
+    results = pool.map(process_molecule, args_list)
+    inter_dict = {k: v for k, v in results}
+
+    # 3) Generate the connections between the intermediates via graph theory
+    time0 = time.time()
+    map_dict = {}
+    args_map_list = [(molecule, inter_dict[molecule]) for molecule in inter_dict.keys()]
+  
+    results = pool.map(process_intermediate, args_map_list)
+    map_dict = {k: v for k, v in results}
+    print('Time taken to generate the map dictionary: {:.2f} s'.format(time.time() - time0))
     return inter_dict, map_dict

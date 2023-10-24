@@ -65,7 +65,10 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096*2, rlimit[1]))
     
-    ads_graph_list = atoms_to_data_parallel(total_config_list, graph_params, model_elems)
+    if len(total_config_list) >= 100:
+        ads_graph_list = atoms_to_data_parallel(total_config_list, graph_params, model_elems)
+    else:
+        ads_graph_list = [atoms_to_data(atom, graph_params, model_elems) for atom in total_config_list]
 
     # Setting back the default limit
     resource.setrlimit(resource.RLIMIT_NOFILE, rlimit)

@@ -11,6 +11,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 import torch.nn.functional as F
 import torch
+from numba import jit
 import numpy as np
 from scipy.spatial import Voronoi
 from ase.io.vasp import read_vasp
@@ -81,8 +82,8 @@ def get_voronoi_neighbourlist(atoms: Atoms,
     # First condition for two atoms to be connected: They must share a Voronoi facet
     coords_arr = np.repeat(np.expand_dims(np.copy(atoms.get_scaled_positions()), axis=0), 27, axis=0)
     mirrors = np.repeat(np.expand_dims(np.asarray(list(product([-1, 0, 1], repeat=3))), 1), coords_arr.shape[1], axis=1)
-    corrected_coords = np.reshape(coords_arr + mirrors, (coords_arr.shape[0] * coords_arr.shape[1], coords_arr.shape[2]))
-    corrected_coords = np.dot(corrected_coords, atoms.get_cell())
+    atoms_cell = np.array(atoms.get_cell())
+    corrected_coords = get_corrected_coords(atoms_cell, coords_arr, mirrors)
     translator = np.tile(np.arange(coords_arr.shape[1]), coords_arr.shape[0])
     vor_bonds = Voronoi(corrected_coords)
     pairs_corr = translator[vor_bonds.ridge_points]
@@ -102,6 +103,11 @@ def get_voronoi_neighbourlist(atoms: Atoms,
 
     return np.sort(np.array(pairs_lst), axis=1)
 
+@jit(nopython=True, nogil=True)
+def get_corrected_coords(atoms_cell, coords_arr, mirrors):
+    corrected_coords = np.reshape(coords_arr + mirrors, (coords_arr.shape[0] * coords_arr.shape[1], coords_arr.shape[2]))
+    corrected_coords = np.dot(corrected_coords,atoms_cell)
+    return corrected_coords
 
 def atoms_to_nxgraph(atoms: Atoms, 
                      voronoi_tolerance: float, 
@@ -547,7 +553,7 @@ def atoms_to_pyggraph(atoms: Atoms,
         graph (torch_geometric.data.Data): PyG graph representing the system under study.
     """
     nx_graph, surface_neighbors = atoms_to_nxgraph(atoms, voronoi_tolerance, scaling_factor, include_surf_atoms_2hops, adsorbate_elements)
-    species_list = (nx_graph.nodes[node]['element'] for node in nx_graph.nodes)
+    species_list = [nx_graph.nodes[node]['element'] for node in nx_graph.nodes]
     edge_tails_heads = [(edge[0], edge[1]) for edge in nx_graph.edges]
     edge_tails = [x for x, y in edge_tails_heads] + [y for x, y in edge_tails_heads]
     edge_heads = [y for x, y in edge_tails_heads] + [x for x, y in edge_tails_heads]

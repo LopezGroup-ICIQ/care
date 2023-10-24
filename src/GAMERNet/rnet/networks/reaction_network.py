@@ -146,7 +146,7 @@ class ReactionNetwork:
                     for int_data in comp_data_list:
                         tupl_int = []
                         for ts_comp in int_data:
-                            comp = Intermediate(**ts_comp)
+                            comp = int_list_gen[ts_comp['code']]
                             tupl_int.append(comp)
                         rxn_couple.append(frozenset(tuple(tupl_int)))
                     rxn_comp_list.append(rxn_couple)
@@ -187,11 +187,11 @@ class ReactionNetwork:
                 for i in j:
                     curr_reaction_i_dict = {}
                     curr_reaction_i_dict['code'] = i.code
-                    curr_reaction_i_dict['molecule']=i.molecule
-                    curr_reaction_i_dict['graph']=i.graph
-                    curr_reaction_i_dict['ads_configs']=i.ads_configs
-                    curr_reaction_i_dict['is_surface']=i.is_surface
-                    curr_reaction_i_dict['phase']=i.phase
+            #         curr_reaction_i_dict['molecule']=i.molecule
+            #         curr_reaction_i_dict['graph']=i.graph
+            #         curr_reaction_i_dict['ads_configs']=i.ads_configs
+            #         curr_reaction_i_dict['is_surface']=i.is_surface
+            #         curr_reaction_i_dict['phase']=i.phase
                     tupl_comp_list.append(curr_reaction_i_dict)
                 reaction_i_list.append(tupl_comp_list)
             curr_reaction["components"]=reaction_i_list
@@ -822,9 +822,8 @@ class ReactionNetwork:
                 if source != target:
                     paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
                     paths = [path for path in paths if path[-1] == target]
+                    # all_paths[(source, target)] = [path for path in nx.all_simple_paths(graph, source, target, cutoff=cutoff)]
                     all_paths[(source, target)] = paths
-        print('The shortest path goes through {} intermediates'.format(min([len(path) for path in all_paths.values() for path in path])))
-
         if intermediates:
             dict_copy = deepcopy(all_paths)
             # Check if there are paths that go through the intermediate
@@ -832,10 +831,10 @@ class ReactionNetwork:
                 for path in source_target:
                     # Check if the path goes through ALL the intermediates
                     if not all([inter in path for inter in intermediates]):
-                    # if not any([inter in path for inter in intermediates]):
                         # Deleting the path from the copy if it does not go through the intermediate
                         dict_copy[(path[0], path[-1])].remove(path)
             all_paths = dict_copy                        
+        print('The shortest path goes through {} intermediates'.format(min([len(path) for path in all_paths.values() for path in path])))
 
         return all_paths
 
