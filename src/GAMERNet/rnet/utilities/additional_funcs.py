@@ -13,12 +13,14 @@ from collections import Counter
 import multiprocessing as mp
 import os
 
-INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
+INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89}, 
             'C-H' : {'alpha': 0.63, 'beta': 0.81},
             'H-C' : {'alpha': 0.63, 'beta': 0.81},
             'C-C' : {'alpha': 1.00, 'beta': 0.64},
             'C-O' : {'alpha': 1.00, 'beta': 1.24},
-            'C-OH': {'alpha': 1.00, 'beta': 1.48}}
+            'C-OH': {'alpha': 1.00, 'beta': 1.48}, 
+            'O-O' : {'alpha': 1.00, 'beta': 1.00},  # added by me
+            'default': {'alpha': 0.00, 'beta': 0.00}} 
 
 BOX_TMP = """<
 <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="20">
