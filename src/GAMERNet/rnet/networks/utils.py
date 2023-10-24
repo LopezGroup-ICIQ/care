@@ -85,7 +85,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
                 check_bonds = []
                 for component in new_rxn.components:
                     for inter in list(component):
-                        if inter.is_surface or inter.code in ('01011*', '02011*'): #surface or a hydrogen atom,
+                        if inter.is_surface or inter.code in ('01011-*', '02011-*'): #surface or a hydrogen atom,
                             continue
                         else:
                             oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
