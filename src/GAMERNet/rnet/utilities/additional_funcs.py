@@ -10,6 +10,8 @@ from ase import Atoms
 from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
 from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
 from collections import Counter
+import multiprocessing as mp
+import os
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'C-H' : {'alpha': 0.63, 'beta': 0.81},
@@ -1017,19 +1019,25 @@ def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
         for graph in graph_pair
     ]
 
-def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
-    """
-    For an entire network, perform a breakage search for all the intermediates,
-    search if the generated submolecules belong to the network and if so, create
-    an ElementaryReaction object that connects all the species.
+def process_graph_pair(args):
+    cached_graphs, surface, intermediate, bond_breaking_type, graph_pair = args
+    cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+    
+    in_comp = [[surface, intermediate], []]
+    matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
+    
+    # Flatten the list of lists
+    flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
+    in_comp[1].extend(list(set(flat_matching_intermediates)))
 
-    Args:
-        intermediates_dict (dict): Dictionary of intermediates in the network.
-        surface (Atoms): Surface intermediate.
-        
-    Returns:
-        list: List of ElementaryReaction objects.
-    """
+    if not validate_components(in_comp):
+        print(in_comp)
+        return None
+    
+    reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+    return reaction
+
+def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
     reaction_set = set()
     reaction_list = []
@@ -1037,6 +1045,7 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atom
     intermediates_values = list(intermediates_dict.values())
     cached_graphs = {inter: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
 
+    args_list = []
     for intermediate in intermediates_values:
         sub_graphs = break_bonds(intermediate.molecule)
         if not sub_graphs:
@@ -1044,22 +1053,60 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atom
 
         for bond_breaking_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
-                in_comp = [[surface, intermediate], []]
+                args_list.append((cached_graphs, surface, intermediate, bond_breaking_type, graph_pair))
 
-                matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
-                
-                # Flatten the list of lists
-                flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
-                
-                in_comp[1].extend(list(set(flat_matching_intermediates)))
-                
-                if not validate_components(in_comp):
-                    print(in_comp)
-                    continue
-                reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-                create_or_append_reaction(reaction, reaction_set, reaction_list)
-                
+    with mp.Pool(os.cpu_count()) as pool:
+        results = pool.map(process_graph_pair, args_list)
+
+    # post-process results
+    for reaction in results:
+        if reaction is not None:
+            create_or_append_reaction(reaction, reaction_set, reaction_list)
+
     return reaction_list
+# def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
+#     """
+#     For an entire network, perform a breakage search for all the intermediates,
+#     search if the generated submolecules belong to the network and if so, create
+#     an ElementaryReaction object that connects all the species.
+
+#     Args:
+#         intermediates_dict (dict): Dictionary of intermediates in the network.
+#         surface (Atoms): Surface intermediate.
+        
+#     Returns:
+#         list: List of ElementaryReaction objects.
+#     """
+#     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+#     reaction_set = set()
+#     reaction_list = []
+
+#     intermediates_values = list(intermediates_dict.values())
+#     cached_graphs = {inter: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
+
+#     for intermediate in intermediates_values:
+#         sub_graphs = break_bonds(intermediate.molecule)
+#         if not sub_graphs:
+#             continue
+
+#         for bond_breaking_type, graph_pairs in sub_graphs.items():
+#             for graph_pair in graph_pairs:
+#                 in_comp = [[surface, intermediate], []]
+
+#                 matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
+                
+#                 # Flatten the list of lists
+#                 flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
+                
+#                 in_comp[1].extend(list(set(flat_matching_intermediates)))
+                
+#                 if not validate_components(in_comp):
+#                     print(in_comp)
+#                     continue
+#                 reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
+#                 create_or_append_reaction(reaction, reaction_set, reaction_list)
+                
+#     return reaction_list
 
 
 
