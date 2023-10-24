@@ -2,8 +2,6 @@ from ase import Atoms
 import networkx as nx
 from pubchempy import get_compounds, Compound
 import copy
-from rdkit import Chem
-from multiprocessing import Pool, cpu_count
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,

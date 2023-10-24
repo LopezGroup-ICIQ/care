@@ -5,6 +5,12 @@ from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, g
 from GAMERNet.rnet.gen_intermediates import generate_intermediates
 import networkx as nx
 from ase import Atoms
+import multiprocessing as mp
+import os
+
+def set_node_attributes(args):
+    graph, attributes = args
+    nx.set_node_attributes(graph, attributes)
 
 def generate_rxn_net(slab_ase_obj: Atoms, 
                      ncc: int) -> ReactionNetwork:
@@ -27,11 +33,16 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     # 1) Generate all the intermediates
     intermediate_dict, map_dict = generate_intermediates(ncc)    
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='00000*', is_surface=True, phase='surf')
-    
+
     # 2) Generate the network dictionary
     inter_att = generate_dict(intermediate_dict)
-    for network, graph in map_dict.items():
-        nx.set_node_attributes(graph, inter_att[network])
+  
+    args_list = [(map_dict[network], inter_att[network]) for network in map_dict.keys()]
+    with mp.Pool(processes=os.cpu_count()) as pool:
+        pool.map(set_node_attributes, args_list)
+
+    # for network, graph in map_dict.items():
+    #     nx.set_node_attributes(graph, inter_att[network])
     network_dict = generate_network_dict(map_dict, surf_inter)
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
 

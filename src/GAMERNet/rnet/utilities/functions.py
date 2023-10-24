@@ -7,7 +7,6 @@ import numpy as np
 from scipy.spatial import Voronoi
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from concurrent.futures import ThreadPoolExecutor
 
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
@@ -298,73 +297,86 @@ def generate_range(ase_molecule: Atoms,
 
     return mg_pack
 
-def process_combination(comb, rdkit_molecule):
-    new_mol = Chem.RWMol(rdkit_molecule)
+# def process_combination(comb, rdkit_molecule):
+#     new_mol = Chem.RWMol(rdkit_molecule)
     
-    # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
-    for index in reversed(sorted(comb)):
-        atom = new_mol.GetAtomWithIdx(index)
+#     # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
+#     for index in reversed(sorted(comb)):
+#         atom = new_mol.GetAtomWithIdx(index)
         
-        # Skip removal if the atom has no neighbors
-        if atom.GetDegree() == 0:
-            print(f"WARNING: not removing {atom.GetSymbol()} atom without neighbors")
-            continue
-        new_mol.RemoveAtom(index)
+#         # Skip removal if the atom has no neighbors
+#         if atom.GetDegree() == 0:
+#             print(f"WARNING: not removing {atom.GetSymbol()} atom without neighbors")
+#             continue
+#         new_mol.RemoveAtom(index)
 
-    # Sanitize the molecule
-    Chem.SanitizeMol(new_mol)
-    # Skip removal if the atom has no neighbors
+#     # Sanitize the molecule
+#     Chem.SanitizeMol(new_mol)
+#     # Skip removal if the atom has no neighbors
     
-    # Convert the sanitized RDKit molecule back to ASE for further tasks
-    new_ase_mol = rdkit_to_ase(new_mol)
-    new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
+#     # Convert the sanitized RDKit molecule back to ASE for further tasks
+#     new_ase_mol = rdkit_to_ase(new_mol)
+#     new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
     
-    # Your existing code for generating a graph from the ASE object would go here
-    new_graph = digraph(new_ase_mol, coords=False)
+#     # Your existing code for generating a graph from the ASE object would go here
+#     new_graph = digraph(new_ase_mol, coords=False)
     
-    return new_ase_mol, new_graph
+#     return new_ase_mol, new_graph
 
-def get_all_subs(rdkit_molecule, n_sub, element):
-    # Get the indices of all atoms of the specified element
+# def get_all_subs(rdkit_molecule, n_sub, element):
+#     # Get the indices of all atoms of the specified element
+#     sel_atoms = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
+    
+#     mol_pack, graph_pack = [], []
+    
+#     # Use ThreadPoolExecutor to parallelize the function calls
+#     with ThreadPoolExecutor() as executor:
+#         # Map the process_combination function over all combinations of atoms
+#         results = list(executor.map(lambda x: process_combination(x, rdkit_molecule), combinations(sel_atoms, n_sub)))
+        
+#     for new_mol, new_graph in results:
+#         mol_pack.append(new_mol)
+#         graph_pack.append(new_graph)
+        
+#     return mol_pack, graph_pack
+
+def get_all_subs(rdkit_molecule: Chem, 
+                 n_sub: int, 
+                 element: str) -> tuple[list[Atoms], list[nx.DiGraph]]:
+    """function to what point you want to remove hydrogens
+    """
+    
     sel_atoms = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
-    
     mol_pack, graph_pack = [], []
+
+    for comb in combinations(sel_atoms, n_sub):
+
+        new_mol = Chem.RWMol(rdkit_molecule)
     
-    # Use ThreadPoolExecutor to parallelize the function calls
-    with ThreadPoolExecutor() as executor:
-        # Map the process_combination function over all combinations of atoms
-        results = list(executor.map(lambda x: process_combination(x, rdkit_molecule), combinations(sel_atoms, n_sub)))
+        # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
+        for index in reversed(sorted(comb)):
+            atom = new_mol.GetAtomWithIdx(index)
+            
+            # Skip removal if the atom has no neighbors
+            if atom.GetDegree() == 0:
+                print(f"WARNING: not removing {atom.GetSymbol()} atom without neighbors")
+                continue
+            new_mol.RemoveAtom(index)
+
+        # Sanitize the molecule
+        Chem.SanitizeMol(new_mol)
+        # Skip removal if the atom has no neighbors
         
-    for new_mol, new_graph in results:
-        mol_pack.append(new_mol)
-        graph_pack.append(new_graph)
+        # Convert the sanitized RDKit molecule back to ASE for further tasks
+        new_ase_mol = rdkit_to_ase(new_mol)
+        new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
         
+        # Your existing code for generating a graph from the ASE object would go here
+        # new_graph = digraph(new_ase_mol, coords=False)
+        mol_pack.append(new_ase_mol)
+        graph_pack.append(digraph(new_ase_mol, coords=False))
     return mol_pack, graph_pack
 
-# def get_all_subs(ase_molecule_obj: Atoms, 
-#                  n_sub: int, 
-#                  element: str) -> tuple[list[Atoms], list[nx.DiGraph]]:
-#     """function to what point you want to remove hydrogens
-#     """
-    
-#     sel_atoms = [atom.index for atom in ase_molecule_obj if atom.symbol == element]
-#     mol_pack, graph_pack = [], []
-
-#     for comb in combinations(sel_atoms, n_sub):
-
-#         new_mol = deepcopy(ase_molecule_obj)
-#         del new_mol.arrays["conn_pairs"]
-
-#         int_list = []
-#         for index in comb:
-#             int_list.append(index)
-#         # Deleting the atoms which index is in int_list
-
-#         del new_mol[int_list]
-#         new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_mol, 0.25, 1.0, ['C', 'H', 'O'])
-#         mol_pack.append(new_mol)
-#         graph_pack.append(digraph(new_mol, coords=False))
-#     return mol_pack, graph_pack
 
 def get_unique(graph_pack: list[nx.DiGraph], element: str) -> list[int]: #function to get unqiue configs
     

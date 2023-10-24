@@ -39,20 +39,19 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
     missing docstring
     """
     network_dict = {} 
-    for key, network in rxn_dict.items():
-        if key == '[H][H]':
-            network_dict[key] = {'intermediates': {}, 'reactions': []}
-            for node in network.nodes():
-                try:
-                    sel_node = network.nodes[node]
-                    new_inter = Intermediate(code=node+'*', 
-                                             molecule=sel_node['mol'], 
-                                             graph=sel_node['graph'],  
-                                             phase='ads')
-                    network_dict[key]['intermediates'][node] = new_inter
-                except KeyError:
-                    print("KeyError: Node {} not found in the dictionary".format(node))
-                    pass    
+    network_dict['[H][H]'] = {'intermediates': {}, 'reactions': []}
+    for node in rxn_dict['[H][H]'].nodes():
+        try:
+            sel_node = rxn_dict['[H][H]'].nodes[node]
+            new_inter = Intermediate(code=node+'*', 
+                                        molecule=sel_node['mol'], 
+                                        graph=sel_node['graph'],  
+                                        phase='ads')
+            network_dict['[H][H]']['intermediates'][node] = new_inter
+        except KeyError:
+            print("KeyError: Node {} not found in the dictionary".format(node))
+            pass
+      
     h_inter = network_dict['[H][H]']['intermediates']['01011']    
 
     for key, network in rxn_dict.items():
@@ -86,7 +85,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
                 check_bonds = []
                 for component in new_rxn.components:
                     for inter in list(component):
-                        if inter.is_surface or inter.code in ('01011-*', '02011-*'): #surface or a hydrogen atom,
+                        if inter.is_surface or inter.code in ('01011*', '02011*'): #surface or a hydrogen atom,
                             continue
                         else:
                             oxy = [atom for atom in inter.molecule if atom.symbol == "O"]

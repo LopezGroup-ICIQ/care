@@ -5,7 +5,7 @@ from itertools import product, combinations
 import networkx as nx
 import copy
 from collections import defaultdict
-from multiprocessing import Pool
+import multiprocessing as mp
 import os
 import time
 
@@ -342,7 +342,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
     -------
     tuple[dict, dict]        
     """
-
+    
     # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)
     alkanes_smiles = gen_alkanes_smiles(n_carbon)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
@@ -366,28 +366,25 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
             }
 
     isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
+    num_cores = mp.cpu_count()
 
     # 2) Generate all possible open-shell intermediates by H abstraction
     inter_dict, repeat_molec = {}, []
-    pool = Pool(os.cpu_count())
 
     args_list = []
-
     for name, molec in isomeric_groups.items():
         for molec_grp in molec:
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
-                args_list.append((name, molec_grp, inter_precursor_dict, isomeric_groups))
-
-    results = pool.map(process_molecule, args_list)
+                args_list.append([name, molec_grp, inter_precursor_dict, isomeric_groups])
+    with mp.Pool(num_cores) as pool:
+        results = pool.map(process_molecule, args_list)
     inter_dict = {k: v for k, v in results}
 
     # 3) Generate the connections between the intermediates via graph theory
-    time0 = time.time()
     map_dict = {}
     args_map_list = [(molecule, inter_dict[molecule]) for molecule in inter_dict.keys()]
-  
-    results = pool.map(process_intermediate, args_map_list)
+    with mp.Pool(num_cores) as pool:
+        results = pool.map(process_intermediate, args_map_list)
     map_dict = {k: v for k, v in results}
-    print('Time taken to generate the map dictionary: {:.2f} s'.format(time.time() - time0))
     return inter_dict, map_dict
