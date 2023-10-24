@@ -109,67 +109,14 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
 
     with mp.Pool(processes=os.cpu_count()) as p:
         results = p.map(process_edge, args_list)
+    
     for result in results:
         if result is not None:
             key, new_rxn = result
             network_dict[key]['reactions'].append(new_rxn)
-        # for edge in list(network.edges()):
-        #     try:
-        #         inters = (network_dict[key]['intermediates'][edge[0]], network_dict[key]['intermediates'][edge[1]])
-        #         if len(inters[0].molecule) > len(inters[1].molecule):
-        #             rxn_lhs, rxn_rhs = (inters[0], surf_inter), (inters[1], h_inter)
-        #         else:
-        #             rxn_lhs, rxn_rhs = (inters[1], surf_inter), (inters[0], h_inter)
-        #         new_rxn = ElementaryReaction(components=(rxn_lhs, rxn_rhs), r_type='C-H')
-        #         # classify H-H and O-H
-        #         hh_condition1 = 'C' not in inters[0].molecule.get_chemical_symbols() and 'C' not in inters[1].molecule.get_chemical_symbols()
-        #         hh_condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
-        #         if hh_condition1 and hh_condition2:
-        #             new_rxn.r_type = 'H-H'
-        #         check_bonds = []
-        #         for component in new_rxn.components:
-        #             for inter in list(component):
-        #                 if inter.is_surface or inter.code in ('01011-*', '02011-*'): #surface or a hydrogen atom,
-        #                     continue
-        #                 else:
-        #                     oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
-        #                     if len(oxy) != 0:
-        #                         counter = 0
-        #                         for atom in oxy:
-        #                             counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom.index)
-        #                         check_bonds.append(counter)
-        #                     else:
-        #                         check_bonds.append(0)
-        #         if check_bonds[0] != check_bonds[1]:
-        #             new_rxn.r_type = 'O-H'
-                
-        #         for reaction in network_dict[key]['reactions']:
-        #             if reaction.components == new_rxn.components:
-        #                 break
-        #         else: # if the for loop is not broken
-        #             network_dict[key]['reactions'].append(new_rxn)
-        #     except KeyError:
-        #         print("Key Error: Edge {} not found in the dictionary".format(edge))
-        #         pass
+
     return network_dict
 
-# def add_energies_to_dict(network_dict, energ_entr_dict):
-#     """
-#     missing docstring
-#     """
-#     for net in network_dict.values():
-#         for code, inter in net['intermediates'].items():
-#             test = [n for n in energ_entr_dict.values()]
-#             for i in test:
-#                 for vals in i.values():
-#                     # try:
-#                     #     inter.energy = vals[code]['e_zpe_solv']
-#                     #     inter.entropy = vals[code]['S_meV']
-#                     # except KeyError:
-#                     inter.energy = 0.0
-#                     inter.entropy = 0.0
-#                         # pass
-#     return network_dict
 
 def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """

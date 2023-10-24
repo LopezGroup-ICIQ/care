@@ -8,12 +8,12 @@ import itertools as it
 from ase.db import connect
 from torch import load
 
-from GAMERNet import DB_PATH#, MODEL_PATH
+from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
-# from GAMERNet.gnn_eads.nets import UQTestNet
+from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
-# from GAMERNet.rnet.adsorbate_placement import process_adsorbed_intermediate
-# from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator, get_fragment_energy
+from GAMERNet.rnet.adsorbate_placement import process_adsorbed_intermediate
+from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator, get_fragment_energy
 import multiprocessing as mp
 
 metal_structure_dict = {
@@ -62,20 +62,20 @@ if __name__ == "__main__":
 
     print('Loading GAME-Net UQ (GNN model)...')
     # Loading GAME-Net UQ 
-    # one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
-    # node_features_list = one_hot_encoder_elements.categories_[0].tolist()
-    # model_elements = one_hot_encoder_elements.categories_[0].tolist()
-    # node_features_list.extend(["Valence", "Gcn", "Magnetization"])
-    # scaling_params = {"scaling":"std", "mean": -52.052330, "std": 29.274139}
-    # model = UQTestNet(features_list=node_features_list, scaling_params=scaling_params,
-    #                   dim=176, N_linear=0, N_conv=3, 
-    #                   bias=False, pool_heads=1)
-    # model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
+    one_hot_encoder_elements = load(MODEL_PATH + "/one_hot_encoder_elements.pth")
+    node_features_list = one_hot_encoder_elements.categories_[0].tolist()
+    model_elements = one_hot_encoder_elements.categories_[0].tolist()
+    node_features_list.extend(["Valence", "Gcn", "Magnetization"])
+    scaling_params = {"scaling":"std", "mean": -52.052330, "std": 29.274139}
+    model = UQTestNet(features_list=node_features_list, scaling_params=scaling_params,
+                      dim=176, N_linear=0, N_conv=3, 
+                      bias=False, pool_heads=1)
+    model.load_state_dict(load(MODEL_PATH + "/GNN.pth"))
 
     # Loading geometry->graph conversion parameters
-    # with open(MODEL_PATH+'/input.txt', 'r') as f:
-    #         configuration_dict = eval(f.read())
-    # graph_params = configuration_dict["graph"]
+    with open(MODEL_PATH+'/input.txt', 'r') as f:
+            configuration_dict = eval(f.read())
+    graph_params = configuration_dict["graph"]
 
     # graph_params['structure']['scaling_factor'] = 1.6  # solve this later
 
@@ -110,7 +110,7 @@ if __name__ == "__main__":
         else:  # adsorbed intermediate
             adsorbed_keys.append(key)
     # Parallelize ads_placement function for adsorbed intermediates
-    with mp.get_context('spawn').Pool(processes=os.cpu_count()) as p:
+    with mp.Pool(processes=os.cpu_count()) as p:
         result_list = p.starmap(process_adsorbed_intermediate, iterable=zip(adsorbed_keys, it.repeat(rxn_net), it.repeat(surface)))
     print('Total number of adsorption configurations: {}\n'.format(len(result_list)))
     print('Time taken to generate the adsorption configurations for all intermediates: {:.2f} s'.format(time.time() - t00))

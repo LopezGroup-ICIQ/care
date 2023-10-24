@@ -46,10 +46,10 @@ class ElementaryReaction:
         if self.r_type not in REACTION_TYPES:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
-        if self.r_type != 'pseudo':
-            self.stoic = self.solve_stoichiometry()
-        else:
-            self.stoic = None      
+        # if self.r_type != 'pseudo':
+        #     self.stoic = self.solve_stoichiometry()
+        # else:
+        #     self.stoic = None      
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -58,7 +58,8 @@ class ElementaryReaction:
         out_str = ''
         for component in self.components:
             for inter in component:
-                out_str += '[{}]'.format(str(abs(self.stoic[inter]))) + inter.__str__() + '+'
+                # out_str += '[{}]'.format(str(abs(self.stoic[inter]))) + inter.__str__() + '+'
+                out_str += inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        
