@@ -706,20 +706,24 @@ class ReactionNetwork:
                 where_surface = 'products'
                 surf_index = i
                 break
+        v_reactants = [re.findall(r'\[([a-zA-Z0-9])\]', reactant) for reactant in reactants]
+        v_products = [re.findall(r'\[([a-zA-Z0-9])\]', product) for product in products]
+        v_reactants = [item for sublist in v_reactants for item in sublist]
+        v_products = [item for sublist in v_products for item in sublist]
         reactants = [re.findall(r'\((.*?)\)', reactant) for reactant in reactants]
         products = [re.findall(r'\((.*?)\)', product) for product in products]
         reactants = [item for sublist in reactants for item in sublist]
         products = [item for sublist in products for item in sublist]
         for i, reactant in enumerate(reactants):
-            if abs(self.reactions[reaction_index].stoic[0][i]) != 1:
-                reactants[i] = str(abs(self.reactions[reaction_index].stoic[0][i])) + reactant
+            if v_reactants[i] != '1':
+                reactants[i] = v_reactants[i] + reactant
             if '(g' in reactant:
                 reactants[i] += ')'
             if where_surface == 'reactants' and i == surf_index:
                 reactants[i] = "*"
         for i, product in enumerate(products):
-            if abs(self.reactions[reaction_index].stoic[1][i]) != 1:
-                products[i] = str(abs(self.reactions[reaction_index].stoic[1][i])) + product
+            if v_products[i] != '1':
+                products[i] = v_products[i] + product
             if '(g' in product:
                 products[i] += ')'
             if where_surface == 'products' and i == surf_index:
@@ -952,3 +956,14 @@ class ReactionNetwork:
         print(f"Rank of the species-element matrix: {rank}")
         print(f"Number of global reactions: {nc - rank}")
         return nc - rank
+    
+    def get_stoichiometric_matrix(self) -> np.ndarray:
+        """
+        Return the stoichiometric matrix of the network.
+        """
+        v = np.zeros((len(self.intermediates), len(self.reactions)))
+        for i, inter in enumerate(self.intermediates.values()):
+            for j, reaction in enumerate(self.reactions):
+                if inter.code in reaction.stoic.keys():
+                    v[i, j] = reaction.stoic[inter.code]
+        return v
