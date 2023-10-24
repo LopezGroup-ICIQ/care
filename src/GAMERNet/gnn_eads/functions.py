@@ -11,7 +11,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 import torch.nn.functional as F
 import torch
-from numba import jit
+# from numba import jit
 import numpy as np
 from scipy.spatial import Voronoi
 from ase.io.vasp import read_vasp
@@ -83,7 +83,9 @@ def get_voronoi_neighbourlist(atoms: Atoms,
     coords_arr = np.repeat(np.expand_dims(np.copy(atoms.get_scaled_positions()), axis=0), 27, axis=0)
     mirrors = np.repeat(np.expand_dims(np.asarray(list(product([-1, 0, 1], repeat=3))), 1), coords_arr.shape[1], axis=1)
     atoms_cell = np.array(atoms.get_cell())
-    corrected_coords = get_corrected_coords(atoms_cell, coords_arr, mirrors)
+    # corrected_coords = get_corrected_coords(atoms_cell, coords_arr, mirrors)
+    corrected_coords = np.reshape(coords_arr + mirrors, (coords_arr.shape[0] * coords_arr.shape[1], coords_arr.shape[2]))
+    corrected_coords = np.dot(corrected_coords,atoms_cell)
     translator = np.tile(np.arange(coords_arr.shape[1]), coords_arr.shape[0])
     vor_bonds = Voronoi(corrected_coords)
     pairs_corr = translator[vor_bonds.ridge_points]
@@ -103,11 +105,11 @@ def get_voronoi_neighbourlist(atoms: Atoms,
 
     return np.sort(np.array(pairs_lst), axis=1)
 
-@jit(nopython=True, nogil=True)
-def get_corrected_coords(atoms_cell, coords_arr, mirrors):
-    corrected_coords = np.reshape(coords_arr + mirrors, (coords_arr.shape[0] * coords_arr.shape[1], coords_arr.shape[2]))
-    corrected_coords = np.dot(corrected_coords,atoms_cell)
-    return corrected_coords
+# @jit(nopython=True, nogil=True)
+# def get_corrected_coords(atoms_cell, coords_arr, mirrors):
+#     corrected_coords = np.reshape(coords_arr + mirrors, (coords_arr.shape[0] * coords_arr.shape[1], coords_arr.shape[2]))
+#     corrected_coords = np.dot(corrected_coords,atoms_cell)
+#     return corrected_coords
 
 def atoms_to_nxgraph(atoms: Atoms, 
                      voronoi_tolerance: float, 
