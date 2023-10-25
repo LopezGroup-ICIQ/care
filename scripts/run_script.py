@@ -38,6 +38,9 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate reaction network blueprint for processes involving C, H, O on surfaces.")
     argparser.add_argument('-ncc', type=int, dest='ncc',
                             help="Network Carbon Cutoff (ncc). It defines the size of the reaction network based on the maximum number of carbon atoms in the intermediates.")
+    argparser.add_argument('-noc', type=int, dest='noc',
+                            help="Network Oxygen Cutoff (noc). It defines the size of the reaction network based on the maximum number of oxygen atoms in the intermediates. \
+                                If noc < 0, all possible oxygen atoms will be added to the intermediates.")
     argparser.add_argument('-m', type=str, dest='m',
                             help="Metal of the surface. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
     argparser.add_argument('-hkl', type=str, dest='hkl',
@@ -84,7 +87,7 @@ if __name__ == "__main__":
     time0 = time.time()
     # Generating the reaction network
     print('Generating reaction network...')
-    rxn_net = generate_rxn_net(surface.slab, args.ncc)
+    rxn_net = generate_rxn_net(surface.slab, args.ncc, args.noc)
     print('Time taken to generate the reaction network: {:.2f} s\n'.format(time.time() - time0))
     print(rxn_net)
     rxn_net_dict = rxn_net.to_dict()

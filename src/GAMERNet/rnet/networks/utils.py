@@ -107,7 +107,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
         for edge in list(network.edges()):
                 args_list.append((key, edge, network_dict, h_inter, surf_inter))
 
-    with mp.Pool(processes=os.cpu_count()) as p:
+    with mp.Pool(os.cpu_count()//2) as p:
         results = p.map(process_edge, args_list)
     
     for result in results:
@@ -134,6 +134,7 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
 
     adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['02011g']]), frozenset([intermediates['01011']])), r_type='adsorption'))
     adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['00211g']]), frozenset([intermediates['00111']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['10111g']]), frozenset([intermediates['10011'], intermediates['00111']])), r_type='adsorption'))
     return gas_molecules, adsorption_steps
 
 

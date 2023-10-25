@@ -6,8 +6,6 @@ import networkx as nx
 import copy
 from collections import defaultdict
 import multiprocessing as mp
-import os
-import time
 
 from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
@@ -33,7 +31,8 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
 
 
 def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: float) -> float:
-    """Get the cutoff distance for two atoms to be considered connected using Cordero's atomic radii.
+    """
+    Get the cutoff distance for two atoms to be considered connected using Cordero's atomic radii.
 
     Parameters
     ----------
@@ -54,9 +53,22 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
     element_j = node_j.symbol
     return CORDERO[element_i] + CORDERO[element_j] + tolerance
 
-def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: list[str]):
+def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: list[str]) -> None:
     """
-    Generate all alkanes with a given number of carbon atoms in smiles format.
+    Generate recursively all alkanes with a given number of carbon atoms in smiles format.
+
+    Parameters
+    ----------
+    G : nx.Graph
+        NetworkX graph representing the molecule.
+    remaining_c : int
+        Remaining number of carbon atoms to add.
+    unique_alkanes : list[str]
+        List of all possible alkanes (SMILES format).
+
+    Returns
+    -------
+    None
     """
     if remaining_c == 0:
         if nx.is_connected(G) and nx.is_tree(G):
@@ -72,7 +84,20 @@ def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: li
                 G_new.add_edge(node, neighbor)
                 generate_alkanes_recursive(G_new, remaining_c - 1, unique_alkanes)
 
-def nx_to_mol(G):
+def nx_to_mol(G: nx.Graph) -> Chem.Mol:
+    """
+    Generate an RDKit molecule from a NetworkX graph.
+
+    Parameters
+    ----------
+    G : nx.Graph
+        NetworkX graph representing the molecule.
+
+    Returns
+    -------
+    mol: Chem.Mol
+        RDKit molecule.
+    """
     mol = Chem.RWMol()
     node_to_idx = {}
     
@@ -86,7 +111,20 @@ def nx_to_mol(G):
     Chem.SanitizeMol(mol)
     return mol
 
-def rdkit_to_ase(rdkit_molecule):
+def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
+    """
+    Generate an ASE Atoms object from an RDKit molecule.
+
+    Parameters
+    ----------
+    rdkit_molecule : Chem.Mol
+        RDKit molecule.
+
+    Returns
+    -------
+    Atoms
+        ASE Atoms object.
+    """
     # Generate 3D coordinates for the molecule
     rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
     AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
@@ -110,8 +148,24 @@ def rdkit_to_ase(rdkit_molecule):
 
     return ase_atoms
 
-def add_oxygens_to_molecule(mol: Chem.Mol) -> set[str]:
-    """Add as many oxygen atoms as possible to suitable carbon atoms in the molecule."""
+def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
+    """
+    Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
+    
+    Parameters
+    ----------
+    mol : Chem.Mol
+        RDKit molecule.
+    noc : int
+        Maximum number of oxygens to add.
+        If noc < 0, then add as many oxygens as possible.
+
+    Returns
+    -------
+    set[str]
+        Set of all possible molecules with added oxygens (SMILES format).
+    """
+    
     unique_molecules = set()
 
     # All RDkit molecules are unsaturated, i.e., C2H6 is represented as C2 (no H atoms)
@@ -122,10 +176,11 @@ def add_oxygens_to_molecule(mol: Chem.Mol) -> set[str]:
 
     for combo in product(*combos):
         total_oxygens = sum(combo)
-        if total_oxygens == 0:  # Skip molecules with no oxygens added
+        
+        if total_oxygens == 0 or (noc >= 0 and total_oxygens > noc):
             continue
-            
-        tmp_mol = Chem.RWMol(mol) # readible and writable mol object
+
+        tmp_mol = Chem.RWMol(mol) # Readable and writable mol object
         for (num_oxygens, (carbon_idx, _)) in zip(combo, suitable_carbons):
             for _ in range(num_oxygens):
                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
@@ -140,9 +195,9 @@ def add_oxygens_to_molecule(mol: Chem.Mol) -> set[str]:
 
     return unique_molecules
 
-
 def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
-    """Corrects the labeling for isomeric systems.
+    """
+    Corrects the labeling for isomeric systems.
 
     Parameters
     ----------
@@ -183,7 +238,8 @@ def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
     return molec_dict
 
 def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
-    """Generates a NetworkX Graph from an ASE Atoms object.
+    """
+    Generates a NetworkX Graph from an ASE Atoms object.
 
     Parameters
     ----------
@@ -234,7 +290,8 @@ def atoms_2_graph(atoms: Atoms, coords: bool) -> nx.Graph:
     return nx_graph
 
 def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
-    """Generates a NetworkX Graph from an RDKit molecule.
+    """
+    Generates a NetworkX Graph from an RDKit molecule.
 
     Parameters
     ----------
@@ -277,7 +334,8 @@ def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
     return nx_graph
 
 def formula_from_rdkit(mol: Chem.Mol) -> str:
-    """Get the molecular formula from an RDKit molecule.
+    """
+    Get the molecular formula from an RDKit molecule.
 
     Parameters
     ----------
@@ -307,9 +365,20 @@ def formula_from_rdkit(mol: Chem.Mol) -> str:
     
     return formula
 
-
 def gen_alkanes_smiles(n_carbon: int) -> set[str]:
-    """Generate all alkanes with a given number of carbon atoms in smiles format."""
+    """
+    Generate all alkanes with a given number of carbon atoms in smiles format.
+    
+    Parameters
+    ----------
+    n_carbon : int
+        Maximum number of carbon atoms in the alkanes.
+        
+    Returns
+    -------
+    set[str]
+        Set of all possible alkanes (SMILES format).
+    """
     alkanes_smiles = set()
     for nC in range(n_carbon):  # Generating alkanes with 1 to n_carbon atoms
         G = nx.Graph()
@@ -317,18 +386,46 @@ def gen_alkanes_smiles(n_carbon: int) -> set[str]:
         generate_alkanes_recursive(G, nC, alkanes_smiles)
     return alkanes_smiles
 
-def process_molecule(args):
-        name, molec_grp, inter_precursor_dict, isomeric_groups = args
-        molecule = inter_precursor_dict[molec_grp]['RDKit']
-        intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
-        return molec_grp, intermediate
+def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
+    """
+    Process a molecule to generate all the possible unique intermediates obtained from C-H bond breaking.
+    Generates the pack dictionary for the molecule and its intermediates.
 
-def process_intermediate(args):
+    Parameters
+    ----------
+    args : list
+        List containing the name of the molecule, the molecule itself, the dictionary of intermediates, and the dictionary of isomeric groups.
+
+    Returns
+    -------
+    tuple[str, dict]
+        Tuple containing the name of the molecule and the dictionary of intermediates.
+    """
+    name, molec_grp, inter_precursor_dict, isomeric_groups = args
+    molecule = inter_precursor_dict[molec_grp]['RDKit']
+    intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
+    return molec_grp, intermediate
+
+def process_intermediate(args: tuple[str, dict]) -> tuple[str, nx.DiGraph]:
+    """
+    Generates the map dictionary for the intermediate.
+    The map dictionary is used to generate a primitive reaction network with only C-H bond breaking.
+
+    Parameters
+    ----------
+    args : tuple
+        Tuple containing the name of the molecule and the dictionary of intermediates.
+
+    Returns
+    -------
+    tuple[str, nx.DiGraph]
+        Tuple containing the name of the molecule and the nx.Digraph of intermediates.
+    """
     molecule, intermediate = args
     map_tmp = generate_map(intermediate, 'H')
     return molecule, map_tmp
 
-def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
+def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
     """
     Generates all the possible intermediates for a given number of carbon atoms 
     starting from the set of fully saturated CHO molecules (alkanes, alcohols, etc.).
@@ -337,19 +434,22 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
     ----------
     n_carbon : int
         Maximum number of carbon atoms in the intermediates.
+    n_oxy : int
+        Maximum number of oxygen atoms in the intermediates.
 
     Returns
     -------
-    tuple[dict, dict]        
+    tuple[dict, dict]   
+        Tuple containing the dictionary of intermediates and the dictionary of maps.     
     """
     
     # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)
     alkanes_smiles = gen_alkanes_smiles(n_carbon)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     
-    alcohols_smiles = [add_oxygens_to_molecule(mol) for mol in mol_alkanes] 
+    alcohols_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
     alcohols_smiles = [smiles for smiles_set in alcohols_smiles for smiles in smiles_set]  # flatten list of lists
-    alcohols_smiles += ['O', 'OO', '[H][H]'] 
+    alcohols_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
     mol_alcohols = [Chem.MolFromSmiles(smiles) for smiles in alcohols_smiles]
 
     intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_alcohols]
@@ -364,6 +464,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
             'Graph': graph, 
             'RDKit': rdkit_obj,
             }
+        
     isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
 
     num_cores = mp.cpu_count()
@@ -378,14 +479,14 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
                 repeat_molec.append(molec_grp)
                 args_list.append([name, molec_grp, inter_precursor_dict, isomeric_groups])
     
-    with mp.Pool(num_cores) as pool:
+    with mp.Pool(num_cores//2) as pool:
         results = pool.map(process_molecule, args_list)
     inter_dict = {k: v for k, v in results}
 
     # 3) Generate the connections between the intermediates via graph theory
     map_dict = {}
     args_map_list = [(molecule, inter_dict[molecule]) for molecule in inter_dict.keys()]
-    with mp.Pool(num_cores) as pool:
+    with mp.Pool(num_cores//2) as pool:
         results = pool.map(process_intermediate, args_map_list)
     map_dict = {k: v for k, v in results}
     return inter_dict, map_dict

@@ -922,7 +922,7 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[Eleme
             for graph_pair in graph_pairs:
                 args_list.append((cached_graphs, '00000', intermediate.code[:-1], bond_breaking_type, graph_pair))
 
-    with mp.Pool(os.cpu_count()) as pool:
+    with mp.Pool(os.cpu_count()//2) as pool:
         results = pool.map(process_graph_pair, args_list)
 
     # post-process results
