@@ -771,7 +771,7 @@ def calculate_weigth(elems):
     return sum([ELEM_WEIGTHS[key] * value for key, value in elems.items()])
 
 
-def find_matching_intermediates(graph, cate, cached_graphs):
+def find_matching_intermediates(graph: nx.Graph, cate, cached_graphs: dict[str, tuple[nx.Graph, dict]]) -> list[str]:
     """
     Finds intermediates in the network that match the given graph.
     
@@ -786,13 +786,13 @@ def find_matching_intermediates(graph, cate, cached_graphs):
     matching_intermediates = []
     graph_info = (len(graph), elem_inf(graph))
     
-    for loop_inter, (cached_graph, cached_elem_inf) in cached_graphs.items():
+    for inter_code, (cached_graph, cached_elem_inf) in cached_graphs.items():
         graph_len, elem_info = graph_info
         if cached_elem_inf != elem_info or len(cached_graph) != graph_len:
             continue
 
         if nx.is_isomorphic(cached_graph, graph, node_match=cate):
-            matching_intermediates.append(loop_inter)
+            matching_intermediates.append(inter_code)
             if len(matching_intermediates) == 2:
                 break
     return matching_intermediates
@@ -810,12 +810,12 @@ def validate_components(in_comp):
     chk_lst = [0, 0]
     for index, item in enumerate(in_comp):
         for mol in item:
-            if mol.is_surface:
+            if mol == '00000*':
                 continue
-            chk_lst[index] += len(mol.molecule)
+            chk_lst[index] += sum([int(num) for num in mol[:3]])
     return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]*2
 
-def create_or_append_reaction(reaction: ElementaryReaction, reaction_set: set, reaction_list: list):
+def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: list):
     """
     Adds a new reaction to the list or updates an existing one.
     
@@ -827,6 +827,7 @@ def create_or_append_reaction(reaction: ElementaryReaction, reaction_set: set, r
     Returns:
         bool: True if the reaction was added, False otherwise.
     """
+    reaction = ElementaryReaction(r_type=reaction_info[1], components=reaction_info[0])
     if reaction.components not in reaction_set:
         reaction_set.add(reaction.components)
         reaction_list.append(reaction)
@@ -839,23 +840,22 @@ def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
         for graph in graph_pair
     ]
 
-def process_graph_pair(args):
-    cached_graphs, surface, intermediate, bond_breaking_type, graph_pair = args
+def process_graph_pair(args) -> tuple[list[list[str]], str]:
+    cached_graphs, surface_code, intermediate_code, bond_breaking_type, graph_pair = args
     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
     
-    in_comp = [[surface, intermediate], []]
+    rxn_components = [[surface_code, intermediate_code], []]
     matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
     
     # Flatten the list of lists
     flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
-    in_comp[1].extend(list(set(flat_matching_intermediates)))
+    rxn_components[1].extend(list(set(flat_matching_intermediates)))
 
-    if not validate_components(in_comp):
-        print(in_comp)
+    if not validate_components(rxn_components):
         return None
     
-    reaction = ElementaryReaction(r_type=bond_breaking_type, components=in_comp)
-    return reaction
+    # reaction = ElementaryReaction(r_type=bond_breaking_type, components=rxn_components)
+    return rxn_components, bond_breaking_type
 
 def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
     connections = connectivity_helper(molecule)
@@ -892,11 +892,15 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
     return bonds
 
 def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
+    """
+    Given a dictionary of Intermediates (closed-shell and dehydrogenated) and a surface, find all possible
+    bond breaking reactions and return them as a list of ElementaryReactions.
+    """
     reaction_set = set()
     reaction_list = []
 
     intermediates_values = list(intermediates_dict.values())
-    cached_graphs = {inter: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
+    cached_graphs = {inter.code[:-1]: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
 
     args_list = []
     for intermediate in intermediates_values:
@@ -906,15 +910,18 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atom
 
         for bond_breaking_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
-                args_list.append((cached_graphs, surface, intermediate, bond_breaking_type, graph_pair))
+                args_list.append((cached_graphs, '00000', intermediate.code[:-1], bond_breaking_type, graph_pair))
 
-    with mp.Pool(os.cpu_count()/2) as pool:
+    with mp.Pool(os.cpu_count()) as pool:
         results = pool.map(process_graph_pair, args_list)
 
     # post-process results
     for reaction in results:
         if reaction is not None:
-            create_or_append_reaction(reaction, reaction_set, reaction_list)
+            components_lhs = [intermediates_dict[code] for code in reaction[0][0]]
+            components_rhs = [intermediates_dict[code] for code in reaction[0][1]]
+            reaction_info = [components_lhs, components_rhs], reaction[1]
+            create_or_append_reaction(reaction_info, reaction_set, reaction_list)
 
     return reaction_list
 
