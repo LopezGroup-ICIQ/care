@@ -364,8 +364,8 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
             'Graph': graph, 
             'RDKit': rdkit_obj,
             }
-
     isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
+
     num_cores = mp.cpu_count()
 
     # 2) Generate all possible open-shell intermediates by H abstraction
@@ -377,6 +377,7 @@ def generate_intermediates(n_carbon: int) -> tuple[dict[str, dict[int, list[MolP
             if molec_grp not in repeat_molec:
                 repeat_molec.append(molec_grp)
                 args_list.append([name, molec_grp, inter_precursor_dict, isomeric_groups])
+    
     with mp.Pool(num_cores) as pool:
         results = pool.map(process_molecule, args_list)
     inter_dict = {k: v for k, v in results}

@@ -56,7 +56,7 @@ def generate_rxn_net(slab_ase_obj: Atoms,
         rxn_net.add_reactions(select_net['reactions'])
     print('Time to add H breaking intermediates and reactions to the reaction network: {:.2f} s'.format(time.time()-t5))
     t6 = time.time()
-    breaking_reactions = break_and_connect(rxn_net.intermediates, surf_inter)
+    breaking_reactions = break_and_connect(rxn_net.intermediates)
     rxn_net.add_reactions(breaking_reactions)
     print('Time to generate and adding breaking reactions: {:.2f} s'.format(time.time()-t6))
     gas_molecules, desorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)

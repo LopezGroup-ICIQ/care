@@ -797,6 +797,16 @@ def find_matching_intermediates(graph: nx.Graph, cate, cached_graphs: dict[str, 
                 break
     return matching_intermediates
 
+def char_to_int(c):
+    if c.isdigit():
+        return int(c)
+    elif 'a' <= c <= 'z':
+        return ord(c) - ord('a') + 10
+    elif 'A' <= c <= 'Z':
+        return ord(c) - ord('A') + 36
+    else:
+        raise ValueError(f"Invalid character: {c}")
+
 def validate_components(in_comp):
     """
     Validates the components based on the element material balance.
@@ -812,7 +822,7 @@ def validate_components(in_comp):
         for mol in item:
             if mol == '00000*':
                 continue
-            chk_lst[index] += sum([int(num) for num in mol[:3]])
+            chk_lst[index] += sum(char_to_int(c) for c in mol[:3])
     return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]*2
 
 def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: list):
@@ -891,7 +901,7 @@ def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
 
     return bonds
 
-def break_and_connect(intermediates_dict: dict[str, Intermediate], surface: Atoms) -> list[ElementaryReaction]:
+def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[ElementaryReaction]:
     """
     Given a dictionary of Intermediates (closed-shell and dehydrogenated) and a surface, find all possible
     bond breaking reactions and return them as a list of ElementaryReactions.
