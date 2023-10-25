@@ -148,48 +148,92 @@ def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
 
     return ase_atoms
 
+# def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
+#     """
+#     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
+    
+#     Parameters
+#     ----------
+#     mol : Chem.Mol
+#         RDKit molecule.
+#     noc : int
+#         Maximum number of oxygens to add.
+#         If noc < 0, then add as many oxygens as possible.
+
+#     Returns
+#     -------
+#     set[str]
+#         Set of all possible molecules with added oxygens (SMILES format).
+#     """
+    
+#     unique_molecules = set()
+
+#     # All RDkit molecules are unsaturated, i.e., C2H6 is represented as C2 (no H atoms)
+#     suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+
+#     # Generate all combinations of adding 0 to 'num_free_sites' oxygens for each suitable carbon
+#     combos = [list(range(num+1)) for _, num in suitable_carbons]
+
+#     for combo in product(*combos):
+#         total_oxygens = sum(combo)
+        
+#         if total_oxygens == 0 or (noc >= 0 and total_oxygens > noc):
+#             continue
+
+#         tmp_mol = Chem.RWMol(mol) # Readable and writable mol object
+#         for (num_oxygens, (carbon_idx, _)) in zip(combo, suitable_carbons):
+#             for _ in range(num_oxygens):
+#                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
+#                 tmp_mol.AddBond(carbon_idx, oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+
+#         # Update explicit and implicit valence info
+#         tmp_mol.UpdatePropertyCache()
+
+#         # Convert to canonical SMILES for uniqueness
+#         smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+#         unique_molecules.add(smiles)
+
+#     return unique_molecules
+
 def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
     """
     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
-    
+
     Parameters
     ----------
     mol : Chem.Mol
         RDKit molecule.
     noc : int
-        Maximum number of oxygens to add.
-        If noc < 0, then add as many oxygens as possible.
+        Maximum number of oxygens to add. If noc < 0, add as many oxygens as possible.
 
     Returns
     -------
     set[str]
         Set of all possible molecules with added oxygens (SMILES format).
     """
-    
     unique_molecules = set()
 
-    # All RDkit molecules are unsaturated, i.e., C2H6 is represented as C2 (no H atoms)
-    suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+    # Filter out carbon atoms with no free sites
+    suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() 
+                        if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+    if not suitable_carbons:
+        return unique_molecules
 
-    # Generate all combinations of adding 0 to 'num_free_sites' oxygens for each suitable carbon
+    # Generate combinations
     combos = [list(range(num+1)) for _, num in suitable_carbons]
 
     for combo in product(*combos):
         total_oxygens = sum(combo)
-        
         if total_oxygens == 0 or (noc >= 0 and total_oxygens > noc):
             continue
 
-        tmp_mol = Chem.RWMol(mol) # Readable and writable mol object
-        for (num_oxygens, (carbon_idx, _)) in zip(combo, suitable_carbons):
+        tmp_mol = Chem.RWMol(mol)
+        for num_oxygens, (carbon_idx, _) in zip(combo, suitable_carbons):
             for _ in range(num_oxygens):
                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
                 tmp_mol.AddBond(carbon_idx, oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-
-        # Update explicit and implicit valence info
+        
         tmp_mol.UpdatePropertyCache()
-
-        # Convert to canonical SMILES for uniqueness
         smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
         unique_molecules.add(smiles)
 

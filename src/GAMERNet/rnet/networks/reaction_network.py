@@ -697,12 +697,12 @@ class ReactionNetwork:
         components = rxn.split("<->")
         reactants, products = components[0].split("+"), components[1].split("+")
         for i, inter in enumerate(reactants):
-            if '00000*' in inter:
+            if '0000000000*' in inter:
                 where_surface = 'reactants'
                 surf_index = i
                 break
         for i, inter in enumerate(products):
-            if '00000*' in inter:
+            if '0000000000*' in inter:
                 where_surface = 'products'
                 surf_index = i
                 break

@@ -31,9 +31,11 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     
     # 1) Generate all the intermediates
     t0 = time.time()
+    import pprint as pp
     intermediate_dict, map_dict = generate_intermediates(ncc, noc)
+    pp.pprint(intermediate_dict)
     print('Time to generate intermediates: {:.2f} s'.format(time.time()-t0))   
-    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='00000*', is_surface=True, phase='surf')
+    surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
 
     # 2) Generate the network dictionary
     t1 = time.time()
@@ -51,7 +53,7 @@ def generate_rxn_net(slab_ase_obj: Atoms,
 
     # 3) Generate the reaction network
     t4 = time.time()
-    rxn_net = ReactionNetwork(intermediates={'00000': surf_inter}, ncc=ncc)
+    rxn_net = ReactionNetwork(intermediates={'0000000000': surf_inter}, ncc=ncc)
     print('Time to generate primitive reaction network: {:.2f} s'.format(time.time()-t4))
     t5 = time.time()
     for item in int_net:

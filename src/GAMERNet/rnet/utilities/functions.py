@@ -188,24 +188,46 @@ def digraph(atoms: Atoms, coords: bool) -> nx.DiGraph:
 
     return nx_graph
 
-def code_name(molecule: Atoms, group: int, index: int) -> str: # Code name of the molecule
+# def code_name(molecule: Atoms, group: int, index: int) -> str: # Code name of the molecule
 
+#     characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
+    
+#     nC = molecule.get_chemical_symbols().count("C")
+#     nH = molecule.get_chemical_symbols().count("H")
+#     nO = molecule.get_chemical_symbols().count("O")
+
+    
+#     if nC >= len(characters) or nH >= len(characters) or nO >= len(characters) or group >= len(characters) or index >= len(characters):
+#         return "Atom count exceeds encoding capacity"
+    
+#     encoded_name = characters[nC] + characters[nH] + characters[nO] + characters[group] + characters[index]
+    
+#     if len(encoded_name) > 5:
+#         return "Invalid encoded string length"
+    
+#     return f"{encoded_name}"
+
+def code_name(molecule: Atoms, group: int, index: int) -> str:
     characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
+    n = len(characters)
     
     nC = molecule.get_chemical_symbols().count("C")
     nH = molecule.get_chemical_symbols().count("H")
     nO = molecule.get_chemical_symbols().count("O")
 
-    
-    if nC >= len(characters) or nH >= len(characters) or nO >= len(characters) or group >= len(characters) or index >= len(characters):
+    if nC >= n*n or nH >= n*n or nO >= n*n or group >= n*n or index >= n*n:
         return "Atom count exceeds encoding capacity"
+
+    def double_encode(x):
+        return characters[x // n] + characters[x % n]
     
-    encoded_name = characters[nC] + characters[nH] + characters[nO] + characters[group] + characters[index]
-    
-    if len(encoded_name) > 5:
+    encoded_name = double_encode(nC) + double_encode(nH) + double_encode(nO) + double_encode(group) + double_encode(index)
+
+    if len(encoded_name) != 10:
         return "Invalid encoded string length"
     
     return f"{encoded_name}"
+
 
 def search_code(mg_pack: dict[int, list[MolPack]], code: str):
     for _, pack in mg_pack.items():

@@ -52,7 +52,7 @@ def process_edge(args):
         check_bonds = []
         for component in new_rxn.components:
             for inter in list(component):
-                if inter.is_surface or inter.code in ('01011-*', '02011-*'):
+                if inter.is_surface:
                     continue
                 else:
                     oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
@@ -88,7 +88,7 @@ def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
             print("KeyError: Node {} not found in the dictionary".format(node))
             pass
       
-    h_inter = network_dict['[H][H]']['intermediates']['01011']    
+    h_inter = network_dict['[H][H]']['intermediates']['0001000101']    
     args_list = []
     for key, network in rxn_dict.items():
         if key != '[H][H]':
@@ -132,46 +132,10 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
             gas_molecules[gas_code] = gas_inter           
             adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption'))
 
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['02011g']]), frozenset([intermediates['01011']])), r_type='adsorption'))
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['00211g']]), frozenset([intermediates['00111']])), r_type='adsorption'))
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['10111g']]), frozenset([intermediates['10011'], intermediates['00111']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0002000101g']]), frozenset([intermediates['0001000101']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption'))
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0100010101g']]), frozenset([intermediates['0100000101'], intermediates['0000010101']])), r_type='adsorption'))
     return gas_molecules, adsorption_steps
-
-
-def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
-    """
-    Classify elementary reactions with O-H bond-breaking
-    It does not add any reaction to the network. It just classifies the reactions
-
-    Parameters
-    ----------
-    reactions_list : list[ElementaryReaction]
-        List of elementary reactions.
-
-    Returns
-    -------
-    None
-    """
-
-    for reaction in reactions_list:
-        check_bonds = []
-        if reaction.r_type == 'C-H':
-            for state in reaction.components:
-                for inter in list(state):
-                    if inter.is_surface or inter.code in ('01011-*', '02011-*'): #surface or a hydrogen atom,
-                        continue
-                    else:
-                        oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
-                        if len(oxy) != 0:
-                            counter = 0
-                            for atom in oxy:
-                                counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom.index)
-                            check_bonds.append(counter)
-                        else:
-                            check_bonds.append(0)
-            if check_bonds[0] != check_bonds[1]:
-                reaction.r_type = 'O-H'
-
 
 # def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
 #     """
@@ -226,44 +190,3 @@ def classify_oh_bond_breaks(reactions_list: list[ElementaryReaction]) -> None:
 #                         except:
 #                             continue
 #                         break
-
-# def gen_gas_dict(gas_df):
-#     """
-#     missing docstring
-#     """
-#     gas_dict = {gas_code: {'mol': None, 'conn_graph': None, 'energy': None, 
-#                        'entropy': None, 'electrons': None} for gas_code in gas_df.gas}
-
-
-#     for gas_code in gas_df.gas:
-#         gas_data = gas_df.loc[gas_df['gas'] == gas_code]
-
-#         gas_mol = pickle.loads(gas_data.contcar_object.values[0])
-#         gas_dict[gas_code]['mol'] = gas_mol
-
-#         gas_graph = pickle.loads(gas_data.conn_graph.values[0])
-#         gas_dict[gas_code]['conn_graph'] = gas_graph
-
-#         gas_dict[gas_code]['energy'] = gas_data.e_zpe.values[0]
-#         gas_dict[gas_code]['entropy'] = gas_data.S_meV.values[0]
-
-#         if np.isnan(gas_dict[gas_code]['energy']):
-#             gas_dict[gas_code]['energy'] = 0.0
-#         if np.isnan(gas_dict[gas_code]['entropy']):
-#             gas_dict[gas_code]['entropy'] = 0.0
-
-#         electrons = af.adjust_electrons(gas_mol)
-#         gas_dict[gas_code]['electrons'] = electrons
-    
-#     return gas_dict
-
-# def gen_gas_inter_dict(gas_dict: dict) -> dict:
-#     """
-#     missing docstring
-#     """
-#     gas_inter_dict = {}
-#     for gas_code, gas_data in gas_dict.items():
-#         new_inter = Intermediate(gas_code, molecule=gas_data['mol'], energy=gas_data['energy'], 
-#                                 entropy=gas_data['entropy'], electrons=gas_data['electrons'], phase='gas')
-#         gas_inter_dict[gas_code] = new_inter
-#     return gas_inter_dict
