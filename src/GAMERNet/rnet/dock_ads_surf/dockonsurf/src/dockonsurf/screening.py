@@ -753,62 +753,22 @@ def run_screening(inp_vars):
 
     @param inp_vars: Calculation parameters from input file.
     """
-    import os
+
     import random
-    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.formats import collect_confs, adapt_format
-    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.calculation import run_calc, check_finished_calcs
 
     logger.info('Carrying out procedures for the screening of adsorbate-surface'
                 ' structures.')
-    # if inp_vars['use_molec_file']:
-    #     # selected_confs == ase Atoms object (molecule)
-    #     selected_confs = [adapt_format('ase', inp_vars['use_molec_file'],
-    #                                    inp_vars['special_atoms'])]
-    #     logger.info(f"Using '{inp_vars['use_molec_file']}' as only conformer.")
-    # else:
-    #     if not os.path.isdir("isolated"):
-    #         err = "'isolated' directory not found. It is needed in order to " \
-    #               "carry out the screening of structures to be adsorbed"
-    #         logger.error(err)
-    #         raise FileNotFoundError(err)
 
-    #     finished_calcs, failed_calcs = check_finished_calcs('isolated',
-    #                                                         inp_vars['code'])
-    #     if not finished_calcs:
-    #         err_msg = "No calculations on 'isolated' finished normally."
-    #         logger.error(err_msg)
-    #         raise FileNotFoundError(err_msg)
-
-    #     logger.info(f"Found {len(finished_calcs)} structures of isolated "
-    #                 f"conformers whose calculation finished normally.")
-    #     if len(failed_calcs) != 0:
-    #         logger.warning(
-    #             f"Found {len(failed_calcs)} calculations more that "
-    #             f"did not finish normally: {failed_calcs}. \n"
-    #             f"Using only the ones that finished normally: "
-    #             f"{finished_calcs}.")
-
-    #     conf_list = collect_confs(finished_calcs, inp_vars['code'], 'isolated',
-    #                               inp_vars['special_atoms'])
-    #     selected_confs = select_confs(conf_list, inp_vars['select_magns'],
-    #                                   inp_vars['confs_per_magn'])
-    # surf == ase Atoms object (surface)
-    # surf = adapt_format('ase', inp_vars['surf_file'], inp_vars['special_atoms'])
     surf = inp_vars['surf_file']
     selected_confs = [inp_vars['use_molec_file']]
     surf.info = {}
     surf_ads_list = adsorb_confs(selected_confs, surf, inp_vars)
     if len(surf_ads_list) > inp_vars['max_structures']:
         surf_ads_list = random.sample(surf_ads_list, inp_vars['max_structures'])
-    # elif len(surf_ads_list) == 0:
-    #     err_msg = "No configurations were generated: Try with a different " \
-    #                 "combination of parameters."
-    #     logger.error(err_msg)
-    #     raise ValueError(err_msg)
+
     logger.info(f'Generated {len(surf_ads_list)} adsorbate-surface atomic '
                 f'configurations to carry out a calculation of.')
 
-    # run_calc('screening', inp_vars, surf_ads_list)
     logger.info('Finished the procedures for the screening of adsorbate-surface'
                 ' structures section.')
     return surf_ads_list

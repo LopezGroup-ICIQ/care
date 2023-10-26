@@ -114,27 +114,6 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
         logger.error(lib_err)
         raise NotImplementedError(lib_err)
 
-    if requirement == 'rdkit':
-        from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.xyz2mol import xyz2mol
-        if filetype(coord_file) == 'xyz':  # TODO Include detection of charges.
-            ase_atms = ase.io.read(coord_file)
-            atomic_nums = ase_atms.get_atomic_numbers().tolist()
-            xyz_coordinates = ase_atms.positions.tolist()
-            rd_mol_obj = xyz2mol(atomic_nums, xyz_coordinates)
-            logger.debug(conv_info)
-            return Chem.AddHs(rd_mol_obj)
-        elif filetype(coord_file) == 'mol':
-            logger.debug(conv_info)
-            return Chem.AddHs(Chem.MolFromMolFile(coord_file, removeHs=False))
-        else:
-            ase_atms = try_command(ase.io.read,
-                                   [(ase.io.formats.UnknownFileTypeError,
-                                     fil_type_err)],
-                                   coord_file)
-            atomic_nums = ase_atms.get_atomic_numbers().tolist()
-            xyz_coordinates = ase_atms.positions.tolist()
-            return xyz2mol(atomic_nums, xyz_coordinates)
-
     if requirement == 'ase':
         add_special_atoms(spec_atms)
         if filetype(coord_file) == 'xyz':
@@ -149,30 +128,6 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
                                [(ase.io.formats.UnknownFileTypeError,
                                  fil_type_err)],
                                coord_file)
-
-
-def read_coords_cp2k(file, spec_atoms=tuple()):
-    """Reads the coordinates from a CP2K restart file and returns an ase.Atoms
-     object.
-
-    @param file: The file to read containing the coordinates.
-    @param spec_atoms: List of tuples containing the pairs of chemical symbols.
-    @return: ase.Atoms object of the coordinates in the file.
-    """
-    import numpy as np
-    from ase import Atoms
-    from pycp2k import CP2K
-
-    cp2k = CP2K()
-    cp2k.parse(file)
-    force_eval = cp2k.CP2K_INPUT.FORCE_EVAL_list[0]
-    raw_coords = force_eval.SUBSYS.COORD.Default_keyword
-    symbols = [atom.split()[0] for atom in raw_coords]
-    positions = np.array([[float(coord) for coord in atom.split()[1:]]
-                          for atom in raw_coords])
-    if len(spec_atoms) > 0:
-        add_special_atoms(spec_atoms)
-    return Atoms(symbols=symbols, positions=positions)
 
 
 def read_coords_vasp(file, spec_atoms=tuple()):
@@ -231,20 +186,8 @@ def collect_confs(dir_list, code, run_type, spec_atms=tuple()):
     atoms_list = []
     for conf_dir in dir_list:
         conf_path = f"{run_type}/{conf_dir}/"
-        if code == 'cp2k':
-            ase_atms = read_coords_cp2k(glob(f"{conf_path}/*-1.restart")[0],
-                                        spec_atms)
-            # Assign energy
-            for fil in os.listdir(conf_path):
-                if is_binary(conf_path + fil):
-                    continue
-                conf_energy = read_energy_cp2k(conf_path + fil)
-                if conf_energy is not None:
-                    ase_atms.info["energy"] = conf_energy
-                    break
-            ase_atms.info[run_type[:3]] = conf_dir
-            atoms_list.append(ase_atms)
-        elif code == 'vasp':
+        
+        if code == 'vasp':
             ase_atms = read_coords_vasp(f"{conf_path}/OUTCAR", spec_atms)
             ase_atms.info["energy"] = ase_atms.get_total_energy() * 27.2113845
             ase_atms.info[run_type[:3]] = conf_dir
