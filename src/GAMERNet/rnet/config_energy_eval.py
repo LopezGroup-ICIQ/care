@@ -18,7 +18,7 @@ def atoms_to_data_parallel(atoms_list, graph_params, model_elems, calc_type='ads
     # chunks = [(atoms_list[i::num_cores], graph_params, model_elems, calc_type) for i in range(num_cores)]
 
     # Use multiprocessing.Pool to parallelize the conversion
-    with mp.get_context('spawn').Pool(num_cores) as pool:
+    with mp.Pool(num_cores//2) as pool:
         results = pool.starmap(process_chunk, zip(atoms_list, it.repeat(graph_params), it.repeat(model_elems), it.repeat(calc_type)))
 
     # Flatten the list of results and return
