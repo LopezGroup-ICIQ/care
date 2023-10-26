@@ -132,7 +132,7 @@ def generate_alkanes_recursive(n_carbon: int, main_chain="") -> list[str]:
     unique_alkanes = list(set(alkanes))
     return unique_alkanes
 
-def canonicalize_smiles(smiles_list: list[str]) -> list[str]:
+def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
     """
     Canonicalize a list of SMILES strings.
 
@@ -150,6 +150,10 @@ def canonicalize_smiles(smiles_list: list[str]) -> list[str]:
     for smiles in smiles_list:
         mol = Chem.MolFromSmiles(smiles)
         if mol is not None:
+            # If the molecule contains a quaternary carbon, do not add it to the list
+            if rmv_quatr_C:
+                if any(atom.GetDegree() == 4 for atom in mol.GetAtoms()):
+                    continue
             canonical_smiles = Chem.MolToSmiles(mol, isomericSmiles=False)
             canonical_smiles_set.add(canonical_smiles)
     return list(canonical_smiles_set)
@@ -171,7 +175,7 @@ def gen_alkanes_smiles(n: int) -> list[str]:
     all_alkanes = []
     for i in range(1, n + 1):
         all_alkanes += generate_alkanes_recursive(i)
-    unique_alkanes = canonicalize_smiles(all_alkanes)
+    unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=True)
     return unique_alkanes
 
 def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
