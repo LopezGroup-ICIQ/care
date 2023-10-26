@@ -94,7 +94,22 @@ def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
 
     return ase_atoms
 
-def generate_alkanes_recursive(n_carbon, main_chain=""):
+def generate_alkanes_recursive(n_carbon: int, main_chain="") -> list[str]:
+    """
+    Generate all possible linear and branched alkanes with a given number of carbon atoms.
+
+    Parameters
+    ----------
+    n_carbon : int
+        Maximum number of carbon atoms in the alkanes.
+    main_chain : str, optional
+        String where SMILES will be generated, by default ""
+
+    Returns
+    -------
+    unique_alkanes : list[str]
+        List of unique alkanes in SMILES format.
+    """
     if n_carbon == 0:
         return [main_chain]
     if n_carbon < 0:
@@ -117,7 +132,20 @@ def generate_alkanes_recursive(n_carbon, main_chain=""):
     unique_alkanes = list(set(alkanes))
     return unique_alkanes
 
-def canonicalize_smiles(smiles_list):
+def canonicalize_smiles(smiles_list: list[str]) -> list[str]:
+    """
+    Canonicalize a list of SMILES strings.
+
+    Parameters
+    ----------
+    smiles_list : list[str]
+        List of SMILES strings.
+
+    Returns
+    -------
+    list[str]
+        List of unique SMILES strings.
+    """
     canonical_smiles_set = set()
     for smiles in smiles_list:
         mol = Chem.MolFromSmiles(smiles)
@@ -126,7 +154,20 @@ def canonicalize_smiles(smiles_list):
             canonical_smiles_set.add(canonical_smiles)
     return list(canonical_smiles_set)
 
-def gen_alkanes_smiles(n):
+def gen_alkanes_smiles(n: int) -> list[str]:
+    """
+    Generate all possible alkanes from 1 Carbon atom to the given number of carbon atoms.
+
+    Parameters
+    ----------
+    n : int
+        Maximum number of carbon atoms in the alkanes.
+
+    Returns
+    -------
+    unique_alkanes : list[str]
+        List of unique alkanes in SMILES format.
+    """
     all_alkanes = []
     for i in range(1, n + 1):
         all_alkanes += generate_alkanes_recursive(i)
