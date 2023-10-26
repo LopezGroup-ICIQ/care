@@ -33,7 +33,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     t0 = time.time()
     import pprint as pp
     intermediate_dict, map_dict = generate_intermediates(ncc, noc)
-    pp.pprint(intermediate_dict)
     print('Time to generate intermediates: {:.2f} s'.format(time.time()-t0))   
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
 
