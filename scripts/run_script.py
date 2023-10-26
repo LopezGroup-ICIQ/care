@@ -95,7 +95,7 @@ if __name__ == "__main__":
     with open(f"{output_dir}/rxn_net_bp.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(f"The reaction network pickle file has been generated\n")
-    quit()
+
     print('Generating adsorption configurations...')
     print('It can take some time, please be patient...')
     # Evaluate energy of intermediates
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         else:  # adsorbed intermediate
             adsorbed_keys.append(key)
     # Parallelize ads_placement function for adsorbed intermediates
-    with mp.Pool(processes=os.cpu_count()) as p:
+    with mp.Pool(processes=os.cpu_count()//2) as p:
         result_list = p.starmap(process_adsorbed_intermediate, iterable=zip(adsorbed_keys, it.repeat(rxn_net), it.repeat(surface)))
     print('Total number of adsorption configurations: {}\n'.format(len(result_list)))
     print('Time taken to generate the adsorption configurations for all intermediates: {:.2f} s'.format(time.time() - t00))
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # Evaluate energy of intermediates
     print('Evaluating the energies of the adsorption configurations...')
     t00 = time.time()
-    conf_per_act_site = 3
+    conf_per_act_site = 1
     for tuple in result_list:
         key = tuple[0]
         gen_ads_config = tuple[1]
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     rxn_net_dict = rxn_net.to_dict()
     rxn_net_dict['ncc'] = args.ncc
     rxn_net_dict['surface'] = surface
-    with open(f"{args.o}/rxn_net.pkl", "wb") as outfile:
+    with open(f"{output_dir}/rxn_net.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(f"The reaction network pickle file has been generated\n")
 
