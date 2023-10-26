@@ -2,7 +2,12 @@
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 
 
-# FranCATstein
+# CARE: Catalysis Automatic Reaction Evaluator
+
+<p align="center">
+    <img src="./output.gif" width="60%" height=60%"/>
+</p>
+
 
 CARE (*Catalysis Automatic Reaction Evaluator*) is a package for automatically building reaction networks for heterogeneous catalysis with energy estimation through uncertainty-based graph-neural networks.
 
