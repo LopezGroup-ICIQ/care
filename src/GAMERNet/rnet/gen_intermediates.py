@@ -1,4 +1,5 @@
 from rdkit import Chem
+from rdkit import RDLogger
 from rdkit.Chem import AllChem
 from ase import Atoms, Atom
 from itertools import product, combinations
@@ -6,6 +7,9 @@ import networkx as nx
 import copy
 from collections import defaultdict
 import multiprocessing as mp
+
+lg = RDLogger.logger()
+lg.setLevel(RDLogger.CRITICAL)
 
 from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
@@ -53,64 +57,6 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
     element_j = node_j.symbol
     return CORDERO[element_i] + CORDERO[element_j] + tolerance
 
-def generate_alkanes_recursive(G: nx.Graph, remaining_c: int, unique_alkanes: list[str]) -> None:
-    """
-    Generate recursively all alkanes with a given number of carbon atoms in smiles format.
-
-    Parameters
-    ----------
-    G : nx.Graph
-        NetworkX graph representing the molecule.
-    remaining_c : int
-        Remaining number of carbon atoms to add.
-    unique_alkanes : list[str]
-        List of all possible alkanes (SMILES format).
-
-    Returns
-    -------
-    None
-    """
-    if remaining_c == 0:
-        if nx.is_connected(G) and nx.is_tree(G):
-            mol = nx_to_mol(G)
-            smiles = Chem.MolToSmiles(mol, canonical=True)
-            unique_alkanes.add(smiles)
-        return
-    
-    for node in G.nodes():
-        if G.degree(node) < 4:  
-            for neighbor in range(max(G.nodes()) + 1, max(G.nodes()) + 1 + remaining_c):
-                G_new = copy.deepcopy(G)
-                G_new.add_edge(node, neighbor)
-                generate_alkanes_recursive(G_new, remaining_c - 1, unique_alkanes)
-
-def nx_to_mol(G: nx.Graph) -> Chem.Mol:
-    """
-    Generate an RDKit molecule from a NetworkX graph.
-
-    Parameters
-    ----------
-    G : nx.Graph
-        NetworkX graph representing the molecule.
-
-    Returns
-    -------
-    mol: Chem.Mol
-        RDKit molecule.
-    """
-    mol = Chem.RWMol()
-    node_to_idx = {}
-    
-    for node in G.nodes():
-        idx = mol.AddAtom(Chem.Atom("C"))
-        node_to_idx[node] = idx
-    
-    for edge in G.edges():
-        mol.AddBond(node_to_idx[edge[0]], node_to_idx[edge[1]], Chem.BondType.SINGLE)
-    
-    Chem.SanitizeMol(mol)
-    return mol
-
 def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
     """
     Generate an ASE Atoms object from an RDKit molecule.
@@ -148,52 +94,44 @@ def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
 
     return ase_atoms
 
-# def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
-#     """
-#     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
+def generate_alkanes_recursive(n_carbon, main_chain=""):
+    if n_carbon == 0:
+        return [main_chain]
+    if n_carbon < 0:
+        return []
     
-#     Parameters
-#     ----------
-#     mol : Chem.Mol
-#         RDKit molecule.
-#     noc : int
-#         Maximum number of oxygens to add.
-#         If noc < 0, then add as many oxygens as possible.
-
-#     Returns
-#     -------
-#     set[str]
-#         Set of all possible molecules with added oxygens (SMILES format).
-#     """
+    alkanes = []
     
-#     unique_molecules = set()
+    # Continue the main chain
+    new_chain = main_chain + "C"
+    alkanes += generate_alkanes_recursive(n_carbon-1, new_chain)
+    
+    # Add branches
+    if len(main_chain) > 0:
+        for i in range(len(main_chain)):
+            if main_chain[i] == "C":
+                new_chain = main_chain[:i] + "C(C)" + main_chain[i+1:]
+                alkanes += generate_alkanes_recursive(n_carbon-1, new_chain)
+    
+    # Remove duplicates
+    unique_alkanes = list(set(alkanes))
+    return unique_alkanes
 
-#     # All RDkit molecules are unsaturated, i.e., C2H6 is represented as C2 (no H atoms)
-#     suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+def canonicalize_smiles(smiles_list):
+    canonical_smiles_set = set()
+    for smiles in smiles_list:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is not None:
+            canonical_smiles = Chem.MolToSmiles(mol, isomericSmiles=False)
+            canonical_smiles_set.add(canonical_smiles)
+    return list(canonical_smiles_set)
 
-#     # Generate all combinations of adding 0 to 'num_free_sites' oxygens for each suitable carbon
-#     combos = [list(range(num+1)) for _, num in suitable_carbons]
-
-#     for combo in product(*combos):
-#         total_oxygens = sum(combo)
-        
-#         if total_oxygens == 0 or (noc >= 0 and total_oxygens > noc):
-#             continue
-
-#         tmp_mol = Chem.RWMol(mol) # Readable and writable mol object
-#         for (num_oxygens, (carbon_idx, _)) in zip(combo, suitable_carbons):
-#             for _ in range(num_oxygens):
-#                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
-#                 tmp_mol.AddBond(carbon_idx, oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-
-#         # Update explicit and implicit valence info
-#         tmp_mol.UpdatePropertyCache()
-
-#         # Convert to canonical SMILES for uniqueness
-#         smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
-#         unique_molecules.add(smiles)
-
-#     return unique_molecules
+def gen_alkanes_smiles(n):
+    all_alkanes = []
+    for i in range(1, n + 1):
+        all_alkanes += generate_alkanes_recursive(i)
+    unique_alkanes = canonicalize_smiles(all_alkanes)
+    return unique_alkanes
 
 def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
     """
@@ -409,26 +347,6 @@ def formula_from_rdkit(mol: Chem.Mol) -> str:
     
     return formula
 
-def gen_alkanes_smiles(n_carbon: int) -> set[str]:
-    """
-    Generate all alkanes with a given number of carbon atoms in smiles format.
-    
-    Parameters
-    ----------
-    n_carbon : int
-        Maximum number of carbon atoms in the alkanes.
-        
-    Returns
-    -------
-    set[str]
-        Set of all possible alkanes (SMILES format).
-    """
-    alkanes_smiles = set()
-    for nC in range(n_carbon):  # Generating alkanes with 1 to n_carbon atoms
-        G = nx.Graph()
-        G.add_node(0)  # Start with a single carbon atom
-        generate_alkanes_recursive(G, nC, alkanes_smiles)
-    return alkanes_smiles
 
 def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
     """
