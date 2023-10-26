@@ -45,15 +45,14 @@ if __name__ == "__main__":
                             help="Metal of the surface. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
     argparser.add_argument('-hkl', type=str, dest='hkl',
                             help="Surface facet. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11")
-    argparser.add_argument('-o', type=str, 
-                           help="Output directory for the generated results")
     args = argparser.parse_args()
 
     print('\nInitializing CARE...')
     print('Network Carbon Cutoff (ncc): {}'.format(args.ncc))
     print('Metal(facet): {}{}'.format(args.m, args.hkl))
 
-    os.makedirs(args.o, exist_ok=True)
+    output_dir = f'C{args.ncc}_O{args.noc}_{args.m}{args.hkl}'
+    os.makedirs(output_dir, exist_ok=True)
     
     # Loading surface from database
     print('Loading surface from database...')
