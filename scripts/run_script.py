@@ -92,7 +92,7 @@ if __name__ == "__main__":
     rxn_net_dict = rxn_net.to_dict()
     rxn_net_dict['ncc'] = args.ncc
     rxn_net_dict['surface'] = surface
-    with open(f"{args.o}/rxn_net_bp.pkl", "wb") as outfile:
+    with open(f"{output_dir}/rxn_net_bp.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(f"The reaction network pickle file has been generated\n")
     quit()

@@ -188,25 +188,6 @@ def digraph(atoms: Atoms, coords: bool) -> nx.DiGraph:
 
     return nx_graph
 
-# def code_name(molecule: Atoms, group: int, index: int) -> str: # Code name of the molecule
-
-#     characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
-    
-#     nC = molecule.get_chemical_symbols().count("C")
-#     nH = molecule.get_chemical_symbols().count("H")
-#     nO = molecule.get_chemical_symbols().count("O")
-
-    
-#     if nC >= len(characters) or nH >= len(characters) or nO >= len(characters) or group >= len(characters) or index >= len(characters):
-#         return "Atom count exceeds encoding capacity"
-    
-#     encoded_name = characters[nC] + characters[nH] + characters[nO] + characters[group] + characters[index]
-    
-#     if len(encoded_name) > 5:
-#         return "Invalid encoded string length"
-    
-#     return f"{encoded_name}"
-
 def code_name(molecule: Atoms, group: int, index: int) -> str:
     characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
     n = len(characters)
@@ -267,37 +248,6 @@ def draw_dot(graph, filename):
     p=nx.drawing.nx_pydot.to_pydot(graph)
     p.write_png(filename)
 
-# def print_pack(pack, surface, poscar='poscar', distance=None, atom=None, at_lst=None, point=None, origin=None, vector=None):
-#     for _, item in pack.items():
-#         for obj in item:
-#             caty = CatalyticSystem('x')
-#             caty.surface_set(surface)
-#             caty.molecule_add(obj.mol)
-#             if distance is not None:
-#                 if origin is None:
-#                     lowest = obj.mol.atom_obtain_lowest().coords
-#                 else:
-#                     lowest = origin 
-#                 if atom is not None:
-#                     caty.move_over_atom(obj.mol, atom, distance, origin=lowest)
-#                 elif at_lst is not None:
-#                     caty.move_over_multiple_atoms(obj.mol, at_lst, distance, origin=lowest)
-#                 elif point is not None:
-#                     obj.mol.move_to(point, origin='centroid')
-#                     obj.mol.move_vector([0., 0., distance])
-#                 else:
-#                     caty.move_over_surface_center(obj.mol, distance=distance, origin=lowest)
-#             if vector is not None:
-#                 caty.molecules[0].move_vector(vector)  
-                        
-#             vaspio.print_vasp(caty, './{}/POSCAR.{}'.format(poscar, obj.code)) # storing the poscars
-
-# def save_poscars(pack,folder): #write a function to save gas phase POSCARs
-#     for _, item in pack.items():
-#         for obj in item:
-#             geomio.mol_to_file(obj.mol,'./{}/POSCAR_{}'.format(folder,obj.code),'contcar')
-
-
 def generate_range(ase_molecule: Atoms, 
                    element: str, 
                    subs: int, 
@@ -318,49 +268,6 @@ def generate_range(ase_molecule: Atoms,
         mg_pack[index+1] = tmp_pack
 
     return mg_pack
-
-# def process_combination(comb, rdkit_molecule):
-#     new_mol = Chem.RWMol(rdkit_molecule)
-    
-#     # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
-#     for index in reversed(sorted(comb)):
-#         atom = new_mol.GetAtomWithIdx(index)
-        
-#         # Skip removal if the atom has no neighbors
-#         if atom.GetDegree() == 0:
-#             print(f"WARNING: not removing {atom.GetSymbol()} atom without neighbors")
-#             continue
-#         new_mol.RemoveAtom(index)
-
-#     # Sanitize the molecule
-#     Chem.SanitizeMol(new_mol)
-#     # Skip removal if the atom has no neighbors
-    
-#     # Convert the sanitized RDKit molecule back to ASE for further tasks
-#     new_ase_mol = rdkit_to_ase(new_mol)
-#     new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
-    
-#     # Your existing code for generating a graph from the ASE object would go here
-#     new_graph = digraph(new_ase_mol, coords=False)
-    
-#     return new_ase_mol, new_graph
-
-# def get_all_subs(rdkit_molecule, n_sub, element):
-#     # Get the indices of all atoms of the specified element
-#     sel_atoms = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
-    
-#     mol_pack, graph_pack = [], []
-    
-#     # Use ThreadPoolExecutor to parallelize the function calls
-#     with ThreadPoolExecutor() as executor:
-#         # Map the process_combination function over all combinations of atoms
-#         results = list(executor.map(lambda x: process_combination(x, rdkit_molecule), combinations(sel_atoms, n_sub)))
-        
-#     for new_mol, new_graph in results:
-#         mol_pack.append(new_mol)
-#         graph_pack.append(new_graph)
-        
-#     return mol_pack, graph_pack
 
 def get_all_subs(rdkit_molecule: Chem, 
                  n_sub: int, 
