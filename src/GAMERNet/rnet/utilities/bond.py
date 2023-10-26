@@ -24,17 +24,17 @@ class Bond:
         self.atom_2 = atoms_obj[index_2]
         self.atoms = frozenset((self.atom_1, self.atom_2))
         self.elements = frozenset((self.atom_1.symbol, self.atom_2.symbol))
-        self.distance = atoms_obj.get_distance(index_1, index_2)
+        # self.distance = atoms_obj.get_distance(index_1, index_2)
         self.num_connections_1 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_1)
         self.num_connections_2 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_2)
         self.bond_order = frozenset(((self.atom_1.symbol, self.num_connections_1),
                                      (self.atom_2.symbol, self.num_connections_2)))
     def __repr__(self):
-        rtr_str = '{}({})-{}({}) [{:.4f}]'.format(self.atom_1.symbol,
+        rtr_str = '{}({})-{}({})'.format(self.atom_1.symbol,
                                                   self.num_connections_1,
                                                   self.atom_2.symbol,
-                                                  self.num_connections_2,
-                                                  self.distance)
+                                                  self.num_connections_2)
+                                                #   self.distance)
         return rtr_str
 
 class BondPackage:
@@ -96,9 +96,9 @@ class BondPackage:
         bonds = other.bonds.copy()
         self.bond_add(bonds)
 
-    def _compute_average(self, sub_pack):
-        dist_arr = np.asarray([sg_bond.distance for sg_bond in sub_pack])
-        return np.average(dist_arr)
+    # def _compute_average(self, sub_pack):
+    #     dist_arr = np.asarray([sg_bond.distance for sg_bond in sub_pack])
+    #     return np.average(dist_arr)
 
     def type_average(self, elements):
         return np.average(np.asarray([sg_bond for sg_bond in self.bonds if
