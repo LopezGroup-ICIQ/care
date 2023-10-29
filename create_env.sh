@@ -14,6 +14,7 @@ pip install pubchempy
 pip install rdkit
 pip install flake8
 pip install pytest
+pip install pydot
 pip install git+https://github.com/giacomomarchioro/PyEnergyDiagrams
 
 pip install -e .
