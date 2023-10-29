@@ -106,67 +106,67 @@ def calc_max_path_energy(graph, path, ts_hasher, reverse=True, bader=False):
         accumulator.append(ts_ener)
     return max(accumulator)
 
-def calc_min_max_path_energy(path, ts_hasher, inter_hasher, reverse=True, bader=False):
-    if reverse:
-        inv_path = path[::-1]
-    else:
-        inv_path = path
-    min_ener = np.inf
-    max_ener = -np.inf
-    pairs = []
-    first_loop = True
-    for index in inv_path:
-        try:
-            reverse_tmp = reverse
-            if ts_hasher[index].r_type not in ['O-H', 'C-H', 'C-C']:
-                reverse_tmp = not reverse_tmp
-            if bader:
-                energy = ts_hasher[index].calc_activation_energy(reverse=reverse_tmp,
-                                                                 bader=True)
-                energy += inter_pivot
-            else:
-                energy = ts_hasher[index].calc_activation_energy(reverse=reverse_tmp,
-                                                                 bader=False)
-                energy += ts_hasher[index].bader_energy
-        except KeyError:
-            if bader:
-                energy = inter_hasher[index].energy
-                inter_pivot = energy
-            else:
-                energy = inter_hasher[index].bader_energy
-        if energy < min_ener:
-            if first_loop:
-                first_loop = False
-                min_ener = energy
-                max_ener = energy
-                continue
-            pairs.append(max_ener - min_ener)
-            min_ener = energy
-            max_ener = energy
-        if energy > max_ener:
-            max_ener = energy
-    else:
-        pairs.append(max_ener - min_ener)
-    return pairs
+# def calc_min_max_path_energy(path, ts_hasher, inter_hasher, reverse=True, bader=False):
+#     if reverse:
+#         inv_path = path[::-1]
+#     else:
+#         inv_path = path
+#     min_ener = np.inf
+#     max_ener = -np.inf
+#     pairs = []
+#     first_loop = True
+#     for index in inv_path:
+#         try:
+#             reverse_tmp = reverse
+#             if ts_hasher[index].r_type not in ['O-H', 'C-H', 'C-C']:
+#                 reverse_tmp = not reverse_tmp
+#             if bader:
+#                 energy = ts_hasher[index].calc_activation_energy(reverse=reverse_tmp,
+#                                                                  bader=True)
+#                 energy += inter_pivot
+#             else:
+#                 energy = ts_hasher[index].calc_activation_energy(reverse=reverse_tmp,
+#                                                                  bader=False)
+#                 energy += ts_hasher[index].bader_energy
+#         except KeyError:
+#             if bader:
+#                 energy = inter_hasher[index].energy
+#                 inter_pivot = energy
+#             else:
+#                 energy = inter_hasher[index].bader_energy
+#         if energy < min_ener:
+#             if first_loop:
+#                 first_loop = False
+#                 min_ener = energy
+#                 max_ener = energy
+#                 continue
+#             pairs.append(max_ener - min_ener)
+#             min_ener = energy
+#             max_ener = energy
+#         if energy > max_ener:
+#             max_ener = energy
+#     else:
+#         pairs.append(max_ener - min_ener)
+#     return pairs
 
-def trans_and_ener(net_graph, vertex_map, path, ts_hasher, inter_hasher=False, reverse=True, maximum=True, bader=False):
-    if inter_hasher:
-        index_start = 2
-    else:
-        index_start = 1
-    out_lst = np.zeros(len(path) + index_start, dtype=object)
-    trans_lst = translate_path(vertex_map, path)
-    for index, value in enumerate(trans_lst):
-        out_lst[index + index_start] = value
-    out_lst[0] = calc_max_path_energy(net_graph, trans_lst, ts_hasher, reverse, bader=bader)
-    if inter_hasher:
-        out_lst[1] = calc_min_max_path_energy(trans_lst, ts_hasher, inter_hasher, reverse, bader=bader)
-        if maximum:
-            try:
-                out_lst[1] = max(out_lst[1])
-            except ValueError:
-                out_lst[1] = np.inf
-    return out_lst
+# def trans_and_ener(net_graph, vertex_map, path, ts_hasher, inter_hasher=False, reverse=True, maximum=True, bader=False):
+#     if inter_hasher:
+#         index_start = 2
+#     else:
+#         index_start = 1
+#     out_lst = np.zeros(len(path) + index_start, dtype=object)
+#     trans_lst = translate_path(vertex_map, path)
+#     for index, value in enumerate(trans_lst):
+#         out_lst[index + index_start] = value
+#     out_lst[0] = calc_max_path_energy(net_graph, trans_lst, ts_hasher, reverse, bader=bader)
+#     if inter_hasher:
+#         out_lst[1] = calc_min_max_path_energy(trans_lst, ts_hasher, inter_hasher, reverse, bader=bader)
+#         if maximum:
+#             try:
+#                 out_lst[1] = max(out_lst[1])
+#             except ValueError:
+#                 out_lst[1] = np.inf
+#     return out_lst
 
 def trans_and_ener_only_ener(net_graph, vertex_map, path, ts_hasher, reverse=True):
     # out_lst = np.zeros([2], dtype=object)
