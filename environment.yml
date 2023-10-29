@@ -1,4 +1,4 @@
-name: care_v1
+name: care
 channels:
   - pyg
   - pytorch
@@ -193,8 +193,3 @@ dependencies:
   - zipp=3.17.0
   - zlib=1.2.13
   - zstd=1.5.5
-  - pip:
-      - acat==1.6.8
-      - energydiagram==0.2.0
-      - pubchempy==1.0.4
-      - rdkit==2023.3.3
