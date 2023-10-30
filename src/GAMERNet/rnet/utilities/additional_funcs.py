@@ -683,7 +683,14 @@ def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: l
     Returns:
         bool: True if the reaction was added, False otherwise.
     """
-    reaction = ElementaryReaction(r_type=reaction_info[1], components=reaction_info[0])
+    s_keys = [inter.code for inter in reaction_info[0][0]] + [inter.code for inter in reaction_info[0][1]]
+    s_keys = list(set(s_keys))
+    s_dict = {key: 0 for key in s_keys}
+    for inter in reaction_info[0][0]:
+        s_dict[inter.code] -= 1
+    for inter in reaction_info[0][1]:
+        s_dict[inter.code] += 1
+    reaction = ElementaryReaction(r_type=reaction_info[1], components=reaction_info[0], stoic=s_dict)
     if reaction.components not in reaction_set:
         reaction_set.add(reaction.components)
         reaction_list.append(reaction)

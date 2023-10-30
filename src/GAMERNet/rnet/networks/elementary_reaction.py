@@ -33,7 +33,8 @@ class ElementaryReaction:
                  code: str=None, 
                  components: tuple[frozenset[Intermediate]]=None, 
                  r_type: str=None, 
-                 is_electro: bool=False):
+                 is_electro: bool=False,
+                 stoic: dict[str, float]=None):
         self._code = code
         self._components = None
         self.components = components
@@ -46,10 +47,9 @@ class ElementaryReaction:
         if self.r_type not in REACTION_TYPES:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
-        # if self.r_type != 'pseudo':
-        #     self.stoic = self.solve_stoichiometry()
-        # else:
-        #     self.stoic = None      
+        self.stoic = stoic
+        if self.r_type != 'pseudo' and self.stoic is None:
+            self.stoic = self.solve_stoichiometry()    
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -58,8 +58,7 @@ class ElementaryReaction:
         out_str = ''
         for component in self.components:
             for inter in component:
-                # out_str += '[{}]'.format(str(abs(self.stoic[inter]))) + inter.__str__() + '+'
-                out_str += inter.__str__() + '+'
+                out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        
@@ -299,4 +298,6 @@ class ElementaryReaction:
             self.energy = -energy_old[0], energy_old[1]
         if self.e_act != None:
             self.e_act = self.e_act[0] - energy_old[0], self.e_act[1]
-        self.__repr__()
+        # change __repr__ to reflect the change
+        self.code = self.__repr__()
+

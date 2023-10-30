@@ -39,11 +39,17 @@ def process_edge(args):
     key, edge, network_dict, h_inter, surf_inter = args
     try:
         inters = (network_dict[key]['intermediates'][edge[0]], network_dict[key]['intermediates'][edge[1]])
+        s_keys = [inter.code for inter in inters] + [surf_inter.code] + [h_inter.code]
+        stoic_dict = {key: 0 for key in s_keys}
         if len(inters[0].molecule) > len(inters[1].molecule):
             rxn_lhs, rxn_rhs = (inters[0], surf_inter), (inters[1], h_inter)
         else:
             rxn_lhs, rxn_rhs = (inters[1], surf_inter), (inters[0], h_inter)
-        new_rxn = ElementaryReaction(components=(rxn_lhs, rxn_rhs), r_type='C-H')
+        for inter in rxn_lhs:
+            stoic_dict[inter.code] -= 1
+        for inter in rxn_rhs:
+            stoic_dict[inter.code] += 1
+        new_rxn = ElementaryReaction(components=(rxn_lhs, rxn_rhs), r_type='C-H', stoic=stoic_dict)
         hh_condition1 = 'C' not in inters[0].molecule.get_chemical_symbols() and 'C' not in inters[1].molecule.get_chemical_symbols()
         hh_condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
         if hh_condition1 and hh_condition2:
@@ -128,12 +134,16 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
         if inter.closed_shell:
             gas_code = inter.code[:-1] + 'g'
             gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, phase='gas')
-            gas_molecules[gas_code] = gas_inter           
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption'))
+            gas_molecules[gas_code] = gas_inter
+            stoic_dict = {surf_inter.code: -1, gas_inter.code: -1, inter.code: 1}     
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption', stoic=stoic_dict))
 
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0002000101g']]), frozenset([intermediates['0001000101']])), r_type='adsorption'))
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption'))
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0100010101g']]), frozenset([intermediates['0100000101'], intermediates['0000010101']])), r_type='adsorption'))
+    # H2 dissociative adsorption
+    stoic_dict = {surf_inter.code: -1, gas_molecules['0002000101g'].code: -1, intermediates['0001000101'].code: 2}
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0002000101g']]), frozenset([intermediates['0001000101']])), r_type='adsorption', stoic=stoic_dict))
+    # O2 dissociative adsorption
+    stoic_dict = {surf_inter.code: -1, gas_molecules['0000020101g'].code: -1, intermediates['0000010101'].code: 2}
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption', stoic=stoic_dict))
     return gas_molecules, adsorption_steps
 
 # def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
