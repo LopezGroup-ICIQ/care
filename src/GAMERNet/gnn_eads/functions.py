@@ -554,20 +554,42 @@ def atoms_to_pyggraph(atoms: Atoms,
     Returns:
         graph (torch_geometric.data.Data): PyG graph representing the system under study.
     """
-    nx_graph, surface_neighbors = atoms_to_nxgraph(atoms, voronoi_tolerance, scaling_factor, include_surf_atoms_2hops, adsorbate_elements)
-    species_list = [nx_graph.nodes[node]['element'] for node in nx_graph.nodes]
-    edge_tails_heads = [(edge[0], edge[1]) for edge in nx_graph.edges]
-    edge_tails = [x for x, y in edge_tails_heads] + [y for x, y in edge_tails_heads]
-    edge_heads = [y for x, y in edge_tails_heads] + [x for x, y in edge_tails_heads]
-    edge_attrs = [nx_graph.edges[edge]['type'] for edge in nx_graph.edges] + [nx_graph.edges[edge]['type'] for edge in nx_graph.edges]
+    # 1) Get connectivity list for the whole system (adsorbate + metal slab)
+    adsorbate_indexes = {atom.index for atom in atoms if atom.symbol in adsorbate_elements}
+    neighbour_list = get_voronoi_neighbourlist(atoms, voronoi_tolerance, scaling_factor, adsorbate_elements)
+    surface_neighbours = {
+        pair[1] if pair[0] in adsorbate_indexes else pair[0] 
+        for pair in neighbour_list 
+        if (pair[0] in adsorbate_indexes and atoms[pair[1]].symbol not in adsorbate_elements) or 
+           (pair[1] in adsorbate_indexes and atoms[pair[0]].symbol not in adsorbate_elements)
+    }
+    if include_surf_atoms_2hops:  # second order neighbours (neighbours of neighbours)
+        nl = {
+            pair[1] if pair[0] == surface_atom_index else pair[0]
+            for surface_atom_index in surface_neighbours
+            for pair in neighbour_list
+            if (pair[0] == surface_atom_index and atoms[pair[1]].symbol not in adsorbate_elements) or 
+               (pair[1] == surface_atom_index and atoms[pair[0]].symbol not in adsorbate_elements)
+        }
+        surface_neighbours.update(nl)
+        
+    # 3) Construct graph with the atoms in the ensemble
+    ensemble = Atoms(atoms[list(adsorbate_indexes) + list(surface_neighbours)], pbc=atoms.pbc, cell=atoms.cell)
+    ensemble_neighbour_list = get_voronoi_neighbourlist(ensemble, voronoi_tolerance, scaling_factor, adsorbate_elements)
+    ensemble_neighbour_list = np.concatenate((ensemble_neighbour_list, ensemble_neighbour_list[:, [1, 0]]))
+
+    # if not second_order:  # If not second order, remove connections between metal atoms (important)
+    #     ensemble_neighbour_list = [pair for pair in ensemble_neighbour_list if not (ensemble[pair[0]].symbol not in molecule_elements and ensemble[pair[1]].symbol not in molecule_elements)]
+
+    species_list = [atom.symbol for atom in ensemble]
+    edge_tails_heads = [(edge[0], edge[1]) for edge in ensemble_neighbour_list]
+    edge_tails = [x for x, y in edge_tails_heads] #+ [y for x, y in edge_tails_heads]
+    edge_heads = [y for x, y in edge_tails_heads] #+ [x for x, y in edge_tails_heads]
     elem_array = np.array(list(species_list)).reshape(-1, 1)
     elem_enc = one_hot_encoder.transform(elem_array).toarray()
     edge_index = torch.tensor([edge_tails, edge_heads], dtype=torch.long)
-    x = torch.from_numpy(elem_enc).float()
-    edge_encoder = OneHotEncoder(categories=[['A-A', 'A-S', 'S-S']])
-    edge_attr = torch.from_numpy(edge_encoder.fit_transform(np.array(edge_attrs).reshape(-1, 1)).toarray()).float()     
-
-    return Data(x, edge_index, edge_attr, elems = elem_array), surface_neighbors
+    x = torch.from_numpy(elem_enc).float() 
+    return Data(x, edge_index, elems = elem_array), list(surface_neighbours)
 
 
 def get_graph_sample(path: str, 
