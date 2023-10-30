@@ -12,27 +12,9 @@ from GAMERNet import DB_PATH, MODEL_PATH
 from GAMERNet.rnet.gen_rxn_net import generate_rxn_net
 from GAMERNet.gnn_eads.nets import UQTestNet
 from GAMERNet.rnet.networks.surface import Surface
+from GAMERNet.rnet.networks.utils import metal_structure_dict
 from GAMERNet.rnet.adsorbate_placement import process_adsorbed_intermediate
 from GAMERNet.rnet.config_energy_eval import intermediate_energy_evaluator, get_fragment_energy
-import multiprocessing as mp
-
-metal_structure_dict = {
-    "Ag": "fcc",
-    "Au": "fcc",
-    "Cd": "hcp",
-    "Co": "hcp",
-    "Cu": "fcc",
-    "Fe": "bcc",
-    "Ir": "fcc",
-    "Ni": "fcc",
-    "Os": "hcp",
-    "Pd": "fcc",
-    "Pt": "fcc",
-    "Rh": "fcc",
-    "Ru": "hcp",
-    "Zn": "hcp"
-}
-
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate reaction network blueprint for processes involving C, H, O on surfaces.")

@@ -13,6 +13,8 @@ from GAMERNet.rnet.networks.intermediate import Intermediate
 # inter = step.reactants[0]
 
 net = ReactionNetwork()
+# surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
+
 
 # class TestElementaryReaction(unittest.TestCase):
 # 	def test_elementary_reaction(self):

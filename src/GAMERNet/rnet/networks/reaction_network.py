@@ -328,23 +328,29 @@ class ReactionNetwork:
         Returns:
             obj:`nx.DiGraph` of the network.
         """
-        nx_graph = nx.DiGraph()
+        if show_steps:
+            nx_graph = nx.DiGraph()
+        else:
+            nx_graph = nx.Graph()
         makedirs('tmp', exist_ok=True)
         for inter in self.intermediates.values():
             fig_path = abspath("tmp/{}.png".format(inter.code))
             write(fig_path, inter.molecule, show_unit_cell=0)
-            switch = None if highlight is None else True if re.sub(r'\(.*\)', '', inter.code) in highlight else False
+            switch = "None" if highlight is None else True if re.sub(r'\(.*\)', '', inter.code) in highlight else False
             formula = inter.molecule.get_chemical_formula() + ("(g)" if inter.phase == 'gas' else "*")
             nx_graph.add_node(inter.code,
                               category=inter.phase, 
-                              gas_atoms=inter.molecule, 
+                            #   gas_atoms=inter.molecule, 
                               code=inter.code, 
                               formula=formula, 
                               fig_path=fig_path,  
-                              switch=switch)
+                              switch=switch, 
+                              nC=inter.molecule.get_chemical_symbols().count('C'),
+                              nH=inter.molecule.get_chemical_symbols().count('H'),
+                              nO=inter.molecule.get_chemical_symbols().count('O'))
                             
         for reaction in self.reactions:
-            switch = None if highlight is None else True if reaction.code in highlight else False  
+            switch = "None" if highlight is None else True if reaction.code in highlight else False  
             category = reaction.r_type if reaction.r_type in ('adsorption', 'desorption', 'eley_rideal') else 'surface_reaction'
             if show_steps:
                 nx_graph.add_node(reaction.code, category=category, switch=switch)
@@ -363,9 +369,16 @@ class ReactionNetwork:
                         prods.append(inter)
                 if len(reacts) == 0 or len(prods) == 0:
                     continue
+                # if there are more than one reactant or product, remove the one with less C atoms
+                if len(reacts) > 1:
+                    reacts.sort(key=lambda x: x.molecule.get_chemical_formula().count('C'))
+                    reacts.pop(0)
+                if len(prods) > 1:
+                    prods.sort(key=lambda x: x.molecule.get_chemical_formula().count('C'))
+                    prods.pop(0)
                 for react in reacts:
                     for prod in prods:
-                        switch = None if highlight is None else True if react.code in highlight and prod.code in highlight else False
+                        switch = "None" if highlight is None else True if react.code in highlight and prod.code in highlight else False
                         nx_graph.add_edge(react.code, prod.code, category=category, switch=switch, code=reaction.code)
 
         for node in list(nx_graph.nodes):

@@ -2,7 +2,6 @@ import numpy as np
 import multiprocessing as mp
 import os
 
-import GAMERNet.rnet.utilities.additional_funcs as af
 from GAMERNet.rnet.networks.intermediate import Intermediate
 from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
 
