@@ -4,10 +4,11 @@
 
 # CARE: Catalysis Automatic Reaction Evaluator
 
-<p align="center">
-    <img src="./output.gif" width="60%" height=60%"/>
-</p>
-
+<div style="display: flex; justify-content: center; align-items: center;">
+    <img src="./output.gif" width="60%" height="60%" />
+</div>
+ 
+ #
 
 CARE (*Catalysis Automatic Reaction Evaluator*) is a package for automatically building reaction networks for heterogeneous catalysis with energy estimation through uncertainty-based graph-neural networks.
 
@@ -22,19 +23,14 @@ CARE (*Catalysis Automatic Reaction Evaluator*) is a package for automatically b
 git clone git@github.com:LopezGroup-ICIQ/care.git
 ```
 
-2. Enter the repo and create the conda environment from the .yml file
+2. Enter the repo and run the bash script `create_env.sh`
 
 ```bash
 cd care
-conda env create -f environment.yml
+./create_env.sh 
 ```
 
-3. Activate the environment and install GAMERNet in editable mode
-
-```bash
-conda activate care
-pip install -e .
-```
+This will automatically create the conda environment, installing with pip the packages not available via conda, installing the src in editable mode, and activating the environment called `care`.
 
 ### Windows
 
