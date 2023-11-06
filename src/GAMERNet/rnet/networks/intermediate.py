@@ -54,6 +54,16 @@ class Intermediate:
             self.phase = phase
         self.t_states = [{}, {}]
 
+    def __getitem__(self, key: str):
+        if key not in self.elements:
+            raise ValueError(f"Element {key} not in {self.elements}")
+        if key == '*':
+            if self.phase == 'surf':
+                return 1
+            else:
+                return 0
+        return self.molecule.get_chemical_symbols().count(key)
+
     def __hash__(self):
         return hash(self.code)
 
