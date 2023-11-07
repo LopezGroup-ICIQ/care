@@ -1,7 +1,7 @@
 from care.rnet.utilities.additional_funcs import break_and_connect
 from care.rnet.networks.intermediate import Intermediate
 from care.rnet.networks.reaction_network import ReactionNetwork
-from care.rnet.networks.utils import generate_dict, generate_network_dict, gen_adsorption_reactions
+from care.rnet.networks.utils import generate_dict, generate_network_dict, gen_adsorption_reactions, gen_rearrangement_reactions
 from care.rnet.gen_intermediates import generate_intermediates
 import networkx as nx
 from ase import Atoms
@@ -67,4 +67,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     gas_molecules, desorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)
     rxn_net.add_intermediates(gas_molecules)
     rxn_net.add_reactions(desorption_reactions)
+    rearrangement_reactions = gen_rearrangement_reactions(rxn_net.intermediates, surf_inter)
+    rxn_net.add_reactions(rearrangement_reactions)
     return rxn_net

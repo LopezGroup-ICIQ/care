@@ -146,6 +146,17 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
     adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption', stoic=stoic_dict))
     return gas_molecules, adsorption_steps
 
+def gen_rearrangement_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> list[ElementaryReaction]:
+    """
+    Generate all elementary reactions that involve rearrangement of atoms in the same adsorbed intermediate.
+    """
+    rearr_steps = []
+    # first condition: two adsorbates must have the same brute formula
+    cond1 = lambda inters: inters[0]["C"] == inters[1]["C"] and inters[0]["H"] == inters[1]["H"] and inters[0]["O"] == inters[1]["O"]
+    # second 
+    return rearr_steps
+
+
 # def ts_energies(ts_states: list, neb_dict: dict, neb_df, surf_inter) -> None:
 #     """
 #     missing docstring
