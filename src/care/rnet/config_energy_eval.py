@@ -5,8 +5,8 @@ import multiprocessing as mp
 import resource
 from torch_geometric.loader import DataLoader
 from torch.nn import Module
-from GAMERNet.gnn_eads.create_pyg_dataset import atoms_to_data
-from GAMERNet.rnet.networks.surface import Surface
+from care.gnn_eads.create_pyg_dataset import atoms_to_data
+from care.rnet.networks.surface import Surface
 import itertools as it
 
 def process_chunk(atoms, graph_params, model_elems, calc_type):

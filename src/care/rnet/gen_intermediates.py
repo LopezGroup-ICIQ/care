@@ -11,7 +11,7 @@ import multiprocessing as mp
 lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
 
-from GAMERNet.rnet.utilities.functions import generate_map, generate_pack, MolPack
+from care.rnet.utilities.functions import generate_map, generate_pack, MolPack
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,

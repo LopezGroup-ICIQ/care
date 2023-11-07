@@ -1,8 +1,8 @@
-from GAMERNet.rnet.utilities.additional_funcs import break_and_connect
-from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.utils import generate_dict, generate_network_dict, gen_adsorption_reactions
-from GAMERNet.rnet.gen_intermediates import generate_intermediates
+from care.rnet.utilities.additional_funcs import break_and_connect
+from care.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.reaction_network import ReactionNetwork
+from care.rnet.networks.utils import generate_dict, generate_network_dict, gen_adsorption_reactions
+from care.rnet.gen_intermediates import generate_intermediates
 import networkx as nx
 from ase import Atoms
 import time

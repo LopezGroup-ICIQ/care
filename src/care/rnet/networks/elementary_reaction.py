@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.linalg import null_space
 
-from GAMERNet.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.intermediate import Intermediate
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89}, 
             'C-H' : {'alpha': 0.63, 'beta': 0.81},

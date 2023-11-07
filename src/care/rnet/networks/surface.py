@@ -4,7 +4,7 @@ from ase import Atoms
 import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
 
-from GAMERNet.rnet.networks.utils import metal_structure_dict
+from care.rnet.networks.utils import metal_structure_dict
 
 class Surface:
     """

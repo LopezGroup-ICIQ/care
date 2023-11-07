@@ -3,9 +3,9 @@ ReactionNetworkSimplifier class implementation.
 Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
 """
 
-from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
+from care.rnet.networks.reaction_network import ReactionNetwork
+from care.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.elementary_reaction import ElementaryReaction
 
 class ReactionNetworkSimplifier:
     def __init__(self):  

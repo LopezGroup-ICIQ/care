@@ -3,17 +3,17 @@ import pickle
 import networkx as nx
 import numpy as np
 import networkx.algorithms.isomorphism as iso
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
-from GAMERNet.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.elementary_reaction import ElementaryReaction
+from care.rnet.networks.intermediate import Intermediate
 from matplotlib.colors import to_hex
 from ase import Atoms
-from GAMERNet.rnet.utilities.functions import get_voronoi_neighbourlist
-from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
+from care.rnet.utilities.functions import get_voronoi_neighbourlist
+from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from collections import Counter
 import multiprocessing as mp
 import os
 
-from GAMERNet.rnet.utilities.bond import Bond, BondPackage
+from care.rnet.utilities.bond import Bond, BondPackage
 
 INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89}, 
             'C-H' : {'alpha': 0.63, 'beta': 0.81},

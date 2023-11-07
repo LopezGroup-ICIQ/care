@@ -3,12 +3,12 @@
 import time
 import ase
 from numpy import max, arange
-from GAMERNet.rnet.graphs.graph_fn import connectivity_analysis, ase_coord_2_graph
-from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.surface import Surface
-from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
+from care.rnet.graphs.graph_fn import connectivity_analysis, ase_coord_2_graph
+from care.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.surface import Surface
+from care.rnet.networks.reaction_network import ReactionNetwork
 from pymatgen.io.ase import AseAtomsAdaptor
-import GAMERNet.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
+import care.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
 from ase import Atoms
 
 def generate_inp_vars(adsorbate: ase.Atoms, 

@@ -3,9 +3,9 @@
 import unittest
 import pickle
 from random import randint
-from GAMERNet.rnet.networks.reaction_network import ReactionNetwork
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction 
-from GAMERNet.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.reaction_network import ReactionNetwork
+from care.rnet.networks.elementary_reaction import ElementaryReaction 
+from care.rnet.networks.intermediate import Intermediate
 
 # content = pickle.load(open('./C1_O1_Pd111/rxn_net_bp.pkl', 'rb'))
 # net = ReactionNetwork().from_dict(content)

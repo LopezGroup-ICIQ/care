@@ -1,7 +1,7 @@
 from ase import Atoms
 from networkx import Graph, draw
-from GAMERNet.rnet.utilities import functions as fn
-from GAMERNet.rnet.graphs.graph_fn import ase_coord_2_graph
+from care.rnet.utilities import functions as fn
+from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 

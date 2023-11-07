@@ -2,8 +2,8 @@ import numpy as np
 import multiprocessing as mp
 import os
 
-from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
+from care.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.elementary_reaction import ElementaryReaction
 
 metal_structure_dict = {
     "Ag": "fcc",

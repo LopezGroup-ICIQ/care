@@ -1,4 +1,4 @@
-import GAMERNet.rnet.utilities.additional_funcs as af
+import care.rnet.utilities.additional_funcs as af
 import pandas as pd
 
 class Printer:

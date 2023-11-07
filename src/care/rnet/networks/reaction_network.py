@@ -20,9 +20,9 @@ from ase.io import write
 from os.path import abspath
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
-from GAMERNet.rnet.networks.intermediate import Intermediate
-from GAMERNet.rnet.networks.elementary_reaction import ElementaryReaction
-from GAMERNet.rnet.networks.surface import Surface
+from care.rnet.networks.intermediate import Intermediate
+from care.rnet.networks.elementary_reaction import ElementaryReaction
+from care.rnet.networks.surface import Surface
 
 class ReactionNetwork:
     """
