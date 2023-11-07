@@ -178,6 +178,28 @@ def gen_alkanes_smiles(n: int) -> list[str]:
     unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=True)
     return unique_alkanes
 
+def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
+    """
+    Generate all possible epoxides smiles based on the given number of carbon and oxygen atoms.
+    """
+    epoxides = []
+    cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
+    if n_oxy < 1:
+        return epoxides
+    for mol in mol_alkanes:
+        # generate list of tuple of adjacent atoms satisfying the cond1
+        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors() if cond1((atom, nbr))]
+        for c_pair in c_pairs:
+            # generate epoxide
+            tmp_mol = Chem.RWMol(mol)
+            oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
+            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.UpdatePropertyCache()
+            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+            epoxides.append(smiles)
+    return list(set(epoxides))
+
 def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
     """
     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
@@ -454,17 +476,19 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
     alkanes_smiles = gen_alkanes_smiles(n_carbon)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     
-    alcohols_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
-    alcohols_smiles = [smiles for smiles_set in alcohols_smiles for smiles in smiles_set]  # flatten list of lists
-    alcohols_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
-    mol_alcohols = [Chem.MolFromSmiles(smiles) for smiles in alcohols_smiles]
+    cho_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
+    cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
+    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
+    cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
+    cho_smiles += epoxides_smiles
+    mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
 
-    intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_alcohols]
-    intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_alcohols]
-    intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_alcohols]
+    intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_cho]
+    intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_cho]
+    intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_cho]
 
     inter_precursor_dict = {}
-    for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_alcohols):
+    for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_cho):
         inter_precursor_dict[smiles] = {
             'Smiles': smiles,
             'Formula': formula, 
