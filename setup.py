@@ -3,11 +3,12 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="GAMER-Net",
+    name="care",
     version="0.1",
-    description="GAMER-Net Setup",
+    description="CARE (Catalytic Automated Reaction Evaluator), framework for automatically creating and manioulating chemical reaction networks in heterogeneous catalysis.",
     author="Santiago Morandi, Oliver Loveday",
     author_email="smorandi@iciq.es, oloveday@iciq.es",
     package_dir={"": "src"},
     packages=find_packages("src"),
+    keywords=["heterogeneous catalysis", "chemical reaction networks", "graph neural networks", "machine learning"],
 )
