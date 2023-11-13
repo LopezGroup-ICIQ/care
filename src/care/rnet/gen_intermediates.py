@@ -414,7 +414,6 @@ def formula_from_rdkit(mol: Chem.Mol) -> str:
     
     return formula
 
-
 def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
     """
     Process a molecule to generate all the possible unique intermediates obtained from C-H bond breaking.
@@ -454,6 +453,41 @@ def process_intermediate(args: tuple[str, dict]) -> tuple[str, nx.DiGraph]:
     map_tmp = generate_map(intermediate, 'H')
     return molecule, map_tmp
 
+def generate_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
+    """Add an oxygen atom to an alkane to generate an ether.
+
+    Parameters
+    ----------
+    alkane_smiles_list : list[str]
+        List of alkane SMILES strings.
+
+    Returns
+    -------
+    list[str]
+        List of ether SMILES strings.
+    """
+
+    ethers = []
+    # cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
+    if n_oxy < 1:
+        return ethers
+    
+    for mol in mol_alkanes:
+        # generate list of tuple of adjacent atoms satisfying the cond1
+        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors()]
+        for c_pair in c_pairs:
+            # Insert oxygen atom between the two carbon atoms
+            tmp_mol = Chem.RWMol(mol)
+            oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
+            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            # Delete the bond between the two carbon atoms
+            tmp_mol.RemoveBond(c_pair[0].GetIdx(), c_pair[1].GetIdx())
+            tmp_mol.UpdatePropertyCache()
+            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+            ethers.append(smiles)
+    return list(set(ethers))
+
 def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
     """
     Generates all the possible intermediates for a given number of carbon atoms 
@@ -478,9 +512,11 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
     
     cho_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
+    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
+    #ethers_smiles = generate_ether_smiles(mol_alkanes, n_oxy)
+    #cho_smiles += epoxides_smiles
+    #cho_smiles += ethers_smiles
     cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
-    cho_smiles += epoxides_smiles
     mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
 
     intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_cho]
@@ -510,14 +546,14 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
                 repeat_molec.append(molec_grp)
                 args_list.append([name, molec_grp, inter_precursor_dict, isomeric_groups])
     
-    with mp.Pool(num_cores//2) as pool:
+    with mp.Pool(num_cores) as pool:
         results = pool.map(process_molecule, args_list)
     inter_dict = {k: v for k, v in results}
 
     # 3) Generate the connections between the intermediates via graph theory
     map_dict = {}
     args_map_list = [(molecule, inter_dict[molecule]) for molecule in inter_dict.keys()]
-    with mp.Pool(num_cores//2) as pool:
+    with mp.Pool(num_cores) as pool:
         results = pool.map(process_intermediate, args_map_list)
     map_dict = {k: v for k, v in results}
     return inter_dict, map_dict
