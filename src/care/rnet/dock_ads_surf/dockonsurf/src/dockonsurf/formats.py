@@ -101,7 +101,7 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
     import ase.io
     from ase.io.formats import filetype
 
-    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
+    from care.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
 
     req_vals = ['rdkit', 'ase']
     lib_err = f"The conversion to the '{requirement}' library object type" \
@@ -180,9 +180,7 @@ def collect_confs(dir_list, code, run_type, spec_atms=tuple()):
         chemical symbols.
     @return: list of ase.Atoms objects.
     """
-    from glob import glob
-    import os
-    from GAMERNet.rnet.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import is_binary
+
     atoms_list = []
     for conf_dir in dir_list:
         conf_path = f"{run_type}/{conf_dir}/"

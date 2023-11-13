@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from sklearn.preprocessing._encoders import OneHotEncoder
 
-from GAMERNet.gnn_eads.constants import RGB_COLORS
+from care.gnn_eads.constants import RGB_COLORS
 
 
 def convert_gpytorch_to_networkx(graph: Data, 
