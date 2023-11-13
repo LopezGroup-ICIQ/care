@@ -15,7 +15,7 @@ INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'O-OH' : {'alpha': 1.00, 'beta': 1.00},
             'default': {'alpha': 0.00, 'beta': 0.00}} 
 
-REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption', 'pseudo']
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption', 'pseudo','rearrangement']
 
 class ElementaryReaction:
     """Class for representing elementary reactions.
@@ -47,9 +47,9 @@ class ElementaryReaction:
         if self.r_type not in REACTION_TYPES:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
-        self.stoic = stoic
-        if self.r_type != 'pseudo' and self.stoic is None:
-            self.stoic = self.solve_stoichiometry()    
+        # self.stoic = stoic
+        # if self.r_type != 'pseudo' and self.stoic is None:
+        #     self.stoic = self.solve_stoichiometry()    
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -58,7 +58,8 @@ class ElementaryReaction:
         out_str = ''
         for component in self.components:
             for inter in component:
-                out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
+                # out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
+                out_str += inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        

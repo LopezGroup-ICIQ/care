@@ -31,7 +31,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     
     # 1) Generate all the intermediates
     t0 = time.time()
-    import pprint as pp
     intermediate_dict, map_dict = generate_intermediates(ncc, noc)
     print('Time to generate intermediates: {:.2f} s'.format(time.time()-t0))   
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
@@ -61,12 +60,14 @@ def generate_rxn_net(slab_ase_obj: Atoms,
         rxn_net.add_reactions(select_net['reactions'])
     print('Time to add H breaking intermediates and reactions to the reaction network: {:.2f} s'.format(time.time()-t5))
     t6 = time.time()
-    breaking_reactions = break_and_connect(rxn_net.intermediates )
+    breaking_reactions = break_and_connect(rxn_net.intermediates)
+    print('Time to generate breaking and connecting reactions: {:.2f} s'.format(time.time()-t6))
+    t7 = time.time()
     rxn_net.add_reactions(breaking_reactions)
-    print('Time to generate and adding breaking reactions: {:.2f} s'.format(time.time()-t6))
+    print('Time to add breaking reactions: {:.2f} s'.format(time.time()-t7))
     gas_molecules, desorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)
     rxn_net.add_intermediates(gas_molecules)
     rxn_net.add_reactions(desorption_reactions)
-    rearrangement_reactions = gen_rearrangement_reactions(rxn_net.intermediates, surf_inter)
+    rearrangement_reactions = gen_rearrangement_reactions(intermediate_dict, rxn_net.intermediates)
     rxn_net.add_reactions(rearrangement_reactions)
     return rxn_net

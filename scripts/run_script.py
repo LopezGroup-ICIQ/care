@@ -77,7 +77,7 @@ if __name__ == "__main__":
     with open(f"{output_dir}/rxn_net_bp.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(f"The reaction network pickle file has been generated\n")
-
+    quit()
     print('Generating adsorption configurations...')
     print('It can take some time, please be patient...')
     # Evaluate energy of intermediates

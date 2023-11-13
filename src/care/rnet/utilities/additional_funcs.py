@@ -1,15 +1,11 @@
-from itertools import combinations
-import pickle
 import networkx as nx
 import numpy as np
 import networkx.algorithms.isomorphism as iso
 from care.rnet.networks.elementary_reaction import ElementaryReaction
 from care.rnet.networks.intermediate import Intermediate
-from matplotlib.colors import to_hex
 from ase import Atoms
 from care.rnet.utilities.functions import get_voronoi_neighbourlist
 from care.rnet.graphs.graph_fn import ase_coord_2_graph
-from collections import Counter
 import multiprocessing as mp
 import os
 
@@ -649,6 +645,16 @@ def char_to_int(c):
         return ord(c) - ord('A') + 36
     else:
         raise ValueError(f"Invalid character: {c}")
+
+def int_to_char(i):
+    if 0 <= i <= 9:
+        return str(i)
+    elif 10 <= i <= 35:
+        return chr(i - 10 + ord('a'))
+    elif 36 <= i <= 61:
+        return chr(i - 36 + ord('A'))
+    else:
+        raise ValueError(f"Invalid integer: {i}")
 
 def validate_components(in_comp):
     """
