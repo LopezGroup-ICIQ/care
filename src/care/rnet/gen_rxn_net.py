@@ -45,7 +45,7 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     print('Time to set node attributes: {:.2f} s'.format(time.time()-t2))
     t3 = time.time()
     print('Generating the network dictionary...')
-    network_dict = generate_network_dict(map_dict, surf_inter)
+    network_dict = generate_network_dict(map_dict)
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
     print('Time to generate the network dictionary: {:.2f} s'.format(time.time()-t3))
 
@@ -57,7 +57,6 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     for item in int_net:
         select_net = network_dict[item]
         rxn_net.add_intermediates(select_net['intermediates'])
-        rxn_net.add_reactions(select_net['reactions'])
     print('Time to add H breaking intermediates and reactions to the reaction network: {:.2f} s'.format(time.time()-t5))
     t6 = time.time()
     breaking_reactions = break_and_connect(rxn_net.intermediates)

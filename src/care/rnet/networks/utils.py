@@ -1,6 +1,7 @@
 import numpy as np
 import multiprocessing as mp
 import os
+from collections import defaultdict
 from itertools import combinations
 
 from ase.neighborlist import neighbor_list
@@ -41,8 +42,7 @@ def process_edge(args):
     key, edge, network_dict, h_inter, surf_inter = args
     try:
         inters = (network_dict[key]['intermediates'][edge[0]], network_dict[key]['intermediates'][edge[1]])
-        s_keys = [inter.code for inter in inters] + [surf_inter.code] + [h_inter.code]
-        stoic_dict = {key: 0 for key in s_keys}
+        stoic_dict = defaultdict(int)
         if len(inters[0].molecule) > len(inters[1].molecule):
             rxn_lhs, rxn_rhs = (inters[0], surf_inter), (inters[1], h_inter)
         else:
@@ -56,71 +56,68 @@ def process_edge(args):
         hh_condition2 = 'O' not in inters[0].molecule.get_chemical_symbols() and 'O' not in inters[1].molecule.get_chemical_symbols()
         if hh_condition1 and hh_condition2:
             new_rxn.r_type = 'H-H'
-        check_bonds = []
-        for component in new_rxn.components:
-            for inter in list(component):
-                if inter.is_surface:
-                    continue
-                else:
-                    oxy = [atom for atom in inter.molecule if atom.symbol == "O"]
-                    if len(oxy) != 0:
+        if inters[0]['O'] != 0:
+            check_bonds = []
+            for component in new_rxn.components:
+                for inter in list(component):
+                    oxy_indices = [atom.index for atom in inter.molecule if atom.symbol == "O"]
+                    if len(oxy_indices) != 0:
                         counter = 0
-                        for atom in oxy:
-                            counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom.index)
+                        for atom_index in oxy_indices:
+                            counter += np.count_nonzero(inter.molecule.arrays['conn_pairs'] == atom_index)
                         check_bonds.append(counter)
                     else:
                         check_bonds.append(0)
-        if check_bonds[0] != check_bonds[1]:
-            new_rxn.r_type = 'O-H'
-        return (key, new_rxn)  # return a tuple or another data structure that suits you
+            new_rxn.r_type = 'H-O' if check_bonds[0] != check_bonds[1] else 'C-H'
+        return (key, new_rxn)  
     except KeyError:
         print("Key Error: Edge {} not found in the dictionary".format(edge))
         return None
 
-def generate_network_dict(rxn_dict: dict, surf_inter: Intermediate) -> dict:
+def generate_network_dict(rxn_dict: dict) -> dict:
     """
-    missing docstring
+    Generates all the reactions in which the bond-breaking is between a H atom and any other atom.
     """
     network_dict = {} 
-    network_dict['[H][H]'] = {'intermediates': {}, 'reactions': []}
-    for node in rxn_dict['[H][H]'].nodes():
-        try:
-            sel_node = rxn_dict['[H][H]'].nodes[node]
-            new_inter = Intermediate(code=node+'*', 
+    # network_dict['[H][H]'] = {'intermediates': {}, 'reactions': []}
+    # for node in rxn_dict['[H][H]'].nodes():
+    #     try:
+    #         sel_node = rxn_dict['[H][H]'].nodes[node]
+    #         new_inter = Intermediate(code=node+'*', 
+    #                                     molecule=sel_node['mol'], 
+    #                                     graph=sel_node['graph'],  
+    #                                     phase='ads')
+    #         network_dict['[H][H]']['intermediates'][node] = new_inter
+    #     except KeyError:
+    #         print("KeyError: Node {} not found in the dictionary".format(node))
+    #         pass
+      
+    # h_inter = network_dict['[H][H]']['intermediates']['0001000101']    
+    # args_list = []
+    for key, network in rxn_dict.items():
+        # if key != '[H][H]':
+        network_dict[key] = {'intermediates': {}}
+        for node in network.nodes():
+            try:
+                sel_node = network.nodes[node]
+                new_inter = Intermediate(code=node+'*', 
                                         molecule=sel_node['mol'], 
                                         graph=sel_node['graph'],  
                                         phase='ads')
-            network_dict['[H][H]']['intermediates'][node] = new_inter
-        except KeyError:
-            print("KeyError: Node {} not found in the dictionary".format(node))
-            pass
-      
-    h_inter = network_dict['[H][H]']['intermediates']['0001000101']    
-    args_list = []
-    for key, network in rxn_dict.items():
-        if key != '[H][H]':
-            network_dict[key] = {'intermediates': {}, 'reactions': []}
-            for node in network.nodes():
-                try:
-                    sel_node = network.nodes[node]
-                    new_inter = Intermediate(code=node+'*', 
-                                            molecule=sel_node['mol'], 
-                                            graph=sel_node['graph'],  
-                                            phase='ads')
-                    network_dict[key]['intermediates'][node] = new_inter
-                except KeyError:
-                    print("KeyError: Node {} not found in the dictionary".format(node))
-                    pass        
-        for edge in list(network.edges()):
-                args_list.append((key, edge, network_dict, h_inter, surf_inter))
+                network_dict[key]['intermediates'][node] = new_inter
+            except KeyError:
+                print("KeyError: Node {} not found in the dictionary".format(node))
+                pass        
+    #     for edge in list(network.edges()):
+    #             args_list.append((key, edge, network_dict, h_inter, surf_inter))
 
-    with mp.Pool(os.cpu_count()//2) as p:
-        results = p.map(process_edge, args_list)
+    # with mp.Pool(os.cpu_count()//2) as p:
+    #     results = p.map(process_edge, args_list)
     
-    for result in results:
-        if result is not None:
-            key, new_rxn = result
-            network_dict[key]['reactions'].append(new_rxn)
+    # for result in results:
+    #     if result is not None:
+    #         key, new_rxn = result
+    #         network_dict[key]['reactions'].append(new_rxn)
 
     return network_dict
 
