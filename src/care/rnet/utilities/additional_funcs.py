@@ -8,6 +8,7 @@ from care.rnet.utilities.functions import get_voronoi_neighbourlist
 from care.rnet.graphs.graph_fn import ase_coord_2_graph
 import multiprocessing as mp
 import os
+from collections import defaultdict
 
 from care.rnet.utilities.bond import Bond, BondPackage
 
@@ -712,8 +713,11 @@ def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
 def process_graph_pair(args) -> tuple[list[list[str]], str]:
     cached_graphs, surface_code, intermediate_code, bond_breaking_type, graph_pair = args
     cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
-    
-    rxn_components = [[surface_code, intermediate_code], []]
+
+    if len(graph_pair) ==1:
+        rxn_components = [[intermediate_code], []]
+    else:
+        rxn_components = [[surface_code, intermediate_code], []]
     matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
     
     # Flatten the list of lists
@@ -728,35 +732,44 @@ def process_graph_pair(args) -> tuple[list[list[str]], str]:
 
 def break_bonds(molecule: Atoms) -> dict[str, list[list[nx.Graph]]]:
     connections = connectivity_helper(molecule)
-    bonds = {'C-O': [], 'C-C': [], 'C-OH': [], 'O-O': [], 'H-H': [], 'O-OH': []}
+    bonds = defaultdict(list)
     bond_pack = bond_analysis(molecule)
     mol_graph = ase_coord_2_graph(molecule, coords=False)
 
     def check_oh_bond(atom):
         return 'H' in [molecule[con].symbol for con in connections[atom.index]]
 
-    for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
-        for pair in bond_pack.bond_search(bond_type):
-            tmp_graph = mol_graph.copy()
-            tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
-            sub_graphs = [tmp_graph.subgraph(comp).copy() for comp in nx.connected_components(tmp_graph)]
-
-            if bond_type in (('O', 'C'), ('C', 'O')):
-                oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
-                if oh_bond:
-                    bonds['C-OH'].append(sub_graphs)
-                else:
-                    bonds['C-O'].append(sub_graphs)
-            elif bond_type == ('O', 'O'):
-                oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
-                if oh_bond:
-                    bonds['O-OH'].append(sub_graphs)
-                else:
-                    bonds['O-O'].append(sub_graphs)
-            elif bond_type == ('H', 'H'):
-                bonds['H-H'].append(sub_graphs)
+    # for bond_type in (('O', 'C'), ('C', 'O'), ('C', 'C'), ('O', 'O'), ('H', 'H')):
+    for pair in bond_pack:
+        tmp_graph = mol_graph.copy()
+        tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index)
+        bond = sorted([pair.atom_1.symbol, pair.atom_2.symbol])
+        bond = '-'.join(bond)
+        sub_graphs = [tmp_graph.subgraph(comp).copy() for comp in nx.connected_components(tmp_graph)]
+        if bond in ('C-O', 'O-O'):
+            if any(check_oh_bond(atom) for atom in pair.atoms):
+                bonds[bond+'H'].append(sub_graphs)
             else:
-                bonds['C-C'].append(sub_graphs)
+                bonds[bond].append(sub_graphs)
+        else:
+            bonds[bond].append(sub_graphs)
+
+            # if bond_type in (('O', 'C'), ('C', 'O')):
+            #     oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
+            #     if oh_bond:
+            #         bonds['C-OH'].append(sub_graphs)
+            #     else:
+            #         bonds['C-O'].append(sub_graphs)
+            # elif bond_type == ('O', 'O'):
+            #     oh_bond = any(check_oh_bond(atom) for atom in pair.atoms)
+            #     if oh_bond:
+            #         bonds['O-OH'].append(sub_graphs)
+            #     else:
+            #         bonds['O-O'].append(sub_graphs)
+            # elif bond_type == ('H', 'H'):
+            #     bonds['H-H'].append(sub_graphs)
+            # else:
+            #     bonds['C-C'].append(sub_graphs)
 
     return bonds
 
@@ -773,7 +786,10 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[Eleme
 
     args_list = []
     for intermediate in intermediates_values:
+        if intermediate.is_surface:
+            continue
         sub_graphs = break_bonds(intermediate.molecule)
+        print('sub_graphs: ', sub_graphs)
         if not sub_graphs:
             continue
 

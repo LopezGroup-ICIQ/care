@@ -15,7 +15,7 @@ INTERPOL = {'O-H' : {'alpha': 0.39, 'beta': 0.89},
             'O-OH' : {'alpha': 1.00, 'beta': 1.00},
             'default': {'alpha': 0.00, 'beta': 0.00}} 
 
-REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'O-H', 'O-OH', 'eley_rideal', 'adsorption', 'pseudo','rearrangement']
+REACTION_TYPES = ['desorption', 'C-O', 'C-OH', 'C-H', 'H-H', 'O-O', 'C-C', 'H-O', 'O-OH', 'eley_rideal', 'adsorption', 'pseudo','rearrangement']
 
 class ElementaryReaction:
     """Class for representing elementary reactions.

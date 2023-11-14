@@ -1,5 +1,5 @@
 from ase import Atoms
-from networkx import Graph, draw
+from networkx import Graph, draw, cycle_basis
 from care.rnet.utilities import functions as fn
 from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
@@ -26,7 +26,7 @@ class Intermediate:
     def __init__(self, 
                  code: str=None, 
                  molecule: Atoms=None,
-                 graph: Graph=None, 
+                 graph: Graph=None,
                  ads_configs: dict[str, dict]={},
                  is_surface: bool=False,
                  phase: str=None):
@@ -43,6 +43,7 @@ class Intermediate:
         self.bader = None
         self.voltage = None
         self.smiles = self.get_smiles()
+        self.cyclic = self.is_cyclic()
         
         if self.is_surface:
             self.phase = 'surf'
@@ -131,6 +132,13 @@ class Intermediate:
         """
         return fn.digraph(self.molecule, coords=False)
     
+    def is_cyclic(self):
+        """
+        Check if a molecule is cyclic or not.
+        """
+        cycles = list(cycle_basis(self.graph.to_undirected()))
+        return True if len(cycles) != 0 else False
+
     def is_closed_shell(self):
         """
         Check if a molecule CxHyOz is closed-shell or not.

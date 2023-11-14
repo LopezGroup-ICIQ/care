@@ -184,7 +184,7 @@ def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
     epoxides = []
     cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
-    if n_oxy < 1:
+    if n_oxy == 0:
         return epoxides
     for mol in mol_alkanes:
         # generate list of tuple of adjacent atoms satisfying the cond1
@@ -469,7 +469,7 @@ def generate_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
 
     ethers = []
     # cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
-    if n_oxy < 1:
+    if n_oxy == 0:
         return ethers
     
     for mol in mol_alkanes:
@@ -512,10 +512,10 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
     
     cho_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
-    #ethers_smiles = generate_ether_smiles(mol_alkanes, n_oxy)
-    #cho_smiles += epoxides_smiles
-    #cho_smiles += ethers_smiles
+    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
+    ethers_smiles = generate_ether_smiles(mol_alkanes, n_oxy)
+    cho_smiles += epoxides_smiles
+    cho_smiles += ethers_smiles
     cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
     mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
 

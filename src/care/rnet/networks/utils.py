@@ -179,9 +179,6 @@ def gen_rearrangement_reactions(inter_dict, intermediates: dict[str, Intermediat
                     code2 = molpack_list[ase_mol.index(pair[1])][0]
                 
                 rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code1]]), frozenset([intermediates[code2]])), r_type='rearrangement'))
-    import pprint as pp
-    pp.pprint(rearrangement_steps)
-
     return rearrangement_steps
 
 def is_hydrogen_rearranged(atoms1, atoms2, cutoff=1.2):
