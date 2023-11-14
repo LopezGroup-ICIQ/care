@@ -31,21 +31,15 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     
     # 1) Generate all the intermediates
     t0 = time.time()
-    intermediate_dict, map_dict = generate_intermediates(ncc, noc)
+    intermediate_dict = generate_intermediates(ncc, noc)
+
     print('Time to generate intermediates: {:.2f} s'.format(time.time()-t0))   
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
 
     # 2) Generate the network dictionary
-    t1 = time.time()
-    inter_att = generate_dict(intermediate_dict)
-    print('Time to generate the dictionary: {:.2f} s'.format(time.time()-t1))
-    t2 = time.time()
-    for network, graph in map_dict.items():
-        nx.set_node_attributes(graph, inter_att[network])
-    print('Time to set node attributes: {:.2f} s'.format(time.time()-t2))
     t3 = time.time()
     print('Generating the network dictionary...')
-    network_dict = generate_network_dict(map_dict)
+    network_dict = generate_network_dict(intermediate_dict)
     int_net = [intermediate for intermediate in intermediate_dict.keys()]
     print('Time to generate the network dictionary: {:.2f} s'.format(time.time()-t3))
 

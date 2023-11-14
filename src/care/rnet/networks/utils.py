@@ -74,51 +74,23 @@ def process_edge(args):
         print("Key Error: Edge {} not found in the dictionary".format(edge))
         return None
 
-def generate_network_dict(rxn_dict: dict) -> dict:
+def generate_network_dict(inter_dict: dict) -> dict:
     """
-    Generates all the reactions in which the bond-breaking is between a H atom and any other atom.
+    Generates all the intermediates in which the bond-breaking is between a H atom and any other atom.
     """
     network_dict = {} 
-    # network_dict['[H][H]'] = {'intermediates': {}, 'reactions': []}
-    # for node in rxn_dict['[H][H]'].nodes():
-    #     try:
-    #         sel_node = rxn_dict['[H][H]'].nodes[node]
-    #         new_inter = Intermediate(code=node+'*', 
-    #                                     molecule=sel_node['mol'], 
-    #                                     graph=sel_node['graph'],  
-    #                                     phase='ads')
-    #         network_dict['[H][H]']['intermediates'][node] = new_inter
-    #     except KeyError:
-    #         print("KeyError: Node {} not found in the dictionary".format(node))
-    #         pass
-      
-    # h_inter = network_dict['[H][H]']['intermediates']['0001000101']    
-    # args_list = []
-    for key, network in rxn_dict.items():
-        # if key != '[H][H]':
+    for key, values in inter_dict.items():
         network_dict[key] = {'intermediates': {}}
-        for node in network.nodes():
+        for value_list in values.values():
             try:
-                sel_node = network.nodes[node]
-                new_inter = Intermediate(code=node+'*', 
-                                        molecule=sel_node['mol'], 
-                                        graph=sel_node['graph'],  
-                                        phase='ads')
-                network_dict[key]['intermediates'][node] = new_inter
+                for value in value_list:
+                    new_inter = Intermediate(code=value.code+'*',
+                                            molecule=value.ase_mol,
+                                            graph=value.nx_graph,
+                                            phase='ads')
+                    network_dict[key]['intermediates'][value.code] = new_inter
             except KeyError:
-                print("KeyError: Node {} not found in the dictionary".format(node))
                 pass        
-    #     for edge in list(network.edges()):
-    #             args_list.append((key, edge, network_dict, h_inter, surf_inter))
-
-    # with mp.Pool(os.cpu_count()//2) as p:
-    #     results = p.map(process_edge, args_list)
-    
-    # for result in results:
-    #     if result is not None:
-    #         key, new_rxn = result
-    #         network_dict[key]['reactions'].append(new_rxn)
-
     return network_dict
 
 
@@ -174,8 +146,9 @@ def gen_rearrangement_reactions(inter_dict, intermediates: dict[str, Intermediat
                 for pair in rearrangement_pairs:
                     code1 = molpack_list[ase_mol.index(pair[0])][0]
                     code2 = molpack_list[ase_mol.index(pair[1])][0]
+                stoic_dict = {intermediates[code1].code: -1, intermediates[code2].code: 1}
                 
-                rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code1]]), frozenset([intermediates[code2]])), r_type='rearrangement'))
+                rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code1]]), frozenset([intermediates[code2]])), r_type='rearrangement', stoic=stoic_dict))
     return rearrangement_steps
 
 def is_hydrogen_rearranged(atoms1, atoms2, cutoff=1.2):

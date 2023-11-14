@@ -175,7 +175,7 @@ def gen_alkanes_smiles(n: int) -> list[str]:
     all_alkanes = []
     for i in range(1, n + 1):
         all_alkanes += generate_alkanes_recursive(i)
-    unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=True)
+    unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=False)
     return unique_alkanes
 
 def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
@@ -434,25 +434,6 @@ def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
     intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
     return molec_grp, intermediate
 
-def process_intermediate(args: tuple[str, dict]) -> tuple[str, nx.DiGraph]:
-    """
-    Generates the map dictionary for the intermediate.
-    The map dictionary is used to generate a primitive reaction network with only C-H bond breaking.
-
-    Parameters
-    ----------
-    args : tuple
-        Tuple containing the name of the molecule and the dictionary of intermediates.
-
-    Returns
-    -------
-    tuple[str, nx.DiGraph]
-        Tuple containing the name of the molecule and the nx.Digraph of intermediates.
-    """
-    molecule, intermediate = args
-    map_tmp = generate_map(intermediate, 'H')
-    return molecule, map_tmp
-
 def generate_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
     """Add an oxygen atom to an alkane to generate an ether.
 
@@ -538,7 +519,6 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
 
     # 2) Generate all possible open-shell intermediates by H abstraction
     inter_dict, repeat_molec = {}, []
-
     args_list = []
     for name, molec in isomeric_groups.items():
         for molec_grp in molec:
@@ -550,10 +530,4 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
         results = pool.map(process_molecule, args_list)
     inter_dict = {k: v for k, v in results}
 
-    # 3) Generate the connections between the intermediates via graph theory
-    map_dict = {}
-    args_map_list = [(molecule, inter_dict[molecule]) for molecule in inter_dict.keys()]
-    with mp.Pool(num_cores) as pool:
-        results = pool.map(process_intermediate, args_map_list)
-    map_dict = {k: v for k, v in results}
-    return inter_dict, map_dict
+    return inter_dict
