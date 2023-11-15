@@ -108,7 +108,7 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
     adsorption_steps = []
     for inter in intermediates.values():
         if inter.phase == 'gas':
-            ads_inter = intermediates[inter.code.replace("g", "")]
+            ads_inter = intermediates[inter.code[:-1]]
             stoic_dict = {surf_inter.code: -1, inter.code: -1, ads_inter.code: 1}     
             adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption', stoic=stoic_dict))
 
