@@ -725,30 +725,25 @@ def process_graph_pair(args) -> tuple[list[list[str]], str]:
         return None
     return rxn_components, bond_breaking_type
 
-def break_bonds(molecule: Atoms) -> dict[str, list[list[Graph]]]:
+def break_bonds(graph: Graph) -> dict[str, list[list[Graph]]]:
     """
     Return a dict of lists of lists of graphs, where the keys are the bond types and each sublist in the
     value contains the products of a specific bond breaking type. The sublists are a list of graphs, where
     each graph is a connected component of the molecule.
     """
-    connections = connectivity_helper(molecule)
+    
     bond_dict = defaultdict(list)
-    bond_pack = bond_analysis(molecule)
-    mol_graph = ase_coord_2_graph(molecule, coords=False)
+    for edge in graph.edges:
+        node1, node2 = graph.nodes[edge[0]], graph.nodes[edge[1]]
 
-    def check_oh_bond(atom):
-        if atom.symbol != "O":
-            return False
-        return 'H' in [molecule[con].symbol for con in connections[atom.index]]
-
-    for pair in bond_pack:
-        tmp_graph = mol_graph.copy()
-        tmp_graph.remove_edge(pair.atom_1.index, pair.atom_2.index) 
-        bond = '-'.join(sorted([pair.atom_1.symbol, pair.atom_2.symbol]))
-        # if bond not in ('C-H', 'H-O'):
+        tmp_graph = graph.copy()
+        tmp_graph.remove_edge(edge[0], edge[1])
+        bond = '-'.join(sorted([node1['elem'], node2['elem']]))
         products = [tmp_graph.subgraph(comp).copy() for comp in connected_components(tmp_graph)]
         if bond in ('C-O', 'O-O'): # for electrochemistry purposes
-            if any(check_oh_bond(atom) for atom in pair.atoms):
+            neighbours1 = [graph.nodes[neighbour]['elem'] for neighbour in graph.neighbors(edge[0])]
+            neighbour2 = [graph.nodes[neighbour]['elem'] for neighbour in graph.neighbors(edge[1])]
+            if (any(elem == 'H' for elem in neighbours1) and node1['elem'] == 'O') or (any(elem == 'H' for elem in neighbour2) and node2['elem'] == 'O'):
                 bond_dict[bond+'H'].append(products)
             else:
                 bond_dict[bond].append(products)
@@ -769,7 +764,7 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[Eleme
     for intermediate in intermediates_values:
         if intermediate.is_surface:
             continue
-        sub_graphs = break_bonds(intermediate.molecule)
+        sub_graphs = break_bonds(intermediate.graph.to_undirected())
         for bond_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
                 args_list.append((cached_graphs, '0000000000', intermediate.code[:-1], bond_type, graph_pair))

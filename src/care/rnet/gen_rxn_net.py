@@ -32,6 +32,17 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     # 1) Generate all the intermediates
     t0 = time.time()
     intermediate_dict = generate_intermediates(ncc, noc)
+    # Printing the len of the intermediate dictionary (value) for each key
+    total_len_values = 0
+    code_list = []
+    for value in intermediate_dict.values():
+        for item in value.values():
+            code = item[0]
+            if code not in code_list:
+                code_list.append(code)
+            else:
+                print('Duplicate code:', code)
+            total_len_values += len(item)
 
     print('Time to generate intermediates: {:.2f} s'.format(time.time()-t0))   
     surf_inter = Intermediate.from_molecule(slab_ase_obj, code='0000000000*', is_surface=True, phase='surf')
@@ -48,9 +59,13 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     rxn_net = ReactionNetwork(intermediates={'0000000000': surf_inter}, ncc=ncc)
     print('Time to generate primitive reaction network: {:.2f} s'.format(time.time()-t4))
     t5 = time.time()
+    total_len_inter_add = 0
     for item in int_net:
         select_net = network_dict[item]
         rxn_net.add_intermediates(select_net['intermediates'])
+        total_len_inter_add += len(select_net['intermediates'])
+    print('Total number of intermediates added to the reaction network: {}'.format(total_len_inter_add))
+    print(len(rxn_net.intermediates))
     print('Time to add H breaking intermediates and reactions to the reaction network: {:.2f} s'.format(time.time()-t5))
     t6 = time.time()
     breaking_reactions = break_and_connect(rxn_net.intermediates)
@@ -58,9 +73,9 @@ def generate_rxn_net(slab_ase_obj: Atoms,
     t7 = time.time()
     rxn_net.add_reactions(breaking_reactions)
     print('Time to add breaking reactions: {:.2f} s'.format(time.time()-t7))
-    gas_molecules, desorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)
-    rxn_net.add_intermediates(gas_molecules)
-    rxn_net.add_reactions(desorption_reactions)
+    adsorption_reactions = gen_adsorption_reactions(rxn_net.intermediates, surf_inter)
+    rxn_net.add_reactions(adsorption_reactions)
     rearrangement_reactions = gen_rearrangement_reactions(intermediate_dict, rxn_net.intermediates)
+    print('rearrangement_reactions: ', len(rearrangement_reactions))
     rxn_net.add_reactions(rearrangement_reactions)
     return rxn_net

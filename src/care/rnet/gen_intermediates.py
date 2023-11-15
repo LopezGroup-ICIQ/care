@@ -493,9 +493,9 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
     
     cho_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
+    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
     ethers_smiles = generate_ether_smiles(mol_alkanes, n_oxy)
-    cho_smiles += epoxides_smiles
+    #cho_smiles += epoxides_smiles
     cho_smiles += ethers_smiles
     cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
     mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]

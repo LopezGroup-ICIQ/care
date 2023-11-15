@@ -84,11 +84,17 @@ def generate_network_dict(inter_dict: dict) -> dict:
         for value_list in values.values():
             try:
                 for value in value_list:
-                    new_inter = Intermediate(code=value.code+'*',
-                                            molecule=value.ase_mol,
-                                            graph=value.nx_graph,
+                    new_inter = Intermediate(code=value[0]+'*',
+                                            molecule=value[1],
+                                            graph=value[2],
                                             phase='ads')
                     network_dict[key]['intermediates'][value.code] = new_inter
+                    if new_inter.closed_shell:
+                        new_inter_gas = Intermediate(code=value[0]+'g',
+                                            molecule=value[1],
+                                            graph=value[2],
+                                            phase='gas')
+                        network_dict[key]['intermediates'][value.code+'g'] = new_inter_gas
             except KeyError:
                 pass        
     return network_dict
@@ -100,22 +106,19 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
     the dissociative adsorption of H2 and O2.
     """
     adsorption_steps = []
-    gas_molecules = {}
     for inter in intermediates.values():
-        if inter.closed_shell:
-            gas_code = inter.code[:-1] + 'g'
-            gas_inter = Intermediate.from_molecule(inter.molecule, code=gas_code, phase='gas')
-            gas_molecules[gas_code] = gas_inter
-            stoic_dict = {surf_inter.code: -1, gas_inter.code: -1, inter.code: 1}     
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_inter]), frozenset([inter])), r_type='adsorption', stoic=stoic_dict))
+        if inter.phase == 'gas':
+
+            stoic_dict = {surf_inter.code: -1, inter.code: -1, inter.code: 1}     
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([inter])), r_type='adsorption', stoic=stoic_dict))
 
     # H2 dissociative adsorption
-    stoic_dict = {surf_inter.code: -1, gas_molecules['0002000101g'].code: -1, intermediates['0001000101'].code: 2}
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0002000101g']]), frozenset([intermediates['0001000101']])), r_type='adsorption', stoic=stoic_dict))
+    stoic_dict = {surf_inter.code: -1, intermediates['0002000101g'].code: -1, intermediates['0001000101'].code: 2}
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates['0002000101g']]), frozenset([intermediates['0001000101']])), r_type='adsorption', stoic=stoic_dict))
     # O2 dissociative adsorption
-    stoic_dict = {surf_inter.code: -1, gas_molecules['0000020101g'].code: -1, intermediates['0000010101'].code: 2}
-    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, gas_molecules['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption', stoic=stoic_dict))
-    return gas_molecules, adsorption_steps
+    stoic_dict = {surf_inter.code: -1, intermediates['0000020101g'].code: -1, intermediates['0000010101'].code: 2}
+    adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates['0000020101g']]), frozenset([intermediates['0000010101']])), r_type='adsorption', stoic=stoic_dict))
+    return adsorption_steps
 
 
 def gen_rearrangement_reactions(inter_dict, intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:

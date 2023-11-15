@@ -57,9 +57,9 @@ class ElementaryReaction:
         if self.r_type not in self.r_types:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
-        self.stoic = stoic
-        if self.r_type != 'pseudo' and self.stoic is None:
-             self.stoic = self.solve_stoichiometry()    
+        # self.stoic = stoic
+        # if self.r_type != 'pseudo' and self.stoic is None:
+        #      self.stoic = self.solve_stoichiometry()    
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -69,9 +69,11 @@ class ElementaryReaction:
         for component in self.components:
             for inter in component:
                 if inter.phase == 'surf':
-                    out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + "*" + '+'
+                    # out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + "*" + '+'
+                    out_str += "*" + '+'
                 else:
-                    out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
+                    # out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
+                    out_str += inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        
