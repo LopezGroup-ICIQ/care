@@ -4,9 +4,8 @@ from rdkit.Chem import AllChem
 from ase import Atoms, Atom
 from itertools import product, combinations
 import networkx as nx
-import copy
-from collections import defaultdict
 import multiprocessing as mp
+from rdkit.Chem import rdMolDescriptors
 
 lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
@@ -286,6 +285,35 @@ def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
 
     return molec_dict
 
+
+# def optimized_id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
+#     """
+#     Corrects the labeling for isomeric systems.
+#     ...
+#     """
+#     molec_dict = {molec: [] for molec in molecules_dict.keys()}
+    
+#     formula_groups = defaultdict(list)
+#     for molec, data in molecules_dict.items():
+#         formula_groups[data['Formula']].append(molec)
+    
+#     for formula, molecules in formula_groups.items():
+#         for molec_1, molec_2 in combinations(molecules, 2):
+#             graph_1 = molecules_dict[molec_1]['Graph']
+#             graph_2 = molecules_dict[molec_2]['Graph']
+#             if not nx.is_isomorphic(graph_1, graph_2, node_match=lambda x, y: x["elem"] == y["elem"]):
+#                 # Add non-isomorphic pairs to each other's list
+#                 molec_dict[molec_1].append(molec_2)
+#                 molec_dict[molec_2].append(molec_1)
+
+#     # Ensuring each molecule appears in its own list
+#     for molec in molec_dict.keys():
+#         molec_dict[molec] = list(set(molec_dict[molec] + [molec]))
+
+#     return molec_dict
+
+
+
 def atoms_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
     """
     Generates a NetworkX Graph from an ASE Atoms object.
@@ -360,59 +388,20 @@ def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
         AllChem.EmbedMolecule(mol, AllChem.ETKDG())
 
     conf = mol.GetConformer()
-    
+    positions = [conf.GetAtomPosition(atom.GetIdx()) for atom in mol.GetAtoms()]
     nx_graph = nx.Graph()
-    # Add atoms to graph
-    for atom in mol.GetAtoms():
+
+    for i, atom in enumerate(mol.GetAtoms()):
         nx_graph.add_node(atom.GetIdx(),
                    elem=atom.GetSymbol(),
-                   xyz=conf.GetAtomPosition(atom.GetIdx()))
+                   xyz=positions[i])
     
-    # Add bonds to graph
     for bond in mol.GetBonds():
-        i = bond.GetBeginAtomIdx()
-        j = bond.GetEndAtomIdx()
-        
-        pos_i = nx_graph.nodes[i]['xyz']
-        pos_j = nx_graph.nodes[j]['xyz']
-        
-        length = pos_i.Distance(pos_j)
-        
+        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        length = positions[i].Distance(positions[j])        
         nx_graph.add_edge(i, j, length=length)
     
     return nx_graph
-
-def formula_from_rdkit(mol: Chem.Mol) -> str:
-    """
-    Get the molecular formula from an RDKit molecule.
-
-    Parameters
-    ----------
-    mol : Chem.Mol
-        RDKit molecule.
-
-    Returns
-    -------
-    str
-        Chemical formula of the molecule as CxHyOz.
-    """
-    counts = defaultdict(int)
-    
-    # Add hydrogens to the molecule
-    mol = Chem.AddHs(mol)
-
-    for atom in mol.GetAtoms():
-        elem = atom.GetSymbol()
-        counts[elem] += 1
-    
-    formula = ""
-    
-    for elem in ["C", "H", "O"]:
-        count = counts.get(elem, 0)
-        if count > 0:
-            formula += f"{elem}{count}"
-    
-    return formula
 
 def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
     """
@@ -469,16 +458,16 @@ def generate_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
             ethers.append(smiles)
     return list(set(ethers))
 
-def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[int, list[MolPack]]], dict[str, dict[int, nx.DiGraph]]]:
+def generate_intermediates(ncc: int, noc: int,) -> dict:
     """
     Generates all the possible intermediates for a given number of carbon atoms 
     starting from the set of fully saturated CHO molecules (alkanes, alcohols, etc.).
 
     Parameters
     ----------
-    n_carbon : int
+    ncc : int
         Maximum number of carbon atoms in the intermediates.
-    n_oxy : int
+    noc : int
         Maximum number of oxygen atoms in the intermediates.
 
     Returns
@@ -487,47 +476,51 @@ def generate_intermediates(n_carbon: int, n_oxy: int,) -> tuple[dict[str, dict[i
         Tuple containing the dictionary of intermediates and the dictionary of maps.     
     """
     
-    # 1) Generate all closed-shell satuarated CHO molecules (alkanes and alcohols plus H2, H2O2 and O2)
-    alkanes_smiles = gen_alkanes_smiles(n_carbon)    
+    # 1) Generate all closed-shell satuarated CHO molecules
+    alkanes_smiles = gen_alkanes_smiles(ncc)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     
-    cho_smiles = [add_oxygens_to_molecule(mol, n_oxy) for mol in mol_alkanes] 
+    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, n_oxy)
-    ethers_smiles = generate_ether_smiles(mol_alkanes, n_oxy)
+    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
+    ethers_smiles = generate_ether_smiles(mol_alkanes, noc)
     #cho_smiles += epoxides_smiles
     cho_smiles += ethers_smiles
     cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
     mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
 
-    intermediates_formula = [formula_from_rdkit(intermediate) for intermediate in mol_alkanes + mol_cho]
+    intermediates_formula = [rdMolDescriptors.CalcMolFormula(intermediate) for intermediate in mol_alkanes + mol_cho]
     intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_cho]
     intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_cho]
-
-    inter_precursor_dict = {}
-    for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_cho):
-        inter_precursor_dict[smiles] = {
-            'Smiles': smiles,
-            'Formula': formula, 
-            'Graph': graph, 
-            'RDKit': rdkit_obj,
-            }
+    
+    if len(intermediates_smiles) == len(intermediates_formula) == len(intermediates_graph) == len(mol_alkanes + mol_cho):
+        inter_precursor_dict = {
+            smiles: {
+                'Smiles': smiles,
+                'Formula': formula, 
+                'Graph': graph, 
+                'RDKit': rdkit_obj
+            } 
+            for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_cho)
+        }
+    else:
+        print("Error: Lists are not of equal length.")
         
     isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
-
-    num_cores = mp.cpu_count()
+    # isomeric_groups = optimized_id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
+    
 
     # 2) Generate all possible open-shell intermediates by H abstraction
-    inter_dict, repeat_molec = {}, []
+    repeat_molec = set()
     args_list = []
-    for name, molec in isomeric_groups.items():
-        for molec_grp in molec:
+    for smiles, iso_smiles in isomeric_groups.items():
+        for molec_grp in iso_smiles:
             if molec_grp not in repeat_molec:
-                repeat_molec.append(molec_grp)
-                args_list.append([name, molec_grp, inter_precursor_dict, isomeric_groups])
+                repeat_molec.add(molec_grp)
+                args_list.append([smiles, molec_grp, inter_precursor_dict, isomeric_groups])
     
+    num_cores = mp.cpu_count()
     with mp.Pool(num_cores) as pool:
         results = pool.map(process_molecule, args_list)
-    inter_dict = {k: v for k, v in results}
 
-    return inter_dict
+    return dict(results)

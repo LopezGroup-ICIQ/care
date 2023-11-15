@@ -74,29 +74,26 @@ def process_edge(args):
         print("Key Error: Edge {} not found in the dictionary".format(edge))
         return None
 
-def generate_network_dict(inter_dict: dict) -> dict:
+def gen_inter_objs(inter_dict: dict) -> dict:
     """
-    Generates all the intermediates in which the bond-breaking is between a H atom and any other atom.
+    Generates all the intermediates of the reaction network.
     """
     network_dict = {} 
     for key, values in inter_dict.items():
         network_dict[key] = {'intermediates': {}}
         for value_list in values.values():
-            try:
-                for value in value_list:
-                    new_inter = Intermediate(code=value[0]+'*',
-                                            molecule=value[1],
-                                            graph=value[2],
-                                            phase='ads')
-                    network_dict[key]['intermediates'][value.code] = new_inter
-                    if new_inter.closed_shell:
-                        new_inter_gas = Intermediate(code=value[0]+'g',
-                                            molecule=value[1],
-                                            graph=value[2],
-                                            phase='gas')
-                        network_dict[key]['intermediates'][value.code+'g'] = new_inter_gas
-            except KeyError:
-                pass        
+            for value in value_list:
+                new_inter = Intermediate(code=value[0]+'*',
+                                        molecule=value[1],
+                                        graph=value[2],
+                                        phase='ads')
+                network_dict[key]['intermediates'][value.code] = new_inter
+                if new_inter.closed_shell:
+                    new_inter_gas = Intermediate(code=value[0]+'g',
+                                        molecule=value[1],
+                                        graph=value[2],
+                                        phase='gas')
+                    network_dict[key]['intermediates'][value.code+'g'] = new_inter_gas        
     return network_dict
 
 

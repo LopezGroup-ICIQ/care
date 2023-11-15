@@ -33,6 +33,9 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
 MolPack = namedtuple('MolPack',['code', 'ase_mol','nx_graph', 'num_H_removed'])
 
 def rdkit_to_ase(rdkit_molecule) -> Atoms:
+    """
+    Generate an ASE Atoms object from an RDKit molecule.
+    """
     AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
     positions = rdkit_molecule.GetConformer().GetPositions()
     symbols = [atom.GetSymbol() for atom in rdkit_molecule.GetAtoms()]
@@ -40,7 +43,7 @@ def rdkit_to_ase(rdkit_molecule) -> Atoms:
 
 def ase_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
     """
-    Generates a NetworkX Graph from an ASE Atoms object.
+    Generate a NetworkX Graph (undirected) from an ASE Atoms object.
 
     Parameters
     ----------
@@ -143,18 +146,17 @@ def generate_pack(rdkit_molecule: Chem,
     """
     rdkit_molecule = Chem.AddHs(rdkit_molecule)
     Chem.SanitizeMol(rdkit_molecule)
-    n_H = len([atom for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == 'H'])
     
-    # Convert to ASE for your other tasks
+    # Convert to ASE object
     molecule = rdkit_to_ase(rdkit_molecule)
-    n_H = molecule.get_chemical_symbols().count("H")
+    nH = molecule.get_chemical_symbols().count("H")
     if molecule.get_chemical_formula() == 'H2':
-        n_H = 1
+        nH = 1
     molecule.arrays["conn_pairs"] = get_voronoi_neighbourlist(molecule, 0.25, 1.0, ['C', 'H', 'O']) 
+    # note: MolPack = namedtuple('MolPack',['code', 'ase_mol','nx_graph', 'num_H_removed'])
     mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, ase_2_graph(molecule), {})]}
 
-    for index in range(n_H):
-        
+    for index in range(nH):        
         pack = get_all_subs(rdkit_molecule, index + 1, 'H')
         unique = get_unique(pack[1], 'H')
         
@@ -249,17 +251,18 @@ def generate_range(ase_molecule: Atoms,
 def get_all_subs(rdkit_molecule: Chem, 
                  n_sub: int, 
                  element: str) -> tuple[list[Atoms], list[nx.Graph]]:
-    """function to what point you want to remove hydrogens
+    """
+    function to what point you want to remove hydrogens
     """
     
-    sel_atoms = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
+    elem_indices = [atom.GetIdx() for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == element]
     mol_pack, graph_pack = [], []
 
-    for comb in combinations(sel_atoms, n_sub):
+    for comb in combinations(elem_indices, n_sub):
 
         new_mol = Chem.RWMol(rdkit_molecule)
     
-        # Sort and reverse indices to ensure we remove atoms without affecting the indices of atoms yet to be removed
+        # Sort and reverse to ensure we remove atoms without affecting the indices of atoms yet to be removed
         for index in reversed(sorted(comb)):
             atom = new_mol.GetAtomWithIdx(index)
             
@@ -277,22 +280,20 @@ def get_all_subs(rdkit_molecule: Chem,
         new_ase_mol = rdkit_to_ase(new_mol)
         new_ase_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(new_ase_mol, 0.25, 1.0, ['C', 'H', 'O'])
         
-        # Your existing code for generating a graph from the ASE object would go here
-        # new_graph = digraph(new_ase_mol, coords=False)
         mol_pack.append(new_ase_mol)
         graph_pack.append(ase_2_graph(new_ase_mol, coords=False))
     return mol_pack, graph_pack
 
 
-def get_unique(graph_pack: list[nx.DiGraph], element: str) -> list[int]: #function to get unqiue configs
-    
+def get_unique(graph_pack: list[nx.Graph], element: str) -> list[int]:
+    """
+    Function to get unique graph configurations based on isomorphism checks.
+    """
     accepted = []
     em = iso.categorical_node_match('elem', element)
     for index, graph1 in enumerate(graph_pack):
-        for graph2 in accepted:
-            if nx.is_isomorphic(graph1.to_undirected(), graph_pack[graph2].to_undirected(), node_match=lambda x, y: x["elem"] == y["elem"]):
-                break
-        else:
+        if all(not nx.is_isomorphic(graph1, graph_pack[accepted_idx], node_match=em) for accepted_idx in accepted):
             accepted.append(index)
     return accepted
+
 
