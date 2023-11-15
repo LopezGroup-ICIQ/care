@@ -6,7 +6,9 @@
 # CARE: Catalysis Automatic Reaction Evaluator
 
 <div style="display: flex; justify-content: center; align-items: center;">
-    <img src="./output.gif" width="60%" height="60%" />
+    <p align="center">
+     <img src="./output.gif" width="60%" height="60%" />
+    </p>
 </div>
  
  #
