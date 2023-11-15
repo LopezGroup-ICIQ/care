@@ -108,9 +108,9 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
     adsorption_steps = []
     for inter in intermediates.values():
         if inter.phase == 'gas':
-
-            stoic_dict = {surf_inter.code: -1, inter.code: -1, inter.code: 1}     
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([inter])), r_type='adsorption', stoic=stoic_dict))
+            ads_inter = intermediates[inter.code.replace("g", "")]
+            stoic_dict = {surf_inter.code: -1, inter.code: -1, ads_inter.code: 1}     
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption', stoic=stoic_dict))
 
     # H2 dissociative adsorption
     stoic_dict = {surf_inter.code: -1, intermediates['0002000101g'].code: -1, intermediates['0001000101'].code: 2}
