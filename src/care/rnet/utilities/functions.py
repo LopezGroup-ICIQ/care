@@ -32,11 +32,63 @@ CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
 
 MolPack = namedtuple('MolPack',['code', 'ase_mol','nx_graph', 'num_H_removed'])
 
-def rdkit_to_ase(rdkit_molecule):
+def rdkit_to_ase(rdkit_molecule) -> Atoms:
     AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
     positions = rdkit_molecule.GetConformer().GetPositions()
     symbols = [atom.GetSymbol() for atom in rdkit_molecule.GetAtoms()]
     return Atoms(symbols=symbols, positions=positions)
+
+def ase_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
+    """
+    Generates a NetworkX Graph from an ASE Atoms object.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        ASE Atoms object of the molecule.
+    coords : bool
+        Boolean indicating whether to include the atomic coordinates in the graph.
+
+    Returns
+    -------
+    nx.Graph
+        NetworkX Graph of the molecule (with atomic coordinates and bond lengths if 'coords' is True).
+    """
+
+    num_atom = list(range(len(atoms)))
+    elems_list = atoms.get_chemical_symbols()
+    xyz_coords = atoms.get_positions()
+
+    # Generating the graph
+    nx_graph = nx.Graph()
+    nx_graph.add_nodes_from(num_atom)
+
+    if coords:
+        node_attrs = {
+            num: {'elem': elems_list[i], 'xyz': xyz_coords[i]}
+                  for i, num in enumerate(num_atom)
+                  }
+    else:
+        node_attrs = {
+            num: {'elem': elems_list[i]}
+            for i, num in enumerate(num_atom)
+        }
+    nx.set_node_attributes(nx_graph, node_attrs)
+
+    # Adding the edges
+    edge_attrs = {}
+    for i in range(len(atoms)):
+        for j in range(i + 1, len(atoms)): 
+            cutoff = edge_cutoffs(atoms[i], atoms[j], tolerance=0.2)
+            bond_length = atoms.get_distance(i, j)
+            if bond_length < cutoff:
+                edge_attrs[(i, j)] = {"length": bond_length}
+    
+    edges = list(edge_attrs.keys())
+    nx_graph.add_edges_from(edges)
+    nx.set_edge_attributes(nx_graph, edge_attrs)
+
+    return nx_graph
 
 def get_voronoi_neighbourlist(atoms: Atoms,
                               tolerance: float,
@@ -99,7 +151,7 @@ def generate_pack(rdkit_molecule: Chem,
     if molecule.get_chemical_formula() == 'H2':
         n_H = 1
     molecule.arrays["conn_pairs"] = get_voronoi_neighbourlist(molecule, 0.25, 1.0, ['C', 'H', 'O']) 
-    mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, digraph(molecule, coords=False), {})]}
+    mg_pack = {0: [MolPack(code_name(molecule, group, 1), molecule, ase_2_graph(molecule), {})]}
 
     for index in range(n_H):
         
@@ -137,56 +189,6 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
     element_j = node_j.symbol
     return CORDERO[element_i] + CORDERO[element_j] + tolerance
 
-def digraph(atoms: Atoms, coords: bool) -> nx.DiGraph:
-    """Generates a NetworkX Graph from an ASE Atoms object.
-
-    Parameters
-    ----------
-    atoms : ase.Atoms
-        ASE Atoms object of the molecule.
-    coords : bool
-        Boolean indicating whether to include the atomic coordinates in the graph.
-
-    Returns
-    -------
-    nx.Graph
-        NetworkX Graph of the molecule (with atomic coordinates and bond lengths if 'coords' is True).
-    """
-
-    num_atom = list(range(len(atoms)))
-    elems_list = atoms.get_chemical_symbols()
-    xyz_coords = atoms.get_positions()
-
-    # Generating the graph
-    nx_graph = nx.DiGraph()
-    nx_graph.add_nodes_from(num_atom)
-
-    if coords:
-        node_attrs = {
-            num: {'elem': elems_list[i], 'xyz': xyz_coords[i]}
-                  for i, num in enumerate(num_atom)
-                  }
-    else:
-        node_attrs = {
-            num: {'elem': elems_list[i]}
-            for i, num in enumerate(num_atom)
-        }
-    nx.set_node_attributes(nx_graph, node_attrs)
-
-    # Adding the edges
-    edge_attrs = {}
-    for i in range(len(atoms)):
-        for j in range(i + 1, len(atoms)): 
-            cutoff = edge_cutoffs(atoms[i], atoms[j], tolerance=0.2)
-            bond_length = atoms.get_distance(i, j)
-            if bond_length < cutoff:
-                edge_attrs[(i, j)] = {"length": bond_length}
-    
-    edges = list(edge_attrs.keys())
-    nx_graph.add_edges_from(edges)
-    nx.set_edge_attributes(nx_graph, edge_attrs)
-
-    return nx_graph
 
 def code_name(molecule: Atoms, group: int, index: int) -> str:
     characters = [str(i) for i in range(10)] + [chr(i) for i in range(97, 123)] + [chr(i) for i in range(65, 91)]
@@ -217,31 +219,6 @@ def search_code(mg_pack: dict[int, list[MolPack]], code: str):
                 return obj
     else:
         return False
-
-def generate_map(packing: list[MolPack],
-                    elem: str) -> nx.DiGraph:
-    """Generate the map of the packing.
-
-    Parameters
-    ----------
-    packing : list[MolPack]
-        _description_
-    elem : str
-        chemical element. One between 'C', 'H', 'O'.
-
-    Returns
-    -------
-    nx.DiGraph
-        NetworkX directed graph of the packing.
-    """
-    g = nx.DiGraph()
-    em = iso.categorical_node_match('elem', elem)
-    for index in range(len(packing) - 1):
-        for parent, child in product(packing[index], packing[index+1]):
-            xx = nx.isomorphism.DiGraphMatcher(parent.nx_graph, child.nx_graph, node_match=em)
-            if xx.subgraph_is_isomorphic():
-                g.add_edge(parent.code, child.code)
-    return g
     
 
 def draw_dot(graph, filename):
@@ -253,7 +230,7 @@ def generate_range(ase_molecule: Atoms,
                    subs: int, 
                    group: int) -> dict[int, list]: #generating all the possibilities
 
-    mg_pack = {0: [MolPack(code_name(ase_molecule, group, 1), ase_molecule, digraph(ase_molecule, coords=False), {})]}
+    mg_pack = {0: [MolPack(code_name(ase_molecule, group, 1), ase_molecule, ase_2_graph(ase_molecule, coords=False), {})]}
 
     for index in range(subs):
         
@@ -271,7 +248,7 @@ def generate_range(ase_molecule: Atoms,
 
 def get_all_subs(rdkit_molecule: Chem, 
                  n_sub: int, 
-                 element: str) -> tuple[list[Atoms], list[nx.DiGraph]]:
+                 element: str) -> tuple[list[Atoms], list[nx.Graph]]:
     """function to what point you want to remove hydrogens
     """
     
@@ -303,7 +280,7 @@ def get_all_subs(rdkit_molecule: Chem,
         # Your existing code for generating a graph from the ASE object would go here
         # new_graph = digraph(new_ase_mol, coords=False)
         mol_pack.append(new_ase_mol)
-        graph_pack.append(digraph(new_ase_mol, coords=False))
+        graph_pack.append(ase_2_graph(new_ase_mol, coords=False))
     return mol_pack, graph_pack
 
 
