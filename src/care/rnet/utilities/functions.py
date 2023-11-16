@@ -57,6 +57,8 @@ def ase_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
     nx.Graph
         NetworkX Graph of the molecule (with atomic coordinates and bond lengths if 'coords' is True).
     """
+    if len(atoms) == 0:
+        return nx.Graph()
 
     num_atom = list(range(len(atoms)))
     elems_list = atoms.get_chemical_symbols()

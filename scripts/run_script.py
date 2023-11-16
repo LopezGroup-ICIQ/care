@@ -73,11 +73,12 @@ if __name__ == "__main__":
     print(rxn_net)
     rxn_net_dict = rxn_net.to_dict()
     rxn_net_dict['ncc'] = args.ncc
+    rxn_net_dict['noc'] = args.noc
     rxn_net_dict['surface'] = surface
     with open(f"{output_dir}/rxn_net_bp.pkl", "wb") as outfile:
         pickle.dump(rxn_net_dict, outfile)
         print(f"The reaction network pickle file has been generated\n")
-    quit()
+    #quit()
     print('Generating adsorption configurations...')
     print('It can take some time, please be patient...')
     # Evaluate energy of intermediates

@@ -5,7 +5,6 @@ from care.rnet.networks.elementary_reaction import ElementaryReaction
 from care.rnet.networks.intermediate import Intermediate
 from ase import Atoms
 from care.rnet.utilities.functions import get_voronoi_neighbourlist
-from care.rnet.graphs.graph_fn import ase_coord_2_graph
 import multiprocessing as mp
 import os
 from collections import defaultdict
@@ -700,7 +699,8 @@ def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: l
         reaction_set.add(reaction.components)
         reaction_list.append(reaction)
         return True
-    return False
+    else:
+        return False
 
 def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
     return [
@@ -755,24 +755,34 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[Eleme
     """
     Given a dictionary of Intermediates (closed-shell and dehydrogenated) including the empty surface, find all possible
     bond-breaking reactions and return them as a list of ElementaryReactions.
+
+    Parameters
+    ----------
+    intermediates_dict : dict
+        Dictionary of intermediates.
+
+    Returns
+    -------
+    list
+        List of ElementaryReactions.
     """
     reaction_set, reaction_list = set(), []
     intermediates_values = list(intermediates_dict.values())
-    cached_graphs = {inter.code[:-1]: (inter.graph.to_undirected(), elem_inf(inter.graph)) for inter in intermediates_values}
+    intermediates_values = [inter for inter in intermediates_values if not inter.phase == 'gas']
+    cached_graphs = {inter.code: (inter.graph, elem_inf(inter.graph)) for inter in intermediates_values if inter.code[-1] != 'g'}
 
-    args_list = []
+    args_list = [] # for multiprocessing
     for intermediate in intermediates_values:
         if intermediate.is_surface:
             continue
-        sub_graphs = break_bonds(intermediate.graph.to_undirected())
+        sub_graphs = break_bonds(intermediate.graph)
         for bond_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
-                args_list.append((cached_graphs, '0000000000', intermediate.code[:-1], bond_type, graph_pair))
+                args_list.append((cached_graphs, '0000000000*', intermediate.code, bond_type, graph_pair))
 
     with mp.Pool(os.cpu_count()//2) as pool:
         results = pool.map(process_graph_pair, args_list)
 
-    # post-process results
     for reaction in results:
         if reaction is not None:
             components_lhs = [intermediates_dict[code] for code in reaction[0][0]]

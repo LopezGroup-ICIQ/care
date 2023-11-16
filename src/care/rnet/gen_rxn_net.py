@@ -2,7 +2,7 @@ from care.rnet.utilities.additional_funcs import break_and_connect
 from care.rnet.networks.intermediate import Intermediate
 from care.rnet.networks.reaction_network import ReactionNetwork
 from care.rnet.networks.utils import gen_inter_objs, gen_adsorption_reactions, gen_rearrangement_reactions
-from care.rnet.gen_intermediates import generate_intermediates
+from care.rnet.intermediates_funcs import generate_intermediates
 from ase import Atoms
 import time
 

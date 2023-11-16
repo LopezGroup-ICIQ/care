@@ -43,12 +43,14 @@ class ReactionNetwork:
                  intermediates: dict[str, Intermediate]={}, 
                  reactions: list[ElementaryReaction]=[], 
                  surface: Surface=None, 
-                 ncc: int=None):
+                 ncc: int=None, 
+                 noc: int=None):
         
         self.intermediates = intermediates
         self.reactions = reactions
         self.surface = surface
         self.ncc = ncc
+        self.noc = noc
         self.excluded = None
         self._graph = None
         self._surface = None
@@ -71,6 +73,7 @@ class ReactionNetwork:
                                                                                                             len(self.reactions))
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
+        string += "Network Oxygen cutoff: O{}\n".format(self.noc)
         return string
     
     def __repr__(self):
@@ -161,6 +164,7 @@ class ReactionNetwork:
         new_net.num_intermediates = len(new_net.intermediates) - 1
         new_net.num_reactions = len(new_net.reactions)
         new_net.ncc = net_dict['ncc']
+        new_net.noc = net_dict['noc']
         new_net.surface = net_dict['surface']
         new_net.graph = None
         return new_net
@@ -187,11 +191,6 @@ class ReactionNetwork:
                 for i in j:
                     curr_reaction_i_dict = {}
                     curr_reaction_i_dict['code'] = i.code
-            #         curr_reaction_i_dict['molecule']=i.molecule
-            #         curr_reaction_i_dict['graph']=i.graph
-            #         curr_reaction_i_dict['ads_configs']=i.ads_configs
-            #         curr_reaction_i_dict['is_surface']=i.is_surface
-            #         curr_reaction_i_dict['phase']=i.phase
                     tupl_comp_list.append(curr_reaction_i_dict)
                 reaction_i_list.append(tupl_comp_list)
             curr_reaction["components"]=reaction_i_list
@@ -199,7 +198,10 @@ class ReactionNetwork:
             curr_reaction["is_electro"]=reaction.is_electro
             reaction_list.append(curr_reaction)
 
-        return {'intermediates': intermediate_list, 'reactions': reaction_list}
+        return {'intermediates': intermediate_list,
+                'reactions': reaction_list, 
+                'ncc': self.ncc,
+                'noc': self.noc}
 
     def add_intermediates(self, inter_dict: dict[str, Intermediate]):
         """Add intermediates to the ReactionNetwork.

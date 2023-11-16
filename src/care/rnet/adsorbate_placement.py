@@ -71,7 +71,7 @@ def generate_inp_vars(adsorbate: ase.Atoms,
     }
     return inp_vars
 
-def process_adsorbed_intermediate(key: str, rxn_net: ReactionNetwork, surface: Surface):
+def process_adsorbed_intermediate(key: str, intermediates, surface: Surface):
     """
     Generates the adsorption configurations for a given adsorbed intermediate and surface.
 
@@ -91,7 +91,7 @@ def process_adsorbed_intermediate(key: str, rxn_net: ReactionNetwork, surface: S
     gen_ads_config : list[Atoms]
         List of adsorption configurations.
     """
-    intermediate = rxn_net.intermediates[key]
+    intermediate = intermediates[key]
     gen_ads_config = ads_placement(intermediate, surface)
     return key, gen_ads_config
 
@@ -168,8 +168,8 @@ def ads_placement(intermediate: Intermediate,
                     # Run DockonSurf
                     config_list = dos.dockonsurf(inp_vars)
                     total_config_list.extend(config_list)
-        
-        return total_config_list
+        print(f'{intermediate.code} placed on the surface')
+        return intermediate.code, total_config_list
     else:
         # for all sites, add the atom to the site
         for site in surface.active_sites:
@@ -180,4 +180,5 @@ def ads_placement(intermediate: Intermediate,
             atoms.set_cell(surface.slab.get_cell())
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
-        return total_config_list
+        print(f'{intermediate.code} placed on the surface')
+        return intermediate.code, total_config_list

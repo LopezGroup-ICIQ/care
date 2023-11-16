@@ -5,9 +5,6 @@ from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 
-PHASES = ['gas', 'ads', 'surf']
-ELEMENTS = ['C', 'H', 'O', '*']
-
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
 
@@ -20,8 +17,8 @@ class Intermediate:
         formula (str): Formula of the intermediate.
     """
 
-    phases = PHASES
-    elements = ELEMENTS
+    phases = ['gas', 'ads', 'surf']
+    elements = ['C', 'H', 'O', '*']
     
     def __init__(self, 
                  code: str=None, 
@@ -34,24 +31,28 @@ class Intermediate:
         self.code = code
         self.molecule = molecule
         self.is_surface = is_surface
-        if not all(elem in ELEMENTS for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
+        if not all(elem in self.elements for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
             raise ValueError(f"Molecule {self.molecule} contains elements other than C, H, O")
-        self.formula = molecule.get_chemical_formula()
+        self.formula = molecule.get_chemical_formula() if not self.is_surface else 'surface'
         self._graph = graph
         self.ads_configs = ads_configs
         self.electrons = self.get_num_electrons()
         self.bader = None
         self.voltage = None
-        self.smiles = self.get_smiles()
-        self.cyclic = self.is_cyclic()
+        if not self.is_surface:
+            self.smiles = self.get_smiles()
+            self.cyclic = self.is_cyclic()
+        else:
+            self.smiles = None
+            self.cyclic = None
         
         if self.is_surface:
             self.phase = 'surf'
             self.closed_shell = None
         else:
             self.closed_shell = self.is_closed_shell()
-            if phase not in PHASES:
-                raise ValueError(f"Phase must be one of {PHASES}")
+            if phase not in self.phases:
+                raise ValueError(f"Phase must be one of {self.phases}")
             self.phase = phase
         self.t_states = [{}, {}]
 
@@ -108,11 +109,14 @@ class Intermediate:
         Returns:
             obj:`Intermediate` with the given values.
         """
-        new_mol = ase_atoms_obj.copy()
-        new_mol.arrays['conn_pairs'] = fn.get_voronoi_neighbourlist(new_mol, 0.25, 1, ['C', 'H', 'O'])
-        new_graph = ase_coord_2_graph(new_mol, coords=False)
-        return cls(code=code, molecule=new_mol, graph=new_graph,
-                        is_surface=is_surface, phase=phase)    
+        if len(ase_atoms_obj) != 0:
+            new_mol = ase_atoms_obj.copy()
+            new_mol.arrays['conn_pairs'] = fn.get_voronoi_neighbourlist(new_mol, 0.25, 1, ['C', 'H', 'O'])
+            new_graph = ase_coord_2_graph(new_mol, coords=False)        
+            return cls(code=code, molecule=new_mol, graph=new_graph,
+                            is_surface=is_surface, phase=phase)    
+        else:
+            return cls(code=code, molecule=ase_atoms_obj, is_surface=is_surface, phase=phase)
 
     @property
     def graph(self):
@@ -130,13 +134,13 @@ class Intermediate:
         Returns:
             obj:`nx.DiGraph` Of the associated molecule.
         """
-        return fn.digraph(self.molecule, coords=False)
+        return fn.ase_2_graph(self.molecule, coords=False)
     
     def is_cyclic(self):
         """
         Check if a molecule is cyclic or not.
         """
-        cycles = list(cycle_basis(self.graph.to_undirected()))
+        cycles = list(cycle_basis(self.graph))
         return True if len(cycles) != 0 else False
 
     def is_closed_shell(self):
@@ -146,7 +150,6 @@ class Intermediate:
         graph = self.graph
         molecule = self.molecule
         valence_electrons = {'C': 4, 'H': 1, 'O': 2}
-        graph = graph.to_undirected()
         mol_composition = molecule.get_chemical_symbols()
         mol = {'C': mol_composition.count('C'), 'H': mol_composition.count('H'), 'O': mol_composition.count('O')} # CxHyOz
 
