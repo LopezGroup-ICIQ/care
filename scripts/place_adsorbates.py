@@ -3,11 +3,10 @@ from pickle import load, dump
 import os
 import multiprocessing as mp
 import itertools as it
-import pprint as pp
 
 from ase.db import connect
 
-from care import DB_PATH, MODEL_PATH
+from care import DB_PATH
 from care.rnet.networks.surface import Surface
 from care.rnet.networks.utils import metal_structure_dict
 from care.rnet.adsorbate_placement import ads_placement

@@ -1,18 +1,15 @@
 # Functions to place the adsorbate on the surface
 
-import time
-import ase
 from numpy import max, arange
-from care.rnet.graphs.graph_fn import connectivity_analysis, ase_coord_2_graph
+from care.rnet.graphs.graph_fn import connectivity_analysis
 from care.rnet.networks.intermediate import Intermediate
 from care.rnet.networks.surface import Surface
-from care.rnet.networks.reaction_network import ReactionNetwork
 from pymatgen.io.ase import AseAtomsAdaptor
 import care.rnet.dock_ads_surf.dockonsurf.dockonsurf as dos
 from ase import Atoms
 
-def generate_inp_vars(adsorbate: ase.Atoms, 
-                      surface: ase.Atoms,
+def generate_inp_vars(adsorbate: Atoms, 
+                      surface: Atoms,
                       ads_height: float,
                       coll_thresh: float,
                       max_structures: int, 
@@ -71,33 +68,45 @@ def generate_inp_vars(adsorbate: ase.Atoms,
     }
     return inp_vars
 
-def process_adsorbed_intermediate(key: str, intermediates, surface: Surface):
+def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 3.0) -> Atoms:
     """
-    Generates the adsorption configurations for a given adsorbed intermediate and surface.
+    Adapts the surface depending on the size of the molecule.
 
     Parameters
     ----------
-    key : str
-        Code of the adsorbed intermediate.
-    rxn_net : ReactionNetwork
-        Reaction network.
+    molec_ase : Atoms
+        Atoms object of the molecule.
     surface : Surface
-        Surface.
+        Surface instance of the surface.
+    tolerance : float
+        Toleration in Angstrom.
 
     Returns
     -------
-    key : str
-        Code of the adsorbed intermediate.
-    gen_ads_config : list[Atoms]
-        List of adsorption configurations.
+    Atoms
+        Atoms object of the surface.
     """
-    intermediate = intermediates[key]
-    gen_ads_config = ads_placement(intermediate, surface)
-    return key, gen_ads_config
+    molec_dist_mat = molec_ase.get_all_distances(mic=True)
+    max_dist_molec = max(molec_dist_mat)
+    condition = surface.slab_diag - tolerance > max_dist_molec
+    if condition:
+            new_slab = surface.slab
+    else:
+        counter = 1.0
+        while not condition:
+            counter += 1.0
+            pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
+            pymatgen_slab.make_supercell([counter, counter, 1])
+            new_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
+            aug_surf = Surface(new_slab, surface.facet)
+            condition = aug_surf.slab_diag - tolerance > max_dist_molec
+        print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter))
+    return new_slab
 
 def ads_placement(intermediate: Intermediate, 
-                 surface: Surface) -> list[Atoms]:
-    """Generate a set of adsorption structures for a given intermediate and surface.
+                 surface: Surface) -> tuple(str, list[Atoms]):
+    """
+    Generate a set of adsorption structures for a given intermediate and surface.
 
     Parameters
     ----------
@@ -108,77 +117,64 @@ def ads_placement(intermediate: Intermediate,
 
     Returns
     -------
-    list
-        List of adsorption structures.
+    tuple(str, list[Atoms])
+        Tuple containing the code of the intermediate and its list of adsorption configurations.
     """
 
-    # 1) Load the Intermediate ASE Atoms object and the Surface facet
-    molec_ase_obj = intermediate.molecule
-    surface_facet = surface.facet
+    #Get the potential molecular centers for adsorption
+    connect_sites_molec = connectivity_analysis(intermediate.graph)
 
-    # 2) Convert the ASE Atoms object to a graph and get the potential molecular centers for adsorption
-    molec_graph = ase_coord_2_graph(molec_ase_obj, coords=True)
-    connect_sites_molec = connectivity_analysis(molec_graph)
-
-    # Check if molecule fits on reference metal slab, if not scale the surface
-    tolerance = 3.0   # Angstrom
-    molec_dist_mat = molec_ase_obj.get_all_distances(mic=True)
-    max_dist_molec = max(molec_dist_mat)
-    condition = surface.slab_diag - tolerance > max_dist_molec
-    if condition:
-            aug_slab = surface.slab
-    else:
-        counter = 1.0
-        while not condition:
-            counter += 1.0
-            pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
-            pymatgen_slab.make_supercell([counter, counter, 1])
-            aug_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
-            aug_surf = Surface(aug_slab, surface_facet)
-            condition = aug_surf.slab_diag - tolerance > max_dist_molec
-        print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter))
+    # Check if molecule fits on reference metal slab. If not, scale the surface
+    slab = adapt_surface(intermediate.molecule, surface)
     
     # Generate input files for DockonSurf
     active_sites = {"Site_{}".format(site["label"]): site["indices"] for site in surface.active_sites}
+
+    # Min and max adsorption height for the adsorbate and the increment
+    min_height = 2.5
+    max_height = 2.8
+    increment = 0.1
+
     total_config_list = []
+    # If the chemical species is not a single atom, placing the molecule on the surface using DockonSurf
+    if len(intermediate.molecule) > 1:
 
-    if len(molec_ase_obj) > 1:
-        min_height = 2.5
-        max_height = 2.8
-        increment = 0.1
-
-        if molec_ase_obj.get_chemical_formula() == 'H2':
+        # For H2, the adsorption height is different
+        if intermediate.molecule.get_chemical_formula() == 'H2':
             min_height = 1.8
             max_height = 2.4
             increment = 0.1
 
-        t00 = time.time()
         for ads_height in arange(min_height, max_height, increment):
             ads_height = '{:.2f}'.format(ads_height)
-            for _, site_idxs in active_sites.items():
+            for site_idxs in active_sites.values():
                 if site_idxs != []:
-                    inp_vars = generate_inp_vars(molec_ase_obj, 
-                                    aug_slab,
-                                    ads_height,
-                                    1.2,
-                                    2, 
-                                    1.5,
-                                    connect_sites_molec,
-                                    site_idxs,)
+                    inp_vars = generate_inp_vars(adsorbate=intermediate.molecule, 
+                                    surface=slab,
+                                    ads_height=ads_height,
+                                    coll_thresh=1.2,
+                                    max_structures=2, 
+                                    min_coll_height=1.5,
+                                    molec_ctrs=connect_sites_molec,
+                                    sites=site_idxs,)
+                    
                     # Run DockonSurf
                     config_list = dos.dockonsurf(inp_vars)
                     total_config_list.extend(config_list)
         print(f'{intermediate.code} placed on the surface')
         return intermediate.code, total_config_list
+    
+    # If the chemical species is a single atom, placing the atom on the surface
     else:
         # for all sites, add the atom to the site
         for site in surface.active_sites:
-            atoms = aug_slab.copy()
+            atoms = slab.copy()
             # append unique atom in the defined position in active_sites
-            atoms.append(molec_ase_obj[0])
+            atoms.append(intermediate.molecule[0])
             atoms.positions[-1] = site['position']
             atoms.set_cell(surface.slab.get_cell())
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
+
         print(f'{intermediate.code} placed on the surface')
         return intermediate.code, total_config_list
