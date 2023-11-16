@@ -134,6 +134,8 @@ def ads_placement(intermediate: Intermediate,
     min_height = 2.5
     max_height = 2.8
     increment = 0.1
+    # Number of configurations to generate per adsorption height
+    max_structures = 2
 
     total_config_list = []
     # If the chemical species is not a single atom, placing the molecule on the surface using DockonSurf
@@ -153,7 +155,7 @@ def ads_placement(intermediate: Intermediate,
                                     surface=slab,
                                     ads_height=ads_height,
                                     coll_thresh=1.2,
-                                    max_structures=2, 
+                                    max_structures=max_structures, 
                                     min_coll_height=1.5,
                                     molec_ctrs=connect_sites_molec,
                                     sites=site_idxs,)
