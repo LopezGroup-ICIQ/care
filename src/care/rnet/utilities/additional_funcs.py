@@ -751,7 +751,8 @@ def break_bonds(graph: Graph) -> dict[str, list[list[Graph]]]:
             bond_dict[bond].append(products)
     return bond_dict
 
-def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[ElementaryReaction]:
+def break_and_connect(intermediates_dict: dict[str, Intermediate], 
+                      ncores: int=mp.cpu_count()) -> list[ElementaryReaction]:
     """
     Given a dictionary of Intermediates (closed-shell and dehydrogenated) including the empty surface, find all possible
     bond-breaking reactions and return them as a list of ElementaryReactions.
@@ -780,7 +781,7 @@ def break_and_connect(intermediates_dict: dict[str, Intermediate]) -> list[Eleme
             for graph_pair in graph_pairs:
                 args_list.append((cached_graphs, '0000000000*', intermediate.code, bond_type, graph_pair))
 
-    with mp.Pool(os.cpu_count()//2) as pool:
+    with mp.Pool(ncores) as pool:
         results = pool.map(process_graph_pair, args_list)
 
     for reaction in results:
