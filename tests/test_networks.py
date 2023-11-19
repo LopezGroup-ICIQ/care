@@ -11,8 +11,6 @@ from care.rnet.gen_rxn_net import generate_reactions
 inters = generate_intermediates(2,-1)
 steps = generate_reactions(inters)
 net = ReactionNetwork()
-
-
 class TestElementaryReaction(unittest.TestCase):
 	def test_stoichiometry(self):
 		wrong_stoich = 0
@@ -30,7 +28,6 @@ class TestElementaryReaction(unittest.TestCase):
 
 class TestReactionNetwork(unittest.TestCase):
 	def test_reaction_network(self):
-		# test reaction network
 		self.assertEqual(len(net), 0)
 
 		

@@ -597,7 +597,10 @@ class ReactionNetwork:
         fig.tight_layout()
         return fig
 
-    def search_reaction(self, inters: Union[list[str], str]=None, code: str=None, r_types: Union[list[str], str]=None) -> list[ElementaryReaction]:
+    def search_reaction(self, 
+                        inters: Union[list[str], str]=None, 
+                        code: str=None, 
+                        r_types: Union[list[str], str]=None) -> list[ElementaryReaction]:
         """
         Search for elementary reactions that match the given parameters.
 
@@ -637,7 +640,7 @@ class ReactionNetwork:
         for reaction in self.reactions:
             if all([condition_dict[i](reaction) for i in condition_dict.keys()]):
                 matches.append(reaction)
-        # print(f"{len(matches)} elementary reactions found")
+        print(f"{len(matches)} elementary reactions found")
         return matches
 
     def search_inter_by_elements(self, element_dict):
@@ -654,11 +657,8 @@ class ReactionNetwork:
         """
         matches = []
         for inter in self.intermediates.values():
-            formula = inter.molecule.get_chemical_formula()
-            elem_tmp = {'C': formula.count('C'),
-                        'H': formula.count('H'),
-                        'O': formula.count('O')}
-            if elem_tmp == element_dict:
+            elem_tmp = {element: inter[element] for element in Intermediate.elements}            
+            if all([elem_tmp[element] == element_dict[element] for element in elem_tmp.keys()]):
                 matches.append(inter)
         return tuple(matches)
     

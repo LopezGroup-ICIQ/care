@@ -1,5 +1,5 @@
 from ase import Atoms
-from networkx import Graph, draw, cycle_basis
+from networkx import Graph, cycle_basis
 from care.rnet.utilities import functions as fn
 from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
@@ -12,9 +12,9 @@ class Intermediate:
         code (str): Code of the intermediate. 6 digits.
         molecule (obj:`ase.atoms.Atoms`): Associated molecule.
         graph (obj:`nx.graph`): Associated molecule graph.
-        energy (float): DFT energy of the intermediate.
-        entropy (float): Entropy of the intermediate
-        formula (str): Formula of the intermediate.
+        ads_configs (dict): Adsorption configurations of the intermediate.
+        is_surface (bool): Defines if the intermediate corresponds to the empty surface.
+        phase (str): Phase of the intermediate. Can be 'gas', 'ads' or 'surf'.        
     """
 
     phases = ['gas', 'ads', 'surf']
@@ -219,6 +219,6 @@ class Intermediate:
     
     def get_num_electrons(self):
         """
-        Get the number of electrons of the intermediate.
+        Get the number of valence electrons of the intermediate.
         """
-        return 4 * self.molecule.get_chemical_symbols().count('C') + self.molecule.get_chemical_symbols().count('H') - 2 * self.molecule.get_chemical_symbols().count('O')
+        return 4 * self['C'] + 1 * self['H'] - 2 * self['O']
