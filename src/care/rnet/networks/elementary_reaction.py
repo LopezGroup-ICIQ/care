@@ -70,10 +70,8 @@ class ElementaryReaction:
             for inter in component:
                 if inter.phase == 'surf':
                     out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + "*" + '+'
-                    # out_str += "*" + '+'
                 else:
                     out_str += '[{}]'.format(str(abs(self.stoic[inter.code]))) + inter.__str__() + '+'
-                    # out_str += inter.__str__() + '+'
             out_str = out_str[:-1]
             out_str += '<->'
         return out_str[:-3]        

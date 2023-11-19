@@ -719,7 +719,7 @@ def process_graph_pair(args) -> tuple[list[list[str]], str]:
     
     # Flatten the list of lists
     flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
-    rxn_components[1].extend(list(set(flat_matching_intermediates)))
+    rxn_components[1].extend(list(flat_matching_intermediates))
 
     if not validate_components(rxn_components):
         return None

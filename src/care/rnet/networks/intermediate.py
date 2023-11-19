@@ -60,7 +60,7 @@ class Intermediate:
         if key not in self.elements:
             raise ValueError(f"Element {key} not in {self.elements}")
         if key == '*':
-            if self.phase == 'surf':
+            if self.phase in ('surf', 'ads'):
                 return 1
             else:
                 return 0

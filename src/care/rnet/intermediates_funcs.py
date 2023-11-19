@@ -13,6 +13,7 @@ lg.setLevel(RDLogger.CRITICAL)
 
 from care.rnet.utilities.functions import generate_pack, MolPack
 from care.rnet.networks.utils import gen_inter_objs
+from care.rnet.networks.intermediate import Intermediate
 
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
@@ -462,7 +463,7 @@ def gen_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
 
 def generate_intermediates(ncc: int, 
                            noc: int, 
-                           ncores: int=mp.cpu_count()) -> dict[str, dict[int, list[MolPack]]]:
+                           ncores: int=mp.cpu_count()) -> dict[str, Intermediate]:
     """
     Generates all the intermediates of the reaction network.
 

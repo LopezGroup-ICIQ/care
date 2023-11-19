@@ -154,10 +154,10 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate]) -> list[Ele
             adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption', stoic=stoic_dict))
 
     # H2 dissociative adsorption
-    stoic_dict = {surf_inter.code: -1, intermediates['0002000101g'].code: -1, intermediates['0001000101*'].code: 2}
+    stoic_dict = {surf_inter.code: -2, intermediates['0002000101g'].code: -1, intermediates['0001000101*'].code: 2}
     adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates['0002000101g']]), frozenset([intermediates['0001000101*']])), r_type='adsorption', stoic=stoic_dict))
     # O2 dissociative adsorption
-    stoic_dict = {surf_inter.code: -1, intermediates['0000020101g'].code: -1, intermediates['0000010101*'].code: 2}
+    stoic_dict = {surf_inter.code: -2, intermediates['0000020101g'].code: -1, intermediates['0000010101*'].code: 2}
     adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates['0000020101g']]), frozenset([intermediates['0000010101*']])), r_type='adsorption', stoic=stoic_dict))
     return adsorption_steps
 
