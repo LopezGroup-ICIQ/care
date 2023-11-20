@@ -165,22 +165,23 @@ def generate_intermediates(ncc: int, noc: int,) -> dict[str, dict[int, list[MolP
     alkanes_smiles = gen_alkanes_smiles(ncc)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     print("Done generating saturated CHO molecules.")
-    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
-    alkanes_smiles += ethers_smiles
-    mol_alkanes_ethers = mol_alkanes + [Chem.MolFromSmiles(smiles) for smiles in list(ethers_smiles)]
     # 2) Add oxygens to each molecule
     print("Adding oxygens to molecules...")
-    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes_ethers] 
+    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
+    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
+    # epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
+    # cho_smiles += epoxides_smiles + ethers_smiles
+    cho_smiles += ethers_smiles
     print("Done adding oxygens to molecules.")
     # 3) Add ethers to each molecule
     print("Adding ethers to molecules...")
-    cho_smiles += epoxides_smiles
+    # cho_smiles += epoxides_smiles
     # cho_smiles += ethers_smiles
     print("Done adding ethers to molecules.")
-    cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]']
-    all_smiles = cho_smiles + alkanes_smiles
+    relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
+    all_cho_smiles = cho_smiles + relev_species
+    all_smiles = all_cho_smiles + alkanes_smiles
     # Define bond types
     bond_types = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
     
@@ -190,19 +191,31 @@ def generate_intermediates(ncc: int, noc: int,) -> dict[str, dict[int, list[MolP
     for smiles in all_smiles:
         print(smiles)
         n_react = process_molecule(smiles, bond_types, processed_fragments)
-    print(len(unique_reactions))
+    # Converting the dictionary to a list
+    frag_list = []
+    for key, value in processed_fragments.items():
+        frag_list += value
+    #
+    # Adding explicit Hs to the smiles of relevant species
+    frag_list = list(set(frag_list + cho_smiles + alkanes_smiles))
+    # frag_list = list(set(frag_list))
+    import pprint as pp
+    pp.pprint(frag_list)
+    print("Total number of intermediates:", len(frag_list))
+    print("Total number of bond-breaking reactions:",len(unique_reactions))
     return all_smiles
 
-all_smiles = generate_intermediates(ncc=7, noc=-1)
+if __name__ == '__main__':
+    all_smiles = generate_intermediates(ncc=4, noc=-1)
 
-# Sorting the unique reactions by length of the reactants
-unique_reactions = sorted(unique_reactions, key=lambda x: len(x[0]))
+    # Sorting the unique reactions by length of the reactants
+    unique_reactions = sorted(unique_reactions, key=lambda x: len(x[0]))
 
 
-# Saving the unique reactions in a text file
-with open('unique_reactions.txt', 'w') as f:
-    for reaction in unique_reactions:
-        f.write(f'{reaction[0]} -> {reaction[1]}\n')
+    # Saving the unique reactions in a text file
+    with open('unique_reactions.txt', 'w') as f:
+        for reaction in unique_reactions:
+            f.write(f'{reaction[0]} -> {reaction[1]}\n')
 
 # # Function to count carbons in a SMILES string
 # def count_carbons(smiles):
