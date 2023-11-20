@@ -1,9 +1,10 @@
-from ase import Atoms
+from ase import Atom, Atoms
 from networkx import Graph, cycle_basis
 from care.rnet.utilities import functions as fn
 from care.rnet.graphs.graph_fn import ase_coord_2_graph
 from rdkit import Chem
-from rdkit.Chem import rdDetermineBonds
+from rdkit.Chem import rdDetermineBonds, AllChem
+from typing import Union
 
 class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
@@ -22,7 +23,7 @@ class Intermediate:
     
     def __init__(self, 
                  code: str=None, 
-                 molecule: Atoms=None,
+                 molecule: Union[Atoms, Chem.Mol]=None,
                  graph: Graph=None,
                  ads_configs: dict[str, dict]={},
                  is_surface: bool=False,
@@ -30,15 +31,19 @@ class Intermediate:
         
         self.code = code
         self.molecule = molecule
+        # If self.molecule is a Chem.rdchem.Mol object, convert to ase.Atoms
+        if isinstance(self.molecule, Chem.Mol):
+            self.molecule = self.rdkit_to_ase() 
         self.is_surface = is_surface
         if not all(elem in self.elements for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
             raise ValueError(f"Molecule {self.molecule} contains elements other than C, H, O")
-        self.formula = molecule.get_chemical_formula() if not self.is_surface else 'surface'
+        self.formula = self.molecule.get_chemical_formula() if not self.is_surface else 'surface'
         self._graph = graph
         self.ads_configs = ads_configs
         self.electrons = self.get_num_electrons()
         self.bader = None
         self.voltage = None
+
         if not self.is_surface:
             self.smiles = self.get_smiles()
             self.cyclic = self.is_cyclic()
@@ -128,6 +133,35 @@ class Intermediate:
     def graph(self, other):
         self._graph = other
 
+    def rdkit_to_ase(self) -> Atoms:
+        """
+        Generate an ASE Atoms object from an RDKit molecule.
+
+        """
+        rdkit_molecule = self.molecule
+        # Generate 3D coordinates for the molecule
+        rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
+        AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
+
+        # Get the number of atoms in the molecule
+        num_atoms = rdkit_molecule.GetNumAtoms()
+
+        # Initialize lists to store positions and symbols
+        positions = []
+        symbols = []
+
+        # Extract atomic positions and symbols
+        for atom_idx in range(num_atoms):
+            atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
+            atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
+            positions.append(atom_position)
+            symbols.append(atom_symbol)
+
+        # Create an ASE Atoms object
+        ase_atoms = Atoms([Atom(symbol=symbol, position=position) for symbol, position in zip(symbols, positions)])
+
+        return ase_atoms
+    
     def gen_graph(self):
         """Generate a graph of the molecule.
 

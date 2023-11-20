@@ -3,7 +3,7 @@ from pickle import dump
 import os
 import multiprocessing as mp
 
-from care.rnet.intermediates_funcs import generate_intermediates
+from care.rnet.netgen_fns import generate_inters_and_rxns
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate intermediates of the reaction network.')
@@ -15,9 +15,13 @@ if __name__ == "__main__":
     output_dir = f'C{args.ncc}_O{args.noc}'
     os.makedirs(output_dir, exist_ok=True)
 
-    intermediates = generate_intermediates(args.ncc, args.noc, ncores=args.ncores)
+    intermediates, reactions = generate_inters_and_rxns(args.ncc, args.noc, ncores=args.ncores)
     with open(f'{output_dir}/intermediates.pkl', 'wb') as f:
         dump(intermediates, f)
 
+    with open(f'{output_dir}/reactions.pkl', 'wb') as f:
+        dump(reactions, f)
+
     print(f'Generated {len(intermediates)} intermediates of the C{args.ncc}O{args.noc} reaction network and saved in {output_dir}/intermediates.pkl')
+    print(f'Generated {len(reactions)} reactions of the C{args.ncc}O{args.noc} reaction network and saved in {output_dir}/reactions.pkl')
     

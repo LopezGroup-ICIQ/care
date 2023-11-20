@@ -5,11 +5,9 @@ from random import randint
 from care.rnet.networks.reaction_network import ReactionNetwork
 from care.rnet.networks.elementary_reaction import ElementaryReaction 
 from care.rnet.networks.intermediate import Intermediate
-from care.rnet.intermediates_funcs import generate_intermediates
-from care.rnet.gen_rxn_net import generate_reactions
+from care.rnet.netgen_fns import generate_inters_and_rxns
 
-inters = generate_intermediates(2,-1)
-steps = generate_reactions(inters)
+inters, steps = generate_inters_and_rxns(2,1)
 net = ReactionNetwork()
 class TestElementaryReaction(unittest.TestCase):
 	def test_stoichiometry(self):
