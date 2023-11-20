@@ -1,18 +1,17 @@
+import multiprocessing as mp
+from collections import defaultdict
+from itertools import combinations
 
-from rdkit.Chem import rdMolDescriptors
+import warnings
+from rdkit import RDLogger
 from rdkit import Chem
+from rdkit.Chem import rdMolDescriptors
 from ase import Atoms
 from ase.neighborlist import neighbor_list
-from itertools import combinations
-from collections import defaultdict
-import multiprocessing as mp
 
 from care.rnet.networks.utils import Intermediate, ElementaryReaction
 from care.rnet.intermediates_funcs import gen_alkanes_smiles, add_oxygens_to_molecule, gen_ether_smiles, process_molecule, gen_epoxides_smiles
 from care.rnet.networks.utils import gen_adsorption_reactions, gen_rearrangement_reactions
-
-import warnings
-from rdkit import RDLogger
 
 warnings.filterwarnings("ignore")
 RDLogger.DisableLog('rdApp.*')
@@ -36,6 +35,7 @@ def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> b
     bool
         True if the bond is between the desired atom types, False otherwise
     """
+
     return ((bond.GetBeginAtom().GetAtomicNum() == atom_num1 and bond.GetEndAtom().GetAtomicNum() == atom_num2) or
             (bond.GetBeginAtom().GetAtomicNum() == atom_num2 and bond.GetEndAtom().GetAtomicNum() == atom_num1))
 
@@ -53,10 +53,25 @@ def get_chemical_formula(smiles: str) -> str:
     str
         The chemical formula of the molecule
     """
+
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
     return rdMolDescriptors.CalcMolFormula(mol)
 
-def find_unique_bonds(mol):
+def find_unique_bonds(mol: Chem.rdchem.Mol) -> list[Chem.rdchem.Bond]:
+    """
+    Find the unique bonds in a molecule
+
+    Parameters
+    ----------
+    mol : rdkit.Chem.rdchem.Mol
+        The molecule to find the unique bonds of
+
+    Returns
+    -------
+    list[rdkit.Chem.rdchem.Bond]
+        The unique bonds in the molecule
+    """
+
     # Aromaticity detection
     Chem.SanitizeMol(mol)
     Chem.AssignStereochemistry(mol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
@@ -80,7 +95,28 @@ def find_unique_bonds(mol):
 # Initialize a set for unique reactions
 unique_reactions = set()
 processed_molecules = set()
-def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], processed_fragments: dict, original_smiles: str):
+def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], processed_fragments: dict, original_smiles: str)  -> None:
+    """
+    Recursively break bonds in a molecule and adds the reactions to the unique reactions set and the processed fragments to the processed fragments dictionary
+    The function is recursive, and will break all the bonds of the desired types in the molecule, and then break all the bonds in the fragments, etc.
+
+    Parameters
+    ----------
+    molecule : rdkit.Chem.rdchem.Mol
+        The molecule to break bonds in (will be modified in place)
+    bond_types : list[tuple[int, int]]
+        The types of bonds to break, as tuples of atomic numbers
+    processed_fragments : dict
+        Dictionary to keep track of processed fragments
+    original_smiles : str
+        The original SMILES string of the molecule
+
+    Returns
+    -------
+    None
+        All the reactions are added to the unique reactions set, and all the processed fragments are added to the processed fragments dictionary
+    """
+
     current_smiles = Chem.MolToSmiles(molecule, isomericSmiles=True, allHsExplicit=True)
 
     # Check if this molecule's reactions have already been processed
@@ -142,9 +178,26 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
         
         processed_molecules.add(current_smiles)
 
-    return total_bond_counter
 
-def process_molecule(smiles, bond_types, processed_fragments):
+def process_molecule(smiles: str, bond_types: list[tuple[int, int]], processed_fragments: dict) -> None:
+    """
+    Process a molecule by breaking all the bonds of the desired types in the molecule, and then break all the bonds in the fragments, etc.
+
+    Parameters
+    ----------
+    smiles : str
+        The SMILES string of the molecule
+    bond_types : list[tuple[int, int]]
+        The types of bonds to break, as tuples of atomic numbers
+    processed_fragments : dict
+        Dictionary to keep track of processed fragments
+
+    Returns
+    -------
+    None
+        All the reactions are added to the unique reactions set, and all the processed fragments are added to the processed fragments dictionary
+    """
+
     molecule = Chem.MolFromSmiles(smiles)
     molecule_with_H = Chem.AddHs(molecule)
 
@@ -152,28 +205,27 @@ def process_molecule(smiles, bond_types, processed_fragments):
     if original_smiles not in processed_fragments:
         processed_fragments[original_smiles] = []
 
-    n_react = break_bonds(molecule_with_H, bond_types, processed_fragments, original_smiles)
-    return n_react
+    break_bonds(molecule_with_H, bond_types, processed_fragments, original_smiles)
 
-def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict:
+def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Intermediate]]:
     """
-    Generates a dictionary where each key corresponds to an initial key from the input dictionary,
-    and each value is a list of Intermediate instances (ads and gas) for that key.
+    Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
+    For closed-shell species, gas and adsorbed phases are generated. For open-shell species, only the adsorbed phase is generated.
 
     Parameters
     ----------
-    inter_dict : dict
-        Dictionary containing the intermediates of the reaction network.
-        Each key is the SMILES of a saturated CHO molecule, and each value is a dictionary
-        containing the intermediates of the reaction network for that molecule.
+    inter_dict : dict[str, Chem.rdchem.Mol]
+        Dictionary containing the Chem.rdchem.Mol instances of all the chemical species of the reaction network.
+        Each key is the InChIKey of a molecule, and each value is the corresponding Chem.rdchem.Mol instance.
 
     Returns
     -------
-    network_dict: dict
-        Dictionary where each key maps to a list containing the Intermediate instances of the 
-        chemical species of the reaction network.
+    intermediate_class_dict : dict[str, list[Intermediate]]
+        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+        Each key is the InChIKey of a molecule, and each value is a list of Intermediate instances for that molecule. 
     """
-    network_dict = {}
+
+    inter_class_dict = {}
     for key, value in inter_dict.items():
         intermediates_list = []
 
@@ -188,9 +240,9 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict:
                                          phase='gas')
             intermediates_list.append(new_inter_gas)
 
-        network_dict[key] = intermediates_list
+        inter_class_dict[key] = intermediates_list
 
-    return network_dict
+    return inter_class_dict
 
 def is_hydrogen_rearranged(molecule_1: Atoms, molecule_2: Atoms):
     """
@@ -208,6 +260,7 @@ def is_hydrogen_rearranged(molecule_1: Atoms, molecule_2: Atoms):
     bool
         True if there is a potential hydrogen rearrangement between the two molecules, False otherwise.
     """
+
     # Get indices of C, H, and O atoms
     c_indices = [atom.index for atom in molecule_1 if atom.symbol == 'C']
     h_indices = [atom.index for atom in molecule_1 if atom.symbol == 'H']
@@ -254,8 +307,8 @@ def gen_adsorption_reactions(intermediates: dict[str, list[Intermediate]], surf_
 
     Returns
     -------
-    adsorption_steps: list[ElementaryReaction]
-        List of all desorption reactions.
+    adsorption_steps : list[ElementaryReaction]
+        List of all adsorption reactions.
     """
 
     adsorption_steps = []
@@ -263,7 +316,6 @@ def gen_adsorption_reactions(intermediates: dict[str, list[Intermediate]], surf_
         for inter in list_inters:
             if inter.phase == 'gas':
                 ads_inter = intermediates[inter.code[:-1]][0]
-                # stoic_dict = {surf_inter.code: -1, inter.code: -1, ads_inter.code: 1}     
                 adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption'))
 
     # dissociative adsorptions for H2 and O2
@@ -272,43 +324,8 @@ def gen_adsorption_reactions(intermediates: dict[str, list[Intermediate]], surf_
             ads_code = 'YZCKVEUIGOORGS-UHFFFAOYSA-N'
         else: #O2
             ads_code = 'QVGXLLKOCUKJST-UHFFFAOYSA-N'
-        # stoic_dict = {surf_inter.code: -2, intermediates[molecule][1].code: -1, intermediates[molecule.replace("2", "1")+'*'].code: 2}
         adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates[molecule][1]]), frozenset([intermediates[ads_code][0]])), r_type='adsorption'))
     return adsorption_steps
-
-# def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
-#     """
-#     Generate all 1,2-rearrangement reactions involving hydrogen atoms.
-
-#     Parameters
-#     ----------
-#     intermediates : dict[str, Intermediate]
-#         Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
-
-#     Returns
-#     -------
-#     rearrengement_steps: list[ElementaryReaction]
-#         List of all 1,2-rearrangement reactions involving hydrogen atoms.
-#     """
-#     rearrangement_steps = []
-#     inter_dict = defaultdict(list)
-#     for list_inters in intermediates.values():
-#         for inter in list_inters:
-#             if inter.is_surface or inter.phase == 'gas':
-#                 continue
-#             inter_dict[inter.code[:8]].append(inter)
-            
-#     for value in inter_dict.values():
-#         if len(value) == 1:
-#             continue
-#         rearrangement_pairs = [[inter_1, inter_2] for inter_1, inter_2 in combinations(value, 2) if is_hydrogen_rearranged(inter_1.molecule, inter_2.molecule)]
-#         if rearrangement_pairs:
-#             for pair in rearrangement_pairs:
-#                 code_1 = pair[0].code
-#                 code_2 = pair[1].code
-#             stoic_dict = {code_1: -1, code_2: 1}            
-#             rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code_1]]), frozenset([intermediates[code_2]])), r_type='rearrangement', stoic=stoic_dict))
-#     return rearrangement_steps
 
 def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
@@ -323,12 +340,11 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
 
     Returns
     -------
-    dict[str, dict[int, list[MolPack]]]
-        Dictionary containing the intermediates of the reaction network.
-        each key is the smiles of a saturated CHO molecule, and each value is a dictionary   
-        containing the intermediates of the reaction network for that molecule.
-        Each key of the subdictionary is the number of hydrogen removed from the molecule, 
-        and each value is a list of MolPack objects, each one representing a specific isomer.
+    intermediates_dict : dict[str, Intermediate]
+        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+        Each key is the InChIKey of a molecule, and each value is a list of Intermediate instances for that molecule.
+    rxns_list : list[ElementaryReaction]
+        List of all the reactions of the reaction network as ElementaryReaction instances.
     """
     
     # 1) Generate all closed-shell satuarated CHO molecules
@@ -361,9 +377,10 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     # Process each molecule in the list
     for smiles in all_smiles:
         process_molecule(smiles, bond_types, processed_fragments)
+    
     # Converting the dictionary to a list
     frag_list = []
-    for key, value in processed_fragments.items():
+    for value in processed_fragments.values():
         frag_list += value
     
     # Adding explicit Hs to the smiles of relevant species
@@ -410,7 +427,38 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     # rxns_list.extend(rearr_steps)
 
     return intermediates_class_dict, rxns_list
-    
 
 
+# def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
+#     """
+#     Generate all 1,2-rearrangement reactions involving hydrogen atoms.
 
+#     Parameters
+#     ----------
+#     intermediates : dict[str, Intermediate]
+#         Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+
+#     Returns
+#     -------
+#     rearrengement_steps: list[ElementaryReaction]
+#         List of all 1,2-rearrangement reactions involving hydrogen atoms.
+#     """
+#     rearrangement_steps = []
+#     inter_dict = defaultdict(list)
+#     for list_inters in intermediates.values():
+#         for inter in list_inters:
+#             if inter.is_surface or inter.phase == 'gas':
+#                 continue
+#             inter_dict[inter.code[:8]].append(inter)
+            
+#     for value in inter_dict.values():
+#         if len(value) == 1:
+#             continue
+#         rearrangement_pairs = [[inter_1, inter_2] for inter_1, inter_2 in combinations(value, 2) if is_hydrogen_rearranged(inter_1.molecule, inter_2.molecule)]
+#         if rearrangement_pairs:
+#             for pair in rearrangement_pairs:
+#                 code_1 = pair[0].code
+#                 code_2 = pair[1].code
+#             stoic_dict = {code_1: -1, code_2: 1}            
+#             rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code_1]]), frozenset([intermediates[code_2]])), r_type='rearrangement', stoic=stoic_dict))
+#     return rearrangement_steps
