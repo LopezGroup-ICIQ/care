@@ -87,7 +87,7 @@ class ElementaryReaction:
     def __getitem__(self, key): 
         pass
 
-    def __add__(self, other):
+    def __add__(self, other) -> 'ElementaryReaction':
         """
         The result of adding two elementary reactions is a new elementary reaction with type 'pseudo'
         """
@@ -122,7 +122,7 @@ class ElementaryReaction:
         else:
             raise TypeError('The object is not an ElementaryReaction')
 
-    def __mul__(self, other):
+    def __mul__(self, other) -> 'ElementaryReaction':
         """
         The result of multiplying an elementary reaction by a scalar is a new elementary reaction with type 'pseudo'
         """

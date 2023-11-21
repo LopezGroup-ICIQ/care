@@ -7,7 +7,7 @@ from care.rnet.networks.elementary_reaction import ElementaryReaction
 from care.rnet.networks.intermediate import Intermediate
 from care.rnet.netgen_fns import generate_inters_and_rxns
 
-inters, steps = generate_inters_and_rxns(4,1)
+inters, steps = generate_inters_and_rxns(4, 1)
 net = ReactionNetwork()
 
 class TestElementaryReaction(unittest.TestCase):
@@ -61,7 +61,47 @@ class TestElementaryReaction(unittest.TestCase):
 		"""
 		for reaction in steps:
 			if reaction.e_act != None:
-				self.assertGreaterEqual(reaction.e_act, 0)			
+				self.assertGreaterEqual(reaction.e_act, 0)
+
+	def test_addition(self):
+		"""
+		Check that addition steps are correctly implemented
+		"""
+		step1 = steps[randint(0, len(steps)-1)]
+		step2 = steps[randint(0, len(steps)-1)]
+		addition_step = step1 + step2
+		total = 0
+		for element in Intermediate.elements:
+			element_balance = sum([addition_step.stoic[inter]*inter[element] for inter in list(addition_step.reactants)+list(addition_step.products)])
+			total += element_balance
+		self.assertEqual(total, 0)
+
+	def test_multiplication(self):
+		"""
+		Check that multiplication steps are correctly implemented
+		"""
+		step = steps[randint(0, len(steps)-1)]
+		multiplication_step = step * randint(1, 5)
+		total = 0
+		for element in Intermediate.elements:
+			element_balance = sum([multiplication_step.stoic[inter]*inter[element] for inter in list(multiplication_step.reactants)+list(multiplication_step.products)])
+			total += element_balance
+		self.assertEqual(total, 0)	
+
+	def test_reverse(self):
+		"""
+		Check that reverse steps are correctly implemented
+		"""
+		step = steps[randint(0, len(steps)-1)]
+		reactants, products = step.reactants, step.products
+		step.energy = -1.0, 0.1  # mean, std
+		step.e_act = 0.5, 0.1  # mean, std
+		step.reverse()
+		self.assertEqual(products, step.reactants)
+		self.assertEqual(reactants, step.products)
+		self.assertEqual(step.energy[0], 1.0)
+		self.assertEqual(step.e_act[0], 1.5)
+
 
 
 class TestIntermediate(unittest.TestCase):
@@ -70,9 +110,6 @@ class TestIntermediate(unittest.TestCase):
 		Check that no duplicated intermediates are present in the network
 		"""
 		self.assertEqual(len(inters), len(set(inters)))
-		
-# class TestIntermediate(unittest.TestCase):
-# 	pass
 
 class TestReactionNetwork(unittest.TestCase):
 	def test_reaction_network(self):

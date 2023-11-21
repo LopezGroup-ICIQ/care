@@ -36,7 +36,7 @@ class Intermediate:
             self.molecule = self.rdkit_to_ase() 
         self.is_surface = is_surface
         if not all(elem in self.elements for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
-            raise ValueError(f"Molecule {self.molecule} contains elements other than C, H, O")
+            raise ValueError(f"Molecule {self.molecule} contains elements other than {self.elements}")
         self.formula = self.molecule.get_chemical_formula() if not self.is_surface else 'surface'
         self._graph = graph
         self.ads_configs = ads_configs
