@@ -322,8 +322,12 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter:
 
     # dissociative adsorptions for H2 and O2
     for molecule in ['UFHFLCQGNIYNRP-UHFFFAOYSA-N', 'MYMOFIZGZYHOMD-UHFFFAOYSA-N']:
-        ads_code = molecule + '*'
         gas_code = molecule + 'g'
+        if molecule == 'UFHFLCQGNIYNRP-UHFFFAOYSA-N': #H2
+            ads_code = 'YZCKVEUIGOORGS-UHFFFAOYSA-N*'
+        else: #O2
+            ads_code = 'QVGXLLKOCUKJST-UHFFFAOYSA-N*'
+        
         adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates[gas_code]]), frozenset([intermediates[ads_code]])), r_type='adsorption'))
     return adsorption_steps
 
@@ -363,7 +367,7 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     print("Adding ethers and epoxides to molecules...")
     epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
-    cho_smiles += ethers_smiles
+    # cho_smiles += ethers_smiles
     print("Done adding ethers and epoxides to molecules.")
     # 3) Add ethers to each molecule
     relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
