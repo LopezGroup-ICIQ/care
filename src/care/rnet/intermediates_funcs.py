@@ -183,7 +183,20 @@ def gen_alkanes_smiles(n: int) -> list[str]:
 def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
     Generate all possible epoxides smiles based on the given number of carbon and oxygen atoms.
+
+    Parameters
+    ----------
+    mol_alkanes : list
+        List of RDKit molecules of alkanes.
+    n_oxy : int
+        Maximum number of oxygen atoms in the epoxides.
+
+    Returns
+    -------
+    list[str]
+        List of epoxides SMILES strings.
     """
+    
     epoxides = []
     cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
     if n_oxy == 0:
@@ -201,6 +214,41 @@ def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
             smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
             epoxides.append(smiles)
     return list(set(epoxides))
+
+def gen_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
+    """
+    Add an oxygen atom to an alkane to generate an ether.
+
+    Parameters
+    ----------
+    alkane_smiles_list : list[str]
+        List of alkane SMILES strings.
+
+    Returns
+    -------
+    list[str]
+        List of ether SMILES strings.
+    """
+
+    ethers = []
+    if n_oxy == 0:
+        return ethers
+    
+    for mol in mol_alkanes:
+        # generate list of tuple of adjacent atoms satisfying the cond1
+        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors()]
+        for c_pair in c_pairs:
+            # Insert oxygen atom between the two carbon atoms
+            tmp_mol = Chem.RWMol(mol)
+            oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
+            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            # Delete the bond between the two carbon atoms
+            tmp_mol.RemoveBond(c_pair[0].GetIdx(), c_pair[1].GetIdx())
+            tmp_mol.UpdatePropertyCache()
+            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+            ethers.append(smiles)
+    return list(set(ethers))
 
 def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
     """
@@ -246,47 +294,47 @@ def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
 
     return unique_molecules
 
-def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
-    """
-    Corrects the labeling for isomeric systems.
+# def id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
+#     """
+#     Corrects the labeling for isomeric systems.
 
-    Parameters
-    ----------
-    molecule_dict : dict
-        Dictionary containing the molecular formulas and graph for the all the case study systems.
+#     Parameters
+#     ----------
+#     molecule_dict : dict
+#         Dictionary containing the molecular formulas and graph for the all the case study systems.
     
-    Returns
-    -------
-    dict
-        Dictionary containing the isomeric groups.
+#     Returns
+#     -------
+#     dict
+#         Dictionary containing the isomeric groups.
     
-    Examples
-    --------
-    1-propanol -> 381101
-    2-propanol -> 381201
+#     Examples
+#     --------
+#     1-propanol -> 381101
+#     2-propanol -> 381201
     
-    Note: each label consists of 6 digits. The first three define the number of C, H, and O atoms, respectively.
-    the fourth digit is the isomer tag, and the last two digits are TODO: what are the last two digits?
-    """
-    molec_dict = {}
-    molec_combinations = combinations(molecules_dict.keys(), 2)
+#     Note: each label consists of 6 digits. The first three define the number of C, H, and O atoms, respectively.
+#     the fourth digit is the isomer tag, and the last two digits are TODO: what are the last two digits?
+#     """
+#     molec_dict = {}
+#     molec_combinations = combinations(molecules_dict.keys(), 2)
 
-    for molec_1, molec_2 in molec_combinations:
-        if molecules_dict[molec_1]['Formula'] != molecules_dict[molec_2]['Formula']:
-            continue
-        graph_1 = molecules_dict[molec_1]['Graph']
-        graph_2 = molecules_dict[molec_2]['Graph']
-        if not nx.is_isomorphic(graph_1, graph_2, node_match=lambda x, y: x["elem"] == y["elem"]):
-            molec_dict.setdefault(molec_1, []).append(molec_1)
-            molec_dict.setdefault(molec_1, []).append(molec_2)
-            molec_dict.setdefault(molec_2, []).append(molec_1)
-            molec_dict.setdefault(molec_2, []).append(molec_2)
+#     for molec_1, molec_2 in molec_combinations:
+#         if molecules_dict[molec_1]['Formula'] != molecules_dict[molec_2]['Formula']:
+#             continue
+#         graph_1 = molecules_dict[molec_1]['Graph']
+#         graph_2 = molecules_dict[molec_2]['Graph']
+#         if not nx.is_isomorphic(graph_1, graph_2, node_match=lambda x, y: x["elem"] == y["elem"]):
+#             molec_dict.setdefault(molec_1, []).append(molec_1)
+#             molec_dict.setdefault(molec_1, []).append(molec_2)
+#             molec_dict.setdefault(molec_2, []).append(molec_1)
+#             molec_dict.setdefault(molec_2, []).append(molec_2)
 
-    for molec in molecules_dict.keys():
-        if molec not in molec_dict:
-            molec_dict[molec] = [molec]
+#     for molec in molecules_dict.keys():
+#         if molec not in molec_dict:
+#             molec_dict[molec] = [molec]
 
-    return molec_dict
+#     return molec_dict
 
 
 # def optimized_id_group_dict(molecules_dict: dict[str, dict]) -> dict[str, list[str]]:
@@ -406,131 +454,98 @@ def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
     
     return nx_graph
 
-def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
-    """
-    Process a molecule to generate all the possible unique intermediates obtained from C-H bond breaking.
-    Generates the pack dictionary for the molecule and its intermediates.
+# def process_molecule(args: list) -> tuple[str, dict[str, MolPack]]:
+#     """
+#     Process a molecule to generate all the possible unique intermediates obtained from C-H bond breaking.
+#     Generates the pack dictionary for the molecule and its intermediates.
 
-    Parameters
-    ----------
-    args : list
-        List containing the name of the molecule, the molecule itself, the dictionary of intermediates, and the dictionary of isomeric groups.
+#     Parameters
+#     ----------
+#     args : list
+#         List containing the name of the molecule, the molecule itself, the dictionary of intermediates, and the dictionary of isomeric groups.
 
-    Returns
-    -------
-    tuple[str, dict]
-        Tuple containing the name of the molecule and the dictionary of intermediates.
-    """
-    name, molec_grp, inter_precursor_dict, isomeric_groups = args
-    molecule = inter_precursor_dict[molec_grp]['RDKit']
-    intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
-    return molec_grp, intermediate
+#     Returns
+#     -------
+#     tuple[str, dict]
+#         Tuple containing the name of the molecule and the dictionary of intermediates.
+#     """
+#     name, molec_grp, inter_precursor_dict, isomeric_groups = args
+#     molecule = inter_precursor_dict[molec_grp]['RDKit']
+#     intermediate = generate_pack(molecule, isomeric_groups[name].index(molec_grp) + 1)
+#     return molec_grp, intermediate
 
-def gen_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
-    """Add an oxygen atom to an alkane to generate an ether.
 
-    Parameters
-    ----------
-    alkane_smiles_list : list[str]
-        List of alkane SMILES strings.
 
-    Returns
-    -------
-    list[str]
-        List of ether SMILES strings.
-    """
+# def generate_intermediates(ncc: int, 
+#                            noc: int, 
+#                            ncores: int=mp.cpu_count()) -> dict[str, Intermediate]:
+#     """
+#     Generates all the intermediates of the reaction network.
 
-    ethers = []
-    # cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
-    if n_oxy == 0:
-        return ethers
+#     Parameters
+#     ----------
+#     ncc : int
+#         Maximum number of carbon atoms in the intermediates.
+#     noc : int
+#         Maximum number of oxygen atoms in the intermediates.
+
+#     Returns
+#     -------
+#     dict[str, dict[int, list[MolPack]]]
+#         Dictionary containing the intermediates of the reaction network.
+#         each key is the smiles of a saturated CHO molecule, and each value is a dictionary   
+#         containing the intermediates of the reaction network for that molecule.
+#         Each key of the subdictionary is the number of hydrogen removed from the molecule, 
+#         and each value is a list of MolPack objects, each one representing a specific isomer.
+#     """
     
-    for mol in mol_alkanes:
-        # generate list of tuple of adjacent atoms satisfying the cond1
-        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors()]
-        for c_pair in c_pairs:
-            # Insert oxygen atom between the two carbon atoms
-            tmp_mol = Chem.RWMol(mol)
-            oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
-            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-            # Delete the bond between the two carbon atoms
-            tmp_mol.RemoveBond(c_pair[0].GetIdx(), c_pair[1].GetIdx())
-            tmp_mol.UpdatePropertyCache()
-            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
-            ethers.append(smiles)
-    return list(set(ethers))
-
-def generate_intermediates(ncc: int, 
-                           noc: int, 
-                           ncores: int=mp.cpu_count()) -> dict[str, Intermediate]:
-    """
-    Generates all the intermediates of the reaction network.
-
-    Parameters
-    ----------
-    ncc : int
-        Maximum number of carbon atoms in the intermediates.
-    noc : int
-        Maximum number of oxygen atoms in the intermediates.
-
-    Returns
-    -------
-    dict[str, dict[int, list[MolPack]]]
-        Dictionary containing the intermediates of the reaction network.
-        each key is the smiles of a saturated CHO molecule, and each value is a dictionary   
-        containing the intermediates of the reaction network for that molecule.
-        Each key of the subdictionary is the number of hydrogen removed from the molecule, 
-        and each value is a list of MolPack objects, each one representing a specific isomer.
-    """
+#     # 1) Generate all closed-shell satuarated CHO molecules
+#     alkanes_smiles = gen_alkanes_smiles(ncc)    
+#     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     
-    # 1) Generate all closed-shell satuarated CHO molecules
-    alkanes_smiles = gen_alkanes_smiles(ncc)    
-    mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
+#     cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
+#     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
+#     #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
+#     ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
+#     #cho_smiles += epoxides_smiles
+#     cho_smiles += ethers_smiles
+#     cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
+#     mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
+#     intermediates_formula = [rdMolDescriptors.CalcMolFormula(intermediate) for intermediate in mol_alkanes + mol_cho]
+#     intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_cho]
+#     intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_cho]
     
-    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
-    cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    #epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
-    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
-    #cho_smiles += epoxides_smiles
-    cho_smiles += ethers_smiles
-    cho_smiles += ['CO','C(O)O','O', 'OO', '[H][H]'] 
-    mol_cho = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
-    intermediates_formula = [rdMolDescriptors.CalcMolFormula(intermediate) for intermediate in mol_alkanes + mol_cho]
-    intermediates_graph = [rdkit_2_graph(intermediate) for intermediate in mol_alkanes + mol_cho]
-    intermediates_smiles = [Chem.MolToSmiles(intermediate) for intermediate in mol_alkanes + mol_cho]
-    
-    if len(intermediates_smiles) == len(intermediates_formula) == len(intermediates_graph) == len(mol_alkanes + mol_cho):
-        inter_precursor_dict = {
-            smiles: {
-                'Smiles': smiles,
-                'Formula': formula, 
-                'Graph': graph, 
-                'RDKit': rdkit_obj
-            } 
-            for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_cho)
-        }
-    else:
-        print("Error: Lists are not of equal length.")
+#     if len(intermediates_smiles) == len(intermediates_formula) == len(intermediates_graph) == len(mol_alkanes + mol_cho):
+#         inter_precursor_dict = {
+#             smiles: {
+#                 'Smiles': smiles,
+#                 'Formula': formula, 
+#                 'Graph': graph, 
+#                 'RDKit': rdkit_obj
+#             } 
+#             for smiles, formula, graph, rdkit_obj in zip(intermediates_smiles, intermediates_formula, intermediates_graph, mol_alkanes + mol_cho)
+#         }
+#     else:
+#         print("Error: Lists are not of equal length.")
         
-    isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
-    # isomeric_groups = optimized_id_group_dict(inter_precursor_dict)  # Define specific labels for isomers    
+#     isomeric_groups = id_group_dict(inter_precursor_dict)  # Define specific labels for isomers
+#     # isomeric_groups = optimized_id_group_dict(inter_precursor_dict)  # Define specific labels for isomers    
 
-    # 2) Generate all possible open-shell intermediates by H abstraction
-    repeat_molec = set()
-    args_list = []
-    for smiles, iso_smiles in isomeric_groups.items():
-        for molec_grp in iso_smiles:
-            if molec_grp not in repeat_molec:
-                repeat_molec.add(molec_grp)
-                args_list.append([smiles, molec_grp, inter_precursor_dict, isomeric_groups])
-    with mp.Pool(ncores) as pool:
-        results = pool.map(process_molecule, args_list)
-    results = {item[0]: item[1] for item in results}
-    inter_objs_dict = gen_inter_objs(results)
-    intermediates_dict = {}
-    for item in inter_objs_dict.keys():
-        select_net = inter_objs_dict[item]
-        intermediates_dict.update(select_net['intermediates'])
-    return intermediates_dict
+#     # 2) Generate all possible open-shell intermediates by H abstraction
+#     repeat_molec = set()
+#     args_list = []
+#     for smiles, iso_smiles in isomeric_groups.items():
+#         for molec_grp in iso_smiles:
+#             if molec_grp not in repeat_molec:
+#                 repeat_molec.add(molec_grp)
+#                 args_list.append([smiles, molec_grp, inter_precursor_dict, isomeric_groups])
+#     with mp.Pool(ncores) as pool:
+#         results = pool.map(process_molecule, args_list)
+#     results = {item[0]: item[1] for item in results}
+#     inter_objs_dict = gen_inter_objs(results)
+#     intermediates_dict = {}
+#     for item in inter_objs_dict.keys():
+#         select_net = inter_objs_dict[item]
+#         intermediates_dict.update(select_net['intermediates'])
+#     return intermediates_dict
 

@@ -14,6 +14,8 @@ if __name__ == "__main__":
 
     if args.noc == -1:
         noc = args.ncc*2 +2
+    else:
+        noc = args.noc
 
     output_dir = f'C{args.ncc}_O{noc}'
     os.makedirs(output_dir, exist_ok=True)
