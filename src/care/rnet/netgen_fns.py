@@ -352,13 +352,15 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     alkanes_smiles = gen_alkanes_smiles(ncc)    
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in list(alkanes_smiles)]
     print("Done generating saturated CHO molecules.")
+    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
+    mol_ethers = [Chem.MolFromSmiles(smiles) for smiles in ethers_smiles]
+    mol_alkanes_ethers  = mol_alkanes + mol_ethers
     # 2) Add oxygens to each molecule
     print("Adding oxygens to molecules...")
-    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
+    cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes_ethers] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
     print("Done adding oxygens to molecules.")
     print("Adding ethers and epoxides to molecules...")
-    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
     epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
     cho_smiles += ethers_smiles
@@ -390,6 +392,7 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     cho_mol = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
     all_mol_list = list(set(frag_list + cho_mol + mol_alkanes + relev_species_mol))
 
+    # Generating a dictionary of intermediates: key is the InChIKey and value is the rdkit molecule
     intermediates_dict = {}
     for mol in all_mol_list:
         # Generating the InChIKey for the molecule
