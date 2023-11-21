@@ -145,6 +145,9 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
                     frag_mol = Chem.MolFromSmiles(frag_smiles, sanitize=False)
                     break_bonds(frag_mol, bond_types, processed_fragments, original_smiles)
 
+                if len(frag_smiles_list) != 2:
+                    continue
+                # Correction for [HH] in the fragment smiles list
                 if frag_smiles_list[0] == '[HH]':
                     # Modify the fragment smiles list to have [H] instead of [HH]
                     frag_smiles_list[0] = '[H]'
@@ -356,16 +359,14 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     print("Adding oxygens to molecules...")
     cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes] 
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
-    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
-    # epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
-    # cho_smiles += epoxides_smiles + ethers_smiles
-    cho_smiles += ethers_smiles
     print("Done adding oxygens to molecules.")
+    print("Adding ethers and epoxides to molecules...")
+    ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
+    epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
+    cho_smiles += epoxides_smiles + ethers_smiles
+    cho_smiles += ethers_smiles
+    print("Done adding ethers and epoxides to molecules.")
     # 3) Add ethers to each molecule
-    print("Adding ethers to molecules...")
-    # cho_smiles += epoxides_smiles
-    # cho_smiles += ethers_smiles
-    print("Done adding ethers to molecules.")
     relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
     all_cho_smiles = cho_smiles + relev_species
     all_smiles = all_cho_smiles + alkanes_smiles
