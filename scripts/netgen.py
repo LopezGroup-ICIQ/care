@@ -12,7 +12,10 @@ if __name__ == "__main__":
     parser.add_argument('-ncores', type=int, help='Number of cores to use.', dest='ncores', default=mp.cpu_count())
     args = parser.parse_args()
 
-    output_dir = f'C{args.ncc}_O{args.noc}'
+    if args.noc == -1:
+        noc = args.ncc*2 +2
+
+    output_dir = f'C{args.ncc}_O{noc}'
     os.makedirs(output_dir, exist_ok=True)
 
     intermediates, reactions = generate_inters_and_rxns(args.ncc, args.noc, ncores=args.ncores)
@@ -22,6 +25,6 @@ if __name__ == "__main__":
     with open(f'{output_dir}/reactions.pkl', 'wb') as f:
         dump(reactions, f)
 
-    print(f'Generated {len(intermediates)} intermediates of the C{args.ncc}O{args.noc} reaction network and saved in {output_dir}/intermediates.pkl')
-    print(f'Generated {len(reactions)} reactions of the C{args.ncc}O{args.noc} reaction network and saved in {output_dir}/reactions.pkl')
+    print(f'Generated {len(intermediates)} intermediates of the C{args.ncc}O{noc} reaction network and saved in {output_dir}/intermediates.pkl')
+    print(f'Generated {len(reactions)} reactions of the C{args.ncc}O{noc} reaction network and saved in {output_dir}/reactions.pkl')
     

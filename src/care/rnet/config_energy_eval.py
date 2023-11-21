@@ -29,7 +29,7 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
                      surface: Surface, 
                      model: Module, 
                      graph_params:dict, 
-                     model_elems:list, ) -> dict:
+                     model_elems:list) -> dict:
     """Evaluates the energy of the adsorption configurations.
 
     Parameters

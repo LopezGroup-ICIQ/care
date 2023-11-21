@@ -39,7 +39,7 @@ if __name__ == "__main__":
         else:  # adsorbed intermediate
             adsorbed_dict[key] = intermediate
 
-    with mp.Pool(processes=os.cpu_count()//2) as p:
+    with mp.Pool(processes=os.cpu_count()*3//4) as p:
         result_list = p.starmap(ads_placement, iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)))
     adsorption_structs = {key: value for key, value in result_list}
     

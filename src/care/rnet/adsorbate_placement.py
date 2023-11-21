@@ -102,7 +102,7 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 3.0) ->
     return new_slab
 
 def ads_placement(intermediate: Intermediate, 
-                 surface: Surface) -> tuple(str, list[Atoms]):
+                 surface: Surface) -> tuple[str, list[Atoms]]:
     """
     Generate a set of adsorption structures for a given intermediate and surface.
 

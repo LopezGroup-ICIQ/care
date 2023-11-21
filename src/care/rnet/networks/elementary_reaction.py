@@ -78,8 +78,7 @@ class ElementaryReaction:
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
-            return self.bb_order() == other.bb_order()
-        # TODO: Improve this not just based on the string representation
+            return frozenset(self.components) == frozenset(other.components)
         return False
 
     def __hash__(self):
