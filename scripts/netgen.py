@@ -17,7 +17,7 @@ if __name__ == "__main__":
     else:
         noc = args.noc
 
-    output_dir = f'C{args.ncc}_O{noc}'
+    output_dir = f'C{args.ncc}O{noc}'
     os.makedirs(output_dir, exist_ok=True)
 
     intermediates, reactions = generate_inters_and_rxns(args.ncc, args.noc, ncores=args.ncores)

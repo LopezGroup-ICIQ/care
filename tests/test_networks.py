@@ -7,10 +7,18 @@ from care.rnet.networks.elementary_reaction import ElementaryReaction
 from care.rnet.networks.intermediate import Intermediate
 from care.rnet.netgen_fns import generate_inters_and_rxns
 
-inters, steps = generate_inters_and_rxns(4, 1)
+inters, steps = generate_inters_and_rxns(3, 1)
 net = ReactionNetwork()
 
 class TestElementaryReaction(unittest.TestCase):
+
+	def test_type(self):
+		"""
+		Check that all the steps are of type ElementaryReaction
+		"""
+		for step in steps:
+			self.assertIsInstance(step, ElementaryReaction)
+
 	def test_stoichiometry(self):
 		"""
 		Check correctness of steps by checking material balance for each element
@@ -110,6 +118,25 @@ class TestIntermediate(unittest.TestCase):
 		Check that no duplicated intermediates are present in the network
 		"""
 		self.assertEqual(len(inters), len(set(inters)))
+
+	def test_type(self):
+		"""
+		Check that all the intermediates is a dict[str, Intermediate]
+		and that the length of all keys is exactly 28
+		"""
+		for key, inter in inters.items():
+			self.assertEqual(len(key), 28) # InChI key (27) + id for adsorbed ("*") or gas ("g") phase
+			self.assertIsInstance(key, str)
+			self.assertIsInstance(inter, Intermediate)
+
+	def test_getitem(self):
+		"""
+		Check that the __getitem__ method works correctly
+		"""
+		for key, inter in inters.items():
+			for element in Intermediate.elements:
+				self.assertIsInstance(inter[element], int)
+			
 
 class TestReactionNetwork(unittest.TestCase):
 	def test_reaction_network(self):

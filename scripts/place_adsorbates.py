@@ -35,9 +35,9 @@ if __name__ == "__main__":
     adsorbed_dict = {}
     for key, intermediate in intermediates.items():      
         if intermediate.is_surface:  # empty surface
-            intermediates[key][0].ads_configs = {'surf': {'ase': intermediate.molecule, 'energy': 0.0, 'std': 0.0}}
+            intermediate.ads_configs = {'surf': {'ase': intermediate.molecule, 'energy': 0.0, 'std': 0.0}}
         elif intermediate.phase == 'gas':  # gas phase molecule
-            intermediates[key][1].ads_configs = {'gas': {'ase': intermediate.molecule, 'energy': 0.0, 'std': 0.0}}
+            intermediate.ads_configs = {'gas': {'ase': intermediate.molecule, 'energy': 0.0, 'std': 0.0}}
         else:  # adsorbed intermediate
             adsorbed_dict[key] = intermediate
 
@@ -45,11 +45,10 @@ if __name__ == "__main__":
         result_list = p.starmap(ads_placement, iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)))
     adsorption_structs = {key: value for key, value in result_list}
 
-    for key, configs_list in adsorption_structs.items():
-        # intermediate.ads_configs = adsorption_structs[key]
+    for key, intermediate in adsorption_structs.items():
         ads_config_dict = {}
         counter = 0
-        for config in configs_list:
+        for config in adsorption_structs[key]:
             ads_config_dict[f'ads_{counter}'] = {}
             ads_config_dict[f'ads_{counter}']['ase'] = config
             ads_config_dict[f'ads_{counter}']['energy'] = 0
