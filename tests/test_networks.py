@@ -2,6 +2,7 @@ import sys, os
 
 import unittest
 from random import randint
+from ase import Atoms
 from care.rnet.networks.reaction_network import ReactionNetwork
 from care.rnet.networks.elementary_reaction import ElementaryReaction 
 from care.rnet.networks.intermediate import Intermediate
@@ -9,6 +10,8 @@ from care.rnet.netgen_fns import generate_inters_and_rxns
 
 inters, steps = generate_inters_and_rxns(3, 1)
 net = ReactionNetwork()
+net.add_intermediates(inters)
+net.add_reactions(steps)
 
 class TestElementaryReaction(unittest.TestCase):
 
@@ -77,24 +80,34 @@ class TestElementaryReaction(unittest.TestCase):
 		"""
 		step1 = steps[randint(0, len(steps)-1)]
 		step2 = steps[randint(0, len(steps)-1)]
+		step1.energy = -1.0, 0.1
+		step2.energy = -0.3, 0.2
 		addition_step = step1 + step2
 		total = 0
 		for element in Intermediate.elements:
 			element_balance = sum([addition_step.stoic[inter]*inter[element] for inter in list(addition_step.reactants)+list(addition_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)
+		self.assertEqual(addition_step.energy[0], -1.3)
+		self.assertEqual(addition_step.energy[1], (0.1**2+0.2**2)**0.5)
+		self.assertEqual(addition_step.r_type, 'pseudo')
 
 	def test_multiplication(self):
 		"""
 		Check that multiplication steps are correctly implemented
 		"""
 		step = steps[randint(0, len(steps)-1)]
-		multiplication_step = step * randint(1, 5)
+		step.energy = -1.0, 0.1
+		random_num = randint(1, 5)
+		multiplication_step = step * random_num
 		total = 0
 		for element in Intermediate.elements:
 			element_balance = sum([multiplication_step.stoic[inter]*inter[element] for inter in list(multiplication_step.reactants)+list(multiplication_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)	
+		self.assertEqual(multiplication_step.energy[0], step.energy[0]*random_num)
+		self.assertEqual(multiplication_step.energy[1], abs(random_num)*step.energy[1])
+		self.assertEqual(multiplication_step.r_type, 'pseudo')
 
 	def test_reverse(self):
 		"""
@@ -128,19 +141,36 @@ class TestIntermediate(unittest.TestCase):
 			self.assertEqual(len(key), 28) # InChI key (27) + id for adsorbed ("*") or gas ("g") phase
 			self.assertIsInstance(key, str)
 			self.assertIsInstance(inter, Intermediate)
+			self.assertIsInstance(inter.ads_configs, (dict, None))
+			self.assertIsInstance(inter.phase, str)
+			self.assertIsInstance(inter.closed_shell, (bool, None))	
+			self.assertIsInstance(inter.molecule, (Atoms, None))
 
 	def test_getitem(self):
 		"""
 		Check that the __getitem__ method works correctly
 		"""
-		for key, inter in inters.items():
+		for _, inter in inters.items():
 			for element in Intermediate.elements:
 				self.assertIsInstance(inter[element], int)
 			
 
 class TestReactionNetwork(unittest.TestCase):
 	def test_reaction_network(self):
-		self.assertEqual(len(net), 0)
+		self.assertEqual(len(net), len(steps))
+		self.assertEqual(len(net.intermediates), len(inters))
+
+	def test_getitem(self):
+		"""
+		Check that the __getitem__ method works correctly
+		"""
+		random_step = net[randint(0, len(steps)-1)]
+		self.assertIsInstance(random_step, ElementaryReaction)
+		random_inter_key = list(inters.keys())[randint(0, len(inters)-1)]
+		random_inter = net[random_inter_key]
+		self.assertIsInstance(random_inter, Intermediate)
+
+	
 
 		
 

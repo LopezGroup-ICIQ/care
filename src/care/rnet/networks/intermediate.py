@@ -179,7 +179,7 @@ class Intermediate:
 
     def is_closed_shell(self):
         """
-        Check if a molecule CxHyOz is closed-shell or not.
+        Check if a molecule is closed-shell or not.
         """
         graph = self.graph
         molecule = self.molecule

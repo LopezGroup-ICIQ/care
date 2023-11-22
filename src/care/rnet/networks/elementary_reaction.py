@@ -114,7 +114,7 @@ class ElementaryReaction:
                     reactants.append(specie)
             step = ElementaryReaction(components=[reactants, products], r_type='pseudo')
             step.stoic = stoic_dict
-            if step.energy is None or other.energy is None:
+            if self.energy is None or other.energy is None:
                 step.energy = None
             else:
                 step.energy = self.energy[0] + other.energy[0], (self.energy[1]**2 + other.energy[1]**2)**0.5
@@ -131,10 +131,10 @@ class ElementaryReaction:
             step.stoic = {}
             for k, v in self.stoic.items():
                 step.stoic[k] = v * other
-            if step.energy is None:
+            if self.energy is None:
                 step.energy = None
             else:
-                step.energy = self.energy[0] * other, self.energy[1]
+                step.energy = self.energy[0] * other, abs(other) * self.energy[1]
             return step
         else:
             raise TypeError('The object is not an ElementaryReaction')
@@ -311,6 +311,5 @@ class ElementaryReaction:
             self.energy = -energy_old[0], energy_old[1]
         if self.e_act != None:
             self.e_act = self.e_act[0] - energy_old[0], self.e_act[1]
-        # change __repr__ to reflect the change
         self.code = self.__repr__()
 
