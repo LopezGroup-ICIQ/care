@@ -23,7 +23,7 @@ class Intermediate:
     
     def __init__(self, 
                  code: str=None, 
-                 molecule: Union[Atoms, Chem.Mol]=None,
+                 molecule: Union[Atoms, Chem.rdchem.Mol]=None,
                  graph: Graph=None,
                  ads_configs: dict[str, dict]={},
                  is_surface: bool=False,
@@ -31,9 +31,15 @@ class Intermediate:
         
         self.code = code
         self.molecule = molecule
+        if isinstance(self.molecule, Chem.rdchem.Mol):
+            self.rdkit = molecule
+        elif isinstance(self.molecule, Atoms):
+            self.rdkit = self.ase_to_rdkit()
+
         # If self.molecule is a Chem.rdchem.Mol object, convert to ase.Atoms
         if isinstance(self.molecule, Chem.Mol):
             self.molecule = self.rdkit_to_ase() 
+        
         self.is_surface = is_surface
         if not all(elem in self.elements for elem in self.molecule.get_chemical_symbols()) and not self.is_surface:
             raise ValueError(f"Molecule {self.molecule} contains elements other than {self.elements}")
@@ -177,82 +183,71 @@ class Intermediate:
         cycles = list(cycle_basis(self.graph))
         return True if len(cycles) != 0 else False
 
+    def numpy_array_to_xyz(self, molecule_positions, element_symbols):
+        """
+        Converts a numpy array of atomic positions to an XYZ format string.
+        Coordinates are formatted in standard floating-point notation.
+        """
+        xyz_string = f"{len(element_symbols)}\n\n"
+        for symbol, position in zip(element_symbols, molecule_positions):
+            formatted_position = ' '.join(f"{coord:.6f}" for coord in position)
+            xyz_string += f"{symbol} {formatted_position}\n"
+
+        return xyz_string
+
     def is_closed_shell(self):
         """
-        Check if a molecule is closed-shell or not.
+        Check if a molecule is closed shell or not.
         """
-        graph = self.graph
-        molecule = self.molecule
-        valence_electrons = {'C': 4, 'H': 1, 'O': 2}
-        mol_composition = molecule.get_chemical_symbols()
-        mol = {'C': mol_composition.count('C'), 'H': mol_composition.count('H'), 'O': mol_composition.count('O')} # CxHyOz
+        
+        if ('MYMOFIZGZYHOMD-UHFFFAOYSA-N') in self.code: # Hardcoding case of molecular oxygen (related to RDKit)
+            return True
 
-        if mol['C'] != 0 and mol['H'] == 0 and mol['O'] == 0: # Cx
+        total_valence_electrons = self.get_num_electrons()
+
+        # Check for unpaired electrons
+        for atom in self.rdkit.GetAtoms():
+            if atom.GetNumRadicalElectrons() > 0:
                 return False
-        elif mol['C'] == 0 and mol['H'] != 0 and mol['O'] == 0: # Hy
-                return True if mol['H'] == 2 else False
-        elif mol['C'] == 0 and mol['H'] == 0 and mol['O'] != 0: # Oz
-                return True if mol['O'] == 2 else False
-        elif mol['C'] != 0 and mol['H'] == 0 and mol['O'] != 0: # CxOz
-                return True if mol['C'] == 1 and mol['O'] in (1,2) else False
-        elif mol['C'] == 0 and mol['H'] != 0 and mol['O'] != 0: # HyOz
-                return True if mol['H'] == 2 and mol['O'] in (1,2) else False
-        elif mol['C'] != 0 and mol['H'] != 0: # CxHyOz (z can be zero)
-            node_val = lambda graph: {node: [graph.degree(node), 
-                                        valence_electrons.get(graph.nodes[node]["elem"], 0)] for node in graph.nodes()}
-            num_unsaturated_nodes = lambda dict: len([node for node in dict.keys() if dict[node][0] < dict[node][1]])
-            node_valence_dict = node_val(graph)
-            if num_unsaturated_nodes(node_valence_dict) == 0: # all atoms are saturated
-                return True
-            elif num_unsaturated_nodes(node_valence_dict) == 1: # only one unsaturated atom
-                return False
-            else:  # more than one unsaturated atom
-                saturation_condition = lambda dict: all(dict[node][0] == dict[node][1] for node in dict.keys())
-                while not saturation_condition(node_valence_dict):
-                    unsat_nodes = [node for node in node_valence_dict.keys() if node_valence_dict[node][0] < node_valence_dict[node][1]]
-                    O_unsat_nodes = [node for node in unsat_nodes if graph.nodes[node]["elem"] == 'O']  # all oxygens unsaturated
-                    if len(O_unsat_nodes) != 0: # unsaturated oxygen atoms
-                        for oxygen in O_unsat_nodes:
-                            node_valence_dict[oxygen][0] += 1
-                            # increase the valence of the oxygen neighbour by 1
-                            for neighbour in graph.neighbors(oxygen): # only one neighbour
-                                if node_valence_dict[neighbour][0] < node_valence_dict[neighbour][1]:
-                                    node_valence_dict[neighbour][0] += 1
-                                else:
-                                    return False # O neighbour is saturated already
-                    else: # CxHy
-                         # select node with the highest degree
-                        max_degree = max([node_valence_dict[node][0] for node in unsat_nodes])
-                        max_degree_node = [node for node in unsat_nodes if node_valence_dict[node][0] == max_degree][0]
-                        max_degree_node_unsat_neighbours = [neighbour for neighbour in graph.neighbors(max_degree_node) if neighbour in unsat_nodes]
-                        if len(max_degree_node_unsat_neighbours) == 0: # all neighbours are saturated
-                            return False
-                        else:
-                            node_valence_dict[max_degree_node][0] += 1
-                            node_valence_dict[max_degree_node_unsat_neighbours[0]][0] += 1
-                return True                
+
+        # Check if total valence electrons are odd
+        if total_valence_electrons % 2 != 0:
+            return False
+        return True
+
+    def numpy_array_to_xyz(self, molecule_positions, element_symbols):
+        """
+        Converts a numpy array of atomic positions to an XYZ format string.
+        Coordinates are formatted in standard floating-point notation.
+        """
+        xyz_string = f"{len(element_symbols)}\n\n"
+        for symbol, position in zip(element_symbols, molecule_positions):
+            formatted_position = ' '.join(f"{0.0:.6f}" if abs(coord) < 1.0e-3 else f"{coord:.6f}" for coord in position)
+            xyz_string += f"{symbol} {formatted_position}\n"
+        return xyz_string
+    
+
+    def ase_to_rdkit(self):
+        """
+        Convert an ASE Atoms object to an RDKit molecule.
+        """
+        molecule_positions = self.molecule.get_positions()  # NumPy array of positions
+        element_symbols = self.molecule.get_chemical_symbols()  # List of element symbols
+
+        # Convert to XYZ string
+        xyz_string = self.numpy_array_to_xyz(molecule_positions, element_symbols)
+        rdkit_molecule = Chem.MolFromXYZBlock(xyz_string)
+        return rdkit_molecule
+        
     
     def get_smiles(self):
         """
         Get the SMILES string of a molecule.
         """
-        symbols = self.molecule.get_chemical_symbols()
-        coords = self.molecule.get_positions()
-        for i in range(len(coords)):  # needed for RDKit to read properly the coordinates
-            for j in range(len(coords[i])):
-                if abs(coords[i][j]) < 1.0e-3:
-                    coords[i][j] = 0.0
-        xyz = '\n'.join(f'{symbol} {x} {y} {z}' for symbol, (x, y, z) in zip(symbols, coords))
-        xyz = "{}\n\n{}".format(len(self.molecule), xyz)
-        rdkit_mol = Chem.MolFromXYZBlock(xyz)
-        conn_mol = Chem.Mol(rdkit_mol)
-        rdDetermineBonds.DetermineConnectivity(conn_mol)
-        Chem.SanitizeMol(conn_mol, Chem.SANITIZE_SETHYBRIDIZATION)
-        smiles = Chem.MolToSmiles(conn_mol)
-        return smiles
+        return Chem.MolToSmiles(self.rdkit)
     
     def get_num_electrons(self):
         """
         Get the number of valence electrons of the intermediate.
         """
-        return 4 * self['C'] + 1 * self['H'] - 2 * self['O']
+        return 4 * self['C'] + 1 * self['H'] - 6 * self['O']
