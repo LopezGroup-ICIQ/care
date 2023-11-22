@@ -138,35 +138,6 @@ class Intermediate:
     @graph.setter
     def graph(self, other):
         self._graph = other
-
-    def rdkit_to_ase(self) -> Atoms:
-        """
-        Generate an ASE Atoms object from an RDKit molecule.
-
-        """
-        rdkit_molecule = self.molecule
-        # Generate 3D coordinates for the molecule
-        rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
-        AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
-
-        # Get the number of atoms in the molecule
-        num_atoms = rdkit_molecule.GetNumAtoms()
-
-        # Initialize lists to store positions and symbols
-        positions = []
-        symbols = []
-
-        # Extract atomic positions and symbols
-        for atom_idx in range(num_atoms):
-            atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
-            atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
-            positions.append(atom_position)
-            symbols.append(atom_symbol)
-
-        # Create an ASE Atoms object
-        ase_atoms = Atoms([Atom(symbol=symbol, position=position) for symbol, position in zip(symbols, positions)])
-
-        return ase_atoms
     
     def gen_graph(self):
         """Generate a graph of the molecule.
@@ -197,23 +168,58 @@ class Intermediate:
 
     def is_closed_shell(self):
         """
-        Check if a molecule is closed shell or not.
+        Check if a molecule is closed-shell or not.
         """
-        
-        if ('MYMOFIZGZYHOMD-UHFFFAOYSA-N') in self.code: # Hardcoding case of molecular oxygen (related to RDKit)
-            return True
+        graph = self.graph
+        molecule = self.molecule
+        valence_electrons = {'C': 4, 'H': 1, 'O': 2}
+        mol_composition = molecule.get_chemical_symbols()
+        mol = {'C': mol_composition.count('C'), 'H': mol_composition.count('H'), 'O': mol_composition.count('O')} # CxHyOz
 
-        total_valence_electrons = self.get_num_electrons()
-
-        # Check for unpaired electrons
-        for atom in self.rdkit.GetAtoms():
-            if atom.GetNumRadicalElectrons() > 0:
+        if mol['C'] != 0 and mol['H'] == 0 and mol['O'] == 0: # Cx
                 return False
-
-        # Check if total valence electrons are odd
-        if total_valence_electrons % 2 != 0:
-            return False
-        return True
+        elif mol['C'] == 0 and mol['H'] != 0 and mol['O'] == 0: # Hy
+                return True if mol['H'] == 2 else False
+        elif mol['C'] == 0 and mol['H'] == 0 and mol['O'] != 0: # Oz
+                return True if mol['O'] == 2 else False
+        elif mol['C'] != 0 and mol['H'] == 0 and mol['O'] != 0: # CxOz
+                return True if mol['C'] == 1 and mol['O'] in (1,2) else False
+        elif mol['C'] == 0 and mol['H'] != 0 and mol['O'] != 0: # HyOz
+                return True if mol['H'] == 2 and mol['O'] in (1,2) else False
+        elif mol['C'] != 0 and mol['H'] != 0: # CxHyOz (z can be zero)
+            node_val = lambda graph: {node: [graph.degree(node), 
+                                        valence_electrons.get(graph.nodes[node]["elem"], 0)] for node in graph.nodes()}
+            num_unsaturated_nodes = lambda dict: len([node for node in dict.keys() if dict[node][0] < dict[node][1]])
+            node_valence_dict = node_val(graph)
+            if num_unsaturated_nodes(node_valence_dict) == 0: # all atoms are saturated
+                return True
+            elif num_unsaturated_nodes(node_valence_dict) == 1: # only one unsaturated atom
+                return False
+            else:  # more than one unsaturated atom
+                saturation_condition = lambda dict: all(dict[node][0] == dict[node][1] for node in dict.keys())
+                while not saturation_condition(node_valence_dict):
+                    unsat_nodes = [node for node in node_valence_dict.keys() if node_valence_dict[node][0] < node_valence_dict[node][1]]
+                    O_unsat_nodes = [node for node in unsat_nodes if graph.nodes[node]["elem"] == 'O']  # all oxygens unsaturated
+                    if len(O_unsat_nodes) != 0: # unsaturated oxygen atoms
+                        for oxygen in O_unsat_nodes:
+                            node_valence_dict[oxygen][0] += 1
+                            # increase the valence of the oxygen neighbour by 1
+                            for neighbour in graph.neighbors(oxygen): # only one neighbour
+                                if node_valence_dict[neighbour][0] < node_valence_dict[neighbour][1]:
+                                    node_valence_dict[neighbour][0] += 1
+                                else:
+                                    return False # O neighbour is saturated already
+                    else: # CxHy
+                         # select node with the highest degree
+                        max_degree = max([node_valence_dict[node][0] for node in unsat_nodes])
+                        max_degree_node = [node for node in unsat_nodes if node_valence_dict[node][0] == max_degree][0]
+                        max_degree_node_unsat_neighbours = [neighbour for neighbour in graph.neighbors(max_degree_node) if neighbour in unsat_nodes]
+                        if len(max_degree_node_unsat_neighbours) == 0: # all neighbours are saturated
+                            return False
+                        else:
+                            node_valence_dict[max_degree_node][0] += 1
+                            node_valence_dict[max_degree_node_unsat_neighbours[0]][0] += 1
+                return True   
 
     def numpy_array_to_xyz(self, molecule_positions, element_symbols):
         """
@@ -226,6 +232,34 @@ class Intermediate:
             xyz_string += f"{symbol} {formatted_position}\n"
         return xyz_string
     
+    def rdkit_to_ase(self) -> Atoms:
+        """
+        Generate an ASE Atoms object from an RDKit molecule.
+
+        """
+        rdkit_molecule = self.molecule
+        # Generate 3D coordinates for the molecule
+        rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
+        AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
+
+        # Get the number of atoms in the molecule
+        num_atoms = rdkit_molecule.GetNumAtoms()
+
+        # Initialize lists to store positions and symbols
+        positions = []
+        symbols = []
+
+        # Extract atomic positions and symbols
+        for atom_idx in range(num_atoms):
+            atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
+            atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
+            positions.append(atom_position)
+            symbols.append(atom_symbol)
+
+        # Create an ASE Atoms object
+        ase_atoms = Atoms([Atom(symbol=symbol, position=position) for symbol, position in zip(symbols, positions)])
+
+        return ase_atoms
 
     def ase_to_rdkit(self):
         """
@@ -239,7 +273,6 @@ class Intermediate:
         rdkit_molecule = Chem.MolFromXYZBlock(xyz_string)
         return rdkit_molecule
         
-    
     def get_smiles(self):
         """
         Get the SMILES string of a molecule.

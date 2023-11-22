@@ -362,7 +362,6 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     print("Adding ethers and epoxides to molecules...")
     epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
-    # cho_smiles += ethers_smiles
     print("Done adding ethers and epoxides to molecules.")
     # 3) Add ethers to each molecule
     relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
