@@ -145,16 +145,15 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
                     frag_mol = Chem.MolFromSmiles(frag_smiles, sanitize=False)
                     break_bonds(frag_mol, bond_types, processed_fragments, original_smiles)
 
-                if len(frag_smiles_list) != 2:
-                    continue
-                # Correction for [HH] in the fragment smiles list
-                if frag_smiles_list[0] == '[HH]':
-                    # Modify the fragment smiles list to have [H] instead of [HH]
-                    frag_smiles_list[0] = '[H]'
-                
-                if frag_smiles_list[1] == '[HH]':
-                    # Modify the fragment smiles list to have [H] instead of [HH]
-                    frag_smiles_list[1] = '[H]'
+                if len(frag_smiles_list) == 2:
+                    # Correction for [HH] in the fragment smiles list
+                    if frag_smiles_list[0] == '[HH]':
+                        # Modify the fragment smiles list to have [H] instead of [HH]
+                        frag_smiles_list[0] = '[H]'
+                    
+                    if frag_smiles_list[1] == '[HH]':
+                        # Modify the fragment smiles list to have [H] instead of [HH]
+                        frag_smiles_list[1] = '[H]'
 
                 reaction_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
                 
@@ -162,10 +161,11 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
                 if reaction_tuple not in unique_reactions:
                     r_type_atoms = sorted([Chem.Atom(atom_num1).GetSymbol(), Chem.Atom(atom_num2).GetSymbol()])
                     # If there is an [O][H] in the fragment, convert the O r_type to HO
-                    if reaction_tuple[1][0] == '[H][O]':
-                        r_type_atoms[0] = 'OH'
-                    elif reaction_tuple[1][1] == '[H][O]':
-                        r_type_atoms[1] = 'OH'
+                    if len(frag_smiles_list) == 2:
+                        if reaction_tuple[1][0] == '[H][O]':
+                            r_type_atoms[0] = 'OH'
+                        elif reaction_tuple[1][1] == '[H][O]':
+                            r_type_atoms[1] = 'OH'
 
                     r_type = f"{r_type_atoms[0]}-{r_type_atoms[1]}"
 
@@ -230,21 +230,16 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Int
 
     inter_class_dict = {}
     for key, value in inter_dict.items():
-        ads_code = key + '*'
-        
-
         new_inter_ads = Intermediate(code=key+'*',
                                      molecule=value,
                                      phase='ads')
-        inter_class_dict[ads_code] = new_inter_ads
+        inter_class_dict[key+'*'] = new_inter_ads
 
         if new_inter_ads.closed_shell:
-            gas_code = key + 'g'
             new_inter_gas = Intermediate(code=key+'g',
                                          molecule=value,
                                          phase='gas')
-            inter_class_dict[gas_code]=new_inter_gas
-
+            inter_class_dict[key+'g']=new_inter_gas
     return inter_class_dict
 
 def is_hydrogen_rearranged(molecule_1: Atoms, molecule_2: Atoms):
@@ -415,14 +410,18 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     for reaction in unique_reactions:
         # Converting the smiles to InChIKey
         reactant_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0]))
-        product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
-        product2_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1]))
-        # Getting the Intermediate objects from the dictionary
         reactant = intermediates_class_dict[reactant_inchikey + '*']
-        product1 = intermediates_class_dict[product1_inchikey + '*']
-        product2 = intermediates_class_dict[product2_inchikey + '*']
-
-        reaction_components = [[surf_inter, reactant], [product1, product2]]
+        if len(reaction[1]) == 2:
+            product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
+            product2_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1]))
+            # Getting the Intermediate objects from the dictionary
+            product1 = intermediates_class_dict[product1_inchikey + '*']
+            product2 = intermediates_class_dict[product2_inchikey + '*']
+            reaction_components = [[surf_inter, reactant], [product1, product2]]
+        else:
+            product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
+            product1 = intermediates_class_dict[product1_inchikey + '*']
+            reaction_components = [[reactant], [product1]]
         rxns_list.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
 
     ads_steps = gen_adsorption_reactions(intermediates_class_dict, surf_inter)
