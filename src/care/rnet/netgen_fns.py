@@ -1,13 +1,15 @@
 import multiprocessing as mp
 from collections import defaultdict
 from itertools import combinations
-
+import re 
 import warnings
 from rdkit import RDLogger
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import rdMolDescriptors, Draw
 from ase import Atoms
 from ase.neighborlist import neighbor_list
+import networkx as nx
+import matplotlib.pyplot as plt
 
 from care.rnet.networks.utils import Intermediate, ElementaryReaction
 from care.rnet.intermediates_funcs import gen_alkanes_smiles, add_oxygens_to_molecule, gen_ether_smiles, gen_epoxides_smiles
@@ -15,6 +17,26 @@ from care.rnet.networks.utils import gen_adsorption_reactions, gen_rearrangement
 
 warnings.filterwarnings("ignore")
 RDLogger.DisableLog('rdApp.*')
+
+CORDERO = {'Ac': 2.15, 'Al': 1.21, 'Am': 1.80, 'Sb': 1.39, 'Ar': 1.06,
+           'As': 1.19, 'At': 1.50, 'Ba': 2.15, 'Be': 0.96, 'Bi': 1.48,
+           'B' : 0.84, 'Br': 1.20, 'Cd': 1.44, 'Ca': 1.76, 'C' : 0.76,
+           'Ce': 2.04, 'Cs': 2.44, 'Cl': 1.02, 'Cr': 1.39, 'Co': 1.50,
+           'Cu': 1.32, 'Cm': 1.69, 'Dy': 1.92, 'Er': 1.89, 'Eu': 1.98,
+           'F' : 0.57, 'Fr': 2.60, 'Gd': 1.96, 'Ga': 1.22, 'Ge': 1.20,
+           'Au': 1.36, 'Hf': 1.75, 'He': 0.28, 'Ho': 1.92, 'H' : 0.31,
+           'In': 1.42, 'I' : 1.39, 'Ir': 1.41, 'Fe': 1.52, 'Kr': 1.16,
+           'La': 2.07, 'Pb': 1.46, 'Li': 1.28, 'Lu': 1.87, 'Mg': 1.41,
+           'Mn': 1.61, 'Hg': 1.32, 'Mo': 1.54, 'Ne': 0.58, 'Np': 1.90,
+           'Ni': 1.24, 'Nb': 1.64, 'N' : 0.71, 'Os': 1.44, 'O' : 0.66,
+           'Pd': 1.39, 'P' : 1.07, 'Pt': 1.36, 'Pu': 1.87, 'Po': 1.40,
+           'K' : 2.03, 'Pr': 2.03, 'Pm': 1.99, 'Pa': 2.00, 'Ra': 2.21,
+           'Rn': 1.50, 'Re': 1.51, 'Rh': 1.42, 'Rb': 2.20, 'Ru': 1.46,
+           'Sm': 1.98, 'Sc': 1.70, 'Se': 1.20, 'Si': 1.11, 'Ag': 1.45,
+           'Na': 1.66, 'Sr': 1.95, 'S' : 1.05, 'Ta': 1.70, 'Tc': 1.47,
+           'Te': 1.38, 'Tb': 1.94, 'Tl': 1.45, 'Th': 2.06, 'Tm': 1.90,
+           'Sn': 1.39, 'Ti': 1.60, 'Wf': 1.62, 'U' : 1.96, 'V' : 1.53,
+           'Xe': 1.40, 'Yb': 1.87, 'Y' : 1.90, 'Zn': 1.22, 'Zr': 1.75}  # Atomic radii from Cordero et al. 
 
 
 def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> bool:
@@ -242,57 +264,6 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Int
             inter_class_dict[key+'g']=new_inter_gas
     return inter_class_dict
 
-def is_hydrogen_rearranged(molecule_1: Atoms, molecule_2: Atoms):
-    """
-    Check for two molecules if there are potential hydrogen rearrangements.
-
-    Parameters
-    ----------
-    molecule_1 : Atoms
-        First molecule.
-    molecule_2 : Atoms
-        Second molecule.
-
-    Returns
-    -------
-    bool
-        True if there is a potential hydrogen rearrangement between the two molecules, False otherwise.
-    """
-
-    # Get indices of C, H, and O atoms
-    c_indices = [atom.index for atom in molecule_1 if atom.symbol == 'C']
-    h_indices = [atom.index for atom in molecule_1 if atom.symbol == 'H']
-    o_indices = [atom.index for atom in molecule_1 if atom.symbol == 'O']
-   
-    # Defining cutoff for neighbor list
-    cutoff = {('H', 'H'): 1.1, ('C', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'O'): 1.5, ('O', 'O'): 1.5, ('O', 'H'): 1.3}
-    # Calculate neighbor lists for each Atoms object
-    n_list_1 = neighbor_list('ijS', molecule_1, cutoff=cutoff)
-    n_list_2 = neighbor_list('ijS', molecule_2, cutoff=cutoff)
-   
-    # Convert neighbor lists to sets of tuples (atom index, neighbor index)
-    bonds_1 = set(zip(n_list_1[0], n_list_1[1]))
-    bonds_2 = set(zip(n_list_2[0], n_list_2[1]))
-   
-    # Check if the connectivity for C and O atoms is the same
-    if not all((c, o) in bonds_2 for c in c_indices for o in o_indices if (c, o) in bonds_1):
-        return False
-   
-    # Check for rearrangement of H atoms
-    rearranged_h = []
-    for h_index in h_indices:
-        # Neighbors in both Atoms objects
-        neighbors_1 = {j for i, j in bonds_1 if i == h_index}
-        neighbors_2 = {j for i, j in bonds_2 if i == h_index}
-       
-        # If the H atom has different neighbors, and the different neighbor is a C or O atom
-        if neighbors_1 != neighbors_2 and any((n in c_indices or n in o_indices) for n in neighbors_1.symmetric_difference(neighbors_2)):
-            rearranged_h.append(h_index)
-   
-    # Only one H atom should have different connectivity to be a rearrangement reaction
-    return len(rearranged_h) == 1
-
-
 def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> list[ElementaryReaction]:
     """
     Generate all Intermediates that can desorb from the surface and the corresponding desorption reactions, including
@@ -426,42 +397,118 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     ads_steps = gen_adsorption_reactions(intermediates_class_dict, surf_inter)
     rxns_list.extend(ads_steps)
     print("Adsorption steps: {}".format(len(ads_steps)))
-    # rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
-    # rxns_list.extend(rearr_steps)
+    rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
+    print("Rearrangement steps: {}".format(len(rearr_steps)))
+    rxns_list.extend(rearr_steps)
 
     return intermediates_class_dict, rxns_list
 
+def are_same_isomer(mol1_smiles, mol2_smiles):
 
-# def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
-#     """
-#     Generate all 1,2-rearrangement reactions involving hydrogen atoms.
+    # Saturating the molecules
+    mol1_smiles = re.sub("[H]([0-9]){0,1}",'',mol1_smiles)
+    mol2_smiles = re.sub("[H]([0-9]){0,1}",'',mol2_smiles)
+    mol1_smiles = mol1_smiles.replace('[', '').replace(']', '')
+    mol2_smiles = mol2_smiles.replace('[', '').replace(']', '')
+    
+    mol1_sat = Chem.MolFromSmiles(mol1_smiles)
+    mol2_sat = Chem.MolFromSmiles(mol2_smiles)
 
-#     Parameters
-#     ----------
-#     intermediates : dict[str, Intermediate]
-#         Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+    # Check if molecular formulas are the same
+    formula1 = rdMolDescriptors.CalcMolFormula(mol1_sat)
+    formula2 = rdMolDescriptors.CalcMolFormula(mol2_sat)
 
-#     Returns
-#     -------
-#     rearrengement_steps: list[ElementaryReaction]
-#         List of all 1,2-rearrangement reactions involving hydrogen atoms.
-#     """
-#     rearrangement_steps = []
-#     inter_dict = defaultdict(list)
-#     for list_inters in intermediates.values():
-#         for inter in list_inters:
-#             if inter.is_surface or inter.phase == 'gas':
-#                 continue
-#             inter_dict[inter.code[:8]].append(inter)
-            
-#     for value in inter_dict.values():
-#         if len(value) == 1:
-#             continue
-#         rearrangement_pairs = [[inter_1, inter_2] for inter_1, inter_2 in combinations(value, 2) if is_hydrogen_rearranged(inter_1.molecule, inter_2.molecule)]
-#         if rearrangement_pairs:
-#             for pair in rearrangement_pairs:
-#                 code_1 = pair[0].code
-#                 code_2 = pair[1].code
-#             stoic_dict = {code_1: -1, code_2: 1}            
-#             rearrangement_steps.append(ElementaryReaction(components=(frozenset([intermediates[code_1]]), frozenset([intermediates[code_2]])), r_type='rearrangement', stoic=stoic_dict))
-#     return rearrangement_steps
+    if formula1 != formula2:
+        return False
+    
+    # Generate canonical SMILES without explicit hydrogens
+    smiles1 = Chem.MolToSmiles(mol1_sat, canonical=True)
+    smiles2 = Chem.MolToSmiles(mol2_sat, canonical=True)
+
+    if smiles1 != smiles2:
+        return False
+    elif smiles1 == smiles2 and formula1 == formula2:
+        return True
+
+
+def is_hydrogen_rearranged(smiles_1: str, smiles_2: str):
+    """Check for two molecules if there are potential hydrogen rearrangements."""
+
+    re_var = "(\(?\[?[C,O][H]?[0-9]{0,1}\]?\)?[0-9]{0,1})"
+    chpped_smiles_1 = re.findall(re_var, smiles_1)
+    chpped_smiles_2 = re.findall(re_var, smiles_2)
+
+    check_list = []
+    for idx1, block1 in enumerate(chpped_smiles_1):
+        for idx2, block2 in enumerate(chpped_smiles_2):
+            if idx1 == idx2:
+                if block1 == block2:
+                    check_list.append(True)
+                else:
+                    check_list.append(False)
+
+    # If there are only two False and they are together, then it is a hydrogen rearrangement
+    if check_list.count(False) == 2:
+        # Checking if the False are neighbors
+        for i in range(len(check_list) - 1):
+            if check_list[i] == False and check_list[i + 1] == False:
+                return True
+            else:
+                # If there is one block between the two False, check if it contains "(" character, if yes, then it is a hydrogen rearrangement
+                if check_list[i] == False and check_list[i + 1] == True:
+                    if '(' and ')' in chpped_smiles_1[i + 1] or '(' and ')' in chpped_smiles_2[i + 1]:
+                        # Checking the next block
+                        if i + 2 < len(check_list):
+                            if "(" and ")" in chpped_smiles_1[i + 2] or "(" and ")" in chpped_smiles_2[i + 2]:
+                                # Checking the next block
+                                if i + 3 < len(check_list):
+                                    if check_list[i + 3] == False:
+                                        return True
+                                    else:
+                                        return False
+                                else:
+                                    return False
+                            else:
+                                #Check if that block is False
+                                if check_list[i + 2] == False:
+                                    return True
+                                else:
+                                    return False
+                        else:
+                            return False
+                    else:
+                        return False
+    return False
+    
+def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
+    """
+    Generate all 1,2-rearrangement reactions involving hydrogen atoms.
+
+    Parameters
+    ----------
+    intermediates : dict[str, Intermediate]
+        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+
+    Returns
+    -------
+    list[ElementaryReaction]
+        List of all 1,2-rearrangement reactions involving hydrogen atoms.
+    """
+    from ase.visualize import view
+    ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
+    
+    # Checking for constitutional isomers
+    counter = 0
+    rearrangement_rxns = []
+    for inter1, inter2 in combinations(ads_inters, 2):
+        smiles1 = Chem.MolToSmiles(inter1.rdkit)
+        smiles2 = Chem.MolToSmiles(inter2.rdkit)
+        if are_same_isomer(Chem.MolToSmiles(inter1.rdkit), Chem.MolToSmiles(inter2.rdkit)):
+            # Checking if the formula of each molecule is the same
+            formula1 = inter1.molecule.get_chemical_formula()
+            formula2 = inter2.molecule.get_chemical_formula()
+            if formula1 == formula2:
+                if is_hydrogen_rearranged(smiles1, smiles2):
+                    counter += 1
+                    rearrangement_rxns.append(ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement'))
+    return rearrangement_rxns

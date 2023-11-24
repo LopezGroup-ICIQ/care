@@ -57,9 +57,12 @@ class ElementaryReaction:
         if self.r_type not in self.r_types:
             raise ValueError(f'Invalid reaction type: {self.r_type}')
         self.is_electro = is_electro
+        if self.r_type in ('C-H', 'C-OH', 'H-O', 'O-OH', 'H-H'):
+            self.is_electro = True
         self.stoic = stoic
         if self.r_type != 'pseudo' and self.stoic is None:
              self.stoic = self.solve_stoichiometry()    
+
 
     def __str__(self) -> str:
         return self.__repr__()
