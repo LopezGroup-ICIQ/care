@@ -403,7 +403,22 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
 
     return intermediates_class_dict, rxns_list
 
-def are_same_isomer(mol1_smiles, mol2_smiles):
+def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
+    """
+    Check if two molecules are the same constitutional isomers.
+    
+    Parameters
+    ----------
+    mol1_smiles : str
+        The SMILES string of the first molecule
+    mol2_smiles : str
+        The SMILES string of the second molecule
+
+    Returns
+    -------
+    bool
+        True if the molecules are the same constitutional isomers, False otherwise
+    """
 
     # Saturating the molecules
     mol1_smiles = re.sub("[H]([0-9]){0,1}",'',mol1_smiles)
@@ -431,10 +446,26 @@ def are_same_isomer(mol1_smiles, mol2_smiles):
         return True
 
 
-def is_hydrogen_rearranged(smiles_1: str, smiles_2: str):
-    """Check for two molecules if there are potential hydrogen rearrangements."""
+def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
+    """
+    Check for two molecules if there are potential hydrogen rearrangements.
+    
+    Parameters
+    ----------
+    smiles_1 : str
+        The SMILES string of the first molecule
+    smiles_2 : str
+        The SMILES string of the second molecule
 
+    Returns
+    -------
+    bool
+        True if there are potential hydrogen rearrangements, False otherwise
+    """
+
+    # Condition for splitting the smiles string
     re_var = "(\(?\[?[C,O][H]?[0-9]{0,1}\]?\)?[0-9]{0,1})"
+
     chpped_smiles_1 = re.findall(re_var, smiles_1)
     chpped_smiles_2 = re.findall(re_var, smiles_2)
 
@@ -498,7 +529,6 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
     
     # Checking for constitutional isomers
-    counter = 0
     rearrangement_rxns = []
     for inter1, inter2 in combinations(ads_inters, 2):
         smiles1 = Chem.MolToSmiles(inter1.rdkit)
@@ -509,6 +539,5 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
             formula2 = inter2.molecule.get_chemical_formula()
             if formula1 == formula2:
                 if is_hydrogen_rearranged(smiles1, smiles2):
-                    counter += 1
                     rearrangement_rxns.append(ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement'))
     return rearrangement_rxns
