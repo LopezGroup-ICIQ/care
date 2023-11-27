@@ -397,9 +397,9 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     ads_steps = gen_adsorption_reactions(intermediates_class_dict, surf_inter)
     rxns_list.extend(ads_steps)
     print("Adsorption steps: {}".format(len(ads_steps)))
-    rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
-    print("Rearrangement steps: {}".format(len(rearr_steps)))
-    rxns_list.extend(rearr_steps)
+    # rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
+    # print("Rearrangement steps: {}".format(len(rearr_steps)))
+    # rxns_list.extend(rearr_steps)
 
     return intermediates_class_dict, rxns_list
 
@@ -531,13 +531,11 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
     # Checking for constitutional isomers
     rearrangement_rxns = []
     for inter1, inter2 in combinations(ads_inters, 2):
-        smiles1 = Chem.MolToSmiles(inter1.rdkit)
-        smiles2 = Chem.MolToSmiles(inter2.rdkit)
-        if are_same_isomer(Chem.MolToSmiles(inter1.rdkit), Chem.MolToSmiles(inter2.rdkit)):
-            # Checking if the formula of each molecule is the same
-            formula1 = inter1.molecule.get_chemical_formula()
-            formula2 = inter2.molecule.get_chemical_formula()
-            if formula1 == formula2:
+        if inter1.molecule.get_chemical_formula() == inter2.molecule.get_chemical_formula():
+            smiles1 = Chem.MolToSmiles(inter1.rdkit)
+            smiles2 = Chem.MolToSmiles(inter2.rdkit)
+            if are_same_isomer(Chem.MolToSmiles(inter1.rdkit), Chem.MolToSmiles(inter2.rdkit)):
+                # Checking if the formula of each molecule is the same
                 if is_hydrogen_rearranged(smiles1, smiles2):
                     rearrangement_rxns.append(ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement'))
     return rearrangement_rxns
