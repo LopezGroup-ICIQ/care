@@ -49,18 +49,16 @@ if __name__ == "__main__":
         ads_config_dict = {}
         counter = 0
         for config in adsorption_structs[key]:
-            ads_config_dict[f'ads_{counter}'] = {}
-            ads_config_dict[f'ads_{counter}']['ase'] = config
-            ads_config_dict[f'ads_{counter}']['energy'] = 0
-            ads_config_dict[f'ads_{counter}']['std'] = 0
+            ads_config_dict[f'{counter}'] = {}
+            ads_config_dict[f'{counter}']['ase'] = config
+            ads_config_dict[f'{counter}']['mu'] = 0
+            ads_config_dict[f'{counter}']['s'] = 0
             counter += 1  
         intermediates[key].ads_configs = ads_config_dict
         
-    with open(f'{output_dir}/adsorbed_configs.pkl', 'wb') as f:
-        dump(adsorption_structs, f)
-
     with open(f'{output_dir}/ads_intermediates.pkl', 'wb') as f:
         dump(intermediates, f)
     print("Adsorbate placement completed. The results are saved in the folder: {}".format(output_dir))
 
-    
+    with open(f'{output_dir}/surface.pkl', 'wb') as f:
+        dump(surface, f)

@@ -86,7 +86,7 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 3.0) ->
     """
     molec_dist_mat = molec_ase.get_all_distances(mic=True)
     max_dist_molec = max(molec_dist_mat)
-    condition = surface.slab_diag - tolerance > max_dist_molec
+    condition = surface.get_shortest_side() - tolerance > max_dist_molec
     if condition:
             new_slab = surface.slab
     else:
@@ -98,7 +98,6 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 3.0) ->
             new_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
             aug_surf = Surface(new_slab, surface.facet)
             condition = aug_surf.slab_diag - tolerance > max_dist_molec
-        print('Reference metal slab scaled by factor {} on the x-y plane\n'.format(counter))
     return new_slab
 
 def ads_placement(intermediate: Intermediate, 
@@ -126,39 +125,30 @@ def ads_placement(intermediate: Intermediate,
     slab = adapt_surface(intermediate.molecule, surface)
     
     # Generate input files for DockonSurf
-    active_sites = {"Site_{}".format(site["label"]): site["indices"] for site in surface.active_sites}
-
-    # Min and max adsorption height for the adsorbate and the increment
-    min_height = 2.5
-    max_height = 2.8
-    increment = 0.1
-    # Number of configurations to generate per adsorption height
-    max_structures = 1
+    active_sites = {"{}".format(site["label"]): site["indices"] for site in surface.active_sites}
 
     total_config_list = []
     # If the chemical species is not a single atom, placing the molecule on the surface using DockonSurf
     if len(intermediate.molecule) > 1:
-
-        # For H2, the adsorption height is different
-        if intermediate.molecule.get_chemical_formula() == 'H2':
-            min_height = 1.8
-            max_height = 2.4
-            increment = 0.1
-
-        for ads_height in arange(min_height, max_height, increment):
-            ads_height = '{:.2f}'.format(ads_height)
-            for site_idxs in active_sites.values():
-                if site_idxs != []:
+        for site_idxs in active_sites.values():
+            ads_height = 2.2 if intermediate.molecule.get_chemical_formula() != 'H2' else 1.8
+            if site_idxs != []:
+                config_list = []
+                while config_list == []:
                     inp_vars = generate_inp_vars(adsorbate=intermediate.molecule, 
-                                    surface=slab,
-                                    ads_height=ads_height,
-                                    max_structures=max_structures, 
-                                    molec_ctrs=connect_sites_molec,
-                                    sites=site_idxs,)
+                                            surface=slab,
+                                            ads_height=ads_height,
+                                            max_structures=1, 
+                                            molec_ctrs=connect_sites_molec,
+                                            sites=site_idxs,)
                     
-                    # Run DockonSurf
                     config_list = dos.dockonsurf(inp_vars)
+                        
+                    if len(config_list) == 0:
+                        ads_height += 0.1
+
                     total_config_list.extend(config_list)
+
         print(f'{intermediate.code} placed on the surface')
         return intermediate.code, total_config_list
     

@@ -41,6 +41,10 @@ class Surface:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(a + b)
 
+    def get_shortest_side(self) -> float:
+        a, b, _ = self.slab.get_cell()
+        return min(np.linalg.norm(a), np.linalg.norm(b))
+    
     def get_area(self) -> float:
         """
         Calculate area in Angstrom^2 of the surface.
