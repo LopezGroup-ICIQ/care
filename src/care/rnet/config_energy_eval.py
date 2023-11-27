@@ -112,6 +112,61 @@ def intermediate_energy_evaluator(total_config_list: list[Atoms],
         counter += 1  
     return ads_config_dict
 
+def energy_eval_config(config_dict: dict[str, Atoms | float | float],
+                     surface: Surface, 
+                     model: Module, 
+                     graph_params: dict, 
+                     model_elems: list) -> dict:
+    """Evaluates the energy of the adsorption configurations.
+
+    Parameters
+    ----------
+    config_dict : Atoms
+        Adsorption configuration to evaluate
+    surface : Surface
+        Surface.
+    model : Module
+        Model.
+    graph_params : dict
+        Graph parameters.
+    model_elems : list
+        List of elements.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the the key information of the n lowest configurations.
+    """ 
+    config = config_dict['ase']
+
+    slab_copy = surface.slab.copy()
+    # Preparing the components for the energy evaluation
+    # Removing the metal atoms with selective dynamics == False
+    fixed_atms_idxs = slab_copy.todict().get('constraints', None)[0].get_indices()
+
+    # Removing the atoms which indices are in fixed_atms
+    config = config[~np.isin(range(len(config)), fixed_atms_idxs)]
+
+    ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
+
+    loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
+    for batch in loader:
+        energy_list = model(batch)  # unitless (scaled values)
+        mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
+        std_tensor = energy_list.scale * model.scaling_params['std'] # eV
+        
+    # Transforming the tensor to numpy array
+    mean_tensor = mean_tensor.detach().numpy()
+    std_tensor = std_tensor.detach().numpy()
+
+    # Updating the energy and std of the adsorption configuration
+    config_dict['mu'] = mean_tensor.item()
+    config_dict['s'] = std_tensor.item()
+
+    print(f"Configuration: {config_dict['ase'].get_chemical_formula()}")
+    print(f"Energy of the adsorption configuration: {config_dict['mu']} eV")
+    print(f"Standard deviation of the adsorption configuration: {config_dict['s']} eV")
+
 
 def get_fragment_energy(atoms: Atoms) -> float:
     """Calculate fragment energy from closed shell structures.
