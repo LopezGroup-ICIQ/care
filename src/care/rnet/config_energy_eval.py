@@ -16,7 +16,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
     Parameters
     ----------
     config_dict : Atoms
-        Adsorption configuration to evaluate
+        Dictionary containing the adsorption configuration to evaluate (Atoms object), the energy of the adsorption configuration (float) and the standard deviation of the adsorption configuration (float).
     surface : Surface
         Surface instance of the surface of interest.
     model : Module
@@ -63,13 +63,18 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
 
 
 def get_fragment_energy(atoms: Atoms) -> float:
-    """Calculate fragment energy from closed shell structures.
+    """
+    Calculate fragment energy from closed shell structures.
     This function allows to calculate the energy of both open- and closed-shell structures, 
     keeping the same reference.
-    Args:
-        structure (list[int]): list of atom numbers in the order C, H, O, N, S
+
+    Parameters:
+    ----------
+        atoms (ase.Atoms): Atoms object of the structure to evaluate
+    
     Returns:
-        e_fragment (float): fragment energy in eV
+    -------
+        float: Energy of the structure.
     """ 
     # Count elemens in the structure
     n_C = atoms.get_chemical_symbols().count('C')

@@ -1,19 +1,15 @@
 import multiprocessing as mp
-from collections import defaultdict
 from itertools import combinations
 import re 
 import warnings
 from rdkit import RDLogger
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors, Draw
+from rdkit.Chem import rdMolDescriptors
 from ase import Atoms
-from ase.neighborlist import neighbor_list
-import networkx as nx
-import matplotlib.pyplot as plt
 
 from care.rnet.networks.utils import Intermediate, ElementaryReaction
 from care.rnet.intermediates_funcs import gen_alkanes_smiles, add_oxygens_to_molecule, gen_ether_smiles, gen_epoxides_smiles
-from care.rnet.networks.utils import gen_adsorption_reactions, gen_rearrangement_reactions
+from care.rnet.networks.utils import gen_adsorption_reactions
 
 warnings.filterwarnings("ignore")
 RDLogger.DisableLog('rdApp.*')
