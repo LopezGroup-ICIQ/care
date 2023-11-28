@@ -10,7 +10,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
                      surface: Surface, 
                      model: Module, 
                      graph_params: dict, 
-                     model_elems: list) -> dict:
+                     model_elems: list) -> None:
     """Evaluates the energy of the adsorption configurations.
 
     Parameters
@@ -18,7 +18,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
     config_dict : Atoms
         Adsorption configuration to evaluate
     surface : Surface
-        Surface.
+        Surface instance of the surface of interest.
     model : Module
         Model.
     graph_params : dict
@@ -28,8 +28,8 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
 
     Returns
     -------
-    dict
-        Dictionary containing the the key information of the n lowest configurations.
+    None
+        None. Updates the config_dict with the energy and std of the adsorption configuration.
     """ 
     config = config_dict['ase']
 
