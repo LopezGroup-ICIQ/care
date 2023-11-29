@@ -4,8 +4,8 @@ from torch import load
 import pickle as pkl
 
 from care import MODEL_PATH
-from care.gnn_eads.nets import UQTestNet
-from care.rnet.config_energy_eval import energy_eval_config, get_fragment_energy
+from care.gnns.gnn_eads.nets import UQTestNet
+from care.netgen.config_energy_eval import energy_eval_config, get_fragment_energy
 
 
 if __name__ == "__main__":

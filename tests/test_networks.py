@@ -3,10 +3,12 @@ import sys, os
 import unittest
 from random import randint
 from ase import Atoms
-from care.rnet.networks.reaction_network import ReactionNetwork
-from care.rnet.networks.elementary_reaction import ElementaryReaction 
-from care.rnet.networks.intermediate import Intermediate
-from care.rnet.netgen_fns import generate_inters_and_rxns
+from care.netgen.networks.intermediate import Intermediate
+from care.netgen.networks.elementary_reaction import ElementaryReaction
+from care.netgen.networks.reaction_network import ReactionNetwork
+from care.netgen.netgen_fns import generate_inters_and_rxns
+
+from care.netgen.data.constants_and_data import INTER_ELEMS
 
 inters, steps = generate_inters_and_rxns(3, 1)
 net = ReactionNetwork()
@@ -28,7 +30,7 @@ class TestElementaryReaction(unittest.TestCase):
 		"""
 		wrong_stoich = 0
 		for step in steps:
-			for element in Intermediate.elements:
+			for element in INTER_ELEMS:
 				element_balance = sum([step.stoic[inter]*inter[element] for inter in list(step.reactants)+list(step.products)])
 				if element_balance != 0:
 					print(step, step.r_type)
@@ -84,7 +86,7 @@ class TestElementaryReaction(unittest.TestCase):
 		step2.energy = -0.3, 0.2
 		addition_step = step1 + step2
 		total = 0
-		for element in Intermediate.elements:
+		for element in INTER_ELEMS:
 			element_balance = sum([addition_step.stoic[inter]*inter[element] for inter in list(addition_step.reactants)+list(addition_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)
@@ -101,7 +103,7 @@ class TestElementaryReaction(unittest.TestCase):
 		random_num = randint(1, 5)
 		multiplication_step = step * random_num
 		total = 0
-		for element in Intermediate.elements:
+		for element in INTER_ELEMS:
 			element_balance = sum([multiplication_step.stoic[inter]*inter[element] for inter in list(multiplication_step.reactants)+list(multiplication_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)	
@@ -151,7 +153,7 @@ class TestIntermediate(unittest.TestCase):
 		Check that the __getitem__ method works correctly
 		"""
 		for _, inter in inters.items():
-			for element in Intermediate.elements:
+			for element in INTER_ELEMS:
 				self.assertIsInstance(inter[element], int)
 			
 

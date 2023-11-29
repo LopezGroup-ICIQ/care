@@ -8,9 +8,11 @@ from ase.db import connect
 import os
 
 from care import DB_PATH
-from care.rnet.networks.surface import Surface
-from care.rnet.networks.utils import metal_structure_dict
-from care.rnet.adsorbate_placement import ads_placement
+from care.netgen.networks.surface import Surface
+from care.netgen.adsorbate_placement import ads_placement, ads_placement_graph
+
+from care.netgen.data.constants_and_data import METAL_STRUCT_DICT
+
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate initial adsorption structures for the provided intermediates.")
@@ -22,7 +24,7 @@ if __name__ == "__main__":
 
     # Loading surface from database
     data_db = connect(os.path.abspath(DB_PATH))
-    metal_struct = metal_structure_dict[args.m]
+    metal_struct = METAL_STRUCT_DICT[args.m]
     full_facet = f"{metal_struct}({args.hkl})"
     surface = data_db.get_atoms(calc_type='surface',metal=args.m, facet=full_facet)
     surface = Surface(surface, args.hkl)
@@ -32,6 +34,16 @@ if __name__ == "__main__":
     with open(args.i+'/intermediates.pkl', 'rb') as f:
         intermediates = load(f)
 
+
+    for key, intermediate in intermediates.items():
+        if intermediate.is_surface or len(intermediate.molecule) == 1 or intermediate.phase == 'gas':
+            continue
+        else:
+            print(f"\nPlacing adsorbate {intermediate.molecule} on the surface {args.m}{args.hkl}")
+            ads_placement_graph(intermediate, surface)
+
+        
+    quit()
     adsorbed_dict = {}
     for key, intermediate in intermediates.items():      
         if intermediate.is_surface:  # empty surface
