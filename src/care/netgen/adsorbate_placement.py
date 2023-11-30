@@ -8,6 +8,11 @@ from pymatgen.io.ase import AseAtomsAdaptor
 import care.netgen.dock_ads_surf.dockonsurf.dockonsurf as dos
 from ase import Atoms
 import numpy as np
+import itertools as it
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem.rdMolDescriptors import CalcMolFormula
+from care.netgen.intermediates_funcs import rdkit_to_ase
 
 from care.netgen.data.constants_and_data import BOND_ORDER
 
@@ -48,6 +53,10 @@ def connectivity_analysis(graph: nx.Graph) -> list:
         # Extracting only the Carbon atom index
         unsat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] == 'C']
         return list(set(unsat_elems))
+    
+    # Specifying case for H
+    elif len(graph.nodes()) == 1 and graph.nodes[0]["elem"] == 'H':
+        return list(set(graph.nodes()))
     else:
         return list(set(unsat_elems))
 
@@ -308,41 +317,109 @@ def ads_placement_graph(intermediate: Intermediate,
     # Getting the coordination number of the surface
     surf_coord = facet_coord_dict[surf_struct]
 
-    # Calculating the plane that contains the potential molecular centers
-    ase_mol = intermediate.molecule
+    rdkit_mol = intermediate.rdkit
+    # Adding Hs to the molecule
+    rdkit_mol = Chem.AddHs(rdkit_mol)
+    formula = CalcMolFormula(rdkit_mol)
 
-    # Identifying the anchoring atoms in the molecule
-    anchoring_atoms = connectivity_analysis(intermediate.graph)
-    
-    if len(anchoring_atoms) > 1:
-        # Printing the element of the anchoring atoms
-        anchoring_atoms_elem = []
-        for idx in anchoring_atoms:
-            anchoring_atoms_elem.append(ase_mol[idx].symbol)
-        print('anchoring_atoms_elem: ', anchoring_atoms_elem)
+    num_conformers = 5
+    conformers = AllChem.EmbedMultipleConfs(rdkit_mol, numConfs=num_conformers)
 
-        # getting the coordinates of the anchoring atoms
-        anchoring_atoms_coords = ase_mol.get_positions()[anchoring_atoms]
+    graph_config_list = []
+    for conf_id in conformers:
+        conf = rdkit_mol.GetConformer(conf_id)
         
-        # Extracting the coordinates as an array
-        mol_coords = ase_mol.get_positions()
-        # Example usage
-        normal, D = best_fit_plane(anchoring_atoms_coords)  # From the previous function
-        selected_atoms = atoms_on_one_side(mol_coords, normal, D, side='negative')
-        # Identifying the selected atoms in the molecule
-        selected_atoms_idx = []
-        for atom in selected_atoms:
-            selected_atoms_idx.append(np.where(mol_coords == atom)[0][0])
-        # Getting the element of the selected atoms
-        selected_atoms_elem = []
-        for idx in selected_atoms_idx:
-            selected_atoms_elem.append(ase_mol[idx].symbol)
-        print('selected_atoms_elem: ', selected_atoms_elem)
+        # Getting the coordinates of the molecule
+        mol_coords = conf.GetPositions()
 
-    else:
-        anchoring_atoms_elem = [ase_mol[anchoring_atoms[0]].symbol]
-        selected_atoms_idx = anchoring_atoms
-        selected_atoms_elem = anchoring_atoms_elem
-        print('selected_atoms_elem: ', selected_atoms_elem)
+        # Converting the conformer to Chem.Mol object
+        # Create a new molecule which is a copy of the original
+        new_mol = Chem.Mol(rdkit_mol)
+
+        # Assign the coordinates of the selected conformer to the new molecule
+        new_conf = Chem.Conformer(conf)
+        new_mol.RemoveAllConformers()  # Remove any existing conformers in the new molecule
+        new_mol.AddConformer(new_conf, assignId=True)
+
+        # Converting the molecule to an ASE atoms object
+        ase_mol = rdkit_to_ase(new_mol)
+
+        # Identifying the anchoring atoms in the molecule
+        anchoring_atoms = connectivity_analysis(intermediate.graph)
+        
+        if len(anchoring_atoms) > 1:
+            anchoring_atoms_elem = []
+            for idx in anchoring_atoms:
+                anchoring_atoms_elem.append(ase_mol[idx].symbol)
+
+            # getting the coordinates of the anchoring atoms
+            anchoring_atoms_coords = ase_mol.get_positions()[anchoring_atoms]
+            
+            # Extracting the coordinates as an array
+            mol_coords = ase_mol.get_positions()
+            
+            normal, D = best_fit_plane(anchoring_atoms_coords)  # From the previous function
+            selected_atoms = atoms_on_one_side(mol_coords, normal, D, side='negative')
+            
+            # Matching the coordinates of the selected atoms with the coordinates of the atoms in the molecule
+            selected_atoms_idx = []
+            for atom in selected_atoms:
+                for idx, coord in enumerate(mol_coords):
+                    if np.array_equal(coord, atom):
+                        selected_atoms_idx.append(idx)
 
 
+            
+            # Getting the element of the selected atoms
+            selected_atoms_elem = []
+            for idx in selected_atoms_idx:
+                selected_atoms_elem.append(ase_mol[idx].symbol)
+            # If all the anchoring atoms are not in the selected atoms, skip this conformer
+            if len(set(anchoring_atoms_elem) & set(selected_atoms_elem)) == 0:
+                continue
+
+        elif len(anchoring_atoms) == 0:
+            print(anchoring_atoms)
+            anchoring_atoms_elem = intermediate.graph.nodes[0]['elem']
+            print('anchoring_atoms_elem: ', anchoring_atoms_elem)
+            selected_atoms_idx = [0]
+            selected_atoms_elem = anchoring_atoms_elem
+            print('selected_atoms_elem: ', selected_atoms_elem)
+        else:
+            anchoring_atoms_elem = [ase_mol[anchoring_atoms[0]].symbol]
+            selected_atoms_idx = anchoring_atoms
+            selected_atoms_elem = anchoring_atoms_elem
+
+        # Generating all possible combinations from 0 to the number of coordination, for each atom  in selected_atoms_elem
+        comb_list = []
+        for elem in selected_atoms_elem:
+            comb_list.append(list(range(surf_coord[elem]+1)))
+        comb_list = list(it.product(*comb_list))
+
+        # Creating a mapping of combinations to atom indices and elements
+        comb_mapping = []
+        for combination in comb_list:
+            atom_coordination = []
+            for idx, coord_number in enumerate(combination):
+                atom_index = selected_atoms_idx[idx]
+                atom_element = selected_atoms_elem[idx]
+                atom_coordination.append((atom_index, atom_element, coord_number))
+            comb_mapping.append(atom_coordination)
+
+        # For each combination in comb_mapping,
+        # Generating a copy of the graph and, for each node (idx is the first element of the tuple),
+        # Connect to it the number of nodes (which node attribute is the element of the surfacce) specified in the tuple (coord_number is the third element of the tuple)
+        for combination in comb_mapping:
+            print(intermediate.molecule.get_chemical_formula())
+            new_graph = intermediate.graph.copy()
+            # Adding for each node the number of connections specified in the combination)
+            for node in combination:
+                for i in range(node[2]):
+                    # Adding the node  with the surf_elem element
+                    new_graph.add_node(len(new_graph.nodes()), elem=surf_elem)
+                    # Adding the edge between the node and the node with the surf_elem element
+                    new_graph.add_edge(node[0], len(new_graph.nodes())-1)
+
+            graph_config_list.append(new_graph)
+
+    return intermediate.code, graph_config_list

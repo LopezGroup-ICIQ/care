@@ -1,4 +1,5 @@
 from ase import Atoms
+from networkx import Graph
 import numpy as np
 from torch_geometric.loader import DataLoader
 from torch.nn import Module
@@ -31,31 +32,49 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
     None
         None. Updates the config_dict with the energy and std of the adsorption configuration.
     """ 
-    config = config_dict['ase']
+    config = config_dict['conf']
 
-    slab_copy = surface.slab.copy()
-    # Preparing the components for the energy evaluation
-    # Removing the metal atoms with selective dynamics == False
-    fixed_atms_idxs = slab_copy.todict().get('constraints', None)[0].get_indices()
+    if isinstance(config, Atoms):
+        slab_copy = surface.slab.copy()
+        # Preparing the components for the energy evaluation
+        # Removing the metal atoms with selective dynamics == False
+        fixed_atms_idxs = slab_copy.todict().get('constraints', None)[0].get_indices()
 
-    # Removing the atoms which indices are in fixed_atms
-    config = config[~np.isin(range(len(config)), fixed_atms_idxs)]
+        # Removing the atoms which indices are in fixed_atms
+        config = config[~np.isin(range(len(config)), fixed_atms_idxs)]
 
-    ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
+        ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
 
-    loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
-    for batch in loader:
-        energy_list = model(batch)  # unitless (scaled values)
-        mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
-        std_tensor = energy_list.scale * model.scaling_params['std'] # eV
-        
-    # Transforming the tensor to numpy array
-    mean_tensor = mean_tensor.detach().numpy()
-    std_tensor = std_tensor.detach().numpy()
+        loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
+        for batch in loader:
+            energy_list = model(batch)  # unitless (scaled values)
+            mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
+            std_tensor = energy_list.scale * model.scaling_params['std'] # eV
+            
+        # Transforming the tensor to numpy array
+        mean_tensor = mean_tensor.detach().numpy()
+        std_tensor = std_tensor.detach().numpy()
 
-    # Updating the energy and std of the adsorption configuration
-    config_dict['mu'] = mean_tensor.item()
-    config_dict['s'] = std_tensor.item()
+        # Updating the energy and std of the adsorption configuration
+        config_dict['mu'] = mean_tensor.item()
+        config_dict['s'] = std_tensor.item()
+    
+    elif isinstance(config, Graph):
+        ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
+        loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
+        for batch in loader:
+            energy_list = model(batch)  # unitless (scaled values)
+            mean_tensor = energy_list.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
+            std_tensor = energy_list.scale * model.scaling_params['std'] # eV
+            
+        # Transforming the tensor to numpy array
+        mean_tensor = mean_tensor.detach().numpy()
+        std_tensor = std_tensor.detach().numpy()
+
+        # Updating the energy and std of the adsorption configuration
+        config_dict['mu'] = mean_tensor.item()
+        config_dict['s'] = std_tensor.item()
+
 
     print(f"Configuration: {config_dict['ase'].get_chemical_formula()}")
     print(f"Energy of the adsorption configuration: {config_dict['mu']} eV")
