@@ -14,8 +14,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.nn import summary
 from sklearn.metrics import r2_score
 
-from gnn_eads.graph_tools import graph_plotter
-from gnn_eads.plot_functions import *
+from care.gnns.gnn_eads.graph_tools import graph_plotter
+from care.gnns.gnn_eads.plot_functions import *
 
 
 def create_model_report(model_name: str,

@@ -8,8 +8,8 @@ import torch
 from torch_geometric.data import Data
 import numpy as np
 
-from gnn_eads.functions import get_graph_conversion_params, get_mean_std_from_model
-from gnn_eads.graph_tools import extract_adsorbate
+from care.gnns.gnn_eads.functions import get_graph_conversion_params, get_mean_std_from_model
+from care.gnns.gnn_eads.graph_tools import extract_adsorbate
 
 class EarlyStopper:
     """

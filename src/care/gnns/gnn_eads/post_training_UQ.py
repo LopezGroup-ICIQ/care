@@ -13,10 +13,10 @@ import torch
 from torch_geometric.loader import DataLoader
 from sklearn.metrics import r2_score
 
-from gnn_eads.constants import ENCODER, FG_FAMILIES, DPI
-from gnn_eads.functions import get_graph_formula, get_number_atoms_from_label, split_percentage
-from gnn_eads.graph_tools import plotter
-from gnn_eads.plot_functions import *
+from care.gnns.gnn_eads.constants import ENCODER, FG_FAMILIES, DPI
+from care.gnns.gnn_eads.functions import get_graph_formula, get_number_atoms_from_label, split_percentage
+from care.gnns.gnn_eads.graph_tools import plotter
+from care.gnns.gnn_eads.plot_functions import *
 
 
 def create_model_report(input_file: str, 
