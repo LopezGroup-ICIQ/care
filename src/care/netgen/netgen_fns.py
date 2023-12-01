@@ -209,65 +209,89 @@ def process_molecule(smiles: str, bond_types: list[tuple[int, int]], processed_f
 
     break_bonds(molecule_with_H, bond_types, processed_fragments, original_smiles)
 
-def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Intermediate]]:
+def process_inter_objs_chunk(chunk):
     """
-    Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
-    For closed-shell species, gas and adsorbed phases are generated. For open-shell species, only the adsorbed phase is generated.
+    Process a chunk of the inter_dict dictionary.
 
     Parameters
     ----------
-    inter_dict : dict[str, Chem.rdchem.Mol]
-        Dictionary containing the Chem.rdchem.Mol instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, and each value is the corresponding Chem.rdchem.Mol instance.
+    chunk : dict
+        A subset of inter_dict with key-value pairs to process.
 
     Returns
     -------
-    intermediate_class_dict : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule plus '*' or 'g' defining if its adsorber or in gas-phase, and each value the Intermediate instance for that molecule. 
+    dict
+        A dictionary with the generated Intermediate objects for the given chunk.
     """
 
-    inter_class_dict = {}
-    for key, value in inter_dict.items():
+    inter_class_dict_chunk = {}
+    for key, value in chunk.items():
+        # Create an Intermediate instance for the adsorbed phase
         new_inter_ads = Intermediate(code=key+'*',
                                      molecule=value,
                                      phase='ads')
-        inter_class_dict[key+'*'] = new_inter_ads
+        inter_class_dict_chunk[key+'*'] = new_inter_ads
 
+        # If the molecule is closed-shell, also create an instance for the gas phase
         if new_inter_ads.closed_shell:
             new_inter_gas = Intermediate(code=key+'g',
                                          molecule=value,
                                          phase='gas')
-            inter_class_dict[key+'g']=new_inter_gas
-    return inter_class_dict
+            inter_class_dict_chunk[key+'g'] = new_inter_gas
 
-# def process_reaction(reaction, intermediates_class_dict, surf_inter):
-#     # Converting the smiles to InChIKey
-#     reactant_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0]))
-#     reactant = intermediates_class_dict[reactant_inchikey + '*']
+    return inter_class_dict_chunk
 
-#     if len(reaction[1]) == 2:
-#         # Handling the case where there are two products
-#         product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
-#         product2_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1]))
+def gen_inter_objs(inter_dict):
+    # Number of chunks equals the number of available CPU cores
+    n_cores = mp.cpu_count()
 
-#         product1 = intermediates_class_dict[product1_inchikey + '*']
-#         product2 = intermediates_class_dict[product2_inchikey + '*']
+    # Splitting the dictionary into chunks
+    keys = list(inter_dict.keys())
+    chunk_size = len(keys) // n_cores
+    chunks = [dict(zip(keys[i:i + chunk_size], [inter_dict[key] for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
 
-#         reaction_components = [[surf_inter, reactant], [product1, product2]]
-#     else:
-#         # Handling the case where there is one product
-#         product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
-#         product1 = intermediates_class_dict[product1_inchikey + '*']
+    # Create a pool of workers and map the processing function to each chunk
+    with mp.Pool(n_cores) as pool:
+        results = pool.map(process_inter_objs_chunk, chunks)
 
-#         reaction_components = [[reactant], [product1]]
+    # Combine the results from all chunks
+    combined_result = {}
+    for result in results:
+        combined_result.update(result)
 
-#     return ElementaryReaction(components=reaction_components, r_type=reaction[2])
+    return combined_result
 
-# def generate_rxns_list(unique_reactions, intermediates_class_dict, surf_inter, ncores):
-#     with mp.Pool(ncores) as pool:
-#         rxns_list = pool.starmap(process_reaction, [(reaction, intermediates_class_dict, surf_inter) for reaction in unique_reactions])
-#     return rxns_list
+# def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Intermediate]]:
+#     """
+#     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
+#     For closed-shell species, gas and adsorbed phases are generated. For open-shell species, only the adsorbed phase is generated.
+
+#     Parameters
+#     ----------
+#     inter_dict : dict[str, Chem.rdchem.Mol]
+#         Dictionary containing the Chem.rdchem.Mol instances of all the chemical species of the reaction network.
+#         Each key is the InChIKey of a molecule, and each value is the corresponding Chem.rdchem.Mol instance.
+
+#     Returns
+#     -------
+#     intermediate_class_dict : dict[str, Intermediate]
+#         Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+#         Each key is the InChIKey of a molecule plus '*' or 'g' defining if its adsorber or in gas-phase, and each value the Intermediate instance for that molecule. 
+#     """
+
+#     inter_class_dict = {}
+#     for key, value in inter_dict.items():
+#         new_inter_ads = Intermediate(code=key+'*',
+#                                      molecule=value,
+#                                      phase='ads')
+#         inter_class_dict[key+'*'] = new_inter_ads
+
+#         if new_inter_ads.closed_shell:
+#             new_inter_gas = Intermediate(code=key+'g',
+#                                          molecule=value,
+#                                          phase='gas')
+#             inter_class_dict[key+'g']=new_inter_gas
+#     return inter_class_dict
 
 def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
@@ -375,8 +399,6 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
             reaction_components = [[reactant], [product1]]
         rxns_list.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
 
-    # rxns_list = generate_rxns_list(unique_reactions, intermediates_class_dict, surf_inter, ncores)
-
     print('Generating adsorption and rearrangement steps...')
     ads_steps = gen_adsorption_reactions(intermediates_class_dict, surf_inter)
     rxns_list.extend(ads_steps)
@@ -421,7 +443,7 @@ def gen_adsorption_reactions(intermediates, surf_inter, num_processes=4):
     inter_chunks = np.array_split(list(intermediates.keys()), num_processes)
 
     # Create a pool of workers
-    with mp.Pool(processes=num_processes) as pool:
+    with mp.Pool(processes=num_processes//2) as pool:
         # Map process_chunk function to each chunk
         results = pool.starmap(process_ads_react_chunk, [(chunk, intermediates, surf_inter) for chunk in inter_chunks])
 
@@ -547,27 +569,6 @@ def check_rearrangement(pair):
         return ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement')
     return None
 
-# def gen_rearrangement_reactions(intermediates):
-#     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
-
-#     # Group intermediates by chemical formula
-#     formula_groups = defaultdict(list)
-#     for inter in ads_inters:
-#         formula_groups[inter.molecule.get_chemical_formula()].append(inter)
-
-#     # Generate combinations for each formula group
-#     pairs = []
-#     for group in formula_groups.values():
-#         pairs.extend(combinations(group, 2))
-
-#     with mp.Pool() as pool:
-#         results = pool.map(check_rearrangement, pairs)
-
-#     # Filter out None values from the results
-#     rearrangement_rxns = [result for result in results if result is not None]
-
-#     return rearrangement_rxns
-
 def group_by_formula(intermediates):
     formula_groups = defaultdict(list)
     for inter in intermediates:
@@ -593,25 +594,91 @@ def subgroup_by_isomers(intermediates):
 
     return isomer_groups
 
+# def gen_rearrangement_reactions(intermediates):
+#     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
+
+#     # Group intermediates by chemical formula
+#     formula_groups = group_by_formula(ads_inters)
+
+#     pairs = []
+#     for formula_group in formula_groups.values():
+#         # Subgroup each formula group by isomers
+#         isomer_subgroups = subgroup_by_isomers(formula_group)
+        
+#         # Generate combinations within each isomer subgroup
+#         for subgroup in isomer_subgroups:
+#             pairs.extend(combinations(subgroup, 2))
+
+#     with mp.Pool() as pool:
+#         results = pool.map(check_rearrangement, pairs)
+
+#     # Filter out None values
+#     rearrangement_rxns = [result for result in results if result is not None]
+
+#     return rearrangement_rxns
+
+
+def process_subgroup(subgroup_pairs_dict):
+    """
+    Process a chunk of subgroups.
+
+    Parameters
+    ----------
+    subgroup_pairs_dict : dict
+        A dictionary where each key is a unique identifier for a subgroup and 
+        each value is a list of pairs from that subgroup.
+
+    Returns
+    -------
+    list
+        A list of results after processing all pairs in all subgroups.
+    """
+    results = []
+    for subgroup_id, pairs in subgroup_pairs_dict.items():
+        # Process each pair in the subgroup
+        for pair in pairs:
+            result = check_rearrangement(pair)
+            if result is not None:
+                results.append(result)
+
+    return results
+
 def gen_rearrangement_reactions(intermediates):
     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
 
     # Group intermediates by chemical formula
     formula_groups = group_by_formula(ads_inters)
 
-    pairs = []
+    # Dictionary to store pairs for each subgroup
+    subgroup_pairs_dict = {}
+    index = 0
     for formula_group in formula_groups.values():
         # Subgroup each formula group by isomers
         isomer_subgroups = subgroup_by_isomers(formula_group)
         
-        # Generate combinations within each isomer subgroup
+        # Generate combinations within each isomer subgroup and store in dictionary
         for subgroup in isomer_subgroups:
-            pairs.extend(combinations(subgroup, 2))
+            subgroup_pairs_dict[f"subgroup_{index}"] = list(combinations(subgroup, 2))
+            index += 1
 
+    # Splitting the dictionary into chunks
+    keys = list(subgroup_pairs_dict.keys())
+    chunk_size = len(keys) // mp.cpu_count()
+    chunks = [dict(zip(keys[i:i + chunk_size], [subgroup_pairs_dict[key] for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
+
+    # Create a pool of workers and map the processing function to each chunk
     with mp.Pool() as pool:
-        results = pool.map(check_rearrangement, pairs)
+        results = pool.map(process_subgroup, chunks)
 
-    # Filter out None values
-    rearrangement_rxns = [result for result in results if result is not None]
+    # Combine the results from all chunks
+    rearrangement_rxns = [rxn for sublist in results for rxn in sublist]
 
     return rearrangement_rxns
+    # # Parallelize processing of each subgroup
+    # with mp.Pool() as pool:
+    #     results = pool.map(process_subgroup, subgroup_pairs_dict.values())
+
+    # # Combine results from all subgroups
+    # rearrangement_rxns = [rxn for subgroup_results in results for rxn in subgroup_results]
+
+    # return rearrangement_rxns
