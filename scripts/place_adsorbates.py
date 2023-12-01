@@ -48,6 +48,7 @@ if __name__ == "__main__":
         with mp.Pool(processes=args.ncores) as p:
             result_list = p.starmap(ads_placement, iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)))
         adsorption_structs = {key: value for key, value in result_list}
+    
     elif args.t == 'graph':
         with mp.Pool(processes=args.ncores) as p:
             result_list = p.starmap(ads_placement_graph, iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)))
@@ -63,7 +64,6 @@ if __name__ == "__main__":
             ads_config_dict[f'{counter}']['s'] = 0
             counter += 1  
         intermediates[key].ads_configs = ads_config_dict
-        print('ads_config_dict: ', ads_config_dict)
     
     with open(f'{output_dir}/ads_intermediates.pkl', 'wb') as f:
         dump(intermediates, f)

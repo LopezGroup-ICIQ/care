@@ -6,6 +6,8 @@ from rdkit import RDLogger
 from rdkit import Chem
 from rdkit.Chem import rdMolDescriptors
 from ase import Atoms
+from collections import defaultdict
+import numpy as np
 
 from care.netgen.networks.intermediate import Intermediate
 from care.netgen.networks.elementary_reaction import ElementaryReaction
@@ -179,7 +181,6 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
         
         processed_molecules.add(current_smiles)
 
-
 def process_molecule(smiles: str, bond_types: list[tuple[int, int]], processed_fragments: dict) -> None:
     """
     Process a molecule by breaking all the bonds of the desired types in the molecule, and then break all the bonds in the fragments, etc.
@@ -240,38 +241,33 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, list[Int
             inter_class_dict[key+'g']=new_inter_gas
     return inter_class_dict
 
-def gen_adsorption_reactions(intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> list[ElementaryReaction]:
-    """
-    Generate all Intermediates that can desorb from the surface and the corresponding desorption reactions, including
-    the dissociative adsorption of H2 and O2.
+# def process_reaction(reaction, intermediates_class_dict, surf_inter):
+#     # Converting the smiles to InChIKey
+#     reactant_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0]))
+#     reactant = intermediates_class_dict[reactant_inchikey + '*']
 
-    Parameters
-    ----------
-    intermediates : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+#     if len(reaction[1]) == 2:
+#         # Handling the case where there are two products
+#         product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
+#         product2_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1]))
 
-    Returns
-    -------
-    adsorption_steps : list[ElementaryReaction]
-        List of all adsorption reactions.
-    """
+#         product1 = intermediates_class_dict[product1_inchikey + '*']
+#         product2 = intermediates_class_dict[product2_inchikey + '*']
 
-    adsorption_steps = []
-    for inter in intermediates.values():
-        if inter.phase == 'gas':
-            ads_inter = intermediates[inter.code[:-1] + '*']
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption'))
+#         reaction_components = [[surf_inter, reactant], [product1, product2]]
+#     else:
+#         # Handling the case where there is one product
+#         product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
+#         product1 = intermediates_class_dict[product1_inchikey + '*']
 
-    # dissociative adsorptions for H2 and O2
-    for molecule in ['UFHFLCQGNIYNRP-UHFFFAOYSA-N', 'MYMOFIZGZYHOMD-UHFFFAOYSA-N']:
-        gas_code = molecule + 'g'
-        if molecule == 'UFHFLCQGNIYNRP-UHFFFAOYSA-N': #H2
-            ads_code = 'YZCKVEUIGOORGS-UHFFFAOYSA-N*'
-        else: #O2
-            ads_code = 'QVGXLLKOCUKJST-UHFFFAOYSA-N*'
-        
-        adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates[gas_code]]), frozenset([intermediates[ads_code]])), r_type='adsorption'))
-    return adsorption_steps
+#         reaction_components = [[reactant], [product1]]
+
+#     return ElementaryReaction(components=reaction_components, r_type=reaction[2])
+
+# def generate_rxns_list(unique_reactions, intermediates_class_dict, surf_inter, ncores):
+#     with mp.Pool(ncores) as pool:
+#         rxns_list = pool.starmap(process_reaction, [(reaction, intermediates_class_dict, surf_inter) for reaction in unique_reactions])
+#     return rxns_list
 
 def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
@@ -293,6 +289,8 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
         List of all the reactions of the reaction network as ElementaryReaction instances.
     """
     
+
+    ############ Closed-shell species ############
     # 1) Generate all closed-shell satuarated CHO molecules
     print("Generating saturated CHO molecules...")
     alkanes_smiles = gen_alkanes_smiles(ncc)    
@@ -301,6 +299,7 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     ethers_smiles = gen_ether_smiles(mol_alkanes, noc)
     mol_ethers = [Chem.MolFromSmiles(smiles) for smiles in ethers_smiles]
     mol_alkanes_ethers  = mol_alkanes + mol_ethers
+    
     # 2) Add oxygens to each molecule
     print("Adding oxygens to molecules...")
     cho_smiles = [add_oxygens_to_molecule(mol, noc) for mol in mol_alkanes_ethers] 
@@ -310,11 +309,17 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     epoxides_smiles = gen_epoxides_smiles(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
     print("Done adding ethers and epoxides to molecules.")
+    
     # 3) Add ethers to each molecule
     relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
     all_cho_smiles = cho_smiles + relev_species
     all_smiles = all_cho_smiles + alkanes_smiles
-    # Define bond types
+    ############ End of closed-shell species ############
+    
+
+
+
+    # Define bond types (C-C, C-H, C-O, O-O, H-H, O-H)
     bond_types = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
     
     # # Dictionary to keep track of processed fragments
@@ -370,15 +375,62 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
             reaction_components = [[reactant], [product1]]
         rxns_list.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
 
+    # rxns_list = generate_rxns_list(unique_reactions, intermediates_class_dict, surf_inter, ncores)
+
+    print('Generating adsorption and rearrangement steps...')
     ads_steps = gen_adsorption_reactions(intermediates_class_dict, surf_inter)
     rxns_list.extend(ads_steps)
     print("Adsorption steps: {}".format(len(ads_steps)))
-    # rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
-    # print("Rearrangement steps: {}".format(len(rearr_steps)))
-    # rxns_list.extend(rearr_steps)
+    print('Finished generating adsorption and rearrangement steps.')
+    
+    print('Generating rearrangement steps...')
+    rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
+    rxns_list.extend(rearr_steps)
+    print("Rearrangement steps: {}".format(len(rearr_steps)))
+    print('Finished generating rearrangement steps.')
 
     return intermediates_class_dict, rxns_list
 
+
+
+
+
+##############################################################################################################
+def process_ads_react_chunk(inter_chunk, intermediates, surf_inter):
+    adsorption_steps = []
+    for inter_code in inter_chunk:
+        inter = intermediates[inter_code]
+        if inter.phase == 'gas':
+            ads_inter = intermediates[inter.code[:-1] + '*']
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption'))
+
+        # Add the dissociative adsorptions for H2 and O2
+        for molecule in ['UFHFLCQGNIYNRP-UHFFFAOYSA-N', 'MYMOFIZGZYHOMD-UHFFFAOYSA-N']:
+            gas_code = molecule + 'g'
+            if molecule == 'UFHFLCQGNIYNRP-UHFFFAOYSA-N': # H2
+                ads_code = 'YZCKVEUIGOORGS-UHFFFAOYSA-N*'
+            else: # O2
+                ads_code = 'QVGXLLKOCUKJST-UHFFFAOYSA-N*'
+            
+            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates[gas_code]]), frozenset([intermediates[ads_code]])), r_type='adsorption'))
+
+    return adsorption_steps
+
+def gen_adsorption_reactions(intermediates, surf_inter, num_processes=4):
+    # Split intermediates into chunks
+    inter_chunks = np.array_split(list(intermediates.keys()), num_processes)
+
+    # Create a pool of workers
+    with mp.Pool(processes=num_processes) as pool:
+        # Map process_chunk function to each chunk
+        results = pool.starmap(process_ads_react_chunk, [(chunk, intermediates, surf_inter) for chunk in inter_chunks])
+
+    # Flatten the list of lists
+    adsorption_steps = list(set([step for sublist in results for step in sublist])) 
+    return adsorption_steps
+
+
+##############################################################################################################
 def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     """
     Check if two molecules are the same constitutional isomers.
@@ -397,8 +449,8 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     """
 
     # Saturating the molecules
-    mol1_smiles = re.sub("[H]([0-9]){0,1}",'',mol1_smiles)
-    mol2_smiles = re.sub("[H]([0-9]){0,1}",'',mol2_smiles)
+    mol1_smiles = re.sub(r"[H]([0-9]){0,1}",'',mol1_smiles)
+    mol2_smiles = re.sub(r"[H]([0-9]){0,1}",'',mol2_smiles)
     mol1_smiles = mol1_smiles.replace('[', '').replace(']', '')
     mol2_smiles = mol2_smiles.replace('[', '').replace(']', '')
     
@@ -420,7 +472,6 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
         return False
     elif smiles1 == smiles2 and formula1 == formula2:
         return True
-
 
 def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
     """
@@ -487,31 +538,80 @@ def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
                         return False
     return False
     
-def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
-    """
-    Generate all 1,2-rearrangement reactions involving hydrogen atoms.
+def check_rearrangement(pair):
+    inter1, inter2 = pair
+    smiles1 = Chem.MolToSmiles(inter1.rdkit)
+    smiles2 = Chem.MolToSmiles(inter2.rdkit)
+    # if are_same_isomer(smiles1, smiles2):
+    if is_hydrogen_rearranged(smiles1, smiles2):
+        return ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement')
+    return None
 
-    Parameters
-    ----------
-    intermediates : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+# def gen_rearrangement_reactions(intermediates):
+#     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
 
-    Returns
-    -------
-    list[ElementaryReaction]
-        List of all 1,2-rearrangement reactions involving hydrogen atoms.
-    """
-    from ase.visualize import view
+#     # Group intermediates by chemical formula
+#     formula_groups = defaultdict(list)
+#     for inter in ads_inters:
+#         formula_groups[inter.molecule.get_chemical_formula()].append(inter)
+
+#     # Generate combinations for each formula group
+#     pairs = []
+#     for group in formula_groups.values():
+#         pairs.extend(combinations(group, 2))
+
+#     with mp.Pool() as pool:
+#         results = pool.map(check_rearrangement, pairs)
+
+#     # Filter out None values from the results
+#     rearrangement_rxns = [result for result in results if result is not None]
+
+#     return rearrangement_rxns
+
+def group_by_formula(intermediates):
+    formula_groups = defaultdict(list)
+    for inter in intermediates:
+        formula_groups[inter.molecule.get_chemical_formula()].append(inter)
+    return formula_groups
+
+def subgroup_by_isomers(intermediates):
+    isomer_groups = []
+    for inter in intermediates:
+        found_group = False
+        smiles_inter = Chem.MolToSmiles(inter.rdkit)
+
+        for group in isomer_groups:
+            representative = group[0]
+            smiles_rep = Chem.MolToSmiles(representative.rdkit)
+            if are_same_isomer(smiles_inter, smiles_rep):
+                group.append(inter)
+                found_group = True
+                break
+
+        if not found_group:
+            isomer_groups.append([inter])
+
+    return isomer_groups
+
+def gen_rearrangement_reactions(intermediates):
     ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
-    
-    # Checking for constitutional isomers
-    rearrangement_rxns = []
-    for inter1, inter2 in combinations(ads_inters, 2):
-        if inter1.molecule.get_chemical_formula() == inter2.molecule.get_chemical_formula():
-            smiles1 = Chem.MolToSmiles(inter1.rdkit)
-            smiles2 = Chem.MolToSmiles(inter2.rdkit)
-            if are_same_isomer(Chem.MolToSmiles(inter1.rdkit), Chem.MolToSmiles(inter2.rdkit)):
-                # Checking if the formula of each molecule is the same
-                if is_hydrogen_rearranged(smiles1, smiles2):
-                    rearrangement_rxns.append(ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement'))
+
+    # Group intermediates by chemical formula
+    formula_groups = group_by_formula(ads_inters)
+
+    pairs = []
+    for formula_group in formula_groups.values():
+        # Subgroup each formula group by isomers
+        isomer_subgroups = subgroup_by_isomers(formula_group)
+        
+        # Generate combinations within each isomer subgroup
+        for subgroup in isomer_subgroups:
+            pairs.extend(combinations(subgroup, 2))
+
+    with mp.Pool() as pool:
+        results = pool.map(check_rearrangement, pairs)
+
+    # Filter out None values
+    rearrangement_rxns = [result for result in results if result is not None]
+
     return rearrangement_rxns
