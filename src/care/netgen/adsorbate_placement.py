@@ -197,7 +197,7 @@ def ads_placement(intermediate: Intermediate,
                     config_list = dos.dockonsurf(inp_vars)
                         
                     if len(config_list) == 0:
-                        ads_height += 0.1
+                        ads_height += 0.2
 
                     total_config_list.extend(config_list)
 

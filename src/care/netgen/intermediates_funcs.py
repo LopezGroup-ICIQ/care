@@ -135,7 +135,7 @@ def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
             canonical_smiles_set.add(canonical_smiles)
     return list(canonical_smiles_set)
 
-def gen_alkanes_smiles(n: int) -> list[str]:
+def gen_alkanes(n: int) -> list[str]:
     """
     Generate all possible alkanes from 1 Carbon atom to the given number of carbon atoms.
 
@@ -153,9 +153,10 @@ def gen_alkanes_smiles(n: int) -> list[str]:
     for i in range(1, n + 1):
         all_alkanes += generate_alkanes_recursive(i)
     unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=False)
-    return unique_alkanes
+    mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in unique_alkanes]
+    return unique_alkanes, mol_alkanes
 
-def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
+def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
     Generate all possible epoxides smiles based on the given number of carbon and oxygen atoms.
 
@@ -190,7 +191,7 @@ def gen_epoxides_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
             epoxides.append(smiles)
     return list(set(epoxides))
 
-def gen_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
+def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
     Add an oxygen atom to an alkane to generate an ether.
 
@@ -223,9 +224,11 @@ def gen_ether_smiles(mol_alkanes: list, n_oxy: int) -> list[str]:
             tmp_mol.UpdatePropertyCache()
             smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
             ethers.append(smiles)
-    return list(set(ethers))
+    unique_ethers = list(set(ethers))
+    mol_ethers = [Chem.MolFromSmiles(smiles) for smiles in unique_ethers]
+    return unique_ethers, mol_ethers
 
-def add_oxygens_to_molecule(mol: Chem.Mol, noc: int) -> set[str]:
+def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
     """
     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
 
