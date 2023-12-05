@@ -13,8 +13,8 @@ class Intermediate:
     """Intermediate class that defines the intermediate species of the network.
 
     Attributes:
-        code (str): Code of the intermediate. 6 digits.
-        molecule (obj:`ase.atoms.Atoms`): Associated molecule.
+        code (str): Code of the intermediate. InChiKey of the molecule.
+        molecule (Union[obj:`ase.Atoms`, obj:`rdkit.Chem.rdchem.Mol`]): Associated molecule.
         graph (obj:`nx.graph`): Associated molecule graph.
         ads_configs (dict): Adsorption configurations of the intermediate.
         is_surface (bool): Defines if the intermediate corresponds to the empty surface.
@@ -241,6 +241,11 @@ class Intermediate:
 
         """
         rdkit_molecule = self.molecule
+        
+        # If there are no atoms in the molecule, return an empty ASE Atoms object (Surface)
+        if rdkit_molecule.GetNumAtoms() == 0:
+            return Atoms()
+
         # Generate 3D coordinates for the molecule
         rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
         AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())

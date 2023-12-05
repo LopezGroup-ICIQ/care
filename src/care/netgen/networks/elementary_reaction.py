@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.linalg import null_space
+from rdkit import Chem
+from typing import Union
 
 from care.netgen.networks.intermediate import Intermediate
 
@@ -30,14 +32,31 @@ class ElementaryReaction:
                'rearrangement']
     
     def __init__(self, 
-                 code: str=None, 
-                 components: tuple[frozenset[Intermediate]]=None, 
+                 code: str=None,
+                 components: Union[tuple[frozenset[Chem.rdchem.Mol]], tuple[frozenset[Intermediate]]]=None, 
                  r_type: str=None, 
                  is_electro: bool=False,
                  stoic: dict[str, float]=None):
         self._code = code
         self._components = None
         self.components = components
+
+        type_component = type(list(self.components[0])[0])
+
+        if type_component == Chem.rdchem.Mol:
+            self.components = (
+                                [Intermediate(code='*' if comp.GetNumAtoms() == 0 else Chem.inchi.MolToInchiKey(comp),
+                                            molecule=comp,
+                                            phase='surf' if comp.GetNumAtoms() == 0 else 'ads',
+                                            is_surface=True if comp.GetNumAtoms() == 0 else False) for comp in self.components[0]],
+                                [Intermediate(code='*' if comp.GetNumAtoms() == 0 else Chem.inchi.MolToInchiKey(comp),
+                                            molecule=comp,
+                                            phase='surf' if comp.GetNumAtoms() == 0 else 'ads',
+                                            is_surface=True if comp.GetNumAtoms() == 0 else False) for comp in self.components[1]]
+                                )
+        elif type_component == Intermediate:
+            self.components = components
+        
         self.reactants = self.components[0]
         self.products = self.components[1]
         self.energy = None
@@ -52,7 +71,6 @@ class ElementaryReaction:
         self.stoic = stoic
         if self.r_type != 'pseudo' and self.stoic is None:
              self.stoic = self.solve_stoichiometry()    
-
 
     def __str__(self) -> str:
         return self.__repr__()
