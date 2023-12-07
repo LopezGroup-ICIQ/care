@@ -771,7 +771,6 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int = mp.cpu_count()) -
         reactant_inchikey = Chem.inchi.MolToInchiKey(
             Chem.MolFromSmiles(reaction[0]))
         reactant = intermediates_class_dict[reactant_inchikey + '*']
-        print('reactant: ', reactant)
         if len(reaction[1]) == 2:
             product1_inchikey = Chem.inchi.MolToInchiKey(
                 Chem.MolFromSmiles(reaction[1][0]))
@@ -779,9 +778,7 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int = mp.cpu_count()) -
                 Chem.MolFromSmiles(reaction[1][1]))
             # Getting the Intermediate objects from the dictionary
             product1 = intermediates_class_dict[product1_inchikey + '*']
-            print('product1: ', product1)
             product2 = intermediates_class_dict[product2_inchikey + '*']
-            print('product2: ', product2)
             reaction_components = [
                 [surf_inter, reactant], [product1, product2]]
         else:
