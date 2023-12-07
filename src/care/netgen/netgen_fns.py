@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from itertools import combinations
-import re 
+import re
 import warnings
 from rdkit import RDLogger
 from rdkit import Chem
@@ -23,7 +23,7 @@ RDLogger.DisableLog('rdApp.*')
 def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> bool:
     """
     Check if the bond is between the desired atom types
-    
+
     Parameters
     ----------
     bond : rdkit.Chem.rdchem.Bond
@@ -32,7 +32,7 @@ def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> b
         The atomic number of the first atom
     atom_num2 : int
         The atomic number of the second atom
-        
+
     Returns
     -------
     bool
@@ -41,6 +41,7 @@ def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> b
 
     return ((bond.GetBeginAtom().GetAtomicNum() == atom_num1 and bond.GetEndAtom().GetAtomicNum() == atom_num2) or
             (bond.GetBeginAtom().GetAtomicNum() == atom_num2 and bond.GetEndAtom().GetAtomicNum() == atom_num1))
+
 
 def get_chemical_formula(smiles: str) -> str:
     """
@@ -60,6 +61,7 @@ def get_chemical_formula(smiles: str) -> str:
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
     return rdMolDescriptors.CalcMolFormula(mol)
 
+
 def find_unique_bonds(mol: Chem.rdchem.Mol) -> list[Chem.rdchem.Bond]:
     """
     Find the unique bonds in a molecule
@@ -77,7 +79,8 @@ def find_unique_bonds(mol: Chem.rdchem.Mol) -> list[Chem.rdchem.Bond]:
 
     # Aromaticity detection
     Chem.SanitizeMol(mol)
-    Chem.AssignStereochemistry(mol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
+    Chem.AssignStereochemistry(
+        mol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
 
     # Assign symmetry classes to atoms
     symmetry_classes = Chem.CanonicalRankAtoms(mol, breakTies=False)
@@ -95,7 +98,8 @@ def find_unique_bonds(mol: Chem.rdchem.Mol) -> list[Chem.rdchem.Bond]:
 
     return list(unique_bonds.values())
 
-def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], processed_fragments: dict, original_smiles: str, unique_reactions, processed_molecules)  -> None:
+
+def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], processed_fragments: dict, original_smiles: str, unique_reactions, processed_molecules) -> None:
     """
     Recursively break bonds in a molecule and adds the reactions to the unique reactions set and the processed fragments to the processed fragments dictionary
     The function is recursive, and will break all the bonds of the desired types in the molecule, and then break all the bonds in the fragments, etc.
@@ -117,49 +121,57 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
         All the reactions are added to the unique reactions set, and all the processed fragments are added to the processed fragments dictionary
     """
 
-    current_smiles = Chem.MolToSmiles(molecule, isomericSmiles=True, allHsExplicit=True)
+    current_smiles = Chem.MolToSmiles(
+        molecule, isomericSmiles=True, allHsExplicit=True)
 
     # Check if this molecule's reactions have already been processed
     if current_smiles in processed_molecules:
         return 0
 
     unique_bonds = find_unique_bonds(molecule)
-    
+
     total_bond_counter = 0
     for bond in unique_bonds:
         for atom_num1, atom_num2 in bond_types:
             if is_desired_bond(bond, atom_num1, atom_num2):
                 mol_copy = Chem.RWMol(molecule)
-                mol_copy.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+                mol_copy.RemoveBond(bond.GetBeginAtomIdx(),
+                                    bond.GetEndAtomIdx())
 
-                frags = Chem.GetMolFrags(mol_copy, asMols=True, sanitizeFrags=False)
+                frags = Chem.GetMolFrags(
+                    mol_copy, asMols=True, sanitizeFrags=False)
                 frag_smiles_list = []
                 for frag in frags:
-                    frag_smiles = Chem.MolToSmiles(frag, isomericSmiles=True, allHsExplicit=True)
+                    frag_smiles = Chem.MolToSmiles(
+                        frag, isomericSmiles=True, allHsExplicit=True)
                     frag_smiles_list.append(frag_smiles)
-                    
+
                     if frag_smiles not in processed_fragments[original_smiles]:
-                        processed_fragments[original_smiles].append(frag_smiles)
+                        processed_fragments[original_smiles].append(
+                            frag_smiles)
 
                     # Recursive call with the fragment as the new molecule
                     frag_mol = Chem.MolFromSmiles(frag_smiles, sanitize=False)
-                    break_bonds(frag_mol, bond_types, processed_fragments, original_smiles, unique_reactions, processed_molecules)
+                    break_bonds(frag_mol, bond_types, processed_fragments,
+                                original_smiles, unique_reactions, processed_molecules)
 
                 if len(frag_smiles_list) == 2:
                     # Correction for [HH] in the fragment smiles list
                     if frag_smiles_list[0] == '[HH]':
                         # Modify the fragment smiles list to have [H] instead of [HH]
                         frag_smiles_list[0] = '[H]'
-                    
+
                     if frag_smiles_list[1] == '[HH]':
                         # Modify the fragment smiles list to have [H] instead of [HH]
                         frag_smiles_list[1] = '[H]'
 
-                reaction_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
-                
+                reaction_tuple = (current_smiles, tuple(
+                    sorted(frag_smiles_list)))
+
                 # Check if the reaction tuple is unique
                 if reaction_tuple not in unique_reactions:
-                    r_type_atoms = sorted([Chem.Atom(atom_num1).GetSymbol(), Chem.Atom(atom_num2).GetSymbol()])
+                    r_type_atoms = sorted(
+                        [Chem.Atom(atom_num1).GetSymbol(), Chem.Atom(atom_num2).GetSymbol()])
                     # If there is an [O][H] in the fragment, convert the O r_type to HO
                     if len(frag_smiles_list) == 2:
                         if reaction_tuple[1][0] == '[H][O]':
@@ -175,11 +187,13 @@ def break_bonds(molecule: Chem.rdchem.Mol, bond_types: list[tuple[int, int]], pr
                         r_type = 'H-O'
 
                     # Extending the reaction tuple with the bond type
-                    reaction_type_tuple = (reaction_tuple[0], reaction_tuple[1], r_type)
+                    reaction_type_tuple = (
+                        reaction_tuple[0], reaction_tuple[1], r_type)
                     unique_reactions.add(reaction_type_tuple)
                     total_bond_counter += 1
-        
+
         processed_molecules.add(current_smiles)
+
 
 def process_molecule(smiles: str, bond_types: list[tuple[int, int]], processed_fragments: dict, unique_reactions, processed_molecules) -> None:
     """
@@ -203,11 +217,14 @@ def process_molecule(smiles: str, bond_types: list[tuple[int, int]], processed_f
     molecule = Chem.MolFromSmiles(smiles)
     molecule_with_H = Chem.AddHs(molecule)
 
-    original_smiles = Chem.MolToSmiles(molecule_with_H, isomericSmiles=True, allHsExplicit=True)
+    original_smiles = Chem.MolToSmiles(
+        molecule_with_H, isomericSmiles=True, allHsExplicit=True)
     if original_smiles not in processed_fragments:
         processed_fragments[original_smiles] = []
 
-    break_bonds(molecule_with_H, bond_types, processed_fragments, original_smiles, unique_reactions, processed_molecules)
+    break_bonds(molecule_with_H, bond_types, processed_fragments,
+                original_smiles, unique_reactions, processed_molecules)
+
 
 def process_inter_objs_chunk(chunk):
     """
@@ -241,6 +258,7 @@ def process_inter_objs_chunk(chunk):
 
     return inter_class_dict_chunk
 
+
 def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, Intermediate]:
     """
     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
@@ -264,7 +282,8 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, Intermed
     # Splitting the dictionary into chunks
     keys = list(inter_dict.keys())
     chunk_size = len(keys) // n_cores
-    chunks = [dict(zip(keys[i:i + chunk_size], [inter_dict[key] for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
+    chunks = [dict(zip(keys[i:i + chunk_size], [inter_dict[key]
+                   for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
 
     # Create a pool of workers and map the processing function to each chunk
     with mp.Pool(n_cores) as pool:
@@ -278,24 +297,29 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, Intermed
     return combined_result
 
 ##############################################################################################################
+
+
 def process_ads_react_chunk(inter_chunk, intermediates, surf_inter):
     adsorption_steps = []
     for inter_code in inter_chunk:
         inter = intermediates[inter_code]
         if inter.phase == 'gas':
             ads_inter = intermediates[inter.code[:-1] + '*']
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption'))
+            adsorption_steps.append(ElementaryReaction(components=(
+                frozenset([surf_inter, inter]), frozenset([ads_inter])), r_type='adsorption'))
 
         # Add the dissociative adsorptions for H2 and O2
         for molecule in ['UFHFLCQGNIYNRP-UHFFFAOYSA-N', 'MYMOFIZGZYHOMD-UHFFFAOYSA-N']:
             gas_code = molecule + 'g'
-            if molecule == 'UFHFLCQGNIYNRP-UHFFFAOYSA-N': # H2
+            if molecule == 'UFHFLCQGNIYNRP-UHFFFAOYSA-N':  # H2
                 ads_code = 'YZCKVEUIGOORGS-UHFFFAOYSA-N*'
-            else: # O2
+            else:  # O2
                 ads_code = 'QVGXLLKOCUKJST-UHFFFAOYSA-N*'
-            adsorption_steps.append(ElementaryReaction(components=(frozenset([surf_inter, intermediates[gas_code]]), frozenset([intermediates[ads_code]])), r_type='adsorption'))
+            adsorption_steps.append(ElementaryReaction(components=(frozenset(
+                [surf_inter, intermediates[gas_code]]), frozenset([intermediates[ads_code]])), r_type='adsorption'))
 
     return adsorption_steps
+
 
 def gen_adsorption_reactions(intermediates: dict[str, Intermediate], num_processes=mp.cpu_count()) -> list[ElementaryReaction]:
     """
@@ -316,24 +340,30 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], num_process
     adsorption_steps : list[ElementaryReaction]
         List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
     """
-    surf_inter = Intermediate.from_molecule(Atoms(), code='*', is_surface=True, phase='surf')
+    surf_inter = Intermediate.from_molecule(
+        Atoms(), code='*', is_surface=True, phase='surf')
     # Split intermediates into chunks
-    inter_chunks = np.array_split(list(intermediates.keys()), num_processes // 4)
+    inter_chunks = np.array_split(
+        list(intermediates.keys()), num_processes // 4)
 
     # Create a pool of workers
     with mp.Pool(processes=num_processes // 4) as pool:
         # Map process_chunk function to each chunk
-        results = pool.starmap(process_ads_react_chunk, [(chunk, intermediates, surf_inter) for chunk in inter_chunks])
+        results = pool.starmap(process_ads_react_chunk, [(
+            chunk, intermediates, surf_inter) for chunk in inter_chunks])
 
     # Flatten the list of lists
-    adsorption_steps = list(set([step for sublist in results for step in sublist])) 
+    adsorption_steps = list(
+        set([step for sublist in results for step in sublist]))
     return adsorption_steps
 
 ##############################################################################################################
+
+
 def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     """
     Check if two molecules are the same constitutional isomers.
-    
+
     Parameters
     ----------
     mol1_smiles : str
@@ -348,11 +378,11 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     """
 
     # Saturating the molecules
-    mol1_smiles = re.sub(r"[H]([0-9]){0,1}",'',mol1_smiles)
-    mol2_smiles = re.sub(r"[H]([0-9]){0,1}",'',mol2_smiles)
+    mol1_smiles = re.sub(r"[H]([0-9]){0,1}", '', mol1_smiles)
+    mol2_smiles = re.sub(r"[H]([0-9]){0,1}", '', mol2_smiles)
     mol1_smiles = mol1_smiles.replace('[', '').replace(']', '')
     mol2_smiles = mol2_smiles.replace('[', '').replace(']', '')
-    
+
     mol1_sat = Chem.MolFromSmiles(mol1_smiles)
     mol2_sat = Chem.MolFromSmiles(mol2_smiles)
 
@@ -362,7 +392,7 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
 
     if formula1 != formula2:
         return False
-    
+
     # Generate canonical SMILES without explicit hydrogens
     smiles1 = Chem.MolToSmiles(mol1_sat, canonical=True)
     smiles2 = Chem.MolToSmiles(mol2_sat, canonical=True)
@@ -372,10 +402,11 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     elif smiles1 == smiles2 and formula1 == formula2:
         return True
 
+
 def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
     """
     Check for two molecules if there are potential hydrogen rearrangements.
-    
+
     Parameters
     ----------
     smiles_1 : str
@@ -426,7 +457,7 @@ def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
                                 else:
                                     return False
                             else:
-                                #Check if that block is False
+                                # Check if that block is False
                                 if check_list[i + 2] == False:
                                     return True
                     #             else:
@@ -436,7 +467,8 @@ def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
                     # else:
                     #     return False
     return False
-    
+
+
 def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryReaction:
     """
     Check if a pair of intermediates is a 1,2-rearrangement reaction.
@@ -460,6 +492,7 @@ def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryRe
         return ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement')
     return None
 
+
 def group_by_formula(intermediates: list[Intermediate]) -> dict[str, list[Intermediate]]:
     """
     Group a list of intermediates by chemical formula.
@@ -478,6 +511,7 @@ def group_by_formula(intermediates: list[Intermediate]) -> dict[str, list[Interm
     for inter in intermediates:
         formula_groups[inter.molecule.get_chemical_formula()].append(inter)
     return formula_groups
+
 
 def subgroup_by_isomers(intermediates: list[Intermediate]) -> list[list[Intermediate]]:
     """
@@ -510,6 +544,7 @@ def subgroup_by_isomers(intermediates: list[Intermediate]) -> list[list[Intermed
 
     return isomer_groups
 
+
 def process_subgroup(subgroup_pairs_dict):
     """
     Process a chunk of subgroups.
@@ -535,6 +570,7 @@ def process_subgroup(subgroup_pairs_dict):
 
     return results
 
+
 def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[ElementaryReaction]:
     """
     Generate the 1,2-rearrangement reactions involving hydrogens of the reaction network as ElementaryReaction instances.
@@ -551,7 +587,8 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
         List of all the rearrangement reactions of the reaction network as ElementaryReaction instances.
     """
 
-    ads_inters = [inter for inter in intermediates.values() if inter.phase == 'ads']
+    ads_inters = [inter for inter in intermediates.values()
+                  if inter.phase == 'ads']
 
     # Group intermediates by chemical formula
     formula_groups = group_by_formula(ads_inters)
@@ -562,10 +599,11 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
     for formula_group in formula_groups.values():
         # Subgroup each formula group by isomers
         isomer_subgroups = subgroup_by_isomers(formula_group)
-        
+
         # Generate combinations within each isomer subgroup and store in dictionary
         for subgroup in isomer_subgroups:
-            subgroup_pairs_dict[f"subgroup_{index}"] = list(combinations(subgroup, 2))
+            subgroup_pairs_dict[f"subgroup_{index}"] = list(
+                combinations(subgroup, 2))
             index += 1
 
     # Splitting the dictionary into chunks
@@ -573,7 +611,8 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
     chunk_size = len(keys) // mp.cpu_count()
     if chunk_size == 0:
         chunk_size = 1
-    chunks = [dict(zip(keys[i:i + chunk_size], [subgroup_pairs_dict[key] for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
+    chunks = [dict(zip(keys[i:i + chunk_size], [subgroup_pairs_dict[key]
+                   for key in keys[i:i + chunk_size]])) for i in range(0, len(keys), chunk_size)]
 
     # Create a pool of workers and map the processing function to each chunk
     with mp.Pool() as pool:
@@ -589,6 +628,7 @@ def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
+
 def process_reactions_chunk(reactions_chunk):
     surf_inter = Chem.Mol()  # Assuming this is needed for each chunk
     rxns_list_chunk = []
@@ -598,15 +638,18 @@ def process_reactions_chunk(reactions_chunk):
         if len(reaction[1]) == 2:
             product1 = Chem.MolFromSmiles(reaction[1][0])
             product2 = Chem.MolFromSmiles(reaction[1][1])
-            reaction_components = [[surf_inter, reactant], [product1, product2]]
+            reaction_components = [
+                [surf_inter, reactant], [product1, product2]]
         else:
             product1 = Chem.MolFromSmiles(reaction[1][0])
             reaction_components = [[reactant], [product1]]
-        rxns_list_chunk.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
+        rxns_list_chunk.append(ElementaryReaction(
+            components=reaction_components, r_type=reaction[2]))
 
     return rxns_list_chunk
 
-def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+
+def generate_inters_and_rxns(ncc: int, noc: int, ncores: int = mp.cpu_count()) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generates all the intermediates and reactions of the reaction network.
 
@@ -625,57 +668,62 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     rxns_list : list[ElementaryReaction]
         List of all the reactions of the reaction network as ElementaryReaction instances.
     """
-    
+
     t0 = time.time()
     ############ Closed-shell species ############
     # 1) Generate all closed-shell satuarated CHO molecules
     print('Generating closed-shell species...')
-    alkanes_smiles, mol_alkanes = gen_alkanes(ncc)    
+    alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
     ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
-    
-    mol_alkanes_ethers  = mol_alkanes + mol_ethers
-    
+
+    mol_alkanes_ethers = mol_alkanes + mol_ethers
+
     # 2) Add oxygens to each molecule (generating alcohols and esters)
-    cho_smiles = [oxy_to_mol(mol, noc) for mol in mol_alkanes_ethers] 
-    cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]  # flatten list of lists
+    cho_smiles = [oxy_to_mol(mol, noc) for mol in mol_alkanes_ethers]
+    # flatten list of lists
+    cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
 
     # 3) Generating epoxides
     epoxides_smiles = gen_epoxides(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
 
-    relev_species = ['CO', 'C(O)O','O', 'OO', '[H][H]']
+    relev_species = ['CO', 'C(O)O', 'O', 'OO', '[H][H]']
     # all_cho_smiles = cho_smiles + relev_species
     all_smiles = cho_smiles + relev_species + alkanes_smiles
     print('Finished generating closed-shell species.')
     ############ End of closed-shell species ############
 
     # alkanes_smiles, ethers_smiles, cho_smiles, epoxides_smiles, relev_species = generate_cs_intermediates(ncc, noc)
-    
-    all_smiles = alkanes_smiles + cho_smiles + ethers_smiles + epoxides_smiles + relev_species 
+
+    all_smiles = alkanes_smiles + cho_smiles + \
+        ethers_smiles + epoxides_smiles + relev_species
     # Define bond types (C-C, C-H, C-O, O-O, H-H, O-H)
     bond_types = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
-    
+
     # Dictionary to keep track of processed fragments
     processed_fragments = {}
     unique_reactions = set()
     processed_molecules = set()
     # Process each molecule in the list
     for smiles in all_smiles:
-        process_molecule(smiles, bond_types, processed_fragments, unique_reactions, processed_molecules)
-    
+        process_molecule(smiles, bond_types, processed_fragments,
+                         unique_reactions, processed_molecules)
+
     # Converting the dictionary to a list
     frag_list = []
     for value in processed_fragments.values():
         frag_list += value
-    
+
     # Adding explicit Hs to the smiles of relevant species
     frag_list = list(set(frag_list + cho_smiles + alkanes_smiles))
     frag_list = [Chem.MolFromSmiles(smiles) for smiles in frag_list]
-    # Saving the intermediates in a dictionary, where the key is the smiles of the molecule and 
+    # Saving the intermediates in a dictionary, where the key is the smiles of the molecule and
     # the values are the rdkit molecules
-    relev_species_mol = [Chem.MolFromSmiles(smiles) for smiles in relev_species]
+    relev_species_mol = [Chem.MolFromSmiles(
+        smiles) for smiles in relev_species]
     cho_mol = [Chem.MolFromSmiles(smiles) for smiles in cho_smiles]
-    all_mol_list = list(set(frag_list + cho_mol + mol_alkanes + relev_species_mol))
+    all_mol_list = list(
+        set(frag_list + cho_mol + mol_alkanes + relev_species_mol))
 
     # Generating a dictionary of intermediates: key is the InChIKey and value is the rdkit molecule
     intermediates_dict = {}
@@ -685,7 +733,7 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
         smiles = Chem.MolToSmiles(mol, isomericSmiles=True, allHsExplicit=True)
         intermediates_dict[inchikey] = mol
     print("Total number of intermediates:", len(frag_list))
-    print("Total number of bond-breaking reactions:",len(unique_reactions))
+    print("Total number of bond-breaking reactions:", len(unique_reactions))
     print('Time taken to generate intermediates and BB reactions: ', time.time() - t0)
 
     # Generate the Intermediate objects
@@ -693,50 +741,69 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int=mp.cpu_count()) -> 
     intermediates_class_dict = gen_inter_objs(intermediates_dict)
     print('Time taken to generate Intermediate objects: ', time.time() - t1)
 
-    surf_inter = Chem.Mol()
+    # surf_inter = Chem.Mol()
+    surf_inter = Intermediate.from_molecule(Atoms(), code='*', is_surface=True, phase='surf')
 
     t2 = time.time()
     print('Generating the ElementaryReaction objects...')
+    # rxns_list = []
+    # for reaction in unique_reactions:
+    #     # reaction[0] is the reactant
+    #     # reaction[1] are the products (reaction[1][0] and reaction[1][1] are each product)
+    #     # reaction[2] is the reaction type
+
+    #     reactant = Chem.MolFromSmiles(reaction[0])
+    #     if len(reaction[1]) == 2:
+
+    #         product1 = Chem.MolFromSmiles(reaction[1][0])
+    #         product2 = Chem.MolFromSmiles(reaction[1][1])
+    #         reaction_components = [[surf_inter, reactant], [product1, product2]]
+    #     else:
+    #         # product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
+
+    #         product1 = Chem.MolFromSmiles(reaction[1][0])
+    #         reaction_components = [[reactant], [product1]]
+    #     rxns_list.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
+
     rxns_list = []
     for reaction in unique_reactions:
-        # reaction[0] is the reactant
-        # reaction[1] are the products (reaction[1][0] and reaction[1][1] are each product)
-        # reaction[2] is the reaction type
-
-        reactant = Chem.MolFromSmiles(reaction[0])
+        # Converting the smiles to InChIKey
+        reactant_inchikey = Chem.inchi.MolToInchiKey(
+            Chem.MolFromSmiles(reaction[0]))
+        reactant = intermediates_class_dict[reactant_inchikey + '*']
+        print('reactant: ', reactant)
         if len(reaction[1]) == 2:
-
-            product1 = Chem.MolFromSmiles(reaction[1][0])
-            product2 = Chem.MolFromSmiles(reaction[1][1])
-            reaction_components = [[surf_inter, reactant], [product1, product2]]
+            product1_inchikey = Chem.inchi.MolToInchiKey(
+                Chem.MolFromSmiles(reaction[1][0]))
+            product2_inchikey = Chem.inchi.MolToInchiKey(
+                Chem.MolFromSmiles(reaction[1][1]))
+            # Getting the Intermediate objects from the dictionary
+            product1 = intermediates_class_dict[product1_inchikey + '*']
+            print('product1: ', product1)
+            product2 = intermediates_class_dict[product2_inchikey + '*']
+            print('product2: ', product2)
+            reaction_components = [
+                [surf_inter, reactant], [product1, product2]]
         else:
-            # product1_inchikey = Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0]))
-
-            product1 = Chem.MolFromSmiles(reaction[1][0])
+            product1_inchikey = Chem.inchi.MolToInchiKey(
+                Chem.MolFromSmiles(reaction[1][0]))
+            product1 = intermediates_class_dict[product1_inchikey + '*']
+            print('product1: ', product1)
             reaction_components = [[reactant], [product1]]
-        rxns_list.append(ElementaryReaction(components=reaction_components, r_type=reaction[2]))
-
-    # unique_reactions_list = list(unique_reactions)
-    # num_cpus = os.cpu_count()
-    # chunk_size = len(unique_reactions_list) // (num_cpus * 2)  # Adjust as needed
-    # reaction_chunks = list(chunks(unique_reactions_list, chunk_size))
-    # rxns_list = []
-    # with concurrent.futures.ProcessPoolExecutor() as executor:
-    #     results = executor.map(process_reactions_chunk, reaction_chunks)
-    #     for result in results:
-    #         rxns_list.extend(result)
+        rxns_list.append(ElementaryReaction(
+            components=reaction_components, r_type=reaction[2]))
 
     print('rxns_list: ', len(rxns_list))
     print('Time taken to generate ElementaryReaction objects: ', time.time() - t2)
 
-    # Generation of additional reactions 
+    # Generation of additional reactions
     print('Generating adsorption and rearrangement steps...')
 
     ads_steps = gen_adsorption_reactions(intermediates_class_dict)
     rxns_list.extend(ads_steps)
     print("Adsorption steps: {}".format(len(ads_steps)))
     print('Finished generating adsorption and rearrangement steps.')
-    
+
     print('Generating rearrangement steps...')
     rearr_steps = gen_rearrangement_reactions(intermediates_class_dict)
     rxns_list.extend(rearr_steps)
