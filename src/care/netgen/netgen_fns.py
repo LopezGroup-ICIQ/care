@@ -785,7 +785,6 @@ def generate_inters_and_rxns(ncc: int, noc: int, ncores: int = mp.cpu_count()) -
             product1_inchikey = Chem.inchi.MolToInchiKey(
                 Chem.MolFromSmiles(reaction[1][0]))
             product1 = intermediates_class_dict[product1_inchikey + '*']
-            print('product1: ', product1)
             reaction_components = [[reactant], [product1]]
         rxns_list.append(ElementaryReaction(
             components=reaction_components, r_type=reaction[2]))
