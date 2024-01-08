@@ -232,7 +232,5 @@ dependencies:
   - zlib=1.2.13
   - zstd=1.5.5
   - pip:
-      - acat==1.6.8
-      - energydiagram==0.2.0
       - pubchempy==1.0.4
       - rdkit==2023.3.3

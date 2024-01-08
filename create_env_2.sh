@@ -8,6 +8,8 @@ conda env create -n care -f test_care.yml
 conda init bash
 conda activate care
 
+pip install git+https://github.com/giacomomarchioro/PyEnergyDiagrams
+pip install acat==1.6.8
 pip install flake8
 pip install pytest
 pip install -e .
