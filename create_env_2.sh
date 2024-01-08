@@ -8,6 +8,8 @@ conda env create -n care -f test_care.yml
 conda init bash
 conda activate care
 
+pip install flake8
+pip install pytest
 pip install -e .
 
 # Notify the user that the environment setup is complete
