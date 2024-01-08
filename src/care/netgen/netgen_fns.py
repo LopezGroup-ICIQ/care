@@ -344,10 +344,10 @@ def gen_adsorption_reactions(intermediates: dict[str, Intermediate], num_process
         Atoms(), code='*', is_surface=True, phase='surf')
     # Split intermediates into chunks
     inter_chunks = np.array_split(
-        list(intermediates.keys()), num_processes // 4)
+        list(intermediates.keys()), num_processes)# // 4)
 
     # Create a pool of workers
-    with mp.Pool(processes=num_processes // 4) as pool:
+    with mp.Pool(processes=num_processes) as pool:
         # Map process_chunk function to each chunk
         results = pool.starmap(process_ads_react_chunk, [(
             chunk, intermediates, surf_inter) for chunk in inter_chunks])
@@ -452,20 +452,10 @@ def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
                                 if i + 3 < len(check_list):
                                     if check_list[i + 3] == False:
                                         return True
-                                    else:
-                                        return False
-                                else:
-                                    return False
                             else:
                                 # Check if that block is False
                                 if check_list[i + 2] == False:
                                     return True
-                    #             else:
-                    #                 return False
-                    #     else:
-                    #         return False
-                    # else:
-                    #     return False
     return False
 
 
@@ -487,7 +477,6 @@ def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryRe
     inter1, inter2 = pair
     smiles1 = Chem.MolToSmiles(inter1.rdkit)
     smiles2 = Chem.MolToSmiles(inter2.rdkit)
-    # if are_same_isomer(smiles1, smiles2):
     if is_hydrogen_rearranged(smiles1, smiles2):
         return ElementaryReaction(components=(frozenset([inter1]), frozenset([inter2])), r_type='rearrangement')
     return None
@@ -595,7 +584,7 @@ def gen_rearrangement_reactions(intermediates: dict[str, Intermediate]) -> list[
 
     # Dictionary to store pairs for each subgroup
     subgroup_pairs_dict = {}
-    index = 0
+    index = 0 
     for formula_group in formula_groups.values():
         # Subgroup each formula group by isomers
         isomer_subgroups = subgroup_by_isomers(formula_group)
