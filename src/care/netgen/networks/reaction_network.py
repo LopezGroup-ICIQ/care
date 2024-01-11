@@ -315,7 +315,7 @@ class ReactionNetwork:
                 if nx.is_isomorphic(mol_graph.to_undirected(), inter.graph.to_undirected(), node_match=cate):
                     return inter
 
-    def gen_graph(self, del_surf: bool=False, highlight: list=None, show_steps: bool=True) -> nx.DiGraph:
+    def gen_graph(self, del_surf: bool=True, highlight: list=None, show_steps: bool=True) -> nx.DiGraph:
         """
         Generate a graph using the intermediates and the elementary reactions
         contained in this object.
@@ -357,12 +357,21 @@ class ReactionNetwork:
             switch = "None" if highlight is None else True if reaction.code in highlight else False  
             category = reaction.r_type if reaction.r_type in ('adsorption', 'desorption', 'eley_rideal') else 'surface_reaction'
             if show_steps:
-                nx_graph.add_node(reaction.code, category=category, switch=switch)
+                nx_graph.add_node(reaction.code, category=category, switch=switch, reactants=list(reaction.reactants), products=list(reaction.products), code=reaction.code)
                 for comp in reaction.components[0]: # reactants to reaction node
                     nx_graph.add_edge(comp.code,
                                         reaction.code, switch=switch)
                 for comp in reaction.components[1]: # reaction node to products
                     nx_graph.add_edge(reaction.code, comp.code, switch=switch)
+                comps = reaction.code.split('<->')
+                reverse_code = comps[1] + '<->' + comps[0]
+                nx_graph.add_node(reverse_code, category=category, switch=switch, reactants=list(reaction.products), products=list(reaction.reactants), code=reverse_code)
+                for comp in reaction.components[0]: # reactants to reaction node
+                    nx_graph.add_edge(reverse_code,
+                                        comp.code, switch=switch)
+                for comp in reaction.components[1]: # reaction node to products
+                    nx_graph.add_edge(comp.code, reverse_code, switch=switch)
+
             else: 
                 reacts, prods = [], []
                 for inter in reaction.reactants:
@@ -388,8 +397,8 @@ class ReactionNetwork:
         for node in list(nx_graph.nodes):
             if nx_graph.degree(node) == 0:
                 nx_graph.remove_node(node)       
-        # if del_surf and show_steps:
-        #     nx_graph.remove_node('0-0-0-0-0-*')  
+        if del_surf and show_steps==True:
+            nx_graph.remove_node('*')  
 
         # if highlight is not None and show_steps == False:
         #     # # make graph undirected and define edge direction based on the reaction code
@@ -642,7 +651,7 @@ class ReactionNetwork:
         for reaction in self.reactions:
             if all([condition_dict[i](reaction) for i in condition_dict.keys()]):
                 matches.append(reaction)
-        print(f"{len(matches)} elementary reactions found")
+        # print(f"{len(matches)} elementary reactions found")
         return matches
 
     def search_inter_by_elements(self, element_dict):
@@ -832,7 +841,7 @@ class ReactionNetwork:
         """
         TODO: Add docstring
         """
-        graph = self.gen_graph(del_surf=False, show_steps=False)
+        graph = self.gen_graph(del_surf=False, show_steps=False).to_undirected()
         
         for edge in list(graph.edges):
             graph.add_edge(edge[1], edge[0])
@@ -845,6 +854,7 @@ class ReactionNetwork:
                     paths = [path for path in paths if path[-1] == target]
                     # all_paths[(source, target)] = [path for path in nx.all_simple_paths(graph, source, target, cutoff=cutoff)]
                     all_paths[(source, target)] = paths
+
         if intermediates:
             dict_copy = deepcopy(all_paths)
             # Check if there are paths that go through the intermediate
