@@ -2,18 +2,17 @@
 
 from numpy import max
 import networkx as nx
-from care.netgen.networks.intermediate import Intermediate
-from care.netgen.networks.surface import Surface
 from pymatgen.io.ase import AseAtomsAdaptor
-import care.netgen.dock_ads_surf.dockonsurf.dockonsurf as dos
 from ase import Atoms
 import numpy as np
 import itertools as it
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem.rdMolDescriptors import CalcMolFormula
-from care.netgen.intermediates_funcs import rdkit_to_ase
 
+import care.netgen.dock_ads_surf.dockonsurf.dockonsurf as dos
+from care.netgen.networks.intermediate import Intermediate
+from care.netgen.networks.surface import Surface
+from care.netgen.intermediates_funcs import rdkit_to_ase
 from care.netgen.data.constants_and_data import BOND_ORDER
 
 def connectivity_analysis(graph: nx.Graph) -> list:
@@ -182,8 +181,8 @@ def ads_placement(intermediate: Intermediate,
     total_config_list = []
     # If the chemical species is not a single atom, placing the molecule on the surface using DockonSurf
     if len(intermediate.molecule) > 1:
+        ads_height = 2.2 if intermediate.molecule.get_chemical_formula() != 'H2' else 1.8
         for site_idxs in active_sites.values():
-            ads_height = 2.2 if intermediate.molecule.get_chemical_formula() != 'H2' else 1.8
             if site_idxs != []:
                 config_list = []
                 while config_list == []:
@@ -200,6 +199,7 @@ def ads_placement(intermediate: Intermediate,
                         ads_height += 0.2
 
                     total_config_list.extend(config_list)
+                    break
 
         print(f'{intermediate.code} placed on the surface')
         return intermediate.code, total_config_list
@@ -220,6 +220,21 @@ def ads_placement(intermediate: Intermediate,
         return intermediate.code, total_config_list
     
 def best_fit_plane(atom_coords):
+    """
+    Get the best fit plane for a set of points.
+
+    Parameters
+    ----------
+    atom_coords : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    _type_
+        _description_
+    """
     num_points = atom_coords.shape[0]
     centroid = np.mean(atom_coords, axis=0)
 
@@ -251,6 +266,23 @@ def best_fit_plane(atom_coords):
     return normal, D
 
 def signed_distance_from_plane(atom_coords, plane_normal, D):
+    """
+    Get the signed distance of each atom from a plane. The plane is defined by a normal vector and a distance from the origin.
+
+    Parameters
+    ----------
+    atom_coords : _type_
+        _description_
+    plane_normal : _type_
+        _description_
+    D : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     # Normalize the plane normal vector
     norm = np.linalg.norm(plane_normal)
     normalized_normal = plane_normal / norm
@@ -259,13 +291,33 @@ def signed_distance_from_plane(atom_coords, plane_normal, D):
     distances = np.dot(atom_coords, normalized_normal) + D / norm
     return distances
 
-def atoms_on_one_side(atom_coords, plane_normal, D, side='negative'):
+def atoms_underneath_plane(atom_coords, plane_normal, D):
+    """Get the atoms underneath a plane. The plane is defined by a normal vector and a distance from the origin.
+    The underneath part is defined by the z-component of the normal vector. 
+
+    Parameters
+    ----------
+    atom_coords : _type_
+        _description_
+    plane_normal : _type_
+        _description_
+    D : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
     distances = signed_distance_from_plane(atom_coords, plane_normal, D)
     
-    if side == 'positive':
-        selected_atoms = atom_coords[distances > 0]
-    else:
+    # Check the direction of the z-component of the plane normal
+    if plane_normal[2] > 0:
+        # If the z-component is positive, atoms 'underneath' have negative distance
         selected_atoms = atom_coords[distances <= 0]
+    else:
+        # If the z-component is negative, atoms 'underneath' have positive distance
+        selected_atoms = atom_coords[distances > 0]
 
     return selected_atoms
 
@@ -287,11 +339,7 @@ def ads_placement_graph(intermediate: Intermediate,
         Tuple containing the code of the intermediate and its list of adsorption configurations as graph representations.
     """
 
-    # Get the potential molecular centers for adsorption
-    anchoring_atoms = connectivity_analysis(intermediate.graph)
-
     # Dictionary containing for each facets (fcc and hcp) the corresponding coordination number of C, H, O
-
     facet_coord_dict = {
         'fcc': {
             'C': 3,
@@ -320,7 +368,6 @@ def ads_placement_graph(intermediate: Intermediate,
     rdkit_mol = intermediate.rdkit
     # Adding Hs to the molecule
     rdkit_mol = Chem.AddHs(rdkit_mol)
-    formula = CalcMolFormula(rdkit_mol)
 
     num_conformers = 5
     conformers = AllChem.EmbedMultipleConfs(rdkit_mol, numConfs=num_conformers)
@@ -358,8 +405,8 @@ def ads_placement_graph(intermediate: Intermediate,
             # Extracting the coordinates as an array
             mol_coords = ase_mol.get_positions()
             
-            normal, D = best_fit_plane(anchoring_atoms_coords)  # From the previous function
-            selected_atoms = atoms_on_one_side(mol_coords, normal, D, side='negative')
+            normal, D = best_fit_plane(anchoring_atoms_coords) 
+            selected_atoms = atoms_underneath_plane(mol_coords, normal, D)
             
             # Matching the coordinates of the selected atoms with the coordinates of the atoms in the molecule
             selected_atoms_idx = []
@@ -369,7 +416,6 @@ def ads_placement_graph(intermediate: Intermediate,
                         selected_atoms_idx.append(idx)
 
 
-            
             # Getting the element of the selected atoms
             selected_atoms_elem = []
             for idx in selected_atoms_idx:
@@ -381,10 +427,9 @@ def ads_placement_graph(intermediate: Intermediate,
         elif len(anchoring_atoms) == 0:
             print(anchoring_atoms)
             anchoring_atoms_elem = intermediate.graph.nodes[0]['elem']
-            print('anchoring_atoms_elem: ', anchoring_atoms_elem)
             selected_atoms_idx = [0]
             selected_atoms_elem = anchoring_atoms_elem
-            print('selected_atoms_elem: ', selected_atoms_elem)
+        
         else:
             anchoring_atoms_elem = [ase_mol[anchoring_atoms[0]].symbol]
             selected_atoms_idx = anchoring_atoms
@@ -406,11 +451,8 @@ def ads_placement_graph(intermediate: Intermediate,
                 atom_coordination.append((atom_index, atom_element, coord_number))
             comb_mapping.append(atom_coordination)
 
-        # For each combination in comb_mapping,
-        # Generating a copy of the graph and, for each node (idx is the first element of the tuple),
-        # Connect to it the number of nodes (which node attribute is the element of the surfacce) specified in the tuple (coord_number is the third element of the tuple)
+        # For each combination, adding the corresponding nodes and edges to the graph
         for combination in comb_mapping:
-            print(intermediate.molecule.get_chemical_formula())
             new_graph = intermediate.graph.copy()
             # Adding for each node the number of connections specified in the combination)
             for node in combination:
@@ -419,6 +461,10 @@ def ads_placement_graph(intermediate: Intermediate,
                     new_graph.add_node(len(new_graph.nodes()), elem=surf_elem)
                     # Adding the edge between the node and the node with the surf_elem element
                     new_graph.add_edge(node[0], len(new_graph.nodes())-1)
+                # Connecting the surf_elem nodes between them
+                for i in range(node[2]):
+                    for j in range(i+1, node[2]):
+                        new_graph.add_edge(len(new_graph.nodes())-i-1, len(new_graph.nodes())-j-1)
 
             graph_config_list.append(new_graph)
 
