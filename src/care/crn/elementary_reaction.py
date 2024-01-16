@@ -3,7 +3,7 @@ from scipy.linalg import null_space
 from rdkit import Chem
 from typing import Union
 
-from care.crn.networks.intermediate import Intermediate
+from care import Intermediate
 
 from care.constants import INTERPOL, INTER_ELEMS
 

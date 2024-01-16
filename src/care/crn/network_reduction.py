@@ -3,9 +3,7 @@ ReactionNetworkSimplifier class implementation.
 Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
 """
 
-from care.crn.networks.reaction_network import ReactionNetwork
-from care.crn.networks.intermediate import Intermediate
-from care.crn.networks.elementary_reaction import ElementaryReaction
+from care import Intermediate, ReactionNetwork
 
 class ReactionNetworkSimplifier:
     def __init__(self):  

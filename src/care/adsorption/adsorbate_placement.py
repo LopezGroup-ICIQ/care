@@ -9,9 +9,8 @@ import itertools as it
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-import care.crn.dock_ads_surf.dockonsurf.dockonsurf as dos
-from care.crn.networks.intermediate import Intermediate
-from care.crn.networks.surface import Surface
+import care.adsorption.dockonsurf.dockonsurf as dos
+from care import Intermediate, Surface
 from care.crn.intermediates_funcs import rdkit_to_ase
 from care.constants import BOND_ORDER
 

@@ -9,11 +9,8 @@ from ase import Atoms
 from collections import defaultdict
 import numpy as np
 import time
-import concurrent.futures
-import os
 
-from care.crn.networks.intermediate import Intermediate
-from care.crn.networks.elementary_reaction import ElementaryReaction
+from care import Intermediate, ElementaryReaction
 from care.crn.intermediates_funcs import gen_alkanes, oxy_to_mol, gen_ethers, gen_epoxides
 
 warnings.filterwarnings("ignore")

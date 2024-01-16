@@ -1,7 +1,3 @@
-from torch.nn.functional import l1_loss, mse_loss, huber_loss
-from torch_geometric.nn import SAGEConv, GATv2Conv
-from torch.nn import ReLU, Tanh
-
 CORDERO = {"Ac": 2.15, "Al": 1.21, "Am": 1.80, "Sb": 1.39, "Ar": 1.06,
            "As": 1.19, "At": 1.50, "Ba": 2.15, "Be": 0.96, "Bi": 1.48,
            "B" : 0.84, "Br": 1.20, "Cd": 1.44, "Ca": 1.76, "C" : 0.76,
@@ -59,16 +55,6 @@ INTER_ELEMS = ['C', 'H', 'O', '*']
 
 INTER_PHASES = ['gas', 'ads', 'surf']
 
-# Dictionaries for model training features
-loss_dict = {"mse": mse_loss,
-             "mae": l1_loss,
-             "huber": huber_loss}
-conv_layer = {"SAGE": SAGEConv,
-              "GATv2": GATv2Conv}
-sigma_dict = {"ReLU": ReLU(),
-              "tanh": Tanh()}
-
-# Others
 RGB_COLORS = {'Xx': (0.07, 0.5, 0.7), 'H': (0.75, 0.75, 0.75),
               'He': (0.85, 1.0, 1.0), 'Li': (0.8, 0.5, 1.0),
               'Be': (0.76, 1.0, 0.0), 'B': (1.0, 0.71, 0.71),

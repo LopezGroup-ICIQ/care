@@ -1,13 +1,9 @@
-import sys, os
-
 import unittest
 from random import randint
 from ase import Atoms
-from care.crn.networks.intermediate import Intermediate
-from care.crn.networks.elementary_reaction import ElementaryReaction
-from care.crn.networks.reaction_network import ReactionNetwork
-from care.crn.netgen_fns import generate_inters_and_rxns
 
+from care import Intermediate, ElementaryReaction, ReactionNetwork
+from care.crn.netgen_fns import generate_inters_and_rxns
 from care.constants import INTER_ELEMS
 
 inters, steps = generate_inters_and_rxns(3, 1)
@@ -101,15 +97,15 @@ class TestElementaryReaction(unittest.TestCase):
 		step = steps[randint(0, len(steps)-1)]
 		step.energy = -1.0, 0.1
 		random_num = randint(1, 5)
-		multiplication_step = step * random_num
+		mul_step = step * random_num
 		total = 0
 		for element in INTER_ELEMS:
-			element_balance = sum([multiplication_step.stoic[inter]*inter[element] for inter in list(multiplication_step.reactants)+list(multiplication_step.products)])
+			element_balance = sum([mul_step.stoic[inter]*inter[element] for inter in list(mul_step.reactants)+list(mul_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)	
-		self.assertEqual(multiplication_step.energy[0], step.energy[0]*random_num)
-		self.assertEqual(multiplication_step.energy[1], abs(random_num)*step.energy[1])
-		self.assertEqual(multiplication_step.r_type, 'pseudo')
+		self.assertEqual(mul_step.energy[0], step.energy[0]*random_num)
+		self.assertEqual(mul_step.energy[1], abs(random_num)*step.energy[1])
+		self.assertEqual(mul_step.r_type, 'pseudo')
 
 	def test_reverse(self):
 		"""

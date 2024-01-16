@@ -1,8 +1,8 @@
 from networkx import Graph, connected_components, is_isomorphic
 import numpy as np
 import networkx.algorithms.isomorphism as iso
-from care.crn.networks.elementary_reaction import ElementaryReaction
-from care.crn.networks.intermediate import Intermediate
+from care.crn.elementary_reaction import ElementaryReaction
+from care.crn.intermediate import Intermediate
 from care.crn.utilities.connectivity_fns import get_voronoi_neighbourlist
 from ase import Atoms
 import multiprocessing as mp

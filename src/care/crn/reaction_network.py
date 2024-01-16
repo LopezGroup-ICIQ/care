@@ -20,10 +20,7 @@ from ase.io import write
 from os.path import abspath
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
-from care.crn.networks.intermediate import Intermediate
-from care.crn.networks.elementary_reaction import ElementaryReaction
-from care.crn.networks.surface import Surface
-
+from care import Intermediate, ElementaryReaction, Surface
 from care.constants import INTER_ELEMS
 
 class ReactionNetwork:

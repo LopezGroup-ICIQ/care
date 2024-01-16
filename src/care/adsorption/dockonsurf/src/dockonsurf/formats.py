@@ -101,7 +101,7 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
     import ase.io
     from ase.io.formats import filetype
 
-    from care.crn.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
+    from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
 
     req_vals = ['rdkit', 'ase']
     lib_err = f"The conversion to the '{requirement}' library object type" \

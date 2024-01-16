@@ -1,4 +1,4 @@
-from care.crn.networks.reaction_network import ReactionNetwork
+from care.crn.reaction_network import ReactionNetwork
 
 class KineticModel:
     def __init__(self, rxn_net: ReactionNetwork):

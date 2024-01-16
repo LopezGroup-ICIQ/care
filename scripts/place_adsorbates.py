@@ -8,8 +8,8 @@ from ase.db import connect
 import os
 
 from care import DB_PATH
-from care.crn.networks.surface import Surface
-from care.crn.adsorbate_placement import ads_placement, ads_placement_graph
+from care.crn.surface import Surface
+from care.adsorption.adsorbate_placement import ads_placement, ads_placement_graph
 
 from care.constants import METAL_STRUCT_DICT
 

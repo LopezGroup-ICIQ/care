@@ -75,7 +75,7 @@ def vect_avg(vects):
         length_vector).
     @return: vector average computed doing the element-wise mean.
     """
-    from care.crn.dock_ads_surf.dockonsurf.src.dockonsurf.utilities import try_command
+    from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
     err = "vect_avg parameter vects must be a list-like, able to be converted" \
           " np.array"
     array = try_command(np.array, [(ValueError, err)], vects)
@@ -130,7 +130,7 @@ def compute_norm_vect(atoms, idxs, cell):
     @return: numpy.ndarray of the coordinates of the vector locally
     perpendicular to the surface.
     """
-    from care.crn.dock_ads_surf.dockonsurf.src.dockonsurf.ASANN import coordination_numbers as coord_nums
+    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import coordination_numbers as coord_nums
     if isinstance(idxs, list):
         atm_vect = [-np.round(coord_nums(atoms.get_scaled_positions(),
                                          pbc=np.any(cell),
@@ -610,7 +610,7 @@ def ads_internal(orig_molec, slab, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
         conformer.
     """
     from copy import deepcopy
-    from care.crn.dock_ads_surf.dockonsurf.src.dockonsurf.internal_rotate import internal_rotate
+    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import internal_rotate
     slab_ads_list = []
     # Rotation over bond angle
     for alpha in np.arange(90, 180+1, 90 / max(1, num_pts-1))[:num_pts]:
