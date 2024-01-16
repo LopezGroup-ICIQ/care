@@ -3,7 +3,7 @@ from pickle import dump
 import os
 import multiprocessing as mp
 
-from care.netgen.netgen_fns import generate_inters_and_rxns
+from care.crn.netgen_fns import generate_inters_and_rxns
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate intermediates of the reaction network.')

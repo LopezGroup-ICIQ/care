@@ -14,7 +14,7 @@ from scipy.spatial import Voronoi
 from ase import Atoms
 from networkx import Graph, set_node_attributes, connected_components, get_node_attributes
 
-from care.gnn.constants import CORDERO
+from care.constants import CORDERO
 from care.gnn.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter
 
 METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]

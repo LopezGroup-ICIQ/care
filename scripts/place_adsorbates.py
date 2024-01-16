@@ -8,10 +8,10 @@ from ase.db import connect
 import os
 
 from care import DB_PATH
-from care.netgen.networks.surface import Surface
-from care.netgen.adsorbate_placement import ads_placement, ads_placement_graph
+from care.crn.networks.surface import Surface
+from care.crn.adsorbate_placement import ads_placement, ads_placement_graph
 
-from care.netgen.data.constants_and_data import METAL_STRUCT_DICT
+from care.constants import METAL_STRUCT_DICT
 
 
 if __name__ == "__main__":

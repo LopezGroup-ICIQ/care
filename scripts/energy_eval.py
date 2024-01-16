@@ -5,7 +5,7 @@ import pickle as pkl
 
 from care import MODEL_PATH
 from care.gnn.nets import GameNetUQ
-from care.netgen.config_energy_eval import energy_eval_config, get_fragment_energy
+from care.crn.config_energy_eval import energy_eval_config, get_fragment_energy
 
 
 if __name__ == "__main__":

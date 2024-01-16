@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 import matplotlib.pyplot as plt
 from sklearn.preprocessing._encoders import OneHotEncoder
 
-from care.gnn.constants import RGB_COLORS
+from care.constants import RGB_COLORS
 
 
 def convert_gpytorch_to_networkx(graph: Data, 

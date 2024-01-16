@@ -3,12 +3,12 @@ import sys, os
 import unittest
 from random import randint
 from ase import Atoms
-from care.netgen.networks.intermediate import Intermediate
-from care.netgen.networks.elementary_reaction import ElementaryReaction
-from care.netgen.networks.reaction_network import ReactionNetwork
-from care.netgen.netgen_fns import generate_inters_and_rxns
+from care.crn.networks.intermediate import Intermediate
+from care.crn.networks.elementary_reaction import ElementaryReaction
+from care.crn.networks.reaction_network import ReactionNetwork
+from care.crn.netgen_fns import generate_inters_and_rxns
 
-from care.netgen.data.constants_and_data import INTER_ELEMS
+from care.constants import INTER_ELEMS
 
 inters, steps = generate_inters_and_rxns(3, 1)
 net = ReactionNetwork()
