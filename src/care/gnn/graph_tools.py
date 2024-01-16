@@ -6,10 +6,9 @@ import torch
 import torch_geometric
 from torch_geometric.data import Data
 import matplotlib.pyplot as plt
-import networkx as nx
 from sklearn.preprocessing._encoders import OneHotEncoder
 
-from care.gnns.gnn_eads.constants import RGB_COLORS
+from care.gnn.constants import RGB_COLORS
 
 
 def convert_gpytorch_to_networkx(graph: Data, 

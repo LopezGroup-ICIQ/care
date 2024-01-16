@@ -65,12 +65,11 @@ if __name__ == "__main__":
             counter += 1  
         intermediates[key].ads_configs = ads_config_dict
     
-    if args.t == 'dockonsurf':
+    if args.t == 's':
         with open(f'{output_dir}/ads_intermediates_s.pkl', 'wb') as f:
             dump(intermediates, f)
         print("Adsorbate placement completed. The results are saved in the folder: {}".format(output_dir))
-
-    elif args.t == 'graph':
+    else:
         with open(f'{output_dir}/ads_intermediates_g.pkl', 'wb') as f:
             dump(intermediates, f)
         print("Adsorbate placement completed. The results are saved in the folder: {}".format(output_dir))

@@ -3,15 +3,14 @@ from networkx import Graph
 import numpy as np
 from torch_geometric.loader import DataLoader
 from torch.nn import Module
-from care.gnns.gnn_eads.create_pyg_dataset import atoms_to_data
+from care.gnn.graph import atoms_to_data
 from care.netgen.networks.surface import Surface
 
 
 def energy_eval_config(config_dict: dict[str, Atoms | float | float],
                      surface: Surface, 
                      model: Module, 
-                     graph_params: dict, 
-                     model_elems: list) -> None:
+                     graph_params: dict) -> None:
     """Evaluates the energy of the adsorption configurations.
 
     Parameters
@@ -43,7 +42,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
         # Removing the atoms which indices are in fixed_atms
         config = config[~np.isin(range(len(config)), fixed_atms_idxs)]
 
-        ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
+        ads_pyg_data = atoms_to_data(config, graph_params)
 
         loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
         for batch in loader:
@@ -60,7 +59,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
         config_dict['s'] = std_tensor.item()
     
     elif isinstance(config, Graph):
-        ads_pyg_data = atoms_to_data(config, graph_params, model_elems)
+        ads_pyg_data = atoms_to_data(config, graph_params)
         loader = DataLoader([ads_pyg_data], batch_size=len(ads_pyg_data), shuffle=False)
         for batch in loader:
             energy_list = model(batch)  # unitless (scaled values)
@@ -76,7 +75,7 @@ def energy_eval_config(config_dict: dict[str, Atoms | float | float],
         config_dict['s'] = std_tensor.item()
 
 
-    print(f"Configuration: {config_dict['ase'].get_chemical_formula()}")
+    print(f"Configuration: {config.get_chemical_formula()}")
     print(f"Energy of the adsorption configuration: {config_dict['mu']} eV")
     print(f"Standard deviation of the adsorption configuration: {config_dict['s']} eV")
 

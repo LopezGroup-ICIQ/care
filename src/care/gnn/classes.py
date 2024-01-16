@@ -8,39 +8,9 @@ import torch
 from torch_geometric.data import Data
 import numpy as np
 
-from care.gnns.gnn_eads.functions import get_graph_conversion_params, get_mean_std_from_model
-from care.gnns.gnn_eads.graph_tools import extract_adsorbate
+from care.gnn.functions import get_graph_conversion_params, get_mean_std_from_model
+from care.gnn.graph_tools import extract_adsorbate
 
-class EarlyStopper:
-    """
-    Early stopper for training loop.
-    Args:
-        patience (int): number of epochs to wait before turning on the early stopper
-        start_epoch (int): epoch at which to start counting
-    """
-    def __init__(self, patience: int, start_epoch: int):
-        self.patience = patience
-        self.start_epoch = start_epoch
-        self.counter = 0
-        self.min_validation_loss = np.inf
-        
-    def stop(self, epoch: int, validation_loss: float) -> bool:
-        """
-        Check whether to stop training.
-        Args:
-            validation_loss (float): validation loss
-        Returns:
-            bool: True if training should be stopped, False otherwise
-        """
-        if epoch < self.start_epoch:
-            return False
-        else:            
-            if validation_loss < self.min_validation_loss:
-                self.min_validation_loss = validation_loss
-                self.counter = 0
-            else:
-                self.counter += 1
-            return self.counter == self.patience
 
 class PreTrainedModel():
     def __init__(self, model_path: str):
