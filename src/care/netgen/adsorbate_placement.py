@@ -236,7 +236,7 @@ def best_fit_plane(atom_coords):
         _description_
     """
     num_points = atom_coords.shape[0]
-    centroid = np.mean(atom_coords, axis=0)
+    centroid = np.mean(atom_coords, axis=0, dtype=np.float64)
 
     if num_points == 2:
         # Create a vector from the first atom to the second
@@ -258,7 +258,7 @@ def best_fit_plane(atom_coords):
         u, s, vh = np.linalg.svd(coords_subtracted)
 
         # Plane normal is the last column of u
-        normal = u[:, -1]
+        normal = vh[-1]
 
     # Calculate D using the centroid
     D = -np.dot(normal, centroid)
@@ -369,11 +369,13 @@ def ads_placement_graph(intermediate: Intermediate,
     # Adding Hs to the molecule
     rdkit_mol = Chem.AddHs(rdkit_mol)
 
-    num_conformers = 5
+    num_conformers = 1
     conformers = AllChem.EmbedMultipleConfs(rdkit_mol, numConfs=num_conformers)
 
     graph_config_list = []
+    print(f'Generating adsorption structures for {intermediate}')
     for conf_id in conformers:
+        # try:
         conf = rdkit_mol.GetConformer(conf_id)
         
         # Getting the coordinates of the molecule
@@ -407,6 +409,12 @@ def ads_placement_graph(intermediate: Intermediate,
             
             normal, D = best_fit_plane(anchoring_atoms_coords) 
             selected_atoms = atoms_underneath_plane(mol_coords, normal, D)
+
+            # Adding the anchoring atoms to the selected atoms (securing that the anchoring atoms are always in the selected atoms)
+            selected_atoms = np.concatenate((selected_atoms, anchoring_atoms_coords), axis=0)
+
+            # Removing duplicates
+            selected_atoms = np.unique(selected_atoms, axis=0)
             
             # Matching the coordinates of the selected atoms with the coordinates of the atoms in the molecule
             selected_atoms_idx = []
@@ -425,7 +433,6 @@ def ads_placement_graph(intermediate: Intermediate,
                 continue
 
         elif len(anchoring_atoms) == 0:
-            print(anchoring_atoms)
             anchoring_atoms_elem = intermediate.graph.nodes[0]['elem']
             selected_atoms_idx = [0]
             selected_atoms_elem = anchoring_atoms_elem
@@ -435,10 +442,10 @@ def ads_placement_graph(intermediate: Intermediate,
             selected_atoms_idx = anchoring_atoms
             selected_atoms_elem = anchoring_atoms_elem
 
-        # Generating all possible combinations from 0 to the number of coordination, for each atom  in selected_atoms_elem
+        # Generating all possible combinations from 0 to the number of coordination, for each atom in selected_atoms_elem
         comb_list = []
         for elem in selected_atoms_elem:
-            comb_list.append(list(range(surf_coord[elem]+1)))
+            comb_list.append(list(range(1, surf_coord[elem]+1)))
         comb_list = list(it.product(*comb_list))
 
         # Creating a mapping of combinations to atom indices and elements
@@ -466,6 +473,14 @@ def ads_placement_graph(intermediate: Intermediate,
                     for j in range(i+1, node[2]):
                         new_graph.add_edge(len(new_graph.nodes())-i-1, len(new_graph.nodes())-j-1)
 
-            graph_config_list.append(new_graph)
+            # If the new graph does not containt new nodes, skip it
+            if len(new_graph.nodes()) == len(intermediate.graph.nodes()):
+                continue
+            else:
+                graph_config_list.append(new_graph)
+
+        # except Exception as e:
+        #     print(e)
+        #     continue
 
     return intermediate.code, graph_config_list
