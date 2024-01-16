@@ -21,7 +21,7 @@ from os.path import abspath
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 from care import Intermediate, ElementaryReaction, Surface
-from care.constants import INTER_ELEMS
+from care.constants import INTER_ELEMS, OC_KEYS, OC_UNITS
 
 class ReactionNetwork:
     """
@@ -33,17 +33,18 @@ class ReactionNetwork:
             intermediates of the network.
         reactions (list of obj:`ElementaryReaction`): List containing the   
             elementary reactions of the network.
-        gasses (dict of obj:`Intermediate`): Dictionary containing the gas species
-            of the network.
         surface (obj:`Surface`): Surface of the network.
         ncc (int): Carbon cutoff of the network.
+        noc (int): Oxygen cutoff of the network.
+        oc (dict of str: float): Dictionary containing the operating conditions
     """
     def __init__(self, 
                  intermediates: dict[str, Intermediate]={}, 
                  reactions: list[ElementaryReaction]=[], 
                  surface: Surface=None, 
                  ncc: int=None, 
-                 noc: int=None):
+                 noc: int=None, 
+                 oc: dict[str, float]=None):
         
         self.intermediates = intermediates
         self.reactions = reactions
@@ -57,6 +58,14 @@ class ReactionNetwork:
         self.num_closed_shell_mols = len(self.closed_shells)
         self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
         self.num_reactions = len(self.reactions)
+        # check that keys in oc are valid
+        if oc is not None:
+            if all([key in OC_KEYS for key in oc.keys()]):
+                self.oc = oc
+            else:
+                raise ValueError(f"Keys of oc must be in {OC_KEYS}")
+        else:
+            self.oc = {'T': 0, 'P': 0, 'U': 0}
 
     def __getitem__(self, other: Union[str, int]):
         if isinstance(other, str):
@@ -67,10 +76,13 @@ class ReactionNetwork:
             raise TypeError("Index must be str or int")
     
     def __str__(self):
-        string = "ReactionNetwork({} adsorbed intermediates, {} gas molecules, {} elementary reactions)\n".format(len(self.intermediates) - 1 - self.num_closed_shell_mols, 
+        string = "ReactionNetwork({} surface species, {} gas molecules, {} elementary reactions)\n".format(len(self.intermediates) - 1 - self.num_closed_shell_mols, 
                                                                                                             self.num_closed_shell_mols, 
                                                                                                             len(self.reactions))
         string += "Surface: {}\n".format(self.surface)
+        string += "Temperature: {} {}\n".format(self.oc['T'], OC_UNITS['T'])
+        string += "Pressure: {} {}\n".format(self.oc['P'], OC_UNITS['P'])
+        string += "Potential: {} {}\n".format(self.oc['U'], OC_UNITS['U'])
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         string += "Network Oxygen cutoff: O{}\n".format(self.noc)
         return string
@@ -200,7 +212,9 @@ class ReactionNetwork:
         return {'intermediates': intermediate_list,
                 'reactions': reaction_list, 
                 'ncc': self.ncc,
-                'noc': self.noc}
+                'noc': self.noc, 
+                'surface': self.surface, 
+                'oc': self.oc}
 
     def add_intermediates(self, inter_dict: dict[str, Intermediate]):
         """Add intermediates to the ReactionNetwork.

@@ -16,6 +16,7 @@ from networkx import Graph, set_node_attributes, connected_components, get_node_
 
 from care.constants import CORDERO
 from care.gnn.graph_filters import adsorption_filter, H_filter, C_filter, fragment_filter
+from care import ElementaryReaction
 
 METALS = ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
@@ -56,20 +57,42 @@ def get_voronoi_neighbourlist(atoms: Atoms,
 
     # scaling_factor is only used to help in the detection of edges between surface and adsorbate, 
     # increasing the radius of the surface atoms
-    pairs_lst = []
-    for pair in pairs_corr:
-        atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
-        threshold = CORDERO[atom1] + CORDERO[atom2] + tol
-        distance = atoms.get_distance(pair[0], pair[1], mic=True)
-        if atom1 in adsorbate_elems and atom2 not in adsorbate_elems:
-            threshold += max(scaling_factor - 1.0, 0) * CORDERO[atom2]
-        if atom1 not in adsorbate_elems and atom2 in adsorbate_elems:
-            threshold += max(scaling_factor - 1.0, 0) * CORDERO[atom1]
+    # pairs_lst = []
+    # for pair in pairs_corr:
+    #     atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
+    #     threshold = CORDERO[atom1] + CORDERO[atom2] + tol
+    #     distance = atoms.get_distance(pair[0], pair[1], mic=True)
+    #     if atom1 in adsorbate_elems and atom2 not in adsorbate_elems:
+    #         threshold += max(scaling_factor - 1.0, 0) * CORDERO[atom2]
+    #     if atom1 not in adsorbate_elems and atom2 in adsorbate_elems:
+    #         threshold += max(scaling_factor - 1.0, 0) * CORDERO[atom1]
         
-        if distance <= threshold:
-            pairs_lst.append(pair)
+    #     if distance <= threshold:
+    #         pairs_lst.append(pair)
+            
+    # Until no surface-adsorbate edges are added, keep increasing by 20% the radius of the surface atoms
+    increment = 0.0
+    while True:
+        pairs = []
+        for pair in pairs_corr:
+            atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
+            threshold = CORDERO[atom1] + CORDERO[atom2] + tol
+            distance = atoms.get_distance(pair[0], pair[1], mic=True)
+            if atom1 in adsorbate_elems and atom2 not in adsorbate_elems:
+                threshold += max(scaling_factor + increment - 1.0, 0) * CORDERO[atom2]
+            if atom1 not in adsorbate_elems and atom2 in adsorbate_elems:
+                threshold += max(scaling_factor + increment - 1.0, 0) * CORDERO[atom1]
+            
+            if distance <= threshold:
+                pairs.append(pair)
+        c1 = any(atoms[pair[0]].symbol in adsorbate_elems and atoms[pair[1]].symbol not in adsorbate_elems for pair in pairs)
+        c2 = any(atoms[pair[0]].symbol not in adsorbate_elems and atoms[pair[1]].symbol in adsorbate_elems for pair in pairs)
+        if c1 or c2:
+            break
+        else:
+            increment += 0.2 
 
-    return np.sort(np.array(pairs_lst), axis=1)
+    return np.sort(np.array(pairs), axis=1)
 
 def detect_broken_bond(atoms: Atoms,
                        adsorbate_elems: list[str], 
@@ -271,6 +294,28 @@ def atoms_to_data(structure: Atoms,
         graph = get_magnetization(graph)
     
     return graph
+
+
+def label_ts_edge(graph: Data, 
+                  reaction: ElementaryReaction) -> Data:
+    """
+    Given the bond-breaking reaction, detect the broken bond in the transition state and label it in the graph.
+
+    Args:
+        graph (Data): adsorption graph of the intermediate which is fragmented in the reaction.
+        reaction (ElementaryReaction): Bond-breaking reaction.
+
+    Returns:
+        Data: graph with the broken bond labeled.
+    """
+    # if '-' not in reaction.r_type:
+    #     raise ValueError("Bond-breaking reaction required.")
+    
+    # bond = reaction.r_type.split('-')
+    # bond = tuple(sorted(bond))
+    
+    # TODO: do it with Oli
+    
 
 
 
