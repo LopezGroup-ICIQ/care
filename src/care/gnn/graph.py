@@ -313,8 +313,7 @@ def label_ts_edge(graph: Data,
         raise ValueError("Input reaction must be a bond-breaking reaction.")
     
     bond = reaction.r_type.split('-')
-    bond = tuple(bond)
-    
+    bond = tuple(bond)    
     potential_edges = []
     for i in range(graph.edge_index.shape[1]):
         edge_idxs = graph.edge_index[:, i]
@@ -326,9 +325,20 @@ def label_ts_edge(graph: Data,
     if len(potential_edges) == 2:
         graph.edge_attr[potential_edges[0]] = 1
         graph.edge_attr[potential_edges[1]] = 1
-    else:
+    else: # more than one edge corresponds to the broken bond (very common case will be C-H)
         # Iteratively remove edges until the graph is fragmented as defined by the reaction
-        pass
+        counter = 0
+        while True:
+            condition = True # subgraphs represent the fragments of the reaction
+            if condition:
+                graph.edge_attr[potential_edges[counter]] = 1
+                # look for opposite edge and add weight.
+                # check in test_loader that TS graphs have weight 1 in the broken bond on both directions
+                break
+            else:
+                counter += 1
+                
+            
     
     
 

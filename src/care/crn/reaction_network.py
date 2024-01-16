@@ -15,9 +15,6 @@ from matplotlib import cm
 from pydot import Node
 from energydiagram import ED
 import numpy as np
-from os import makedirs
-from ase.io import write
-from os.path import abspath
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 from care import Intermediate, ElementaryReaction, Surface
