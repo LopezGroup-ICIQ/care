@@ -297,9 +297,10 @@ def atoms_to_data(structure: Atoms,
 
 
 def label_ts_edge(graph: Data, 
-                  reaction: ElementaryReaction) -> Data:
+                  reaction: ElementaryReaction) -> None:
     """
-    Given the bond-breaking reaction, detect the broken bond in the transition state and label it in the graph.
+    Given the bond-breaking reaction, detect the broken bond in the 
+    transition state and label the corresponding edge.
 
     Args:
         graph (Data): adsorption graph of the intermediate which is fragmented in the reaction.
@@ -308,13 +309,27 @@ def label_ts_edge(graph: Data,
     Returns:
         Data: graph with the broken bond labeled.
     """
-    # if '-' not in reaction.r_type:
-    #     raise ValueError("Bond-breaking reaction required.")
+    if '-' not in reaction.r_type:
+        raise ValueError("Input reaction must be a bond-breaking reaction.")
     
-    # bond = reaction.r_type.split('-')
-    # bond = tuple(sorted(bond))
+    bond = reaction.r_type.split('-')
+    bond = tuple(bond)
     
-    # TODO: do it with Oli
+    potential_edges = []
+    for i in range(graph.edge_index.shape[1]):
+        edge_idxs = graph.edge_index[:, i]
+        node1, node2 = graph.x[edge_idxs[0]], graph.x[edge_idxs[1]]
+        atom1_idx, atom2_idx = torch.where(node1 == 1)[0].item(), torch.where(node2 == 1)[0].item()
+        atom1, atom2 = graph.node_feats[atom1_idx], graph.node_feats[atom2_idx]
+        if (atom1, atom2) == bond or (atom2, atom1) == bond:
+            potential_edges.append(i)
+    if len(potential_edges) == 2:
+        graph.edge_attr[potential_edges[0]] = 1
+        graph.edge_attr[potential_edges[1]] = 1
+    else:
+        # Iteratively remove edges until the graph is fragmented as defined by the reaction
+        pass
+    
     
 
 
