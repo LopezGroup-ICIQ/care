@@ -141,3 +141,4 @@ class GameNetUQ(torch.nn.Module):
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))
         return Normal(out[:, 0], Softplus()(out[:, 1]))  # Softplus to enforce positive std
+
