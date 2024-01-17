@@ -190,15 +190,10 @@ def ads_placement(intermediate: Intermediate,
                                             ads_height=ads_height,
                                             max_structures=1, 
                                             molec_ctrs=connect_sites_molec,
-                                            sites=site_idxs,)
-                    
-                    config_list = dos.dockonsurf(inp_vars)
-                        
-                    if len(config_list) == 0:
-                        ads_height += 0.2
-
+                                            sites=site_idxs,)                    
+                    config_list = dos.dockonsurf(inp_vars)                        
+                    ads_height += 0.2
                     total_config_list.extend(config_list)
-                    break
 
         print(f'{intermediate.code} placed on the surface')
         return intermediate.code, total_config_list

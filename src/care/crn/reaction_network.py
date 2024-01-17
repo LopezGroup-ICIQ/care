@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import BoxStyle, Rectangle
 from matplotlib import cm
 from pydot import Node
+from torch import where
 from energydiagram import ED
 import numpy as np
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
@@ -1002,3 +1003,49 @@ class ReactionNetwork:
                 if inter.code in reaction.stoic.keys():
                     v[i, j] = reaction.stoic[inter.code]
         return v
+    
+    def label_ts_edge(self, rxn_code: str) -> None:
+        """
+        Given the bond-breaking reaction, detect the broken bond in the 
+        transition state and label the corresponding edge.
+
+        Args:
+            graph (Data): adsorption graph of the intermediate which is fragmented in the reaction.
+            reaction (ElementaryReaction): Bond-breaking reaction.
+
+        Returns:
+            Data: graph with the broken bond labeled.
+        """
+        step = self.reactions[rxn_code]
+        if '-' not in step.r_type:
+            raise ValueError("Input reaction must be a bond-breaking reaction.")
+
+        bond = step.r_type.split('-')
+        bond = tuple(bond)
+
+
+        # Select intermediate that is fragmented in the reaction
+        inters = {inter.code: inter.graph.num_edges() for inter in step.reactants+step.products if not inter.is_surface}
+        inter_code = max(inters, key=inters.get)
+        idx = min(self.intermediates[inter_code].ads_configs, key=lambda x: self.intermediates[inter_code].ads_configs[x].mu)
+        ts_graph = self.intermediates[inter_code].ads_configs[idx]['pyg'].copy()
+        
+        atom_symbol = lambda idx: ts_graph.node_feats[where(ts_graph.x[idx] == 1)[0].item()]
+        potential_edges = []
+        for i in range(ts_graph.edge_index.shape[1]):
+            edge_idxs = ts_graph.edge_index[:, i]
+            atom1, atom2 = atom_symbol(edge_idxs[0]), atom_symbol(edge_idxs[1])
+            if (atom1, atom2) == bond or (atom2, atom1) == bond:
+                potential_edges.append(i)
+        counter = 0
+        while True:
+            edge = ts_graph.edge_index[:, potential_edges[counter]]
+            # remove edge 
+            
+            if condition:
+                ts_graph.edge_attr[potential_edges[counter]] = 1
+                # look for opposite edge and add weight.
+                # check in test_loader that TS graphs have weight 1 in the broken bond on both directions
+                break
+            else:
+                counter += 1

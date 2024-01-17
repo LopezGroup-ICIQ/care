@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import null_space
 from rdkit import Chem
+from torch_geometric.data import Data
 from typing import Union
 
 from care import Intermediate
@@ -70,7 +71,8 @@ class ElementaryReaction:
             self.is_electro = True
         self.stoic = stoic
         if self.r_type != 'pseudo' and self.stoic is None:
-             self.stoic = self.solve_stoichiometry()    
+             self.stoic = self.solve_stoichiometry()   
+        self.graph = Data() 
 
     def __str__(self) -> str:
         return self.__repr__()

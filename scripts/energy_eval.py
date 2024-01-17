@@ -5,7 +5,6 @@ import pickle as pkl
 
 from care import MODEL_PATH
 from care.gnn.nets import GameNetUQ
-from care.gnn.config_energy_eval import energy_eval_config, get_fragment_energy
 
 
 if __name__ == "__main__":
@@ -35,18 +34,19 @@ if __name__ == "__main__":
     with open(args.i+'/surface.pkl', 'rb') as f:
         surface = pkl.load(f)
     
-    for label, intermediate in ads_intermediates.items():
-        print(intermediate.molecule.get_chemical_formula())
+    for label, intermediate in ads_intermediates.items():  # Intermediate loop      
         if intermediate.phase == 'gas':
-            # Evaluating the energy of the gas phase molecule
-            e_gas = get_fragment_energy(intermediate.molecule)
-            # Updating the ads_config_dict
+            e_gas = intermediate.ref_energy()
             intermediate.ads_configs['gas']['mu'] = e_gas
         else:
-            for ads_config_dict in intermediate.ads_configs.values():
-                print('Evaulating intermediate: {}'.format(intermediate.code))
-                # Evaluating the energy of the adsorption configurations and updating the ads_config_dict
-                energy_eval_config(ads_config_dict, surface, model, graph_params)
+            print('Evaulating intermediate: {}'.format(intermediate.code, intermediate.formula))
+            for i, config in enumerate(intermediate.ads_configs.values()):  # Configuration loop
+                y = model(config['pyg'])  # unitless
+                mu = y.mean * model.scaling_params['std'] + model.scaling_params['mean'] # eV
+                s = y.scale * model.scaling_params['std'] # eV
+                config['mu'] = mu.item()
+                config['s'] = s.item()
+                print("{}   Mu: {:.2f} eV   Std: {:.2f} eV".format(i+1, config['mu'], config['s']))
 
     with open(args.i+'/ads_intermediates.pkl', 'wb') as f:
         pkl.dump(ads_intermediates, f)

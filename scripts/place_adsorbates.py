@@ -5,11 +5,14 @@ import multiprocessing as mp
 import itertools as it
 
 from ase.db import connect
+from ase import Atoms
 import os
+from torch_geometric.data import Data
 
-from care import DB_PATH
+from care import DB_PATH, MODEL_PATH
 from care.crn.surface import Surface
 from care.adsorption.adsorbate_placement import ads_placement, ads_placement_graph
+from care.gnn.graph import atoms_to_data
 
 from care.constants import METAL_STRUCT_DICT
 
@@ -31,6 +34,11 @@ if __name__ == "__main__":
     surface = Surface(surface, args.hkl)
     output_dir = f'{args.i}/{args.m}{args.hkl}'
     os.makedirs(output_dir, exist_ok=True)
+
+    # Loading GNN graph conversion params
+    with open(MODEL_PATH+'/input.txt', 'r') as f:
+            configuration_dict = eval(f.read())
+    graph_params = configuration_dict["graph"]
 
     with open(args.i+'/intermediates.pkl', 'rb') as f:
         intermediates = load(f)
@@ -59,7 +67,8 @@ if __name__ == "__main__":
         counter = 0
         for config in adsorption_structs[key]:
             ads_config_dict[f'{counter}'] = {}
-            ads_config_dict[f'{counter}']['conf'] = config
+            ads_config_dict[f'{counter}']['config'] = config
+            ads_config_dict[f'{counter}']['pyg'] = atoms_to_data(config, graph_params) if isinstance(config, Atoms) else Data()
             ads_config_dict[f'{counter}']['mu'] = 0
             ads_config_dict[f'{counter}']['s'] = 0
             counter += 1  
