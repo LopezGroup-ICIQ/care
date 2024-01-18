@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     model = load_model(MODEL_PATH)
 
-    with open(args.i+'/ads_intermediates_s.pkl', 'rb') as f:
+    with open(args.i+'/ads_intermediates.pkl', 'rb') as f:
         ads_intermediates = pkl.load(f)
     with open(args.i+'/surface.pkl', 'rb') as f:
         surface = pkl.load(f)
