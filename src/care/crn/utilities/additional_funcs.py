@@ -1,17 +1,17 @@
-from networkx import Graph, connected_components, is_isomorphic
-import numpy as np
-import networkx.algorithms.isomorphism as iso
-from care.crn.elementary_reaction import ElementaryReaction
-from care.crn.intermediate import Intermediate
-from care.crn.utilities.connectivity_fns import get_voronoi_neighbourlist
-from ase import Atoms
 import multiprocessing as mp
 import os
 from collections import defaultdict
 
-from care.crn.utilities.bond import Bond, BondPackage
-from care.constants import INTERPOL, BOND_ORDER, ELEM_WEIGTHS
+import networkx.algorithms.isomorphism as iso
+import numpy as np
+from ase import Atoms
+from networkx import Graph, connected_components, is_isomorphic
 
+from care.constants import BOND_ORDER, ELEM_WEIGTHS, INTERPOL
+from care.crn.elementary_reaction import ElementaryReaction
+from care.crn.intermediate import Intermediate
+from care.crn.utilities.bond import Bond, BondPackage
+from care.crn.utilities.connectivity_fns import get_voronoi_neighbourlist
 
 # BOX_TMP = """<
 # <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="20">
@@ -101,18 +101,23 @@ def connectivity_helper(atoms: Atoms) -> dict[int, list]:
         Dictionary with the connectivity information.
     """
     connections = {}
-    if len(atoms) == 1: 
+    if len(atoms) == 1:
         return connections
-    if 'conn_pairs' not in atoms.arrays: 
-        conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ['C', 'H', 'O'])
-        atoms.arrays['conn_pairs'] = conn_matrix
-    conn_matrix = atoms.arrays['conn_pairs']
+    if "conn_pairs" not in atoms.arrays:
+        conn_matrix = get_voronoi_neighbourlist(atoms, 0.25, 1.0, ["C", "H", "O"])
+        atoms.arrays["conn_pairs"] = conn_matrix
+    conn_matrix = atoms.arrays["conn_pairs"]
     for index, _ in enumerate(atoms):
-        selected_rows = conn_matrix[np.logical_or(conn_matrix[:, 0] == index, conn_matrix[:, 1] == index)]
-        connections[index] = [element for row in selected_rows for element in row if element != index]
+        selected_rows = conn_matrix[
+            np.logical_or(conn_matrix[:, 0] == index, conn_matrix[:, 1] == index)
+        ]
+        connections[index] = [
+            element for row in selected_rows for element in row if element != index
+        ]
     return connections
 
-def bond_analysis(mol: Atoms, comp_dist: bool=False) -> BondPackage:
+
+def bond_analysis(mol: Atoms, comp_dist: bool = False) -> BondPackage:
     """
     Returns a dictionary of frozen tuples containing information about
     the bond distances values between the different bonds of the molecule.
@@ -128,16 +133,22 @@ def bond_analysis(mol: Atoms, comp_dist: bool=False) -> BondPackage:
         different atoms.
     """
     if comp_dist:
-        mol.arrays['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1.0, ['C', 'H', 'O'])
+        mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(
+            mol, 0.25, 1.0, ["C", "H", "O"]
+        )
     package = BondPackage()
-    bonds = [Bond(mol, mol.arrays['conn_pairs'][row, 0], mol.arrays['conn_pairs'][row, 1]) for row in range(mol.arrays['conn_pairs'].shape[0])]
+    bonds = [
+        Bond(mol, mol.arrays["conn_pairs"][row, 0], mol.arrays["conn_pairs"][row, 1])
+        for row in range(mol.arrays["conn_pairs"].shape[0])
+    ]
     package.bond_add(bonds)
     # for row in range(mol.arrays['conn_pairs'].shape[0]):
     #     package.bond_add(Bond(mol, mol.arrays['conn_pairs'][row, 0], mol.arrays['conn_pairs'][row, 1]))
     return package
 
-#TODO: done, but double-check later
-def insaturation_matrix(mol: Atoms, voronoi: bool=False) -> np.ndarray:
+
+# TODO: done, but double-check later
+def insaturation_matrix(mol: Atoms, voronoi: bool = False) -> np.ndarray:
     """Generate the insaturation bond matrix for an organic molecule.
 
     Args:
@@ -157,22 +168,29 @@ def insaturation_matrix(mol: Atoms, voronoi: bool=False) -> np.ndarray:
         molecule.
     """
     if voronoi:
-        del mol.arrays['conn_pairs']
-        mol.array['conn_pairs'] = get_voronoi_neighbourlist(mol, 0.25, 1, ['C', 'H', 'O'])
+        del mol.arrays["conn_pairs"]
+        mol.array["conn_pairs"] = get_voronoi_neighbourlist(
+            mol, 0.25, 1, ["C", "H", "O"]
+        )
 
-    not_h = [atom for atom in mol if atom.symbol != 'H']
+    not_h = [atom for atom in mol if atom.symbol != "H"]
     bond_mat = np.zeros((len(not_h), len(not_h)), dtype=int)
 
     for index, atom in enumerate(not_h):
         avail_con = BOND_ORDER[atom.symbol]
-        condition = (mol.array['conn_pairs'][:, 0] == atom.index) or (mol.array['conn_pairs'][:, 1] == atom.index)
+        condition = (mol.array["conn_pairs"][:, 0] == atom.index) or (
+            mol.array["conn_pairs"][:, 1] == atom.index
+        )
         indices = np.where(condition)[0]
         for connection in indices:
             avail_con -= 1
-            if not 'H' in [mol[index].symbol for index in mol.arrays['conn_pairs'][connection, :]]:
+            if not "H" in [
+                mol[index].symbol for index in mol.arrays["conn_pairs"][connection, :]
+            ]:
                 bond_mat[index, not_h.index(connection)] = 1
         bond_mat[index, index] = avail_con
     return bond_mat
+
 
 def insaturation_solver(bond_mat: np.ndarray) -> np.ndarray:
     """Solve the insaturation matrix distributing all the avaliable bonds
@@ -215,6 +233,7 @@ def insaturation_solver(bond_mat: np.ndarray) -> np.ndarray:
             break
     return ori_mat
 
+
 def insaturation_check(mol: Atoms) -> bool:
     """Check if all the bonds from an organic molecule are fullfilled.
 
@@ -238,13 +257,17 @@ def elem_inf(graph: Graph) -> dict:
     Returns:
         :obj:`dict` with the number of atoms of each element in the molecule. (e.g. {'C': 3, 'H': 8})
     """
-    elem_lst = [atom[1]['elem'] for atom in graph.nodes(data=True)]  # e.g. ['C', 'C', 'C']
-    elem_uniq = [elem for numb, elem in enumerate(elem_lst)
-                 if elem_lst.index(elem) == numb] # e.g. ['C']
+    elem_lst = [
+        atom[1]["elem"] for atom in graph.nodes(data=True)
+    ]  # e.g. ['C', 'C', 'C']
+    elem_uniq = [
+        elem for numb, elem in enumerate(elem_lst) if elem_lst.index(elem) == numb
+    ]  # e.g. ['C']
     elem_count = []
     for elem in elem_uniq:
         elem_count.append(elem_lst.count(elem))
     return dict(zip(elem_uniq, elem_count))
+
 
 # def mkm_rxn_file(network, gb_rxn, filename):
 #     t_state_array=[]
@@ -261,7 +284,7 @@ def elem_inf(graph: Graph) -> dict:
 #                 #if label_gw==label_i and (label_gw=='102101' or  label_gw=='101101'):
 #                 if label_gw==label_i and (label_gw!='021101'):
 #                     label_g=inter.molecule.get_chemical_formula()
-#                     rxn_label = label_g + '(g) + i000000 -> i' + label_i  
+#                     rxn_label = label_g + '(g) + i000000 -> i' + label_i
 #                     #print(rxn_label)
 #                     outfile.write((inter_str.format(rxn_label)))
 #         for t_state in network.t_states:
@@ -286,7 +309,7 @@ def elem_inf(graph: Graph) -> dict:
 #                         intuit='dont add'
 #                     #if i=='121101' or i=='021101' or j=='001101' or j=='250101' or i=='250101'  or i=='212101' or j=='111101' or i=='111101':
 #                     #if  i=='021101' or j=='001101' or j=='250101' or i=='250101':  #or i=='212101' or j=='111101' or i=='111101':
-#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101' or j=='141101' or i=='141101' or j=='131101' or i=='131101' or j=='121101' or i=='121101': 
+#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101' or j=='141101' or i=='141101' or j=='131101' or i=='131101' or j=='121101' or i=='121101':
 #                         intuit='dont add'
 #                     #if int(i[1])>4 or int(j[1])>4: #dont add ethanol pathways
 #                     #    counter='dont add'
@@ -302,15 +325,15 @@ def elem_inf(graph: Graph) -> dict:
 #                             final[i] = 'H2O1(g)'
 #                             for j in range(len(initial)):
 #                                 if initial[j] == 'i000000':
-#                                     initial[j] = 'i010101' 
-#                 for i in range(len(initial)):   
+#                                     initial[j] = 'i010101'
+#                 for i in range(len(initial)):
 #                     if initial[i] == 'i010101':
 #                         initial[i] = 'H(e)'
 #                         for j in range(len(final)):
 #                             if final[j]=='i000000':
 #                                 final.remove('i000000')
 #                                 rxn_label_H = initial[0] + ' + ' + initial[1] + ' -> ' + final[0]
-#                                 #print(rxn_label_H) 
+#                                 #print(rxn_label_H)
 #                                 intuit='add_electro'
 #                                 break
 #                         break
@@ -321,7 +344,7 @@ def elem_inf(graph: Graph) -> dict:
 #                                 initial.remove('i000000')
 #                                 rxn_label_H = initial[0] + ' -> ' + final[0] + ' + ' + final[1]
 #                                 intuit='add_electro'
-#                                 #print(rxn_label_H) 
+#                                 #print(rxn_label_H)
 #                                 break
 #                         break
 #             if intuit=='add' or intuit=='add_electro':
@@ -337,15 +360,15 @@ def elem_inf(graph: Graph) -> dict:
 #                 #print(rxn_label,t_state.r_type)
 #                 outfile.write((inter_str.format(rxn_label)))
 #             elif intuit=='add' and pintuit=='fin_double':
-#                 rxn_label = initial[0] + ' + ' + initial[1] + ' -> ' +'2' + final[0] 
+#                 rxn_label = initial[0] + ' + ' + initial[1] + ' -> ' +'2' + final[0]
 #                 #except:
 #                 #print(rxn_label,t_state.r_type)
-#                 outfile.write((inter_str.format(rxn_label)))             
+#                 outfile.write((inter_str.format(rxn_label)))
 #             elif intuit=='add_electro':
 #                 outfile.write((inter_str.format(rxn_label_H)))
 #     return t_state_array
 
-                
+
 # def mkm_g_file(network, filename='g.mkm'):
 #     with open(filename, 'w') as outfile:
 #         rxn_str = '{} {:.3f} {:.3f} {:.2f}\n'
@@ -375,7 +398,7 @@ def elem_inf(graph: Graph) -> dict:
 #             #inter = label.split('i')
 #             #print(t_state.r_type)
 #             intuit = 'add'
-            
+
 #             for i in initial:
 #                 for j in final:
 #                     if (i[2]=='2' or j[2]=='2') and (int(i[1])>1 or int(j[1])>1 ): #dont add glyoxal pathways
@@ -383,7 +406,7 @@ def elem_inf(graph: Graph) -> dict:
 #                         #print(i,j)
 #                         intuit='dont add'
 #                     #if i=='121101' or i=='021101' or j=='001101' or j=='250101' or i=='250101' or i=='212101' or j=='111101' or i=='111101':
-#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101': 
+#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101':
 #                         intuit='dont add'
 #                     #if int(i[1])>4 or int(j[1])>4: #dont add ethanol pathways
 #                     #    counter='dont add'
@@ -396,7 +419,7 @@ def elem_inf(graph: Graph) -> dict:
 #                                 if initial[j] == '000000':
 #                                     initial[j] = '010101'
 #                 #print(initial,final)
-#                 for i in range(len(initial)):   
+#                 for i in range(len(initial)):
 #                     if initial[i] == '010101':
 #                         for j in range(len(final)):
 #                             if final[j]=='000000':
@@ -428,7 +451,7 @@ def elem_inf(graph: Graph) -> dict:
 #                     ener = 1 + network.intermediates[final[0]].energy + network.intermediates[final[1]].energy
 #                 else:
 #                     ener = 0.7 + network.intermediates[final[0]].energy + network.intermediates[final[1]].energy
-#                 g_line = 'R' + str(counter) + ':' 
+#                 g_line = 'R' + str(counter) + ':'
 #                 #print(g_line)
 #                 entropy = float(298*entropy*1e-3)
 #                 t_state.energy=ener
@@ -436,7 +459,7 @@ def elem_inf(graph: Graph) -> dict:
 #                 outfile.write((rxn_str.format(g_line,ener,entropy,coeff)))
 #             elif intuit=='add_electro':
 #                 counter+=1
-#                 g_line = 'R' + str(counter) + ':' 
+#                 g_line = 'R' + str(counter) + ':'
 #                 #print(g_line)
 #                 entropy = float(298*entropy*1e-3)
 #                 t_state.energy=ener
@@ -447,9 +470,9 @@ def elem_inf(graph: Graph) -> dict:
 #         for label, inter in network.intermediates.items():
 #             if label=='010101':
 #                 label = 'H(e)'
-#                 g_line = label + ': ' 
+#                 g_line = label + ': '
 #             else:
-#                 g_line = 'i' + label + ': ' 
+#                 g_line = 'i' + label + ': '
 #             ener = inter.energy
 #             entropy = float(298*inter.entropy*1e-3)
 #             #print(g_line)
@@ -462,7 +485,7 @@ def elem_inf(graph: Graph) -> dict:
 #             #print(label,entropy)
 #             label= inter.molecule.get_chemical_formula()
 #             print(label)
-#             g_line = label + '(g): ' 
+#             g_line = label + '(g): '
 #             #print(g_line)
 #             try:
 #                 outfile.write(inter_str.format(g_line,ener,entropy))
@@ -498,16 +521,16 @@ def elem_inf(graph: Graph) -> dict:
 #             #inter = label.split('i')
 #             #print(t_state.r_type)
 #             intuit = 'add'
-            
+
 #             for i in initial:
 #                 for j in final:
 #                     if (i[2]=='2' or j[2]=='2') and (int(i[1])>1 or int(j[1])>1 ): #dont add glyoxal pathways
 #                     #if (i[0]=='2' or i[1]=='2' or i=='011101' or i=='111101' or j=='001101'):#dont add C2 pathways
 #                         #print(i,j)
 #                         intuit='dont add'
-#                     #if i=='121101' or i=='021101' or j=='001101' or j=='250101' or i=='250101'  or i=='212101' or j=='111101' or i=='111101': 
-#                     #if i=='021101' or j=='001101' or j=='250101' or i=='250101': 
-#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101' or j=='141101' or i=='141101' or j=='131101' or i=='131101' or j=='121101' or i=='121101': 
+#                     #if i=='121101' or i=='021101' or j=='001101' or j=='250101' or i=='250101'  or i=='212101' or j=='111101' or i=='111101':
+#                     #if i=='021101' or j=='001101' or j=='250101' or i=='250101':
+#                     if i=='021101' or j=='001101' or j=='250101' or i=='250101' or j=='141101' or i=='141101' or j=='131101' or i=='131101' or j=='121101' or i=='121101':
 #                         intuit='dont add'
 #                     #if int(i[1])>4 or int(j[1])>4: #dont add ethanol pathways
 #                     #    counter='dont add'
@@ -520,7 +543,7 @@ def elem_inf(graph: Graph) -> dict:
 #                                 if initial[j] == '000000':
 #                                     initial[j] = '010101'
 #                 #print(initial,final)
-#                 for i in range(len(initial)):   
+#                 for i in range(len(initial)):
 #                     if initial[i] == '010101':
 #                         for j in range(len(final)):
 #                             if final[j]=='000000':
@@ -547,15 +570,15 @@ def elem_inf(graph: Graph) -> dict:
 #                 counter+=1
 #                 if t_state.energy == 0:
 #                     entropy = network.intermediates[final[0]].entropy + network.intermediates[final[1]].entropy
-#                     #ener = t_state.energys                
+#                     #ener = t_state.energys
 #                     ener = 1 + network.intermediates[final[0]].energy + network.intermediates[final[1]].energy
 #                     # if counter==306:
 #                     #     # print(ener,entropy)
 #                 else:
 #                     entropy = t_state.entropy
-#                     ener = t_state.energy               
+#                     ener = t_state.energy
 #                 coeff = 0.0
-#                 g_line = 'R' + str(counter) + ':' 
+#                 g_line = 'R' + str(counter) + ':'
 #                 #print(g_line)
 #                 entropy = float(298*entropy*1e-3)
 #                 t_state.energy=ener
@@ -563,7 +586,7 @@ def elem_inf(graph: Graph) -> dict:
 #                 outfile.write((rxn_str.format(g_line,ener,entropy,coeff)))
 #             elif intuit=='add_electro':
 #                 counter+=1
-#                 g_line = 'R' + str(counter) + ':' 
+#                 g_line = 'R' + str(counter) + ':'
 #                 #print(g_line)
 #                 entropy = float(298*entropy*1e-3)
 #                 t_state.energy=ener
@@ -574,9 +597,9 @@ def elem_inf(graph: Graph) -> dict:
 #         for label, inter in network.intermediates.items():
 #             if label=='010101':
 #                 label = 'H(e)'
-#                 g_line = label + ': ' 
+#                 g_line = label + ': '
 #             else:
-#                 g_line = 'i' + label + ': ' 
+#                 g_line = 'i' + label + ': '
 #             ener = inter.energy
 #             entropy = float(298*inter.entropy*1e-3)
 #             #print(g_line)
@@ -589,32 +612,35 @@ def elem_inf(graph: Graph) -> dict:
 #             #print(label,entropy)
 #             label= inter.molecule.get_chemical_formula()
 #             # print(label)
-#             g_line = label + '(g): ' 
+#             g_line = label + '(g): '
 #             #print(g_line)
 #             try:
 #                 outfile.write(inter_str.format(g_line,ener,entropy))
 #             except:
 #                 'do nothing'
 
+
 def calculate_weigth(elems):
     return sum([ELEM_WEIGTHS[key] * value for key, value in elems.items()])
 
 
-def find_matching_intermediates(graph: Graph, cate, cached_graphs: dict[str, tuple[Graph, dict]]) -> list[str]:
+def find_matching_intermediates(
+    graph: Graph, cate, cached_graphs: dict[str, tuple[Graph, dict]]
+) -> list[str]:
     """
     Finds intermediates in the network that match the given graph.
-    
+
     Args:
         graph (NetworkX Graph): The graph to match.
         cate (categorical_node_match): Node matching function for isomorphism check.
         cached_graphs (dict): Cached graph and element information for intermediates.
-        
+
     Returns:
         list: Matching intermediates.
     """
     matching_intermediates = []
     graph_info = (len(graph), elem_inf(graph))
-    
+
     for inter_code, (cached_graph, cached_elem_inf) in cached_graphs.items():
         graph_len, elem_info = graph_info
         if cached_elem_inf != elem_info or len(cached_graph) != graph_len:
@@ -626,51 +652,55 @@ def find_matching_intermediates(graph: Graph, cate, cached_graphs: dict[str, tup
                 break
     return matching_intermediates
 
+
 def char_to_int(c):
     if c.isdigit():
         return int(c)
-    elif 'a' <= c <= 'z':
-        return ord(c) - ord('a') + 10
-    elif 'A' <= c <= 'Z':
-        return ord(c) - ord('A') + 36
+    elif "a" <= c <= "z":
+        return ord(c) - ord("a") + 10
+    elif "A" <= c <= "Z":
+        return ord(c) - ord("A") + 36
     else:
         raise ValueError(f"Invalid character: {c}")
+
 
 def int_to_char(i):
     if 0 <= i <= 9:
         return str(i)
     elif 10 <= i <= 35:
-        return chr(i - 10 + ord('a'))
+        return chr(i - 10 + ord("a"))
     elif 36 <= i <= 61:
-        return chr(i - 36 + ord('A'))
+        return chr(i - 36 + ord("A"))
     else:
         raise ValueError(f"Invalid integer: {i}")
+
 
 def validate_components(in_comp: list[list[str]]):
     """
     Validates the components based on the element material balance.
-    
+
     Args:
         in_comp (list): List of components.
-        
+
     Returns:
         bool: True if components are valid, False otherwise.
     """
     chk_lst = [0, 0]
     for index, item in enumerate(in_comp):
         for mol in item:
-            if mol == '0000000000*':
+            if mol == "0000000000*":
                 continue
             n_C = sum(char_to_int(c) for c in mol[:2])
             n_H = sum(char_to_int(c) for c in mol[2:4])
             n_O = sum(char_to_int(c) for c in mol[4:6])
             chk_lst[index] += sum([n_C, n_H, n_O])
-    return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1]*2
+    return chk_lst[0] == chk_lst[1] or chk_lst[0] == chk_lst[1] * 2
+
 
 def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: list):
     """
     Adds a new reaction to the list or updates an existing one.
-    
+
     Args:
         reaction (ElementaryReaction): The reaction to add or update.
         reaction_set (set): Set of existing reactions for quick lookup.
@@ -684,7 +714,9 @@ def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: l
         s_dict[inter.code] -= 1
     for inter in reaction_info[0][1]:
         s_dict[inter.code] += 1
-    reaction = ElementaryReaction(r_type=reaction_info[1], components=reaction_info[0], stoic=s_dict)
+    reaction = ElementaryReaction(
+        r_type=reaction_info[1], components=reaction_info[0], stoic=s_dict
+    )
     if reaction.components not in reaction_set:
         reaction_set.add(reaction.components)
         reaction_list.append(reaction)
@@ -692,28 +724,40 @@ def create_or_append_reaction(reaction_info, reaction_set: set, reaction_list: l
     else:
         return False
 
+
 def find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair):
     return [
-        find_matching_intermediates(graph, cate, cached_graphs)
-        for graph in graph_pair
+        find_matching_intermediates(graph, cate, cached_graphs) for graph in graph_pair
     ]
 
+
 def process_graph_pair(args) -> tuple[list[list[str]], str]:
-    cached_graphs, surface_code, intermediate_code, bond_breaking_type, graph_pair = args
-    cate = iso.categorical_node_match(['elem', 'elem', 'elem'], ['H', 'O', 'C'])
+    (
+        cached_graphs,
+        surface_code,
+        intermediate_code,
+        bond_breaking_type,
+        graph_pair,
+    ) = args
+    cate = iso.categorical_node_match(["elem", "elem", "elem"], ["H", "O", "C"])
     rxn_components = [[intermediate_code], []]
     if len(graph_pair) == 2:
         rxn_components[0].append(surface_code)
 
-    matching_intermediates = find_and_cache_matching_intermediates(cate, cached_graphs, graph_pair)
-    
+    matching_intermediates = find_and_cache_matching_intermediates(
+        cate, cached_graphs, graph_pair
+    )
+
     # Flatten the list of lists
-    flat_matching_intermediates = [item for sublist in matching_intermediates for item in sublist]
+    flat_matching_intermediates = [
+        item for sublist in matching_intermediates for item in sublist
+    ]
     rxn_components[1].extend(list(flat_matching_intermediates))
 
     if not validate_components(rxn_components):
         return None
     return rxn_components, bond_breaking_type
+
 
 def break_bonds(graph: Graph) -> dict[str, list[list[Graph]]]:
     """
@@ -721,28 +765,38 @@ def break_bonds(graph: Graph) -> dict[str, list[list[Graph]]]:
     value contains the products of a specific bond breaking type. The sublists are a list of graphs, where
     each graph is a connected component of the molecule.
     """
-    
+
     bond_dict = defaultdict(list)
     for edge in graph.edges:
         node1, node2 = graph.nodes[edge[0]], graph.nodes[edge[1]]
 
         tmp_graph = graph.copy()
         tmp_graph.remove_edge(edge[0], edge[1])
-        bond = '-'.join(sorted([node1['elem'], node2['elem']]))
-        products = [tmp_graph.subgraph(comp).copy() for comp in connected_components(tmp_graph)]
-        if bond in ('C-O', 'O-O'): # for electrochemistry purposes
-            neighbours1 = [graph.nodes[neighbour]['elem'] for neighbour in graph.neighbors(edge[0])]
-            neighbour2 = [graph.nodes[neighbour]['elem'] for neighbour in graph.neighbors(edge[1])]
-            if (any(elem == 'H' for elem in neighbours1) and node1['elem'] == 'O') or (any(elem == 'H' for elem in neighbour2) and node2['elem'] == 'O'):
-                bond_dict[bond+'H'].append(products)
+        bond = "-".join(sorted([node1["elem"], node2["elem"]]))
+        products = [
+            tmp_graph.subgraph(comp).copy() for comp in connected_components(tmp_graph)
+        ]
+        if bond in ("C-O", "O-O"):  # for electrochemistry purposes
+            neighbours1 = [
+                graph.nodes[neighbour]["elem"] for neighbour in graph.neighbors(edge[0])
+            ]
+            neighbour2 = [
+                graph.nodes[neighbour]["elem"] for neighbour in graph.neighbors(edge[1])
+            ]
+            if (any(elem == "H" for elem in neighbours1) and node1["elem"] == "O") or (
+                any(elem == "H" for elem in neighbour2) and node2["elem"] == "O"
+            ):
+                bond_dict[bond + "H"].append(products)
             else:
                 bond_dict[bond].append(products)
         else:
             bond_dict[bond].append(products)
     return bond_dict
 
-def break_and_connect(intermediates_dict: dict[str, "Intermediate"], 
-                      ncores: int=mp.cpu_count()) -> list[ElementaryReaction]:
+
+def break_and_connect(
+    intermediates_dict: dict[str, "Intermediate"], ncores: int = mp.cpu_count()
+) -> list[ElementaryReaction]:
     """
     Given a dictionary of Intermediates (closed-shell and dehydrogenated) including the empty surface, find all possible
     bond-breaking reactions and return them as a list of ElementaryReactions.
@@ -759,17 +813,31 @@ def break_and_connect(intermediates_dict: dict[str, "Intermediate"],
     """
     reaction_set, reaction_list = set(), []
     intermediates_values = list(intermediates_dict.values())
-    intermediates_values = [inter for inter in intermediates_values if not inter.phase == 'gas']
-    cached_graphs = {inter.code: (inter.graph, elem_inf(inter.graph)) for inter in intermediates_values if inter.code[-1] != 'g'}
+    intermediates_values = [
+        inter for inter in intermediates_values if not inter.phase == "gas"
+    ]
+    cached_graphs = {
+        inter.code: (inter.graph, elem_inf(inter.graph))
+        for inter in intermediates_values
+        if inter.code[-1] != "g"
+    }
 
-    args_list = [] # for multiprocessing
+    args_list = []  # for multiprocessing
     for intermediate in intermediates_values:
         if intermediate.is_surface:
             continue
         sub_graphs = break_bonds(intermediate.graph)
         for bond_type, graph_pairs in sub_graphs.items():
             for graph_pair in graph_pairs:
-                args_list.append((cached_graphs, '0000000000*', intermediate.code, bond_type, graph_pair))
+                args_list.append(
+                    (
+                        cached_graphs,
+                        "0000000000*",
+                        intermediate.code,
+                        bond_type,
+                        graph_pair,
+                    )
+                )
 
     with mp.Pool(ncores) as pool:
         results = pool.map(process_graph_pair, args_list)
@@ -783,6 +851,7 @@ def break_and_connect(intermediates_dict: dict[str, "Intermediate"],
 
     return reaction_list
 
+
 def change_r_type(network):
     """Given a network, search if the C-H breakages are correct, and if not
     correct them.
@@ -792,7 +861,7 @@ def change_r_type(network):
             will be performed.
     """
     for trans in network.t_states:
-        if trans.r_type not in ['H-C', 'C-H']:
+        if trans.r_type not in ["H-C", "C-H"]:
             continue
         flatten = [list(comp) for comp in trans.components]
         flatten_tmp = []
@@ -802,11 +871,12 @@ def change_r_type(network):
         flatten.sort(key=lambda x: len(x.molecule.get_chemical_symbols()), reverse=True)
         flatten = flatten[1:3]  # With this step we will skip
         bonds = [bond_analysis(comp.molecule) for comp in flatten]
-        bond_len = [item.bond_search(('C', 'O')) for item in bonds]
+        bond_len = [item.bond_search(("C", "O")) for item in bonds]
         if bond_len[0] == bond_len[1]:
-            trans.r_type = 'C-H'
+            trans.r_type = "C-H"
         else:
-            trans.r_type = 'O-H'
+            trans.r_type = "O-H"
+
 
 def calculate_ts_energy(t_state, bader=False):
     """Calculate the ts energy of a transition state using the interpolation
@@ -820,8 +890,8 @@ def calculate_ts_energy(t_state, bader=False):
         energies.
     """
     components = [list(comp) for comp in t_state.bb_order()]
-    alpha = INTERPOL[t_state.r_type]['alpha']
-    beta = INTERPOL[t_state.r_type]['beta']
+    alpha = INTERPOL[t_state.r_type]["alpha"]
+    beta = INTERPOL[t_state.r_type]["beta"]
     if bader == False:
         e_is = [comp.energy for comp in components[0]]
         e_fs = [comp.energy for comp in components[1]]
@@ -838,8 +908,9 @@ def calculate_ts_energy(t_state, bader=False):
     if t_state.is_electro:
         ts_ener = max(e_fs, e_is) + 0.05
     else:
-        ts_ener = alpha * e_fs + (1. - alpha) * e_is + beta
+        ts_ener = alpha * e_fs + (1.0 - alpha) * e_is + beta
     return max(e_is, e_fs, ts_ener)
+
 
 def calc_TS_energy(t_state, bader=False):
     """Calculate the ts energy of a transition state using the interpolation
@@ -853,8 +924,8 @@ def calc_TS_energy(t_state, bader=False):
         energies.
     """
     components = [list(comp) for comp in t_state.bb_order()]
-    alpha = INTERPOL[t_state.r_type]['alpha']
-    beta = INTERPOL[t_state.r_type]['beta']
+    alpha = INTERPOL[t_state.r_type]["alpha"]
+    beta = INTERPOL[t_state.r_type]["beta"]
     if bader == False:
         e_is = [comp.energy for comp in components[0]]
         e_fs = [comp.energy for comp in components[1]]
@@ -871,8 +942,9 @@ def calc_TS_energy(t_state, bader=False):
     if t_state.is_electro:
         ts_ener = max(e_fs, e_is) + 0.05
     else:
-        ts_ener = alpha * e_fs + (1. - alpha) * e_is + beta
+        ts_ener = alpha * e_fs + (1.0 - alpha) * e_is + beta
     return max(e_is, e_fs, ts_ener)
+
 
 # def generate_electron(t_state, electron='e-', proton='H+', def_h='000000', ener_gap=0.):
 #     new_ts = ElementaryReaction(r_type='C-H', is_electro=True)
@@ -1091,7 +1163,7 @@ def calc_TS_energy(t_state, bader=False):
 
 #     Args:
 #         inter (obj:`networks.Intermediate`): Intermediate to be tested.
-    
+
 #     Returns:
 #         bool with the results of the test.
 #     """
@@ -1139,17 +1211,17 @@ def calc_TS_energy(t_state, bader=False):
 #                   'H2O': -14.51367559, # Water with solvent correction
 #                   'H'  : -3.383197435,
 #                   'CO2' : -22.96215586}
-    
+
 #     elements_dict = {'C': sum([1 for atom in ase_atoms_obj if atom.symbol == 'C']),
 #                 'H': sum([1 for atom in ase_atoms_obj if atom.symbol == 'H']),
 #                 'O': sum([1 for atom in ase_atoms_obj if atom.symbol == 'O'])}
-    
+
 #     pivot_dict = elements_dict.copy()
-    
+
 #     for elem in ['O', 'C', 'H']:
 #         if elem not in pivot_dict:
 #             pivot_dict[elem] = 0
-    
+
 
 #     energy = GASES_ENER['CO2'] * pivot_dict['C']
 #     energy += GASES_ENER['H2O'] * (pivot_dict['O'] - 2 * pivot_dict['C'])
@@ -1226,7 +1298,7 @@ def calc_TS_energy(t_state, bader=False):
 #         except KeyError:
 #             print(path[index - 1])
 #         accumulator += t_state_ener - inter_ener
-#     return accumulator        
+#     return accumulator
 
 # def calc_all_energies(graph, path_lst):
 #     energy_lst = []
@@ -1236,16 +1308,16 @@ def calc_TS_energy(t_state, bader=False):
 #     return tuple(energy_lst)
 
 # def calc_hydrogens_energy(inter, h_ener, s_ener, min_hydrogens=3, max_hydrogens=8, max_oxygens=1):
-#     if 'H' not in inter.molecule.get_chemical_symbols(): 
+#     if 'H' not in inter.molecule.get_chemical_symbols():
 #         mol_h_numb = 0
 #     else:
 #         mol_h_numb = sum(1 for atom in inter.molecule if atom.symbol == 'H')
-        
+
 #     if 'O' not in inter.molecule.get_chemical_symbols():
 #         mol_h_numb += 1 * max_oxygens
 #     else:
 #         mol_h_numb += 1 * (max_oxygens - sum(1 for atom in inter.molecule if atom.symbol == 'O'))
-#     h_numb = max_hydrogens - mol_h_numb 
+#     h_numb = max_hydrogens - mol_h_numb
 #     s_numb =  mol_h_numb - min_hydrogens
 #     return (h_ener * h_numb + s_ener * s_numb)
 
@@ -1262,9 +1334,9 @@ def calc_TS_energy(t_state, bader=False):
 #         mol_h_numb += 1 * max_oxygens
 #     else:
 #         mol_h_numb += 1 * (max_oxygens - elem_info['O'])
-#     h_numb = max_hydrogens - mol_h_numb 
+#     h_numb = max_hydrogens - mol_h_numb
 #     s_numb =  mol_h_numb - min_hydrogens
-#     return (h_ener * h_numb + s_ener * s_numb)  
+#     return (h_ener * h_numb + s_ener * s_numb)
 
 # def norm_ts_thickness(energy, boundaries=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0), delta=1, offset=1, reverse=True):
 #     for index, value in enumerate(boundaries):
@@ -1477,15 +1549,15 @@ def calc_TS_energy(t_state, bader=False):
 #             code_array.sort()
 #             #print(code_array)
 #             code = ""
-#             # traverse in the string 
+#             # traverse in the string
 #             for j in code_array:
-#                 code += j 
+#                 code += j
 #             # print(code)
 #         except ValueError:
 #             discard[code[:6]] = 0
 #         energy = float(energy)  # Energy needs to be a float
 #         entropy = float(entropy)
-        
+
 #         #if code[0] == 'i':
 #         #    code = code[1:]
 
@@ -1536,7 +1608,7 @@ def calc_TS_energy(t_state, bader=False):
 #             discard[code[:6]] = 0
 #         energy = float(energy)  # Energy needs to be a float
 #         entropy = float(entropy)
-        
+
 #         if code[0] == 'i':
 #             code = code[1:]
 
@@ -1653,10 +1725,10 @@ def calc_TS_energy(t_state, bader=False):
 #                 continue
 #             tmp_graph = ase_coord_2_graph(tmp_mol, coords=False)
 
-            
+
 #             candidates = network.search_graph(tmp_graph, cate=cate)
 #             for new_inter in candidates:
-#                 wa_comp = [[inter, proton], [new_inter, water]]            
+#                 wa_comp = [[inter, proton], [new_inter, water]]
 #                 wa_ts = ElementaryReaction(components=wa_comp,
 #                         r_type='C-OH', is_electro=True)
 #                 inter_energy = inter.energy + electron.energy
@@ -1723,7 +1795,7 @@ def calc_TS_energy(t_state, bader=False):
 #             outfile.write(inter_str.format(label, *initial, *final,
 #                                            ener, electrons, tmp_frq))
 
-#TODO
+# TODO
 # def search_alcoxy(molecule: Atoms) -> int:
 #     mol = molecule.copy()
 #     # mol.connectivity_search_voronoi()

@@ -1,8 +1,8 @@
 from collections import defaultdict
 
-from ase import Atoms
 import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
+from ase import Atoms
 
 from care.constants import METAL_STRUCT_DICT
 
@@ -11,10 +11,12 @@ class Surface:
     """
     Class for representing transition metal surfaces models.
     """
-    def __init__(self, 
-                 ase_atoms_slab: Atoms,
-                 facet: str, 
-                 ):
+
+    def __init__(
+        self,
+        ase_atoms_slab: Atoms,
+        facet: str,
+    ):
         self.slab = ase_atoms_slab
         self.metal = ase_atoms_slab.get_chemical_formula()[:2]
         self.crystal_structure = METAL_STRUCT_DICT[self.metal]
@@ -30,14 +32,14 @@ class Surface:
         return f"{self.slab.get_chemical_formula()}({self.facet})"
 
     def get_num_layers(self) -> int:
-        z = {atom.index:atom.position[2] for atom in self.slab}
+        z = {atom.index: atom.position[2] for atom in self.slab}
         layers_z = list(set(z.values()))
         return len(layers_z)
-    
+
     def get_slab_height(self) -> float:
-        z_atoms = self.slab.get_positions()[:,2]
+        z_atoms = self.slab.get_positions()[:, 2]
         return max(z_atoms)
-    
+
     def get_slab_diag(self) -> float:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(a + b)
@@ -45,7 +47,7 @@ class Surface:
     def get_shortest_side(self) -> float:
         a, b, _ = self.slab.get_cell()
         return min(np.linalg.norm(a), np.linalg.norm(b))
-    
+
     def get_area(self) -> float:
         """
         Calculate area in Angstrom^2 of the surface.
@@ -63,11 +65,13 @@ class Surface:
         tol_dict["Os"] = 0.75
         tol_dict["Ru"] = 0.75
         tol_dict["Zn"] = 1.25
-        sas = SlabAdsorptionSites(self.slab,
-                                  surface=surf, 
-                                  tol=tol_dict[self.metal], 
-                                  label_sites=True, 
-                                  optimize_surrogate_cell=True)
+        sas = SlabAdsorptionSites(
+            self.slab,
+            surface=surf,
+            tol=tol_dict[self.metal],
+            label_sites=True,
+            optimize_surrogate_cell=True,
+        )
         sas = sas.get_unique_sites()
-        sas = [site for site in sas if site['position'][2] > 0.75 * self.slab_height]  
+        sas = [site for site in sas if site["position"][2] > 0.75 * self.slab_height]
         return sas

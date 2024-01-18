@@ -1,9 +1,9 @@
-from rdkit import Chem
-from rdkit import RDLogger
-from rdkit.Chem import AllChem
-from ase import Atoms, Atom
 from itertools import product
+
 import networkx as nx
+from ase import Atom, Atoms
+from rdkit import Chem, RDLogger
+from rdkit.Chem import AllChem
 
 from care.constants import CORDERO
 
@@ -11,7 +11,9 @@ lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
 
 
-def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: float) -> float:
+def edge_cutoffs(
+    node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: float
+) -> float:
     """
     Get the cutoff distance for two atoms to be considered connected using Cordero's atomic radii.
 
@@ -33,6 +35,7 @@ def edge_cutoffs(node_i: nx.Graph.nodes, node_j: nx.Graph.nodes, tolerance: floa
     element_i = node_i.symbol
     element_j = node_j.symbol
     return CORDERO[element_i] + CORDERO[element_j] + tolerance
+
 
 def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
     """
@@ -67,9 +70,15 @@ def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
         symbols.append(atom_symbol)
 
     # Create an ASE Atoms object
-    ase_atoms = Atoms([Atom(symbol=symbol, position=position) for symbol, position in zip(symbols, positions)])
+    ase_atoms = Atoms(
+        [
+            Atom(symbol=symbol, position=position)
+            for symbol, position in zip(symbols, positions)
+        ]
+    )
 
     return ase_atoms
+
 
 def generate_alkanes_recursive(n_carbon: int, main_chain="") -> list[str]:
     """
@@ -91,23 +100,24 @@ def generate_alkanes_recursive(n_carbon: int, main_chain="") -> list[str]:
         return [main_chain]
     if n_carbon < 0:
         return []
-    
+
     alkanes = []
-    
+
     # Continue the main chain
     new_chain = main_chain + "C"
-    alkanes += generate_alkanes_recursive(n_carbon-1, new_chain)
-    
+    alkanes += generate_alkanes_recursive(n_carbon - 1, new_chain)
+
     # Add branches
     if len(main_chain) > 0:
         for i in range(len(main_chain)):
             if main_chain[i] == "C":
-                new_chain = main_chain[:i] + "C(C)" + main_chain[i+1:]
-                alkanes += generate_alkanes_recursive(n_carbon-1, new_chain)
-    
+                new_chain = main_chain[:i] + "C(C)" + main_chain[i + 1 :]
+                alkanes += generate_alkanes_recursive(n_carbon - 1, new_chain)
+
     # Remove duplicates
     unique_alkanes = list(set(alkanes))
     return unique_alkanes
+
 
 def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
     """
@@ -135,6 +145,7 @@ def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
             canonical_smiles_set.add(canonical_smiles)
     return list(canonical_smiles_set)
 
+
 def gen_alkanes(n: int) -> list[str]:
     """
     Generate all possible alkanes from 1 Carbon atom to the given number of carbon atoms.
@@ -156,6 +167,7 @@ def gen_alkanes(n: int) -> list[str]:
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in unique_alkanes]
     return unique_alkanes, mol_alkanes
 
+
 def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
     Generate all possible epoxides smiles based on the given number of carbon and oxygen atoms.
@@ -172,24 +184,34 @@ def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
     list[str]
         List of epoxides SMILES strings.
     """
-    
+
     epoxides = []
     cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
     if n_oxy == 0:
         return epoxides
     for mol in mol_alkanes:
         # generate list of tuple of adjacent atoms satisfying the cond1
-        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors() if cond1((atom, nbr))]
+        c_pairs = [
+            (atom, nbr)
+            for atom in mol.GetAtoms()
+            for nbr in atom.GetNeighbors()
+            if cond1((atom, nbr))
+        ]
         for c_pair in c_pairs:
             # generate epoxide
             tmp_mol = Chem.RWMol(mol)
             oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
-            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.AddBond(
+                c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE
+            )
+            tmp_mol.AddBond(
+                c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE
+            )
             tmp_mol.UpdatePropertyCache()
             smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
             epoxides.append(smiles)
     return list(set(epoxides))
+
 
 def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
     """
@@ -209,16 +231,22 @@ def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
     ethers = []
     if n_oxy == 0:
         return ethers
-    
+
     for mol in mol_alkanes:
         # generate list of tuple of adjacent atoms satisfying the cond1
-        c_pairs = [(atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors()]
+        c_pairs = [
+            (atom, nbr) for atom in mol.GetAtoms() for nbr in atom.GetNeighbors()
+        ]
         for c_pair in c_pairs:
             # Insert oxygen atom between the two carbon atoms
             tmp_mol = Chem.RWMol(mol)
             oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
-            tmp_mol.AddBond(c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-            tmp_mol.AddBond(c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
+            tmp_mol.AddBond(
+                c_pair[0].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE
+            )
+            tmp_mol.AddBond(
+                c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE
+            )
             # Delete the bond between the two carbon atoms
             tmp_mol.RemoveBond(c_pair[0].GetIdx(), c_pair[1].GetIdx())
             tmp_mol.UpdatePropertyCache()
@@ -227,6 +255,7 @@ def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
     unique_ethers = list(set(ethers))
     mol_ethers = [Chem.MolFromSmiles(smiles) for smiles in unique_ethers]
     return unique_ethers, mol_ethers
+
 
 def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
     """
@@ -247,13 +276,16 @@ def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
     unique_molecules = set()
 
     # Filter out carbon atoms with no free sites
-    suitable_carbons = [(atom.GetIdx(), 4 - atom.GetDegree()) for atom in mol.GetAtoms() 
-                        if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
+    suitable_carbons = [
+        (atom.GetIdx(), 4 - atom.GetDegree())
+        for atom in mol.GetAtoms()
+        if atom.GetSymbol() == "C" and atom.GetDegree() < 4
+    ]
     if not suitable_carbons:
         return unique_molecules
 
     # Generate combinations
-    combos = [list(range(num+1)) for _, num in suitable_carbons]
+    combos = [list(range(num + 1)) for _, num in suitable_carbons]
 
     for combo in product(*combos):
         total_oxygens = sum(combo)
@@ -264,15 +296,18 @@ def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
         for num_oxygens, (carbon_idx, _) in zip(combo, suitable_carbons):
             for _ in range(num_oxygens):
                 oxygen_idx = tmp_mol.AddAtom(Chem.Atom("O"))
-                tmp_mol.AddBond(carbon_idx, oxygen_idx, order=Chem.rdchem.BondType.SINGLE)
-        
+                tmp_mol.AddBond(
+                    carbon_idx, oxygen_idx, order=Chem.rdchem.BondType.SINGLE
+                )
+
         tmp_mol.UpdatePropertyCache()
         smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
         unique_molecules.add(smiles)
 
     return unique_molecules
 
-def atoms_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
+
+def atoms_2_graph(atoms: Atoms, coords: bool = False) -> nx.Graph:
     """
     Generates a NetworkX Graph from an ASE Atoms object.
 
@@ -299,30 +334,28 @@ def atoms_2_graph(atoms: Atoms, coords: bool=False) -> nx.Graph:
 
     if coords:
         node_attrs = {
-            num: {'elem': elems_list[i], 'xyz': xyz_coords[i]}
-                  for i, num in enumerate(num_atom)
-                  }
-    else:
-        node_attrs = {
-            num: {'elem': elems_list[i]}
+            num: {"elem": elems_list[i], "xyz": xyz_coords[i]}
             for i, num in enumerate(num_atom)
         }
+    else:
+        node_attrs = {num: {"elem": elems_list[i]} for i, num in enumerate(num_atom)}
     nx.set_node_attributes(nx_graph, node_attrs)
 
     # Adding the edges
     edge_attrs = {}
     for i in range(len(atoms)):
-        for j in range(i + 1, len(atoms)): 
+        for j in range(i + 1, len(atoms)):
             cutoff = edge_cutoffs(atoms[i], atoms[j], tolerance=0.2)
             bond_length = atoms.get_distance(i, j)
             if bond_length < cutoff:
                 edge_attrs[(i, j)] = {"length": bond_length}
-    
+
     edges = list(edge_attrs.keys())
     nx_graph.add_edges_from(edges)
     nx.set_edge_attributes(nx_graph, edge_attrs)
 
     return nx_graph
+
 
 def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
     """
@@ -338,7 +371,7 @@ def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
     nx.Graph
         NetworkX Graph of the molecule (with atomic coordinates and bond lengths).
     """
-    
+
     # Adding Hs to the molecule
     mol = Chem.AddHs(mol)
     # Generate 3D coordinates if not present
@@ -350,13 +383,11 @@ def rdkit_2_graph(mol: Chem.Mol) -> nx.Graph:
     nx_graph = nx.Graph()
 
     for i, atom in enumerate(mol.GetAtoms()):
-        nx_graph.add_node(atom.GetIdx(),
-                   elem=atom.GetSymbol(),
-                   xyz=positions[i])
-    
+        nx_graph.add_node(atom.GetIdx(), elem=atom.GetSymbol(), xyz=positions[i])
+
     for bond in mol.GetBonds():
         i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-        length = positions[i].Distance(positions[j])        
+        length = positions[i].Distance(positions[j])
         nx_graph.add_edge(i, j, length=length)
-    
+
     return nx_graph

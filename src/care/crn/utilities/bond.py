@@ -3,10 +3,7 @@ from ase import Atoms
 
 
 class Bond:
-    def __init__(self, 
-                 atoms_obj: Atoms,
-                 index_1: int, 
-                 index_2: int):
+    def __init__(self, atoms_obj: Atoms, index_1: int, index_2: int):
         """
         Class for representing chemical bonds from ASE Atoms objects.
         The atoms object must contain the connectivity list as atoms_obj.array['conn_pairs'].
@@ -25,22 +22,35 @@ class Bond:
         self.atoms = frozenset((self.atom_1, self.atom_2))
         self.elements = frozenset((self.atom_1.symbol, self.atom_2.symbol))
         # self.distance = atoms_obj.get_distance(index_1, index_2)
-        self.num_connections_1 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_1)
-        self.num_connections_2 = np.count_nonzero(atoms_obj.arrays['conn_pairs'] == index_2)
-        self.bond_order = frozenset(((self.atom_1.symbol, self.num_connections_1),
-                                     (self.atom_2.symbol, self.num_connections_2)))
+        self.num_connections_1 = np.count_nonzero(
+            atoms_obj.arrays["conn_pairs"] == index_1
+        )
+        self.num_connections_2 = np.count_nonzero(
+            atoms_obj.arrays["conn_pairs"] == index_2
+        )
+        self.bond_order = frozenset(
+            (
+                (self.atom_1.symbol, self.num_connections_1),
+                (self.atom_2.symbol, self.num_connections_2),
+            )
+        )
+
     def __repr__(self):
-        rtr_str = '{}({})-{}({})'.format(self.atom_1.symbol,
-                                                  self.num_connections_1,
-                                                  self.atom_2.symbol,
-                                                  self.num_connections_2)
-                                                #   self.distance)
+        rtr_str = "{}({})-{}({})".format(
+            self.atom_1.symbol,
+            self.num_connections_1,
+            self.atom_2.symbol,
+            self.num_connections_2,
+        )
+        #   self.distance)
         return rtr_str
+
 
 class BondPackage:
     """
     Class for representing a collection of bonds.
     """
+
     def __init__(self):
         self.name = None
         self.bonds = []
@@ -101,29 +111,34 @@ class BondPackage:
     #     return np.average(dist_arr)
 
     def type_average(self, elements):
-        return np.average(np.asarray([sg_bond for sg_bond in self.bonds if
-                                      sg_bond.elements == frozenset(elements)]))
+        return np.average(
+            np.asarray(
+                [
+                    sg_bond
+                    for sg_bond in self.bonds
+                    if sg_bond.elements == frozenset(elements)
+                ]
+            )
+        )
 
     def element_search(self, element: str):
-        selection = [sg_bond for sg_bond in self.bonds if
-                     element in sg_bond.elements]
+        selection = [sg_bond for sg_bond in self.bonds if element in sg_bond.elements]
         return selection
 
     def element_order_search(self, element_type):
-        selection = [sg_bond for sg_bond in self.bonds if
-                     element_type in sg_bond.bond_order]
+        selection = [
+            sg_bond for sg_bond in self.bonds if element_type in sg_bond.bond_order
+        ]
         return selection
 
     def bond_search(self, elements):
         frz_set = frozenset(elements)
-        selection = [sg_bond for sg_bond in self.bonds if
-                     frz_set == sg_bond.elements]
+        selection = [sg_bond for sg_bond in self.bonds if frz_set == sg_bond.elements]
         return selection
 
     def bond_order_search(self, bond_type):
         frz_set = frozenset(bond_type)
-        selection = [sg_bond for sg_bond in self.bonds if
-                     frz_set == sg_bond.bond_order]
+        selection = [sg_bond for sg_bond in self.bonds if frz_set == sg_bond.bond_order]
         return selection
 
     def analysis_element(self):
@@ -132,12 +147,12 @@ class BondPackage:
             sub_typ = []
             for item in value:
                 arr_pvt = self.element_order_search(item)
-                sub_typ.append({'order': item,
-                                'average': self._compute_average(arr_pvt)})
+                sub_typ.append(
+                    {"order": item, "average": self._compute_average(arr_pvt)}
+                )
 
-            avg_el = np.average(np.array([elem['average'] for elem in sub_typ]))
-            rtr_dic[key] = {'sub_types': sub_typ,
-                            'total_average': avg_el}
+            avg_el = np.average(np.array([elem["average"] for elem in sub_typ]))
+            rtr_dic[key] = {"sub_types": sub_typ, "total_average": avg_el}
         return rtr_dic
 
     def analysis_bond(self):
@@ -149,18 +164,25 @@ class BondPackage:
                 arr_pvt = self.bond_order_search(item)
                 lst_pvt = list(item)
                 weight = len(arr_pvt)
-                sub_typ.append({'elements': lst_pvt,
-                                'average': self._compute_average(arr_pvt),
-                                'weight': weight})
+                sub_typ.append(
+                    {
+                        "elements": lst_pvt,
+                        "average": self._compute_average(arr_pvt),
+                        "weight": weight,
+                    }
+                )
                 avg_tot += weight
 
-            avg_el = np.array([elem['average'] * float(elem['weight'])
-                               for elem in sub_typ])
+            avg_el = np.array(
+                [elem["average"] * float(elem["weight"]) for elem in sub_typ]
+            )
             avg_el = np.sum(avg_el / avg_tot)
-            avg_norm = np.average(np.array([elem['average'] for elem in sub_typ]))
+            avg_norm = np.average(np.array([elem["average"] for elem in sub_typ]))
             lst_pvt = list(key)
-            rtr_dic[key] = {'sub_types': sub_typ,
-                            'weighted_average': avg_el,
-                            'total_average': avg_norm,
-                            'bond_total': avg_tot}
+            rtr_dic[key] = {
+                "sub_types": sub_typ,
+                "weighted_average": avg_el,
+                "total_average": avg_norm,
+                "bond_total": avg_tot,
+            }
         return rtr_dic

@@ -1,6 +1,6 @@
 import logging
 
-logger = logging.getLogger('DockOnSurf')
+logger = logging.getLogger("DockOnSurf")
 
 
 def tail(f, lines=20):
@@ -25,12 +25,12 @@ def tail(f, lines=20):
         else:
             f.seek(0, 0)
             blocks.append(f.read(block_end_byte))
-        lines_found = blocks[-1].count(b'\n')
+        lines_found = blocks[-1].count(b"\n")
         lines_to_go -= lines_found
         block_end_byte -= block_size
         block_number -= 1
-    all_read_text = b''.join(reversed(blocks))
-    return b'\n'.join(all_read_text.splitlines()[-total_lines_wanted:]).decode()
+    all_read_text = b"".join(reversed(blocks))
+    return b"\n".join(all_read_text.splitlines()[-total_lines_wanted:]).decode()
 
 
 def check_bak(file_name):
@@ -39,6 +39,7 @@ def check_bak(file_name):
     @param file_name: file to be checked if exists
     """
     import os
+
     new_name = file_name
     bak_num = 0
     while os.path.isdir(new_name) or os.path.isfile(new_name):
@@ -46,8 +47,9 @@ def check_bak(file_name):
         new_name = new_name.split(".bak")[0] + f".bak{bak_num}"
     if bak_num > 0:
         os.rename(file_name, new_name)
-        logger.warning(f"'{file_name}' already present. Backed it up to "
-                       f"{new_name}.")
+        logger.warning(
+            f"'{file_name}' already present. Backed it up to " f"{new_name}."
+        )
 
 
 def try_command(command, expct_error_types: list, *args, **kwargs):
@@ -96,9 +98,11 @@ def _human_key(key):
     @return:
     """
     import re
-    parts = re.split('(\d*\.\d+|\d+)', key)
-    return tuple((e.swapcase() if i % 2 == 0 else float(e))
-                 for i, e in enumerate(parts))
+
+    parts = re.split("(\d*\.\d+|\d+)", key)
+    return tuple(
+        (e.swapcase() if i % 2 == 0 else float(e)) for i, e in enumerate(parts)
+    )
 
 
 def is_binary(file):

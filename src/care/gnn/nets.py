@@ -1,13 +1,14 @@
 """Module containing the Graph Neural Network classes."""
-from typing import Optional
 import math
+from typing import Optional
 
 import torch
-from torch.nn import Linear, Softplus
 from torch import Tensor
 from torch.distributions import Normal
+from torch.nn import Linear, Softplus
 from torch_geometric.nn.conv import SAGEConv, TAGConv
 from torch_geometric.utils import to_dense_batch
+
 
 class MAB(torch.nn.Module):
     def __init__(self, dim_Q: int, dim_K: int, dim_V: int, num_heads: int, bias: bool):
@@ -37,7 +38,6 @@ class MAB(torch.nn.Module):
         K: Tensor,
         mask: Optional[Tensor] = None,
     ) -> Tensor:
-
         Q = self.fc_q(Q)
 
         K, V = self.layer_k(K), self.layer_v(K)
@@ -53,14 +53,14 @@ class MAB(torch.nn.Module):
             attention_score = attention_score / math.sqrt(self.dim_V)
             A = torch.softmax(mask + attention_score, 1)
         else:
-            A = torch.softmax(
-                Q_.bmm(K_.transpose(1, 2)) / math.sqrt(self.dim_V), 1)
+            A = torch.softmax(Q_.bmm(K_.transpose(1, 2)) / math.sqrt(self.dim_V), 1)
 
         out = torch.cat((Q_ + A.bmm(V_)).split(Q.size(0), 0), 2)
 
-        out = out + self.fc_o(out).relu()        
+        out = out + self.fc_o(out).relu()
 
         return out
+
 
 class PMA(torch.nn.Module):
     def __init__(self, channels: int, num_heads: int, num_seeds: int, bias: bool):
@@ -84,16 +84,19 @@ class PMA(torch.nn.Module):
         mask: Optional[Tensor] = None,
     ) -> Tensor:
         return self.mab(self.S.repeat(x.size(0), 1, 1), x, mask)
-    
+
+
 class GameNetUQ(torch.nn.Module):
-    def __init__(self, 
-                 node_features: int,               
-                 dim: int,                  
-                 num_linear: int=0,
-                 num_conv: int=3,
-                 bias: bool=False,
-                 conv=SAGEConv, 
-                 pool_heads: int=1):
+    def __init__(
+        self,
+        node_features: int,
+        dim: int,
+        num_linear: int = 0,
+        num_conv: int = 3,
+        bias: bool = False,
+        conv=SAGEConv,
+        pool_heads: int = 1,
+    ):
         """
 
         Args:
@@ -106,39 +109,45 @@ class GameNetUQ(torch.nn.Module):
             pool_heads (int, optional): Number of heads in the pooling layer. Defaults to 1.
         """
         super(GameNetUQ, self).__init__()
-        self.sigma = torch.nn.ReLU()     
+        self.sigma = torch.nn.ReLU()
         self.input_layer = Linear(node_features, dim, bias=bias)
-        self.lin_block = torch.nn.ModuleList([Linear(dim, dim, bias=bias) for _ in range(num_linear)])
-        self.conv_block = torch.nn.ModuleList([conv(dim, dim, bias=bias) for _ in range(num_conv)])
+        self.lin_block = torch.nn.ModuleList(
+            [Linear(dim, dim, bias=bias) for _ in range(num_linear)]
+        )
+        self.conv_block = torch.nn.ModuleList(
+            [conv(dim, dim, bias=bias) for _ in range(num_conv)]
+        )
         self.ts_layer = TAGConv(dim, dim, bias=bias, normalize=False, K=3)
-        self.lin_a = Linear(dim, dim, bias=bias)        
-        self.lin_b = Linear(dim, 2, bias=bias)  # 2 for mean and std of the target distribution
-        self.pma = PMA(channels = dim, 
-                       num_heads = pool_heads, 
-                       num_seeds = 1, 
-                       bias = bias)
-        
+        self.lin_a = Linear(dim, dim, bias=bias)
+        self.lin_b = Linear(
+            dim, 2, bias=bias
+        )  # 2 for mean and std of the target distribution
+        self.pma = PMA(channels=dim, num_heads=pool_heads, num_seeds=1, bias=bias)
+
     def forward(self, data):
-        #---------------------------------#
+        # ---------------------------------#
         # NODE LEVEL (FFNN & CONVOLUTION) #
-        #---------------------------------#        
-        out = self.sigma(self.input_layer(data.x))   
-        for layer in range(len(self.lin_block)):  
+        # ---------------------------------#
+        out = self.sigma(self.input_layer(data.x))
+        for layer in range(len(self.lin_block)):
             out = self.sigma(self.lin_block[layer](out))
-        for layer in range(len(self.conv_block)):  
+        for layer in range(len(self.conv_block)):
             out = self.sigma(self.conv_block[layer](out, data.edge_index))
-        out = self.ts_layer(out, data.edge_index, data.edge_attr)  
+        out = self.ts_layer(out, data.edge_index, data.edge_attr)
         out = self.lin_a(out)
-        #-----------------------#
+        # -----------------------#
         # GRAPH LEVEL (POOLING) #
-        #-----------------------#
-        batch_x, mask = to_dense_batch(x=out, 
-                                       batch=data.batch, # Tensor if batch, None if graph 
-                                       fill_value=0.0, 
-                                       max_num_nodes=500, # conservative value to avoid different predictions during inference
-                                       batch_size=None)  
+        # -----------------------#
+        batch_x, mask = to_dense_batch(
+            x=out,
+            batch=data.batch,  # Tensor if batch, None if graph
+            fill_value=0.0,
+            max_num_nodes=500,  # conservative value to avoid different predictions during inference
+            batch_size=None,
+        )
         mask = (~mask).unsqueeze(1).to(dtype=out.dtype) * -1e9
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))
-        return Normal(out[:, 0], Softplus()(out[:, 1]))  # Softplus to enforce positive std
-
+        return Normal(
+            out[:, 0], Softplus()(out[:, 1])
+        )  # Softplus to enforce positive std

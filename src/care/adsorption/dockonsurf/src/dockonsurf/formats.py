@@ -20,7 +20,7 @@ import logging
 
 import rdkit.Chem.AllChem as Chem
 
-logger = logging.getLogger('DockOnSurf')
+logger = logging.getLogger("DockOnSurf")
 
 
 def confs_to_mol_list(mol: Chem.rdchem.Mol, idx_lst=None):
@@ -34,9 +34,12 @@ def confs_to_mol_list(mol: Chem.rdchem.Mol, idx_lst=None):
     """
     if idx_lst is None:
         idx_lst = list(range(mol.GetNumConformers()))
-    return [Chem.MolFromMolBlock(
-        Chem.MolToMolBlock(mol, confId=int(idx)).replace("3D", ""),
-        removeHs=False) for idx in idx_lst]
+    return [
+        Chem.MolFromMolBlock(
+            Chem.MolToMolBlock(mol, confId=int(idx)).replace("3D", ""), removeHs=False
+        )
+        for idx in idx_lst
+    ]
 
 
 def rdkit_mol_to_ase_atoms(mol: Chem.rdchem.Mol):
@@ -45,9 +48,12 @@ def rdkit_mol_to_ase_atoms(mol: Chem.rdchem.Mol):
     @return ase.Atoms: ase Atoms object with the same coordinates.
     """
     from ase import Atoms
+
     if mol.GetNumConformers() > 1:
-        logger.warning('A mol object with multiple conformers is parsed, '
-                       'converting to Atoms only the first conformer.')
+        logger.warning(
+            "A mol object with multiple conformers is parsed, "
+            "converting to Atoms only the first conformer."
+        )
     symbols = [atm.GetSymbol() for atm in mol.GetAtoms()]
     positions = mol.GetConformer(0).GetPositions()
     return Atoms(symbols=symbols, positions=positions)
@@ -67,6 +73,7 @@ def add_special_atoms(symbol_pairs):
     """  # TODO Enable special atoms for rdkit
     import numpy as np
     from ase import data
+
     for i, pair in enumerate(symbol_pairs):
         data.chemical_symbols += [pair[0]]
         z_orig = data.atomic_numbers[pair[1]]
@@ -74,13 +81,14 @@ def add_special_atoms(symbol_pairs):
         orig_com_mass = data.atomic_masses_common[z_orig]
         data.atomic_numbers[pair[0]] = max(data.atomic_numbers.values()) + 1
         data.atomic_names += [pair[0]]
-        data.atomic_masses_iupac2016 = np.append(data.atomic_masses_iupac2016,
-                                                 orig_iupac_mass)
+        data.atomic_masses_iupac2016 = np.append(
+            data.atomic_masses_iupac2016, orig_iupac_mass
+        )
         data.atomic_masses = data.atomic_masses_iupac2016
-        data.atomic_masses_common = np.append(data.atomic_masses_common,
-                                              orig_com_mass)
-        data.covalent_radii = np.append(data.covalent_radii,
-                                        data.covalent_radii[z_orig])
+        data.atomic_masses_common = np.append(data.atomic_masses_common, orig_com_mass)
+        data.covalent_radii = np.append(
+            data.covalent_radii, data.covalent_radii[z_orig]
+        )
         data.reference_states += [data.reference_states[z_orig]]
         # TODO Add vdw_radii, gsmm and aml (smaller length)
 
@@ -103,31 +111,34 @@ def adapt_format(requirement, coord_file, spec_atms=tuple()):
 
     from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
 
-    req_vals = ['rdkit', 'ase']
-    lib_err = f"The conversion to the '{requirement}' library object type" \
-              f" has not yet been implemented"
+    req_vals = ["rdkit", "ase"]
+    lib_err = (
+        f"The conversion to the '{requirement}' library object type"
+        f" has not yet been implemented"
+    )
     conv_info = f"Converted {coord_file} to {requirement} object type"
 
-    fil_type_err = f'The {filetype(coord_file)} file format is not supported'
+    fil_type_err = f"The {filetype(coord_file)} file format is not supported"
 
     if requirement not in req_vals:
         logger.error(lib_err)
         raise NotImplementedError(lib_err)
 
-    if requirement == 'ase':
+    if requirement == "ase":
         add_special_atoms(spec_atms)
-        if filetype(coord_file) == 'xyz':
+        if filetype(coord_file) == "xyz":
             logger.debug(conv_info)
             return ase.io.read(coord_file)
-        elif filetype(coord_file) == 'mol':
+        elif filetype(coord_file) == "mol":
             logger.debug(conv_info)
             rd_mol = Chem.AddHs(Chem.MolFromMolFile(coord_file, removeHs=False))
             return rdkit_mol_to_ase_atoms(rd_mol)
         else:
-            return try_command(ase.io.read,
-                               [(ase.io.formats.UnknownFileTypeError,
-                                 fil_type_err)],
-                               coord_file)
+            return try_command(
+                ase.io.read,
+                [(ase.io.formats.UnknownFileTypeError, fil_type_err)],
+                coord_file,
+            )
 
 
 def read_coords_vasp(file, spec_atoms=tuple()):
@@ -138,7 +149,9 @@ def read_coords_vasp(file, spec_atoms=tuple()):
     @return: ase.Atoms object of the coordinates in the file.
     """
     import os
+
     import ase.io
+
     if not os.path.isfile(file):
         err_msg = f"File {file} not found."
         logger.error(err_msg)
@@ -154,11 +167,11 @@ def read_energy_cp2k(file):
     @param file: The file from which the energy should be read.
     @return: The last energy on the out file in eV.
     """
-    out_fh = open(file, 'r')
+    out_fh = open(file, "r")
     energy = None
     for line in out_fh:
         if "ENERGY| Total FORCE_EVAL ( QS ) energy" in line:
-            energy = float(line.strip().split(':')[1]) * 27.2113845  # Ha to eV
+            energy = float(line.strip().split(":")[1]) * 27.2113845  # Ha to eV
     out_fh.close()
     return energy
 
@@ -184,8 +197,8 @@ def collect_confs(dir_list, code, run_type, spec_atms=tuple()):
     atoms_list = []
     for conf_dir in dir_list:
         conf_path = f"{run_type}/{conf_dir}/"
-        
-        if code == 'vasp':
+
+        if code == "vasp":
             ase_atms = read_coords_vasp(f"{conf_path}/OUTCAR", spec_atms)
             ase_atms.info["energy"] = ase_atms.get_total_energy() * 27.2113845
             ase_atms.info[run_type[:3]] = conf_dir

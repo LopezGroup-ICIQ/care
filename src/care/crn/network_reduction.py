@@ -5,12 +5,14 @@ Given a network, it provides a toolbox of methods to simplify, removing and modi
 
 from care import Intermediate, ReactionNetwork
 
+
 class ReactionNetworkSimplifier:
-    def __init__(self):  
-        
+    def __init__(self):
         pass
-    
-    def del_by_elements(self, network: ReactionNetwork, nc: int=None, nh: int=None, no: int=None) -> None:
+
+    def del_by_elements(
+        self, network: ReactionNetwork, nc: int = None, nh: int = None, no: int = None
+    ) -> None:
         """
         Deletes all the intermediates containing the specified number of atoms.
 
@@ -23,12 +25,14 @@ class ReactionNetworkSimplifier:
         """
         pass
 
-    def del_by_chemical_family(self, network: ReactionNetwork, family: str, closed_shell_only: bool=True) -> None:
+    def del_by_chemical_family(
+        self, network: ReactionNetwork, family: str, closed_shell_only: bool = True
+    ) -> None:
         """
         Delete from the reaction network all the intermediates belonging to the specified chemical family.
         """
         return None
-    
+
     def del_by_formula(self, network: ReactionNetwork, formula: str) -> None:
         """
         Deletes all the intermediates containing the formula.
@@ -44,7 +48,7 @@ class ReactionNetworkSimplifier:
             if formula in inter.molecule.get_chemical_formula():
                 network.del_inter(inter.code)
         return None
-    
+
     def del_by_code(self, network: ReactionNetwork, code: str) -> None:
         """
         Deletes the intermediate with the given code.
@@ -58,8 +62,10 @@ class ReactionNetworkSimplifier:
         """
         network.del_inter(code)
         return None
-    
-    def del_by_energy(self, network: ReactionNetwork, energy: float, tol: float = 0.0) -> None:
+
+    def del_by_energy(
+        self, network: ReactionNetwork, energy: float, tol: float = 0.0
+    ) -> None:
         """
         Deletes all the elementary reactions whose energy is greater than the given energy.
 
@@ -76,8 +82,10 @@ class ReactionNetworkSimplifier:
             if rxn.energy > energy - tol:
                 network.del_rxn(rxn.code)
         return None
-    
-    def del_by_barrier(self, network: ReactionNetwork, barrier: float, tol: float = 0.0) -> None:
+
+    def del_by_barrier(
+        self, network: ReactionNetwork, barrier: float, tol: float = 0.0
+    ) -> None:
         """
         Deletes all the elementary reactions whose barrier is greater than the given barrier.
 
@@ -94,7 +102,7 @@ class ReactionNetworkSimplifier:
             if rxn.barrier > barrier - tol:
                 network.del_rxn(rxn.code)
         return None
-    
+
 
 def is_alkane(inter: Intermediate) -> bool:
     """
@@ -110,4 +118,4 @@ def is_alkane(inter: Intermediate) -> bool:
     bool
         True if the intermediate is an alkane, False otherwise.
     """
-    return set(inter.molecule.get_chemical_symbols()) == set(['C', 'H'])
+    return set(inter.molecule.get_chemical_symbols()) == set(["C", "H"])

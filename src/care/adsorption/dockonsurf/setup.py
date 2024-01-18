@@ -22,7 +22,7 @@ setuptools.setup(
     author="Carles Martí",
     author_email="carles.marti2@gmail.com",
     description="Code to systematically find the most stable geometry for "
-                "molecules on surfaces",
+    "molecules on surfaces",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://gitlab.com/lch_interfaces/dockonsurf",
@@ -32,5 +32,5 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
 )

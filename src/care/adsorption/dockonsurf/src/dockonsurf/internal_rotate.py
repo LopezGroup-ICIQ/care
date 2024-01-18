@@ -166,16 +166,24 @@
 import logging
 
 import numpy as np
-
 from src.dockonsurf.screening import get_atom_coords, get_vect_angle
 
+logger = logging.getLogger("DockOnSurf")
 
-logger = logging.getLogger('DockOnSurf')
 
-
-def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
-                    ctr2_surf, bond_vector, bond_angle_target,
-                    dihedral_angle_target=None, mol_dihedral_angle_target=None):
+def internal_rotate(
+    molecule,
+    surf,
+    ctr1_mol,
+    ctr2_mol,
+    ctr3_mol,
+    ctr1_surf,
+    ctr2_surf,
+    bond_vector,
+    bond_angle_target,
+    dihedral_angle_target=None,
+    mol_dihedral_angle_target=None,
+):
     """Performs translation and rotation of an adsorbate defined by an
     adsorption bond length, direction, angle and dihedral angle
 
@@ -227,14 +235,12 @@ def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
         None (the `molecule` object is modified in-place)
     """
 
-    vect_surf = get_atom_coords(surf, ctr2_surf) - get_atom_coords(surf,
-                                                                   ctr1_surf)
-    vect_inter = get_atom_coords(molecule, ctr1_mol) \
-        - get_atom_coords(surf, ctr1_surf)
-    vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(molecule,
-                                                                     ctr1_mol)
-    vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(molecule,
-                                                                      ctr2_mol)
+    vect_surf = get_atom_coords(surf, ctr2_surf) - get_atom_coords(surf, ctr1_surf)
+    vect_inter = get_atom_coords(molecule, ctr1_mol) - get_atom_coords(surf, ctr1_surf)
+    vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(molecule, ctr1_mol)
+    vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(
+        molecule, ctr2_mol
+    )
 
     # Check if dihedral angles can be defined
     do_dihedral = dihedral_angle_target is not None
@@ -260,15 +266,14 @@ def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
     molecule.translate(translation)
 
     # Update adsorption bond
-    vect_inter = get_atom_coords(molecule, ctr1_mol) - \
-        get_atom_coords(surf, ctr1_surf)
+    vect_inter = get_atom_coords(molecule, ctr1_mol) - get_atom_coords(surf, ctr1_surf)
 
     # Check if translation was successful
     if np.allclose(vect_inter, bond_vector):
         pass  # print("Translation successfully applied (error: ~ {:.5g} unit "
         # "length)".format(np.linalg.norm(vect_inter - bond_vector)))
     else:
-        err = 'An unknown error occured during the translation'
+        err = "An unknown error occured during the translation"
         logger.error(err)
         raise AssertionError(err)
 
@@ -286,34 +291,41 @@ def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
         non_aligned_vector = np.zeros(3)
         # Select the most orthogonal axis (lowest dot product):
         non_aligned_vector[np.argmin(np.abs(vect_inter))] = 1
-        rotation_vector = non_aligned_vector - np.dot(non_aligned_vector,
-                                                      vect_inter) / np.dot(
-            vect_inter, vect_inter) * vect_inter
+        rotation_vector = (
+            non_aligned_vector
+            - np.dot(non_aligned_vector, vect_inter)
+            / np.dot(vect_inter, vect_inter)
+            * vect_inter
+        )
 
     # Retrieve current bond angle
     bond_angle_ini = get_vect_angle(-vect_inter, vect_mol, rotation_vector)
 
     # Apply rotation to reach desired bond_angle
-    molecule.rotate(bond_angle_target - bond_angle_ini, v=rotation_vector,
-                    center=get_atom_coords(molecule, ctr1_mol))
+    molecule.rotate(
+        bond_angle_target - bond_angle_ini,
+        v=rotation_vector,
+        center=get_atom_coords(molecule, ctr1_mol),
+    )
 
     # Update molecular bonds
-    vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(molecule,
-                                                                     ctr1_mol)
-    vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(molecule,
-                                                                      ctr2_mol)
+    vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(molecule, ctr1_mol)
+    vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(
+        molecule, ctr2_mol
+    )
 
     # Check if rotation was successful
     bond_angle = get_vect_angle(-vect_inter, vect_mol)
-    if np.isclose((bond_angle - bond_angle_target + 90) % 180 - 90, 0,
-                  atol=1e-3) and np.allclose(get_atom_coords(molecule, ctr1_mol)
-                                             - get_atom_coords(surf,
-                                                               ctr1_surf),
-                                             vect_inter):
+    if np.isclose(
+        (bond_angle - bond_angle_target + 90) % 180 - 90, 0, atol=1e-3
+    ) and np.allclose(
+        get_atom_coords(molecule, ctr1_mol) - get_atom_coords(surf, ctr1_surf),
+        vect_inter,
+    ):
         pass  # print("Rotation successfully applied (error: {:.5f}°)".format(
         # (bond_angle - bond_angle_target + 90) % 180 - 90))
     else:
-        err = 'An unknown error occured during the rotation'
+        err = "An unknown error occured during the rotation"
         logger.error(err)
         raise AssertionError(err)
 
@@ -326,52 +338,68 @@ def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
         # Retrieve current dihedral angle (by computing the angle between the
         # vector rejection of vect_surf and vect_mol onto vect_inter)
         vect_inter_inner = np.dot(vect_inter, vect_inter)
-        vect_surf_reject = vect_surf - np.dot(vect_surf, vect_inter) / \
-            vect_inter_inner * vect_inter
+        vect_surf_reject = (
+            vect_surf - np.dot(vect_surf, vect_inter) / vect_inter_inner * vect_inter
+        )
         if dihedral_use_mol2:
-            vect_mol_reject = vect2_mol - np.dot(vect2_mol, vect_inter) / \
-                              vect_inter_inner * vect_inter
+            vect_mol_reject = (
+                vect2_mol
+                - np.dot(vect2_mol, vect_inter) / vect_inter_inner * vect_inter
+            )
         else:
-            vect_mol_reject = vect_mol - np.dot(vect_mol, vect_inter) / \
-                              vect_inter_inner * vect_inter
-        dihedral_angle_ini = get_vect_angle(vect_surf_reject, vect_mol_reject,
-                                            vect_inter)
+            vect_mol_reject = (
+                vect_mol - np.dot(vect_mol, vect_inter) / vect_inter_inner * vect_inter
+            )
+        dihedral_angle_ini = get_vect_angle(
+            vect_surf_reject, vect_mol_reject, vect_inter
+        )
 
         # Apply dihedral rotation along vect_inter
-        molecule.rotate(dihedral_angle_target - dihedral_angle_ini,
-                        v=vect_inter, center=get_atom_coords(molecule,
-                                                             ctr1_mol))
+        molecule.rotate(
+            dihedral_angle_target - dihedral_angle_ini,
+            v=vect_inter,
+            center=get_atom_coords(molecule, ctr1_mol),
+        )
 
         # Update molecular bonds
-        vect_mol = get_atom_coords(molecule, ctr2_mol) - \
-            get_atom_coords(molecule, ctr1_mol)
-        vect2_mol = get_atom_coords(molecule, ctr3_mol) - \
-            get_atom_coords(molecule, ctr2_mol)
+        vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(
+            molecule, ctr1_mol
+        )
+        vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(
+            molecule, ctr2_mol
+        )
 
         # Check if rotation was successful
         # Check dihedral rotation
         if dihedral_use_mol2:
-            vect_mol_reject = vect2_mol - np.dot(vect2_mol, vect_inter) / \
-                              vect_inter_inner * vect_inter
+            vect_mol_reject = (
+                vect2_mol
+                - np.dot(vect2_mol, vect_inter) / vect_inter_inner * vect_inter
+            )
         else:
-            vect_mol_reject = vect_mol - np.dot(vect_mol, vect_inter) / \
-                              vect_inter_inner * vect_inter
-        dihedral_angle = get_vect_angle(vect_surf_reject, vect_mol_reject,
-                                        vect_inter)
+            vect_mol_reject = (
+                vect_mol - np.dot(vect_mol, vect_inter) / vect_inter_inner * vect_inter
+            )
+        dihedral_angle = get_vect_angle(vect_surf_reject, vect_mol_reject, vect_inter)
         # Check bond rotation is unmodified
         bond_angle = get_vect_angle(-vect_inter, vect_mol)
-        if np.isclose((dihedral_angle - dihedral_angle_target + 90) % 180 - 90,
-                      0, atol=1e-3) \
-                and np.isclose((bond_angle - bond_angle_target + 90) %
-                               180 - 90, 0, atol=1e-5) \
-                and np.allclose(get_atom_coords(molecule, ctr1_mol)
-                                - get_atom_coords(surf, ctr1_surf),
-                                vect_inter):
+        if (
+            np.isclose(
+                (dihedral_angle - dihedral_angle_target + 90) % 180 - 90, 0, atol=1e-3
+            )
+            and np.isclose(
+                (bond_angle - bond_angle_target + 90) % 180 - 90, 0, atol=1e-5
+            )
+            and np.allclose(
+                get_atom_coords(molecule, ctr1_mol) - get_atom_coords(surf, ctr1_surf),
+                vect_inter,
+            )
+        ):
             pass  # print( "Dihedral rotation successfully applied (error: {
             # :.5f}°)".format((dihedral_angle - dihedral_angle_target + 90) %
             # 180 - 90))
         else:
-            err = 'An unknown error occured during the dihedral rotation'
+            err = "An unknown error occured during the dihedral rotation"
             logger.error(err)
             raise AssertionError(err)
 
@@ -385,56 +413,73 @@ def internal_rotate(molecule, surf, ctr1_mol, ctr2_mol, ctr3_mol, ctr1_surf,
         # between the orthogonal rejection of vect_inter and vect2_mol onto
         # vect_mol)
         vect_mol_inner = np.dot(vect_mol, vect_mol)
-        bond_inter_reject = -vect_inter - np.dot(-vect_inter, vect_mol) / \
-            vect_mol_inner * vect_mol
-        bond2_mol_reject = vect2_mol - np.dot(vect2_mol, vect_mol) / \
-            vect_mol_inner * vect_mol
-        dihedral_angle_ini = get_vect_angle(bond_inter_reject,
-                                            bond2_mol_reject, vect_mol)
+        bond_inter_reject = (
+            -vect_inter - np.dot(-vect_inter, vect_mol) / vect_mol_inner * vect_mol
+        )
+        bond2_mol_reject = (
+            vect2_mol - np.dot(vect2_mol, vect_mol) / vect_mol_inner * vect_mol
+        )
+        dihedral_angle_ini = get_vect_angle(
+            bond_inter_reject, bond2_mol_reject, vect_mol
+        )
 
         # Apply dihedral rotation along vect_mol
-        molecule.rotate(mol_dihedral_angle_target - dihedral_angle_ini,
-                        v=vect_mol, center=get_atom_coords(molecule, ctr1_mol))
+        molecule.rotate(
+            mol_dihedral_angle_target - dihedral_angle_ini,
+            v=vect_mol,
+            center=get_atom_coords(molecule, ctr1_mol),
+        )
 
         # Update molecular bonds
-        vect_mol = get_atom_coords(molecule, ctr2_mol) \
-            - get_atom_coords(molecule, ctr1_mol)
-        vect2_mol = get_atom_coords(molecule, ctr3_mol) \
-            - get_atom_coords(molecule, ctr2_mol)
+        vect_mol = get_atom_coords(molecule, ctr2_mol) - get_atom_coords(
+            molecule, ctr1_mol
+        )
+        vect2_mol = get_atom_coords(molecule, ctr3_mol) - get_atom_coords(
+            molecule, ctr2_mol
+        )
 
         # Check if rotation was successful
         # Check adsorbate dihedral rotation
         vect_mol_inner = np.dot(vect_mol, vect_mol)
-        bond2_mol_reject = vect2_mol - np.dot(vect2_mol, vect_mol) / \
-            vect_mol_inner * vect_mol
-        mol_dihedral_angle = get_vect_angle(bond_inter_reject,
-                                            bond2_mol_reject, vect_mol)
+        bond2_mol_reject = (
+            vect2_mol - np.dot(vect2_mol, vect_mol) / vect_mol_inner * vect_mol
+        )
+        mol_dihedral_angle = get_vect_angle(
+            bond_inter_reject, bond2_mol_reject, vect_mol
+        )
         # Check dihedral rotation
         vect_inter_inner = np.dot(vect_inter, vect_inter)
-        vect_surf_reject = vect_surf - np.dot(vect_surf, vect_inter) / \
-            vect_inter_inner * vect_inter
-        vect_mol_reject = vect_mol - np.dot(vect_mol, vect_inter) / \
-            vect_inter_inner * vect_inter
-        dihedral_angle = get_vect_angle(vect_surf_reject, vect_mol_reject,
-                                        vect_inter)
+        vect_surf_reject = (
+            vect_surf - np.dot(vect_surf, vect_inter) / vect_inter_inner * vect_inter
+        )
+        vect_mol_reject = (
+            vect_mol - np.dot(vect_mol, vect_inter) / vect_inter_inner * vect_inter
+        )
+        dihedral_angle = get_vect_angle(vect_surf_reject, vect_mol_reject, vect_inter)
         # Check bond rotation is unmodified
         bond_angle = get_vect_angle(-vect_inter, vect_mol)
-        if np.isclose((mol_dihedral_angle - mol_dihedral_angle_target + 90) %
-                      180 - 90, 0, atol=1e-3) \
-                and np.isclose((dihedral_angle -
-                                dihedral_angle_target + 90) % 180 - 90, 0,
-                               atol=1e-5) \
-                and np.isclose((bond_angle - bond_angle_target + 90) % 180 - 90,
-                               0, atol=1e-5) \
-                and np.allclose(get_atom_coords(molecule, ctr1_mol) -
-                                get_atom_coords(surf, ctr1_surf),
-                                vect_inter):
+        if (
+            np.isclose(
+                (mol_dihedral_angle - mol_dihedral_angle_target + 90) % 180 - 90,
+                0,
+                atol=1e-3,
+            )
+            and np.isclose(
+                (dihedral_angle - dihedral_angle_target + 90) % 180 - 90, 0, atol=1e-5
+            )
+            and np.isclose(
+                (bond_angle - bond_angle_target + 90) % 180 - 90, 0, atol=1e-5
+            )
+            and np.allclose(
+                get_atom_coords(molecule, ctr1_mol) - get_atom_coords(surf, ctr1_surf),
+                vect_inter,
+            )
+        ):
             pass  # print(
             # "Adsorbate dihedral rotation successfully applied (error:
             # {:.5f}°)".format((mol_dihedral_angle - mol_dihedral_angle_target
             # + 90) % 180 - 90))
         else:
-            err = 'An unknown error occured during the adsorbate dihedral ' \
-                  'rotation'
+            err = "An unknown error occured during the adsorbate dihedral " "rotation"
             logger.error(err)
             raise AssertionError(err)

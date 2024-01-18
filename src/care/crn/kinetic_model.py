@@ -1,5 +1,6 @@
 from care.crn.reaction_network import ReactionNetwork
 
+
 class KineticModel:
     def __init__(self, rxn_net: ReactionNetwork):
         self.rxn_net = rxn_net

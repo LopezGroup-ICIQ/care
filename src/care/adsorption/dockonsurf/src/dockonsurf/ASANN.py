@@ -170,12 +170,13 @@
 """Python3 implementation of the ASANN algorithm (Anisotropically corrected
 Solid-Angle based Nearest-Neighbors) """
 
-# EXTERNAL MODULES IMPORTS ###
-import numpy as np
 import math
 
+# EXTERNAL MODULES IMPORTS ###
+import numpy as np
 
 # FUNCTIONS DEFINITION ###
+
 
 # PRE-PROCESSING FUNCTIONS ##
 def add_periodic_images(coords, cell, mode):
@@ -210,11 +211,12 @@ def add_periodic_images(coords, cell, mode):
     # Iterate over cell vectors
     for vect in np.eye(cell.shape[0]):
         # Add periodic images
-        if mode == 'adjacent':
+        if mode == "adjacent":
             new_coords = np.vstack((new_coords, coords + vect, coords - vect))
-        elif mode == 'full':
-            new_coords = np.vstack((new_coords, new_coords + vect,
-                                    new_coords - vect))  # Recursive process
+        elif mode == "full":
+            new_coords = np.vstack(
+                (new_coords, new_coords + vect, new_coords - vect)
+            )  # Recursive process
             # to include all dimension combinaisons
         else:
             raise NotImplementedError
@@ -261,7 +263,7 @@ def get_pbc_vectors(coords, pbc, nb_atoms=None):
     vectors = coords[np.newaxis, :, :] - coords[:nb_atoms, np.newaxis, :]
 
     # Applying PBC (if minimum image convention is required)
-    if pbc and pbc not in ('adjacent', 'full'):
+    if pbc and pbc not in ("adjacent", "full"):
         # vectors = np.mod(vectors + 0.5, 1) - 0.5 # modulo operation is a
         # bit slower than floor operation...
         vectors -= np.floor(vectors + 0.5)
@@ -330,7 +332,7 @@ def get_sorted_distances(coords, pbc, nb_atoms=None, cell=np.eye(3)):
         # have cartesian coordinates (for distance computation)
 
     # Computes pairwise distances
-    distances = np.sqrt(np.sum(vectors ** 2, axis=-1))  # simply the square
+    distances = np.sqrt(np.sum(vectors**2, axis=-1))  # simply the square
     # root of the sum of squared components for each pairwise vector
 
     # Sorting vectors and distances (with respect to distance) for improved
@@ -378,12 +380,13 @@ def get_SANN(all_distances):
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (dist_sum, atom_distances) in zip(list_dist_sum, all_distances):
+    for dist_sum, atom_distances in zip(list_dist_sum, all_distances):
         sann_CN = 3  # Set CN to 3 (i.e. the minimum CN value for the SANN
         # algorithm) SANN algorithm (i.e. while SANN radius sum(r_ij,1,
         # m)/(m-2) > r_i(m+1), increase m by 1)
         while (sann_CN + 1 < nb_coords) and (
-                dist_sum / (sann_CN - 2) >= atom_distances[sann_CN + 1]):
+            dist_sum / (sann_CN - 2) >= atom_distances[sann_CN + 1]
+        ):
             dist_sum += atom_distances[sann_CN + 1]
             sann_CN += 1
         # Store SANN CN found
@@ -420,11 +423,12 @@ def dist_to_barycenter(nearest_neighbors, nearest_distances, radius):
     list_SA = 1 - nearest_distances / radius
 
     # Compute SA-based barycenter
-    bary_vector = np.sum(nearest_neighbors * list_SA[:, np.newaxis],
-                         axis=0) / np.sum(list_SA)
+    bary_vector = np.sum(nearest_neighbors * list_SA[:, np.newaxis], axis=0) / np.sum(
+        list_SA
+    )
 
     # Returns distance from the central atom to the barycenter
-    return (math.sqrt(np.sum(bary_vector ** 2)), bary_vector)
+    return (math.sqrt(np.sum(bary_vector**2)), bary_vector)
 
 
 def angular_correction(nearest_neighbors, nearest_distances, radius):
@@ -455,13 +459,12 @@ def angular_correction(nearest_neighbors, nearest_distances, radius):
     """
 
     # Computing the ratio between the distance to the nearest neighbors
-	# barycenter and the radius
-    alpha = dist_to_barycenter(nearest_neighbors, nearest_distances, radius)[
-                0] / radius
+    # barycenter and the radius
+    alpha = dist_to_barycenter(nearest_neighbors, nearest_distances, radius)[0] / radius
     vector = dist_to_barycenter(nearest_neighbors, nearest_distances, radius)[1]
 
     # Computing angular correction
-    return ((alpha + math.sqrt(alpha ** 2 + 3 * alpha)) / 3, vector)
+    return ((alpha + math.sqrt(alpha**2 + 3 * alpha)) / 3, vector)
 
 
 ## ASANN IMPLEMENTATION ##
@@ -517,25 +520,25 @@ def get_ASANN(sorted_distances, sorted_vectors, sann_CNs, sann_radii):
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (atom_distances, atom_neighbors, sann_CN, sann_radius) in zip(
-            sorted_distances, sorted_vectors, sann_CNs, sann_radii):
-
+    for atom_distances, atom_neighbors, sann_CN, sann_radius in zip(
+        sorted_distances, sorted_vectors, sann_CNs, sann_radii
+    ):
         # Computes angular correction
-        nearest_distances = atom_distances[1:sann_CN + 1]
-        nearest_neighbors = atom_neighbors[1:sann_CN + 1]
-        ang_corr, vec = angular_correction(nearest_neighbors, nearest_distances,
-                                           sann_radius)
+        nearest_distances = atom_distances[1 : sann_CN + 1]
+        nearest_neighbors = atom_neighbors[1 : sann_CN + 1]
+        ang_corr, vec = angular_correction(
+            nearest_neighbors, nearest_distances, sann_radius
+        )
         beta = 2 * (1 - ang_corr)
 
         # ASANN algorithm (i.e. while ASANN radius sum(r_ij, j=1..m)/(m-2*(
         # 1-ang_corr)) >= r_i(m+1), increase m by 1)
-        asann_CN = int(
-            beta) + 1  # Set CN to floor(2*(1-ang_corr)) + 1 (i.e. the
+        asann_CN = int(beta) + 1  # Set CN to floor(2*(1-ang_corr)) + 1 (i.e. the
         # minimum CN value for the ASANN algorithm)
-        dist_sum = atom_distances[
-                   1:asann_CN + 1].sum()  # Initialize sum of distances
+        dist_sum = atom_distances[1 : asann_CN + 1].sum()  # Initialize sum of distances
         while (asann_CN + 1 < nb_coords) and (
-                dist_sum / (asann_CN - beta) >= atom_distances[asann_CN + 1]):
+            dist_sum / (asann_CN - beta) >= atom_distances[asann_CN + 1]
+        ):
             dist_sum += atom_distances[asann_CN + 1]
             asann_CN += 1
 
@@ -544,13 +547,17 @@ def get_ASANN(sorted_distances, sorted_vectors, sann_CNs, sann_radii):
         list_asann_radius.append(dist_sum / (asann_CN - beta))
         list_bary_vector.append(vec)
 
-    return (np.array(list_asann_CN), np.array(list_asann_radius),
-            np.array(list_bary_vector))
+    return (
+        np.array(list_asann_CN),
+        np.array(list_asann_radius),
+        np.array(list_bary_vector),
+    )
 
 
 # VARIANTS DEFINITIONS ##
-def get_self_consistent_ASANN(sorted_distances, sorted_vectors, sann_CNs,
-                              radius_eps=1e-2):
+def get_self_consistent_ASANN(
+    sorted_distances, sorted_vectors, sann_CNs, radius_eps=1e-2
+):
     """Update ASANN-based coordination numbers using an angular correction
     term computed in a self-consistent manner.
 
@@ -595,9 +602,9 @@ def get_self_consistent_ASANN(sorted_distances, sorted_vectors, sann_CNs,
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (atom_distances, atom_neighbors, sann_CN) in zip(sorted_distances,
-                                                         sorted_vectors,
-                                                         sann_CNs):
+    for atom_distances, atom_neighbors, sann_CN in zip(
+        sorted_distances, sorted_vectors, sann_CNs
+    ):
         asann_CN = sann_CN  # Set initial CN to 1 above the maximum CN that
         # can break ASANN relation (i.e. sann_CN-1)
         radius = 0
@@ -607,24 +614,33 @@ def get_self_consistent_ASANN(sorted_distances, sorted_vectors, sann_CNs,
         # m-2(1-ang_corr)) < r_i(m+1), decrease m by 1)
         while True:
             # Extract properties of nearest neighbors
-            nearest_distances = atom_distances[1:asann_CN + 1]
-            nearest_neighbors = atom_neighbors[1:asann_CN + 1]
+            nearest_distances = atom_distances[1 : asann_CN + 1]
+            nearest_neighbors = atom_neighbors[1 : asann_CN + 1]
 
             # Computes radius iteratively
-            sum_nearest = np.sum(
-                nearest_distances)  # store sum of nearest distances
-            radius = sum_nearest / (
-                    asann_CN - 2)  # set initial radius to SANN value
+            sum_nearest = np.sum(nearest_distances)  # store sum of nearest distances
+            radius = sum_nearest / (asann_CN - 2)  # set initial radius to SANN value
             delta_radius = math.inf
             # Update radius until convergence
             while delta_radius > radius_eps:
-                delta_radius = sum_nearest / (asann_CN - 2 * (
-                        1 - angular_correction(nearest_neighbors,
-                                               nearest_distances,
-                                               radius)[0])) - radius  #
+                delta_radius = (
+                    sum_nearest
+                    / (
+                        asann_CN
+                        - 2
+                        * (
+                            1
+                            - angular_correction(
+                                nearest_neighbors, nearest_distances, radius
+                            )[0]
+                        )
+                    )
+                    - radius
+                )  #
                 # new_radius(old_radius) - old_radius
-                vec = angular_correction(nearest_neighbors, nearest_distances,
-                                         radius)[1]
+                vec = angular_correction(nearest_neighbors, nearest_distances, radius)[
+                    1
+                ]
                 radius += delta_radius
 
             # Check if ASANN relation is broken
@@ -641,8 +657,11 @@ def get_self_consistent_ASANN(sorted_distances, sorted_vectors, sann_CNs,
         list_asann_radius.append(prev_radius)
         list_vectors.append(vec)
 
-    return (np.array(list_asann_CN), np.array(list_asann_radius),
-            np.array(list_vectors))
+    return (
+        np.array(list_asann_CN),
+        np.array(list_asann_radius),
+        np.array(list_vectors),
+    )
 
 
 def convert_continuous(list_CN, list_radius, sorted_distances):
@@ -680,10 +699,11 @@ def convert_continuous(list_CN, list_radius, sorted_distances):
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (atom_CN, atom_radius, atom_distances) in zip(list_CN, list_radius,
-                                                      sorted_distances):
+    for atom_CN, atom_radius, atom_distances in zip(
+        list_CN, list_radius, sorted_distances
+    ):
         # Extract distances of nearest neighbors
-        nearest_distances = atom_distances[1:atom_CN + 1]
+        nearest_distances = atom_distances[1 : atom_CN + 1]
 
         # Compute solid angles of nearest neighbors
         nearest_SA = 1 - nearest_distances / atom_radius
@@ -745,12 +765,12 @@ def get_generalized(list_CN, list_weights, sorted_indexes, max_CN=None):
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (weights, indexes) in zip(list_weights, sorted_indexes):
+    for weights, indexes in zip(list_weights, sorted_indexes):
         # Initialize atom coordination number, and maximal coordination number
         atom_CN = 0
 
         # Loop over all neighbors, compute and add the corresponding weights
-        for (weight, index) in zip(weights, indexes[1:]):
+        for weight, index in zip(weights, indexes[1:]):
             try:
                 neighbor_CN = list_CN[index]
             except IndexError:
@@ -761,7 +781,7 @@ def get_generalized(list_CN, list_weights, sorted_indexes, max_CN=None):
         # Divide by maximal coordination number
         list_generalized_CN.append(atom_CN / max_CN)
 
-    return (np.array(list_generalized_CN))
+    return np.array(list_generalized_CN)
 
 
 def get_edges(list_CN, sorted_indexes, reduce_mode=None, nb_atoms=None):
@@ -801,24 +821,27 @@ def get_edges(list_CN, sorted_indexes, reduce_mode=None, nb_atoms=None):
 
     # Treat each atom separately (since CN can be different for each atom,
     # Numpy methods are unsuited here)
-    for (atom_CN, indexes) in zip(list_CN, sorted_indexes):
+    for atom_CN, indexes in zip(list_CN, sorted_indexes):
         # Retrieve current atom index
         index_i = indexes[0]
         # Loop over all neighbors, and add the corresponding edges
-        for index_j in indexes[1:atom_CN + 1]:
+        for index_j in indexes[1 : atom_CN + 1]:
             list_edges.append(
-                (index_i, index_j) if reduce_mode is None else tuple(sorted((
-                    index_i,
-                    index_j))))  # add sorted edge instead (representing an
+                (index_i, index_j)
+                if reduce_mode is None
+                else tuple(sorted((index_i, index_j)))
+            )  # add sorted edge instead (representing an
             # undirected edge) if conversion is required (reduce_mode not None)
 
     # Re-map to correct atom index if explicit periodic images are included
     if nb_atoms is not None:
-        list_edges = [(index_i % nb_atoms, index_j % nb_atoms) for
-                      (index_i, index_j) in list_edges]
+        list_edges = [
+            (index_i % nb_atoms, index_j % nb_atoms)
+            for (index_i, index_j) in list_edges
+        ]
 
     # Conversion of directed edges set to undirected edges set
-    if reduce_mode == 'both':
+    if reduce_mode == "both":
         # Extract only edges that are present multiple times
         seen = dict()
         duplicates = []
@@ -828,17 +851,25 @@ def get_edges(list_CN, sorted_indexes, reduce_mode=None, nb_atoms=None):
             else:
                 seen[edge] = None
         list_edges = duplicates
-    elif reduce_mode == 'any':
+    elif reduce_mode == "any":
         # Retrieve all unique undirected edges
         list_edges = list(set(list_edges))
 
-    return (list_edges)
+    return list_edges
 
 
 # FULL WRAPPER FUNCTION ##
-def coordination_numbers(list_coords, pbc=True, cell_vectors=np.eye(3),
-                         continuous=False, generalized=False, edges=True,
-                         correction='ASANN', parallel=False, reduce_mode=None):
+def coordination_numbers(
+    list_coords,
+    pbc=True,
+    cell_vectors=np.eye(3),
+    continuous=False,
+    generalized=False,
+    edges=True,
+    correction="ASANN",
+    parallel=False,
+    reduce_mode=None,
+):
     """Computes coordination numbers according to the CASANN algorithm.
 
     Parameters:
@@ -985,41 +1016,45 @@ def coordination_numbers(list_coords, pbc=True, cell_vectors=np.eye(3),
     nb_atoms = None
 
     # Retrieve parameters and check dimension consistency
-    assert ((not pbc) or (coords.shape[1] == cell.shape[0] == cell.shape[1]))
+    assert (not pbc) or (coords.shape[1] == cell.shape[0] == cell.shape[1])
 
     # Explicitely add adjacent periodic images if requested
-    if pbc in ('adjacent', 'full'):
+    if pbc in ("adjacent", "full"):
         nb_atoms, coords = add_periodic_images(coords, cell, pbc)
 
     # Retrieve distance-sorted pairwise distances, vectors and indexes
     sorted_distances, sorted_vectors, sorted_indexes = get_sorted_distances(
-        coords, pbc, nb_atoms=nb_atoms, cell=cell)
+        coords, pbc, nb_atoms=nb_atoms, cell=cell
+    )
 
     # Retrieve number of nearest neighbors and coordination radius with SANN
     # algorithm
     asann_CNs, asann_radius = get_SANN(sorted_distances)
 
     # Apply angular correction if requested
-    if correction == 'ASANN':
-        asann_CNs, asann_radius, vectors = get_ASANN(sorted_distances,
-                                                     sorted_vectors, asann_CNs,
-                                                     asann_radius)
-    elif correction == 'SC-ASANN':
+    if correction == "ASANN":
+        asann_CNs, asann_radius, vectors = get_ASANN(
+            sorted_distances, sorted_vectors, asann_CNs, asann_radius
+        )
+    elif correction == "SC-ASANN":
         asann_CNs, asann_radius, vectors = get_self_consistent_ASANN(
-            sorted_distances, sorted_vectors, asann_CNs)
+            sorted_distances, sorted_vectors, asann_CNs
+        )
 
     # Compute edges
     if edges:
-        asann_edges = get_edges(asann_CNs, sorted_indexes,
-                                reduce_mode=reduce_mode, nb_atoms=nb_atoms)
+        asann_edges = get_edges(
+            asann_CNs, sorted_indexes, reduce_mode=reduce_mode, nb_atoms=nb_atoms
+        )
     else:
         asann_edges = None
 
     # Convert coordination numbers into continuous values if requested
     if continuous:
         # Compute continuous CN by weighting each neighbor contribution
-        asann_CNs, list_weights = convert_continuous(asann_CNs, asann_radius,
-                                                     sorted_distances)
+        asann_CNs, list_weights = convert_continuous(
+            asann_CNs, asann_radius, sorted_distances
+        )
     elif generalized:
         list_weights = [[1] * asann_CN for asann_CN in asann_CNs]
 
@@ -1031,7 +1066,7 @@ def coordination_numbers(list_coords, pbc=True, cell_vectors=np.eye(3),
 
 
 # Program being executed when used as a script (instead of a module)
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Imports
     import sys
 
@@ -1040,14 +1075,16 @@ if __name__ == '__main__':
         from structure_reader import structure_from_file
     except ImportError as err:
         print(
-            'Unable to find file structure_reader.py, which allows reading '
-            'molecular structures. Aborting.',
-            file=sys.stderr)
+            "Unable to find file structure_reader.py, which allows reading "
+            "molecular structures. Aborting.",
+            file=sys.stderr,
+        )
         print(
-            'Plase copy structure_reader.py in either the same folder '
-            'containing this script ({}), or in your working '
-            'directory'.format(
-                sys.argv[0]), file=sys.stderr)
+            "Plase copy structure_reader.py in either the same folder "
+            "containing this script ({}), or in your working "
+            "directory".format(sys.argv[0]),
+            file=sys.stderr,
+        )
 
         raise err
 
@@ -1056,10 +1093,11 @@ if __name__ == '__main__':
         filename = sys.argv[1]
     except IndexError as err:
         print(
-            'Unable to parse a filename to treat (containing coordinates in '
-            'supported format: XYZ, POSCAR, CIF, ...)',
-            file=sys.stderr)
-        print('Usage: {} filename'.format(sys.argv[0]), file=sys.stderr)
+            "Unable to parse a filename to treat (containing coordinates in "
+            "supported format: XYZ, POSCAR, CIF, ...)",
+            file=sys.stderr,
+        )
+        print("Usage: {} filename".format(sys.argv[0]), file=sys.stderr)
         raise err
 
     # Read file structure
@@ -1072,14 +1110,20 @@ if __name__ == '__main__':
     # simple modulo operation is not enough when a single point is found as
     # neighbor more than once (as part of periodic images)
     if pbc_mode and len(coordinates) < 100:
-        pbc_mode = 'full'  # Explictely include all 27 next periodic cells
+        pbc_mode = "full"  # Explictely include all 27 next periodic cells
     elif pbc_mode and len(coordinates) < 1000:
-        pbc_mode = 'adjacent'  # Explicitely include all 9 adjacent cells
+        pbc_mode = "adjacent"  # Explicitely include all 9 adjacent cells
 
     asann_CNs, asann_radii, asann_edges, vectors = coordination_numbers(
-        coordinates, pbc=pbc_mode, cell_vectors=cell_vectors, continuous=False,
-        generalized=False, edges=True, correction='ASANN')
+        coordinates,
+        pbc=pbc_mode,
+        cell_vectors=cell_vectors,
+        continuous=False,
+        generalized=False,
+        edges=True,
+        correction="ASANN",
+    )
 
-    print('ASANN vectors')
+    print("ASANN vectors")
     for l in vectors:
         print(-l[0], -l[1], -l[2])
