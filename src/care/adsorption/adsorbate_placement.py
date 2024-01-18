@@ -1,6 +1,7 @@
 # Functions to place the adsorbate on the surface
 
 import itertools as it
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -16,9 +17,9 @@ from care.constants import BOND_ORDER
 from care.crn.intermediates_funcs import rdkit_to_ase
 
 
-def connectivity_analysis(graph: nx.Graph) -> list:
+def connectivity_analysis(graph: nx.Graph) -> list[int]:
     """
-    This function will return a list with the number of connections for each atom in the molecule.
+    Performs a connectivity analysis of the molecule. Returns a list of potential anchoring atoms.
 
     Parameters
     ----------
@@ -27,7 +28,7 @@ def connectivity_analysis(graph: nx.Graph) -> list:
 
     Returns
     -------
-    list
+    list[int]
         List with the number of connections for each atom in the molecule.
     """
 
@@ -101,7 +102,7 @@ def generate_inp_vars(
     max_structures: int,
     molec_ctrs: list,
     sites: list,
-):
+) -> dict[str, Any]:
     """
     Generates the input variables for the dockonsurf screening.
 
@@ -123,6 +124,11 @@ def generate_inp_vars(
         Molecular centers of the adsorbate.
     sites : list
         Active sites of the surface.
+
+    Returns
+    -------
+    dict[str, Any]
+        Dictionary with the input variables.
     """
     adsorbate.set_cell(surface.get_cell().lengths())
     inp_vars = {
@@ -261,21 +267,19 @@ def ads_placement(
         return intermediate.code, total_config_list
 
 
-def best_fit_plane(atom_coords):
+def best_fit_plane(atom_coords: np.ndarray) -> tuple[np.ndarray, float]:
     """
     Get the best fit plane for a set of points.
 
     Parameters
     ----------
-    atom_coords : _type_
-        _description_
+    atom_coords : np.ndarray
+        Array of coordinates.
 
     Returns
     -------
-    _type_
-        _description_
-    _type_
-        _description_
+    tuple[np.ndarray, float]
+        Tuple containing the normal vector and the distance from the origin.
     """
     num_points = atom_coords.shape[0]
     centroid = np.mean(atom_coords, axis=0, dtype=np.float64)
@@ -308,23 +312,23 @@ def best_fit_plane(atom_coords):
     return normal, D
 
 
-def signed_distance_from_plane(atom_coords, plane_normal, D):
+def signed_distance_from_plane(atom_coords: np.ndarray, plane_normal: np.ndarray, D: float) -> np.ndarray:
     """
     Get the signed distance of each atom from a plane. The plane is defined by a normal vector and a distance from the origin.
 
     Parameters
     ----------
-    atom_coords : _type_
-        _description_
-    plane_normal : _type_
-        _description_
-    D : _type_
-        _description_
+    atom_coords : np.ndarray
+        Array of coordinates.
+    plane_normal : np.ndarray
+        Array of the plane normal vector.
+    D : float
+        Distance from the origin.
 
     Returns
     -------
-    _type_
-        _description_
+    distances : np.ndarray
+        Array of the signed distances.
     """
     # Normalize the plane normal vector
     norm = np.linalg.norm(plane_normal)
@@ -335,23 +339,23 @@ def signed_distance_from_plane(atom_coords, plane_normal, D):
     return distances
 
 
-def atoms_underneath_plane(atom_coords, plane_normal, D):
+def atoms_underneath_plane(atom_coords: np.ndarray, plane_normal: np.ndarray, D: float) -> np.ndarray:
     """Get the atoms underneath a plane. The plane is defined by a normal vector and a distance from the origin.
     The underneath part is defined by the z-component of the normal vector.
 
     Parameters
     ----------
-    atom_coords : _type_
-        _description_
-    plane_normal : _type_
-        _description_
-    D : _type_
-        _description_
+    atom_coords : np.ndarray
+        Array of coordinates.
+    plane_normal : np.ndarray
+        Array of the plane normal vector.
+    D : float
+        Distance from the origin.
 
     Returns
     -------
-    _type_
-        _description_
+    selected_atoms : np.ndarray
+        Array of the coordinates of the atoms underneath the plane.
     """
     distances = signed_distance_from_plane(atom_coords, plane_normal, D)
 
@@ -528,9 +532,5 @@ def ads_placement_graph(
                 continue
             else:
                 graph_config_list.append(new_graph)
-
-        # except Exception as e:
-        #     print(e)
-        #     continue
 
     return intermediate.code, graph_config_list

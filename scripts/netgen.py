@@ -3,7 +3,7 @@ from pickle import dump
 import os
 import multiprocessing as mp
 
-from care.crn.netgen_fns import generate_inters_and_rxns
+from care.crn.netgen_fns import gen_chemical_space
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate intermediates of the reaction network.')
@@ -12,15 +12,13 @@ if __name__ == "__main__":
     parser.add_argument('-ncores', type=int, help='Number of cores to use.', dest='ncores', default=mp.cpu_count())
     args = parser.parse_args()
 
-    if args.noc == -1:
-        noc = args.ncc*2 +2
-    else:
-        noc = args.noc
+    # If args.noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
+    noc = args.noc if args.noc > 0 else args.ncc*2 + 2
 
     output_dir = f'C{args.ncc}O{noc}'
     os.makedirs(output_dir, exist_ok=True)
 
-    intermediates, reactions = generate_inters_and_rxns(args.ncc, args.noc, ncores=args.ncores)
+    intermediates, reactions = gen_chemical_space(args.ncc, args.noc, ncores=args.ncores)
     with open(f'{output_dir}/intermediates.pkl', 'wb') as f:
         dump(intermediates, f)
 
