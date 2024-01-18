@@ -134,6 +134,20 @@ INTER_ELEMS = ["C", "H", "O", "*"]
 
 INTER_PHASES = ["gas", "ads", "surf"]
 
+R_TYPES = [
+        "desorption",
+        "C-O",
+        "C-H",
+        "H-H",
+        "O-O",
+        "C-C",
+        "H-O",
+        "eley_rideal",
+        "adsorption",
+        "pseudo",
+        "rearrangement",
+    ]
+
 OC_KEYS = ["T", "P", "U", "pH"]
 
 OC_UNITS = {"T": "K", "P": "Pa", "U": "V", "pH": "-"}

@@ -6,11 +6,11 @@ from scipy.linalg import null_space
 from torch_geometric.data import Data
 
 from care import Intermediate
-from care.constants import INTER_ELEMS
+from care.constants import INTER_ELEMS, R_TYPES
 
 
 class ElementaryReaction:
-    """Class for representing elementary reactions.
+    """Class for representing surface elementary reactions.
 
     Attributes:
         code (str): Code associated with the elementary reaction.
@@ -19,19 +19,7 @@ class ElementaryReaction:
         r_type (str): Elementary reaction type.
     """
 
-    r_types = [
-        "desorption",
-        "C-O",
-        "C-H",
-        "H-H",
-        "O-O",
-        "C-C",
-        "H-O",
-        "eley_rideal",
-        "adsorption",
-        "pseudo",
-        "rearrangement",
-    ]
+    r_types = R_TYPES
 
     def __init__(
         self,
@@ -87,17 +75,15 @@ class ElementaryReaction:
         self.e_rxn: Optional[tuple[float, float]] = None  # reaction energy
         self.e_act: Optional[tuple[float, float]] = None  # activation energy
 
+        self.ts_graph: Optional[Data] = None
         self._bader_energy = None
         self.r_type = r_type
         if self.r_type not in self.r_types:
             raise ValueError(f"Invalid reaction type: {self.r_type}")
         self.is_electro = is_electro
-        if self.r_type in ("C-H", "H-O", "H-H"):
-            self.is_electro = True
         self.stoic = stoic
         if self.r_type != "pseudo" and self.stoic is None:
             self.stoic = self.solve_stoichiometry()
-        self.ts_graph: Optional[Data] = None
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -119,6 +105,31 @@ class ElementaryReaction:
             out_str = out_str[:-1]
             out_str += "<->"
         return out_str[:-3]
+    
+    @property
+    def repr_hr(self) -> str:
+        comps_str = []
+        for component in self.components:
+            inters_str = []
+            for inter in component:
+                if inter.phase == "surf":
+                    out_str = (
+                        "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
+                    )
+                elif inter.phase == "gas":
+                    out_str = (
+                        "[{}]".format(str(abs(self.stoic[inter.code])))
+                        + inter.molecule.get_chemical_formula() + '(g)'
+                    )
+                else:
+                    out_str = (
+                        "[{}]".format(str(abs(self.stoic[inter.code])))
+                        + inter.molecule.get_chemical_formula() + '*'
+                    )
+                inters_str.append(out_str)
+            comp_str = ' + '.join(inters_str)
+            comps_str.append(comp_str)
+        return ' <-> '.join(comps_str)
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
@@ -300,7 +311,7 @@ class ElementaryReaction:
 
     def reverse(self):
         """
-        Reverse the elementary reaction.
+        Reverse the elementary reaction inplace.
         Example: A + B <-> C + D becomes C + D <-> A + B
         reaction energy and barrier are also reversed
         """
@@ -313,6 +324,13 @@ class ElementaryReaction:
         if self.e_rxn != None:
             self.e_rxn[0] = -self.e_rxn[0]
             self.e_is, self.e_fs = self.e_fs, self.e_is
-        if self.e_act != None:
-            self.e_act = self.e_ts[0] - energy_old[0], self.e_act[1]
+        if self.e_act != None and '-' in self.e_act[0]:
+            self.e_act[0] = self.e_ts[0] - self.e_is[0]
+            self.e_act[1] = (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5
+            if self.e_act[0] < 0:
+                self.e_act[0] = -self.e_act[0]
+                self.e_act[1] = -self.e_act[1]
+            if self.e_act < self.e_rxn:
+                self.e_act[0] = self.e_rxn[0]
+                self.e_act[1] = self.e_rxn[1]
         self.code = self.__repr__()

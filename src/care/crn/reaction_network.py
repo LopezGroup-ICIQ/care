@@ -833,64 +833,66 @@ class ReactionNetwork:
         else:
             view(configs)
 
-    def visualize_reaction(self, reaction_index: int, show_uncertainty: bool = False):
+    def visualize_reaction(self, idx: int, show_uncertainty: bool = False):
         """
-        Visualize the reaction energy diagram.
+        Visualize the reaction energy profile.
 
         Args:
-            reaction_index (int): Index of the reaction in the list of reactions.
+            idx (int): Index of the reaction in the list of reactions.
             show_uncertainty (bool, optional): If True, the confidence interval
                 of the energy of the transition state will be shown. Defaults
                 to False.
         Returns:
             obj:`ED` with the energy diagram of the reaction.
         """
-        rxn = self.reactions[reaction_index].__repr__()
-        components = rxn.split("<->")
-        reactants, products = components[0].split("+"), components[1].split("+")
-        for i, inter in enumerate(reactants):
-            if "0000000000*" in inter:
-                where_surface = "reactants"
-                surf_index = i
-                break
-        for i, inter in enumerate(products):
-            if "0000000000*" in inter:
-                where_surface = "products"
-                surf_index = i
-                break
-        v_reactants = [
-            re.findall(r"\[([a-zA-Z0-9])\]", reactant) for reactant in reactants
-        ]
-        v_products = [re.findall(r"\[([a-zA-Z0-9])\]", product) for product in products]
-        v_reactants = [item for sublist in v_reactants for item in sublist]
-        v_products = [item for sublist in v_products for item in sublist]
-        reactants = [re.findall(r"\((.*?)\)", reactant) for reactant in reactants]
-        products = [re.findall(r"\((.*?)\)", product) for product in products]
-        reactants = [item for sublist in reactants for item in sublist]
-        products = [item for sublist in products for item in sublist]
-        for i, reactant in enumerate(reactants):
-            if v_reactants[i] != "1":
-                reactants[i] = v_reactants[i] + reactant
-            if "(g" in reactant:
-                reactants[i] += ")"
-            if where_surface == "reactants" and i == surf_index:
-                reactants[i] = "*"
-        for i, product in enumerate(products):
-            if v_products[i] != "1":
-                products[i] = v_products[i] + product
-            if "(g" in product:
-                products[i] += ")"
-            if where_surface == "products" and i == surf_index:
-                products[i] = "*"
-        rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
+        rxn = self.reactions[idx].__repr__()
+        # components = rxn.split("<->")
+        # reactants, products = components[0].split("+"), components[1].split("+")
+        # for i, inter in enumerate(reactants):
+        #     if "0000000000*" in inter:
+        #         where_surface = "reactants"
+        #         surf_index = i
+        #         break
+        # for i, inter in enumerate(products):
+        #     if "0000000000*" in inter:
+        #         where_surface = "products"
+        #         surf_index = i
+        #         break
+        # v_reactants = [
+        #     re.findall(r"\[([a-zA-Z0-9])\]", reactant) for reactant in reactants
+        # ]
+        # v_products = [re.findall(r"\[([a-zA-Z0-9])\]", product) for product in products]
+        # v_reactants = [item for sublist in v_reactants for item in sublist]
+        # v_products = [item for sublist in v_products for item in sublist]
+        # reactants = [re.findall(r"\((.*?)\)", reactant) for reactant in reactants]
+        # products = [re.findall(r"\((.*?)\)", product) for product in products]
+        # reactants = [item for sublist in reactants for item in sublist]
+        # products = [item for sublist in products for item in sublist]
+        # for i, reactant in enumerate(reactants):
+        #     if v_reactants[i] != "1":
+        #         reactants[i] = v_reactants[i] + reactant
+        #     if "(g" in reactant:
+        #         reactants[i] += ")"
+        #     if where_surface == "reactants" and i == surf_index:
+        #         reactants[i] = "*"
+        # for i, product in enumerate(products):
+        #     if v_products[i] != "1":
+        #         products[i] = v_products[i] + product
+        #     if "(g" in product:
+        #         products[i] += ")"
+        #     if where_surface == "products" and i == surf_index:
+        #         products[i] = "*"
+        # rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
+        rxn_string = self.reactions[idx].repr_hr
+        where_surface = 'reactants' if any(inter.is_surface for inter in self.reactions[idx].reactants) else 'products'
         diagram = ED()
-        diagram.add_level(0, rxn_string.split(" -> ")[0])
+        diagram.add_level(0, rxn_string.split(" <-> ")[0])
         diagram.add_level(
-            round(self.reactions[reaction_index].e_act[0], 2), "TS", color="r"
+            round(self.reactions[idx].e_act[0], 2), "TS", color="r"
         )
         diagram.add_level(
-            round(self.reactions[reaction_index].energy[0], 2),
-            rxn_string.split(" -> ")[1],
+            round(self.reactions[idx].e_rxn[0], 2),
+            rxn_string.split(" <-> ")[1],
         )
         diagram.add_link(0, 1)
         diagram.add_link(1, 2)
@@ -910,7 +912,7 @@ class ReactionNetwork:
 
         makedirs("tmp", exist_ok=True)
         counter = 0
-        for i, inter in enumerate(self.reactions[reaction_index].reactants):
+        for i, inter in enumerate(self.reactions[idx].reactants):
             if inter.is_surface:
                 pass
             else:
@@ -940,7 +942,7 @@ class ReactionNetwork:
                     )
                     diagram.ax.add_artist(ab)
         counter = 0
-        for i, inter in enumerate(self.reactions[reaction_index].products):
+        for i, inter in enumerate(self.reactions[idx].products):
             if inter.is_surface:
                 pass
             else:
@@ -970,10 +972,10 @@ class ReactionNetwork:
             from matplotlib.patches import Rectangle
 
             width = artists[2].get_position()[0] - artists[3].get_position()[0]
-            height_ts = 1.96 * 2 * self.reactions[reaction_index].e_act[1]
+            height_ts = 1.96 * 2 * self.reactions[idx].e_act[1]
             anchor_point_ts = (
                 min(artists[6].get_position()[0], artists[7].get_position()[0]),
-                round(self.reactions[reaction_index].e_act[0], 2) - 0.5 * height_ts,
+                round(self.reactions[idx].e_act[0], 2) - 0.5 * height_ts,
             )
             ts_box = Rectangle(
                 anchor_point_ts,
