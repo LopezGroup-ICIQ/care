@@ -62,6 +62,23 @@ python evaluate.py -i C1O3/Ru0001
 
 Once finished, `C1O3/Ru0001/crn.pkl` is created, containing the whole CRN with energy included.
 
+## How to access the CRN
+
+```python
+from pickle import load
+
+with open('./C1O4/Pd111/crn.pkl', 'rb') as pickle_file:
+    crn = load(pickle_file)
+```
+
+`crn` is a `care.ReactionNetwork` object which provides rapid access to the intermediates (`care.Intermediate`), elementary reactions (`care.ElementaryReaction`), and its properties as activation barrier `care.ElementaryReaction.e_act` and reaction energy `care.ElementaryReaction.e_rxn`.
+
+To visualize a specific elementary step:
+
+```python
+crn.visualize_reaction(0)
+```
+
 ## License
 
 The code is released under a [MIT]() license.
