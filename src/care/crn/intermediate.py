@@ -98,6 +98,7 @@ class Intermediate:
         self.electrons = self.get_num_electrons()
         self.bader = None
         self.voltage = None
+        self.mass = self.molecule.get_masses().sum()
 
         if not self.is_surface:
             self.smiles = self.get_smiles()

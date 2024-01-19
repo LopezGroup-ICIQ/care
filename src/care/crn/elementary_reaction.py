@@ -19,7 +19,7 @@ class ElementaryReaction:
         r_type (str): Elementary reaction type.
     """
 
-    r_types = R_TYPES
+    r_types: list[str]= R_TYPES
 
     def __init__(
         self,
@@ -64,20 +64,41 @@ class ElementaryReaction:
             )
         elif type_component == Intermediate:
             self.components = components
-
         self.reactants = self.components[0]
         self.products = self.components[1]
 
-        # energy attributes (mu, std)
+        # enthalpy attributes (mu, std)
         self.e_is: Optional[tuple[float, float]] = None  # initial state
         self.e_ts: Optional[tuple[float, float]] = None  # transition state
         self.e_fs: Optional[tuple[float, float]] = None  # final state
         self.e_rxn: Optional[tuple[float, float]] = None  # reaction energy
         self.e_act: Optional[tuple[float, float]] = None  # activation energy
 
+        # entropy attributes (mu, std)
+        self.s_is: Optional[tuple[float, float]] = 0, 0  
+        self.s_ts: Optional[tuple[float, float]] = 0, 0 
+        self.s_fs: Optional[tuple[float, float]] = 0, 0
+        self.s_rxn: Optional[tuple[float, float]] = 0, 0
+        self.s_act: Optional[tuple[float, float]] = 0, 0
+
+        # Gibbs free energy attributes (mu, std)
+        self.g_is: Optional[tuple[float, float]] = None  
+        self.g_ts: Optional[tuple[float, float]] = None 
+        self.g_fs: Optional[tuple[float, float]] = None
+        self.g_rxn: Optional[tuple[float, float]] = None
+        self.g_act: Optional[tuple[float, float]] = None
+
+        # Kinetic constants
+        self.k_dir: Optional[float] = None  # direct rate constant
+        self.k_rev: Optional[float] = None  # reverse rate constant
+        self.k_eq: Optional[float] = None  # equilibrium constant
+
+        # Reaction rate
+        self.rate: Optional[float] = None
+
         self.ts_graph: Optional[Data] = None
         self._bader_energy = None
-        self.r_type = r_type
+        self.r_type: str = r_type
         if self.r_type not in self.r_types:
             raise ValueError(f"Invalid reaction type: {self.r_type}")
         self.is_electro = is_electro

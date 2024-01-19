@@ -21,9 +21,11 @@ from torch import where
 from torch_geometric.data import Data
 
 from care import ElementaryReaction, Intermediate, Surface
-from care.constants import INTER_ELEMS, OC_KEYS, OC_UNITS
+from care.constants import INTER_ELEMS, OC_KEYS, OC_UNITS, K_B, K_BU, H
 from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
+from care.crn.microkinetic import net_rate, stoic_backward, stoic_forward, iupac_to_inchikey
+from care.crn.reactor import DynamicCSTR, DifferentialPFR
 
 
 class ReactionNetwork:
@@ -989,143 +991,6 @@ class ReactionNetwork:
             diagram.ax.add_patch(ts_box)
         return diagram
 
-    def find_all_paths(self, source, targets, graph, path=[], cutoff=None):
-        """
-        TODO: Add docstring
-        """
-        path = path + [source]
-        paths = []
-
-        # Check if the path length has exceeded the cutoff
-        if cutoff is not None and len(path) > cutoff:
-            return []
-
-        # Add the path if either it ends in the target or it has not exceeded the cutoff length
-        if source in targets or (cutoff is not None and len(path) <= cutoff):
-            paths.append(path)
-
-        if not graph.has_node(source):
-            return []
-
-        for node in graph.neighbors(source):
-            if node not in path:
-                newpaths = self.find_all_paths(node, targets, graph, path, cutoff)
-                for newpath in newpaths:
-                    paths.append(newpath)
-        return paths
-
-    def find_all_paths_from_sources_to_targets(
-        self, sources, targets, intermediates=None, cutoff=None
-    ):
-        """
-        TODO: Add docstring
-        """
-        graph = self.gen_graph(del_surf=False, show_steps=False).to_undirected()
-
-        for edge in list(graph.edges):
-            graph.add_edge(edge[1], edge[0])
-
-        all_paths = {}
-        for source in sources:
-            for target in targets:
-                if source != target:
-                    paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
-                    paths = [path for path in paths if path[-1] == target]
-                    # all_paths[(source, target)] = [path for path in nx.all_simple_paths(graph, source, target, cutoff=cutoff)]
-                    all_paths[(source, target)] = paths
-
-        if intermediates:
-            dict_copy = deepcopy(all_paths)
-            # Check if there are paths that go through the intermediate
-            for source_target in all_paths.values():
-                for path in source_target:
-                    # Check if the path goes through ALL the intermediates
-                    if not all([inter in path for inter in intermediates]):
-                        # Deleting the path from the copy if it does not go through the intermediate
-                        dict_copy[(path[0], path[-1])].remove(path)
-            all_paths = dict_copy
-        print(
-            "The shortest path goes through {} intermediates".format(
-                min([len(path) for path in all_paths.values() for path in path])
-            )
-        )
-
-        return all_paths
-
-    # def find_all_paths_from_sources_to_targets(self, sources, targets, cutoff=None):
-    #     """
-    #     TODO: Add docstring
-    #     """
-    #     graph = self.gen_graph(del_surf=True, show_steps=False)
-
-    #     for edge in list(graph.edges):
-    #         graph.add_edge(edge[1], edge[0])
-
-    #     all_paths = {}
-    #     for source in sources:
-    #         for target in targets:
-    #             if source != target:
-    #                 paths = self.find_all_paths(source, targets, graph, cutoff=cutoff)
-    #                 paths = [path for path in paths if path[-1] == target]
-    #                 all_paths[(source, target)] = paths
-    #     return all_paths
-
-    # def find_paths_through_intermediate(self, source, target, intermediate=None, cutoff=None):
-    #     """TODO:  add docstring
-    #     """
-    #     graph = self.gen_graph(del_surf=True, show_steps=False)
-
-    #     for edge in list(graph.edges):
-    #         graph.add_edge(edge[1], edge[0])
-
-    #     if intermediate:
-    #         paths_to_intermediate = self.find_all_paths(source, intermediate, graph, cutoff=cutoff/2)
-    #         # Only storing those paths that end in the intermediate
-    #         paths_to_intermediate = [path for path in paths_to_intermediate if path[-1] == intermediate]
-
-    #         paths_from_intermediate = self.find_all_paths(intermediate, target, graph, cutoff=cutoff/2)
-    #         # Only storing those paths that end in the target
-    #         paths_from_intermediate = [path for path in paths_from_intermediate if path[-1] == target]
-    #         # Concatenate the paths to get complete paths from source to target via intermediate
-    #         complete_paths = []
-    #         for path1 in paths_to_intermediate:
-    #             for path2 in paths_from_intermediate:
-    #                 # Check if concatenating the paths exceeds the cutoff
-    #                 if cutoff is None or len(path1) + len(path2) - 1 <= cutoff:
-    #                     # Remove the duplicate intermediate node before appending
-    #                     complete_path = path1 + path2[1:]
-    #                     complete_paths.append(complete_path)
-
-    #         return complete_paths
-    #     else:
-    #         paths_to_intermediate = self.find_all_paths(source, target, graph, cutoff=cutoff)
-    #         return paths_to_intermediate
-
-    # def filter_intersecting_paths(self, all_paths):
-    #     grouped_paths = {}
-
-    #     for (source1, target1), paths1 in all_paths.items():
-    #         for path1 in paths1:
-    #             # Convert the list to a tuple to use it as a dictionary key
-    #             path1_tuple = tuple(path1)
-    #             end_node1 = path1[-1]  # End node of the path
-    #             if path1_tuple not in grouped_paths:
-    #                 grouped_paths[path1_tuple] = []
-
-    #             for (source2, target2), paths2 in all_paths.items():
-    #                 # Make sure the source is different and the target is the same before proceeding
-    #                 if source1 != source2 and target1 == target2:
-    #                     for path2 in paths2:
-    #                         end_node2 = path2[-1]  # End node of the path
-    #                         if set(path1[1:-1]) & set(path2[1:-1]) and end_node1 == end_node2:
-    #                             grouped_paths[path1_tuple].append(path2)
-
-    #     # If grouped_paths.values is a dict of empty lists, return original all_paths
-    #     if not any(grouped_paths.values()):
-    #         return all_paths
-    #     else:
-    #         return grouped_paths
-
     def get_num_global_reactions(
         self, reactants: list[str], products: list[str]
     ) -> int:
@@ -1176,16 +1041,82 @@ class ReactionNetwork:
         print(f"Number of global reactions: {nc - rank}")
         return nc - rank
 
-    def get_stoichiometric_matrix(self) -> np.ndarray:
+    @property
+    def stoichiometric_matrix(self) -> np.ndarray:
         """
         Return the stoichiometric matrix of the network.
         """
         v = np.zeros((len(self.intermediates), len(self.reactions)))
+        # gas_mask = np.array(
+        #     [inter.phase == "gas" for inter in self.intermediates.values()]
+        # )
+        # inters, rxns = [], []
         for i, inter in enumerate(self.intermediates.values()):
+            # inters.append(inter.code)
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
                     v[i, j] = reaction.stoic[inter.code]
-        return v
+        # for reaction in self.reactions:
+        #     rxns.append(reaction.__repr__())
+        return v #, inters, rxns, gas_mask
+    
+    @property
+    def stoic_forward(self) -> np.ndarray:
+        return stoic_forward(self.stoichiometric_matrix)
+    
+    @property
+    def stoic_backward(self) -> np.ndarray:
+        return stoic_backward(self.stoichiometric_matrix)
+
+    def get_kinetic_constants(self, t: float = None):
+        """
+        Return the kinetic constants of the reactions.
+        """
+        if t is None:
+            if self.oc['T'] is None:
+                raise ValueError('temperature not specified')
+            else:
+                t = self.oc['T']
+        else:
+            self.oc['T'] = t
+
+        for reaction in self.reactions:
+            reaction.k_eq = np.exp(-reaction.e_rxn[0] / t / K_B)
+            if reaction.r_type == "adsorption":  # Hertz-Knudsen
+                adsorbate_mass = list(reaction.products)[0].mass
+                reaction.k_dir = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
+                reaction.k_dir *= np.exp(-reaction.e_act[0] / K_B / t)
+                reaction.k_rev = reaction.k_dir / reaction.k_eq
+            elif reaction.r_type == "desorption":
+                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
+                reaction.k_rev = reaction.k_dir / reaction.k_eq
+            else:  # Surface reaction
+                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
+                reaction.k_rev = reaction.k_dir / reaction.k_eq
+
+    def run_microkinetic(self, iv: dict[str, float]):
+        if sum(iv.values()) != 1.0:
+            raise ValueError('Sum of molar fractions is not 1.0')
+        k_dir = np.array([reaction.k_dir for reaction in self.reactions])
+        k_rev = np.array([reaction.k_rev for reaction in self.reactions])
+        inters = [inter.code for inter in self.intermediates.values()]
+        y0 = np.zeros(len(inters))
+        for i, inter in enumerate(self.intermediates.values()):
+            if inter.is_surface:
+                y0[i] = 1.0
+        gas_mask = np.array(
+            [inter.phase == "gas" for inter in self.intermediates.values()]
+        )
+        # inchi_keys = [iupac_to_inchikey(iupac)+'g' for iupac in iv.keys()]
+        # iv = dict(zip(inchi_keys, iv.values()))
+        for i, inter in enumerate(self.intermediates.values()):
+            if inter.molecule.get_chemical_formula() in iv.keys() and inter.phase == 'gas':
+                y0[i] = self.oc['P'] * iv[inter.molecule.get_chemical_formula()]
+        reactor = DifferentialPFR(self.oc['T'], self.oc['P'], self.stoichiometric_matrix)
+        ode_params = (k_dir, k_rev, gas_mask)
+        return reactor.integrate(y0, ode_params)
+
+
 
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
@@ -1344,6 +1275,8 @@ class ReactionNetwork:
         reaction.e_is = mu_is, var_is**0.5
         reaction.e_fs = mu_fs, var_fs**0.5
         reaction.e_rxn = mu_rxn, std_rxn
+
+
 
     def calc_reaction_barrier(self, reaction: ElementaryReaction) -> None:
         """
