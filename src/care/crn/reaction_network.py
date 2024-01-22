@@ -79,6 +79,14 @@ class ReactionNetwork:
         else:
             self.oc = {"T": 0, "P": 0, "U": 0, "pH": 0}
 
+    @property
+    def temperature(self):
+        return self.oc["T"]
+    
+    @property
+    def pressure(self):
+        return self.oc["P"]
+
     def __getitem__(self, other: Union[str, int]):
         if isinstance(other, str):
             return self.intermediates[other]
@@ -365,9 +373,7 @@ class ReactionNetwork:
                 ):
                     return inter
 
-    def gen_graph(
-        self, del_surf: bool = True, highlight: list = None, show_steps: bool = True
-    ) -> nx.DiGraph:
+    def gen_graph(self) -> nx.DiGraph:
         """
         Generate a graph using the intermediates and the elementary reactions
         contained in this object.
@@ -384,145 +390,36 @@ class ReactionNetwork:
         Returns:
             obj:`nx.DiGraph` of the network.
         """
-        if show_steps:
-            nx_graph = nx.DiGraph()
-        else:
-            nx_graph = nx.Graph()
+        crn_graph = nx.DiGraph()
         makedirs("tmp", exist_ok=True)
         for inter in self.intermediates.values():
-            fig_path = abspath("tmp/{}.png".format(inter.code))
-            write(fig_path, inter.molecule, show_unit_cell=0)
-            switch = (
-                "None"
-                if highlight is None
-                else True
-                if re.sub(r"\(.*\)", "", inter.code) in highlight
-                else False
-            )
-            formula = inter.molecule.get_chemical_formula() + (
-                "(g)" if inter.phase == "gas" else "*"
-            )
-            nx_graph.add_node(
+            crn_graph.add_node(
                 inter.code,
                 category=inter.phase,
-                #   gas_atoms=inter.molecule,
                 code=inter.code,
-                formula=formula,
-                fig_path=fig_path,
-                switch=switch,
-                nC=inter.molecule.get_chemical_symbols().count("C"),
-                nH=inter.molecule.get_chemical_symbols().count("H"),
-                nO=inter.molecule.get_chemical_symbols().count("O"),
+                formula=inter.formula,
+                nC=inter['C'],
+                nH=inter['H'],
+                nO=inter['O']
             )
 
         for reaction in self.reactions:
-            switch = (
-                "None"
-                if highlight is None
-                else True
-                if reaction.code in highlight
-                else False
-            )
             category = (
                 reaction.r_type
                 if reaction.r_type in ("adsorption", "desorption", "eley_rideal")
                 else "surface_reaction"
             )
-            if show_steps:
-                nx_graph.add_node(
-                    reaction.code,
-                    category=category,
-                    switch=switch,
-                    reactants=list(reaction.reactants),
-                    products=list(reaction.products),
-                    code=reaction.code,
-                )
-                for comp in reaction.components[0]:  # reactants to reaction node
-                    nx_graph.add_edge(comp.code, reaction.code, switch=switch)
-                for comp in reaction.components[1]:  # reaction node to products
-                    nx_graph.add_edge(reaction.code, comp.code, switch=switch)
-                comps = reaction.code.split("<->")
-                reverse_code = comps[1] + "<->" + comps[0]
-                nx_graph.add_node(
-                    reverse_code,
-                    category=category,
-                    switch=switch,
-                    reactants=list(reaction.products),
-                    products=list(reaction.reactants),
-                    code=reverse_code,
-                )
-                for comp in reaction.components[0]:  # reactants to reaction node
-                    nx_graph.add_edge(reverse_code, comp.code, switch=switch)
-                for comp in reaction.components[1]:  # reaction node to products
-                    nx_graph.add_edge(comp.code, reverse_code, switch=switch)
+            crn_graph.add_node(
+                reaction.code,
+                category=category,
+                code=reaction.code,
+            )
+            for comp in reaction.components[0]:  # reactants to reaction node
+                crn_graph.add_edge(comp.code, reaction.code)
+            for comp in reaction.components[1]:  # reaction node to products
+                crn_graph.add_edge(reaction.code, comp.code)
 
-            else:
-                reacts, prods = [], []
-                for inter in reaction.reactants:
-                    if (
-                        not inter.is_surface
-                        and inter.molecule.get_chemical_formula().count("C") != 0
-                    ):
-                        reacts.append(inter)
-                for inter in reaction.products:
-                    if (
-                        not inter.is_surface
-                        and inter.molecule.get_chemical_formula().count("C") != 0
-                    ):
-                        prods.append(inter)
-                if len(reacts) == 0 or len(prods) == 0:
-                    continue
-                # if there are more than one reactant or product, remove the one with less C atoms
-                if len(reacts) > 1:
-                    reacts.sort(
-                        key=lambda x: x.molecule.get_chemical_formula().count("C")
-                    )
-                    reacts.pop(0)
-                if len(prods) > 1:
-                    prods.sort(
-                        key=lambda x: x.molecule.get_chemical_formula().count("C")
-                    )
-                    prods.pop(0)
-                for react in reacts:
-                    for prod in prods:
-                        switch = (
-                            "None"
-                            if highlight is None
-                            else True
-                            if react.code in highlight and prod.code in highlight
-                            else False
-                        )
-                        nx_graph.add_edge(
-                            react.code,
-                            prod.code,
-                            category=category,
-                            switch=switch,
-                            code=reaction.code,
-                        )
-
-        for node in list(nx_graph.nodes):
-            if nx_graph.degree(node) == 0:
-                nx_graph.remove_node(node)
-        if del_surf and show_steps == True:
-            nx_graph.remove_node("*")
-
-        # if highlight is not None and show_steps == False:
-        #     # # make graph undirected and define edge direction based on the reaction code
-        #     # nx_graph = nx_graph.to_undirected()
-        #     for i, inter in enumerate(highlight):
-        #         # check neighbours of the node and define edge direction to the only node whose code is in highlight
-        #         for neigh in nx_graph.neighbors(inter):
-        #             if neigh in highlight:
-        #                 # check direction of the edge
-        #                 if nx_graph.has_edge(inter, neigh):
-        #                     pass
-        #                 else:
-        #                     # switch edge direction
-        #                     nx_graph.remove_edge(neigh, inter)
-        #                     nx_graph.add_edge(inter, neigh)
-        #             if i == len(highlight) - 1:
-        #                 break
-        return nx_graph
+        return crn_graph
 
     def get_min_max(self):
         """
@@ -1101,8 +998,8 @@ class ReactionNetwork:
     def run_microkinetic(self, iv: dict[str, float]):
         if sum(iv.values()) != 1.0:
             raise ValueError('Sum of molar fractions is not 1.0')
-        k_dir = np.array([reaction.k_dir for reaction in self.reactions])
-        k_rev = np.array([reaction.k_rev for reaction in self.reactions])
+        kdir = np.array([reaction.k_dir for reaction in self.reactions])
+        krev = np.array([reaction.k_rev for reaction in self.reactions])
         inters = [inter.code for inter in self.intermediates.values()]
         y0 = np.zeros(len(inters) + 1)
         y0[-1] = 1.0  # initial condition: empty surface
@@ -1112,11 +1009,67 @@ class ReactionNetwork:
         for i, inter in enumerate(self.intermediates.values()):
             if inter.molecule.get_chemical_formula() in iv.keys() and inter.phase == 'gas':
                 y0[i] = self.oc['P'] * iv[inter.molecule.get_chemical_formula()]
-        reactor = DifferentialPFR(self.oc['T'], self.oc['P'], self.stoichiometric_matrix)
-        ode_params = (k_dir, k_rev, gas_mask)
-        results = reactor.integrate(y0, ode_params)
-        results['intermediates'] = inters
-        results['rate'] = reactor.net_rate(results['y'][:, -1], k_dir, k_rev)
+        reactor = DifferentialPFR(self.temperature, self.pressure, self.stoichiometric_matrix)
+        results = reactor.integrate(y0, (kdir, krev, gas_mask))
+        results['inters'] = inters
+        results['rates'] = reactor.net_rate(results['y'][:, -1], kdir, krev)
+        consumption_rate = np.zeros((len(inters)+1, len(self.reactions)))
+        for i, reaction in enumerate(self.reactions):
+            for j, inter in enumerate(inters):
+                if inter in reaction.stoic.keys():
+                    consumption_rate[j, i] = reaction.stoic[inter] * results['rates'][i]
+                if '*' in reaction.stoic.keys():
+                    consumption_rate[-1, i] = reaction.stoic['*'] * results['rates'][i]
+        results['consumption_rate'] = consumption_rate
+        run_graph = self.graph.copy()
+        run_graph.temperature = self.temperature
+        run_graph.pressure = self.pressure
+
+        for i, inter in enumerate(self.intermediates.values()):
+            if inter.phase == 'gas':
+                run_graph.nodes[inter]['molar_fraction'] = results['y'][i, -1] / self.pressure
+            elif inter.phase == 'ads':
+                run_graph.nodes[inter]['coverage'] = results['y'][i, -1]
+        run_graph.nodes['*']['coverage'] = results['y'][-1, -1]
+
+        for i, reaction in enumerate(self.reactions):
+            run_graph.nodes[reaction.code]['rate'] = results['rates'][i]
+
+        # give edges a net consumption rate
+        for i, inter in enumerate(self.intermediates.values()):
+            for j, reaction in enumerate(self.reactions):
+                if inter.code in reaction.stoic.keys():
+                    edge = (inter.code, reaction.code) if reaction.stoic[inter.code] < 0 else (reaction.code, inter.code)
+                    consumption_rate = results['consumption_rate'][i, j]
+                    if consumption_rate < 0 and reaction.stoic[inter.code] > 0:
+                        # change edge direction and add opposite rate
+                        run_graph.remove_edge(*edge)
+                        run_graph.add_edge(*edge[::-1])
+                        run_graph.edges[*edge[::-1]]['rate'] = -consumption_rate
+                    elif consumption_rate > 0 and reaction.stoic[inter.code] < 0:
+                        run_graph.remove_edge(*edge)
+                        run_graph.add_edge(*edge[::-1])
+                        run_graph.edges[*edge[::-1]]['rate'] = consumption_rate
+                    else:
+                        run_graph.edges[edge]['rate'] = results['consumption_rate'][i, j]
+
+        for j, reaction in enumerate(self.reactions):
+            if '*' in reaction.stoic.keys():
+                edge = ('*', reaction.code) if reaction.stoic['*'] < 0 else (reaction.code, '*')
+                consumption_rate = results['consumption_rate'][-1, j]
+                if consumption_rate < 0 and reaction.stoic['*'] > 0:
+                    # change edge direction and add opposite rate
+                    run_graph.remove_edge(*edge)
+                    run_graph.add_edge(*edge[::-1])
+                    run_graph.edges[*edge[::-1]]['rate'] = -consumption_rate
+                elif consumption_rate > 0 and reaction.stoic['*'] < 0:
+                    run_graph.remove_edge(*edge)
+                    run_graph.add_edge(*edge[::-1])
+                    run_graph.edges[*edge[::-1]]['rate'] = consumption_rate
+                else:
+                    run_graph.edges[edge]['rate'] = results['consumption_rate'][-1, j] 
+
+        results['graph'] = run_graph
         return results
 
 

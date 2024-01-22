@@ -19,10 +19,10 @@ from care.constants import METAL_STRUCT_DICT
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Generate initial adsorption structures for the provided intermediates.")
-    argparser.add_argument('-t', type=str, dest='t', help="Type of adsorbate placement. Available options: g (graph), s (dockonsurf)")
     argparser.add_argument('-i', type=str, dest='i', help="path to the folder containing the intermediates.pkl file")
     argparser.add_argument('-m', type=str, dest='m', help="Metal of the surface. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
     argparser.add_argument('-hkl', type=str, dest='hkl', help="Surface facet. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11")
+    argparser.add_argument('-t', type=str, dest='t', default='s', help="Type of adsorbate placement. Available options: g (graph), s (dockonsurf)")
     argparser.add_argument('-ncores', type=int, dest='ncores', default=os.cpu_count(), help="Number of cores to use for parallelization")
     args = argparser.parse_args()
 

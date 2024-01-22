@@ -218,7 +218,7 @@ def ads_placement(
     # Get the potential molecular centers for adsorption
     connect_sites_molec = connectivity_analysis(intermediate.graph)
 
-    # Check if molecule fits on reference metal slab. If not, scale the surface
+    # Check if molecule fits on reference metal slab. If not, increase the surface
     slab = adapt_surface(intermediate.molecule, surface)
 
     # Generate input files for DockonSurf
