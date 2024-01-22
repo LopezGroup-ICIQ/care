@@ -15,7 +15,7 @@ from care.crn.intermediates_funcs import (
     gen_alkanes,
     gen_epoxides,
     gen_ethers,
-    oxy_to_mol,
+    add_oxygens,
 )
 
 warnings.filterwarnings("ignore")
@@ -715,29 +715,29 @@ def gen_chemical_space(
     """
 
     t0 = time.time()
-    # 1) Generate all closed-shell satuarated CHO molecules
-    print("\nGenerating initial closed-shell species...")
+    # Generate initial closed-shell satuarated CHO molecules
+    print("\nGenerating fully saturated closed-shell species...")
     alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
+
     ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
+
+    epoxides_smiles = gen_epoxides(mol_alkanes, noc)
 
     mol_alkanes_ethers = mol_alkanes + mol_ethers
 
-    # 2) Add oxygens to each molecule (generating alcohols and esters)
-    cho_smiles = [oxy_to_mol(mol, noc) for mol in mol_alkanes_ethers]
-    # flatten list of lists
+    # Add oxygens to alkanes and ethers (generating alcohols and esters)
+    cho_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes_ethers]
     cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
 
-    # 3) Generating epoxides
-    epoxides_smiles = gen_epoxides(mol_alkanes, noc)
     cho_smiles += epoxides_smiles + ethers_smiles
 
-    relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
-    # all_cho_smiles = cho_smiles + relev_species
-    all_smiles = cho_smiles + relev_species + alkanes_smiles
     print("Finished generating closed-shell species.")
 
+    print('Adding inorganic reservoir species (CO, CO2, O2, H2O2, H2)...')
+    relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
+
     all_smiles = (
-        alkanes_smiles + cho_smiles + ethers_smiles + epoxides_smiles + relev_species
+        alkanes_smiles + cho_smiles + relev_species
     )
     # Define bond types (C-C, C-H, C-O, O-O, H-H, O-H)
     bond_types = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
@@ -762,9 +762,7 @@ def gen_chemical_space(
     for value in processed_fragments.values():
         frag_list += value
 
-    # Adding explicit Hs to the smiles of relevant species
-    frag_list = list(set(frag_list + cho_smiles + alkanes_smiles))
-    frag_list = [Chem.MolFromSmiles(smiles) for smiles in frag_list]
+    frag_list = [Chem.MolFromSmiles(smiles) for smiles in list(set(frag_list + all_smiles))]
     # Saving the intermediates in a dictionary, where the key is the smiles of the molecule and
     # the values are the rdkit molecules
     relev_species_mol = [Chem.MolFromSmiles(smiles) for smiles in relev_species]

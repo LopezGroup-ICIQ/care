@@ -146,29 +146,31 @@ def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
     return list(canonical_smiles_set)
 
 
-def gen_alkanes(n: int) -> list[str]:
+def gen_alkanes(nc: int) -> tuple[list[str], list[Chem.Mol]]:
     """
     Generate all possible alkanes from 1 Carbon atom to the given number of carbon atoms.
 
     Parameters
     ----------
-    n : int
+    nc : int
         Maximum number of carbon atoms in the alkanes.
 
     Returns
     -------
     unique_alkanes : list[str]
         List of unique alkanes in SMILES format.
+    mol_alkanes : list[Chem.Mol]
+        List of RDKit molecules of alkanes.
     """
     all_alkanes = []
-    for i in range(1, n + 1):
+    for i in range(1, nc + 1):
         all_alkanes += generate_alkanes_recursive(i)
     unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=False)
     mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in unique_alkanes]
     return unique_alkanes, mol_alkanes
 
 
-def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
+def gen_epoxides(mol_alkanes: list, no: int) -> list[str]:
     """
     Generate all possible epoxides smiles based on the given number of carbon and oxygen atoms.
 
@@ -176,7 +178,7 @@ def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
     ----------
     mol_alkanes : list
         List of RDKit molecules of alkanes.
-    n_oxy : int
+    no : int
         Maximum number of oxygen atoms in the epoxides.
 
     Returns
@@ -187,7 +189,7 @@ def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
 
     epoxides = []
     cond1 = lambda atoms: atoms[0].GetDegree() < 4 and atoms[1].GetDegree() < 4
-    if n_oxy == 0:
+    if no == 0:
         return epoxides
     for mol in mol_alkanes:
         # generate list of tuple of adjacent atoms satisfying the cond1
@@ -213,7 +215,7 @@ def gen_epoxides(mol_alkanes: list, n_oxy: int) -> list[str]:
     return list(set(epoxides))
 
 
-def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
+def gen_ethers(mol_alkanes: list, no: int) -> tuple[list[str], list[Chem.Mol]]:
     """
     Add an oxygen atom to an alkane to generate an ether.
 
@@ -224,12 +226,14 @@ def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
 
     Returns
     -------
-    list[str]
+    unique_ethers : list[str]
         List of ether SMILES strings.
+    mol_ethers : list[Chem.Mol]
+        List of RDKit molecules of ethers.
     """
 
     ethers = []
-    if n_oxy == 0:
+    if no == 0:
         return ethers
 
     for mol in mol_alkanes:
@@ -257,7 +261,7 @@ def gen_ethers(mol_alkanes: list, n_oxy: int) -> list[str]:
     return unique_ethers, mol_ethers
 
 
-def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
+def add_oxygens(mol: Chem.Mol, noc: int) -> set[str]:
     """
     Add up to 'noc' oxygen atoms to suitable carbon atoms in the molecule.
 
@@ -270,7 +274,7 @@ def oxy_to_mol(mol: Chem.Mol, noc: int) -> set[str]:
 
     Returns
     -------
-    set[str]
+    unique_molecules : set[str]
         Set of all possible molecules with added oxygens (SMILES format).
     """
     unique_molecules = set()
