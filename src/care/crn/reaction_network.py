@@ -19,12 +19,13 @@ from matplotlib.patches import BoxStyle, Rectangle
 from pydot import Node
 from torch import where
 from torch_geometric.data import Data
+import pandas as pd
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, OC_KEYS, OC_UNITS, K_B, K_BU, H
 from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
-from care.crn.microkinetic import net_rate, stoic_backward, stoic_forward, iupac_to_inchikey
+from care.crn.microkinetic import stoic_backward, stoic_forward, iupac_to_inchikey
 from care.crn.reactor import DynamicCSTR, DifferentialPFR
 
 
@@ -1047,19 +1048,12 @@ class ReactionNetwork:
         Return the stoichiometric matrix of the network.
         """
         v = np.zeros((len(self.intermediates) + 1, len(self.reactions))) # +1 for the surface
-        # gas_mask = np.array(
-        #     [inter.phase == "gas" for inter in self.intermediates.values()]
-        # )
-        # inters, rxns = [], []
         for i, inter in enumerate(self.intermediates.values()):
-            # inters.append(inter.code)
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
                     v[i, j] = reaction.stoic[inter.code]
-                v[-1, j] += reaction.stoic['*'] if '*' in reaction.stoic.keys() else 0
-        # for reaction in self.reactions:
-        #     rxns.append(reaction.__repr__())
-        return v #, inters, rxns, gas_mask
+                v[-1, j] = reaction.stoic['*'] if '*' in reaction.stoic.keys() else 0
+        return v
     
     @property
     def stoic_forward(self) -> np.ndarray:
@@ -1068,6 +1062,15 @@ class ReactionNetwork:
     @property
     def stoic_backward(self) -> np.ndarray:
         return stoic_backward(self.stoichiometric_matrix)
+    
+    @property
+    def df_stoic(self) -> pd.DataFrame:
+        """
+        Return the stoichiometric matrix of the network.
+        """
+        
+        df = pd.DataFrame(self.stoichiometric_matrix, index=list(self.intermediates.keys())+['*'], columns=range(1, len(self.reactions)+1))
+        return df
 
     def get_kinetic_constants(self, t: float = None):
         """
@@ -1103,24 +1106,18 @@ class ReactionNetwork:
         inters = [inter.code for inter in self.intermediates.values()]
         y0 = np.zeros(len(inters) + 1)
         y0[-1] = 1.0  # initial condition: empty surface
-        # for i, inter in enumerate(self.intermediates.values()):
-        #     if inter.is_surface:
-        #         y0[i] = 1.0
         gas_mask = np.array(
             [inter.phase == "gas" for inter in self.intermediates.values()] + [False]
         )
         for i, inter in enumerate(self.intermediates.values()):
             if inter.molecule.get_chemical_formula() in iv.keys() and inter.phase == 'gas':
                 y0[i] = self.oc['P'] * iv[inter.molecule.get_chemical_formula()]
-        # print(dict(zip(inters, y0)))
-        # quit()
         reactor = DifferentialPFR(self.oc['T'], self.oc['P'], self.stoichiometric_matrix)
         ode_params = (k_dir, k_rev, gas_mask)
         results = reactor.integrate(y0, ode_params)
         results['intermediates'] = inters
         results['rate'] = reactor.net_rate(results['y'][:, -1], k_dir, k_rev)
         return results
-
 
 
     def ts_graph(self, step: ElementaryReaction) -> Data:

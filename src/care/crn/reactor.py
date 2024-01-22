@@ -10,14 +10,6 @@ from numba import jit
 from care.constants import N_AV, R
 from care.crn.microkinetic import net_rate, stoic_backward, stoic_forward
 
-# def ode(self, _, y, kd, ki, gas_mask: np.ndarray) -> np.ndarray: #TODO try jit
-#         # Surface species
-#         net_rate = kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(y**self.stoic_backward.T, axis=1)
-#         dy = self.v_matrix @ net_rate
-#         # Make zero the gas species with gas_mask
-#         dy[gas_mask] = 0
-#         return dy
-
 class ReactorModel(ABC):
     def __init__(self):
         """
@@ -42,7 +34,7 @@ class ReactorModel(ABC):
         ...
 
     @abstractmethod
-    def termination_event(self):
+    def steady_state(self):
         """
         Defines the criteria needed to stop the integration. Typically,
         the termination occurs when steady-state conditions are reached.
@@ -76,7 +68,7 @@ class DifferentialPFR(ReactorModel):
                  temperature: float, 
                  pressure: float,
                  v_matrix: np.ndarray, 
-                 ss_tol: float = 1e-10):
+                 ss_tol: float = 1e-6):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -98,7 +90,7 @@ class DifferentialPFR(ReactorModel):
         self.ss_tol = ss_tol
         self.ODE_params = {
             "reltol": 1e-12,
-            "abstol": 1e-32,
+            "abstol": 1e-64,
             "tfin": 1e3}
 
 
@@ -155,10 +147,9 @@ class DifferentialPFR(ReactorModel):
 
     # @jit(nopython=True)
     def ode(self, _, y, kd, ki, gas_mask: np.ndarray) -> np.ndarray:
-        # Surface species
-        dy = self.v_matrix @ self.net_rate(y, kd, ki)
-        # Make zero the gas species with gas_mask
-        dy[gas_mask] = 0
+        
+        dy = self.v_matrix @ self.net_rate(y, kd, ki)  # Surface species        
+        dy[gas_mask] = 0  # Mask gas species
         print(_)
         return dy
 
@@ -191,29 +182,33 @@ class DifferentialPFR(ReactorModel):
         J[NC_sur:, :] = 0.0
         return J
 
-    def termination_event(self, time, y, kd, ki, gas_mask) -> float:
+    def steady_state(self, time, y, kd, ki, gas_mask) -> float:
         error = np.sum(abs(self.ode(time, y, kd, ki, gas_mask)))
         criteria = 0 if error <= self.ss_tol else error
         return criteria
 
-    termination_event.terminal = True
+    steady_state.terminal = True
 
     def integrate(self,
         y_0: np.ndarray,
         ode_params: tuple,
-        end_events=None,
-        jacobian_matrix=None,
-    ):
+    ) -> dict:
         """
-        Helper function for numerical integration of ODE models.
+        Integrate the ODE system until steady-state conditions are reached.
+        Args:
+            y_0(ndarray): Initial conditions for the ODE system.
+            ode_params(tuple): Parameters for the ODE system, containing kdirect, kreverse, gas_mask.
+
+        Returns:
+            (dict): Dictionary containing the solution of the ODE system.
         """
         return solve_ivp(
             self.ode,
-            (0, 10000),
+            (0, 1e6),
             y_0,
-            method="BDF",  # "BDF" if stiff
-            events=end_events,
-            jac=jacobian_matrix,
+            method="BDF", 
+            events=self.steady_state,
+            jac=None,  # To readapt
             args=ode_params,
             atol=self.ODE_params['abstol'],
             rtol=self.ODE_params['reltol'])
