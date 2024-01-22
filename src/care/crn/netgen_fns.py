@@ -322,57 +322,6 @@ def gen_inter_objs(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, Intermed
     return combined_result
 
 
-def process_ads_react_chunk(inter_chunk: list[str], intermediates: dict[str, Intermediate], surf_inter: Intermediate) -> list[ElementaryReaction]:
-    """
-    Processes a chunk of the intermediates to generate the adsorption reactions as ElementaryReaction instances.
-
-    Parameters
-    ----------
-    inter_chunk : list[str]
-        A subset of the intermediates dictionary keys to process.
-    intermediates : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, and each value is the corresponding Intermediate instance.
-    surf_inter : Intermediate
-        The Intermediate instance of the surface.
-
-    Returns
-    -------
-    adsorption_steps : list[ElementaryReaction]
-        List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
-    """
-    adsorption_steps = []
-    for inter_code in inter_chunk:
-        inter = intermediates[inter_code]
-        if inter.phase == "gas":
-            ads_inter = intermediates[inter.code[:-1] + "*"]
-            adsorption_steps.append(
-                ElementaryReaction(
-                    components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
-                    r_type="adsorption",
-                )
-            )
-
-        # Add the dissociative adsorptions for H2 and O2
-        for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
-            gas_code = molecule + "g"
-            if molecule == "UFHFLCQGNIYNRP-UHFFFAOYSA-N":  # H2
-                ads_code = "YZCKVEUIGOORGS-UHFFFAOYSA-N*"
-            else:  # O2
-                ads_code = "QVGXLLKOCUKJST-UHFFFAOYSA-N*"
-            adsorption_steps.append(
-                ElementaryReaction(
-                    components=(
-                        frozenset([surf_inter, intermediates[gas_code]]),
-                        frozenset([intermediates[ads_code]]),
-                    ),
-                    r_type="adsorption",
-                )
-            )
-
-    return adsorption_steps
-
-
 def gen_adsorption_reactions(
     intermediates: dict[str, Intermediate], num_processes=mp.cpu_count()
 ) -> list[ElementaryReaction]:
@@ -394,24 +343,79 @@ def gen_adsorption_reactions(
     adsorption_steps : list[ElementaryReaction]
         List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
     """
+
     surf_inter = Intermediate.from_molecule(
         Atoms(), code="*", is_surface=True, phase="surf"
     )
-    # Split intermediates into chunks
-    inter_chunks = np.array_split(list(intermediates.keys()), num_processes)
+
+    # Retrieving the intermediates that are in gas phase
+    gas_intermediates = [
+        inter for inter in intermediates.values() if inter.phase == "gas"
+    ]
+
+    # Splitting the intermediates into chunks
+    inter_chunks = np.array_split(gas_intermediates, num_processes)
 
     # Create a pool of workers
     with mp.Pool(processes=num_processes) as pool:
         # Map process_chunk function to each chunk
-        results = pool.starmap(
-            process_ads_react_chunk,
-            [(chunk, intermediates, surf_inter) for chunk in inter_chunks],
-        )
+        results = pool.starmap(process_ads_react_chunk, [(chunk, surf_inter) for chunk in inter_chunks])
 
     # Flatten the list of lists
     adsorption_steps = list(set([step for sublist in results for step in sublist]))
+
+    # Add the dissociative adsorptions for H2 and O2
+    for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
+        gas_code = molecule + "g"
+        if molecule == "UFHFLCQGNIYNRP-UHFFFAOYSA-N":  # H2
+            ads_code = "YZCKVEUIGOORGS-UHFFFAOYSA-N*"
+        else:  # O2
+            ads_code = "QVGXLLKOCUKJST-UHFFFAOYSA-N*"
+        adsorption_steps.append(
+            ElementaryReaction(
+                components=(
+                    frozenset([surf_inter, intermediates[gas_code]]),
+                    frozenset([intermediates[ads_code]]),
+                ),
+                r_type="adsorption",
+            )
+        )
+
     return adsorption_steps
 
+
+def process_ads_react_chunk(
+    inter_chunk: list[Intermediate], surf_inter: Intermediate
+    ) -> list[ElementaryReaction]:
+    
+    """
+    Processes a chunk of the intermediates to generate the adsorption reactions as ElementaryReaction instances.
+
+    Parameters
+    ----------
+    inter_chunk : list[Intermediate]
+        A subset of the intermediates dictionary keys to process.
+    surf_inter : Intermediate
+        The Intermediate instance of the surface.
+
+    Returns
+    -------
+    adsorption_steps : list[ElementaryReaction]
+        List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
+    """
+    adsorption_steps = []
+    for inter in inter_chunk:
+
+        ads_inter = Intermediate.from_molecule(
+            inter.molecule, code=inter.code[:-1] + "*", phase="ads"
+        )
+        adsorption_steps.append(
+            ElementaryReaction(
+                components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
+                r_type="adsorption",
+            )
+        )
+    return adsorption_steps
 
 def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     """
@@ -688,65 +692,11 @@ def gen_rearrangement_reactions(
     return rearrangement_rxns
 
 
-def chunks(lst: list, n: int) -> list[list]:
-    """
-    Yield successive n-sized chunks from list.
-
-    Parameters
-    ----------
-    lst : list
-        List to chunk.
-    n : int
-        Size of each chunk.
-
-    Returns
-    -------
-    generator
-        A generator that yields successive n-sized chunks from list.
-    """
-    for i in range(0, len(lst), n):
-        yield lst[i : i + n]
-
-
-def process_reactions_chunk(reactions_chunk: list[tuple[str, list[str], str]]) -> list[ElementaryReaction]:
-    """
-    Process a chunk of reactions. From a list of reactions expressed as tuples of SMILES strings, generate a list of ElementaryReaction instances.
-
-    Parameters
-    ----------
-    reactions_chunk : list[tuple[str, list[str], str]]
-        A list of reactions expressed as tuples of SMILES strings.
-
-    Returns
-    -------
-    rxns_list_chunk : list[ElementaryReaction]
-        List of ElementaryReaction instances.
-    """
-
-    surf_inter = Chem.Mol()  # Assuming this is needed for each chunk
-    rxns_list_chunk = []
-
-    for reaction in reactions_chunk:
-        reactant = Chem.MolFromSmiles(reaction[0])
-        if len(reaction[1]) == 2:
-            product1 = Chem.MolFromSmiles(reaction[1][0])
-            product2 = Chem.MolFromSmiles(reaction[1][1])
-            reaction_components = [[surf_inter, reactant], [product1, product2]]
-        else:
-            product1 = Chem.MolFromSmiles(reaction[1][0])
-            reaction_components = [[reactant], [product1]]
-        rxns_list_chunk.append(
-            ElementaryReaction(components=reaction_components, r_type=reaction[2])
-        )
-
-    return rxns_list_chunk
-
-
 def gen_chemical_space(
     ncc: int, noc: int, ncores: int = mp.cpu_count()
 ) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    Generate intermediates and elementary steps of the chemical reaction network.
+    Generate the entire chemical space for the given boundaries (ncc and noc) of the CRN.
 
     Parameters
     ----------
@@ -766,7 +716,7 @@ def gen_chemical_space(
 
     t0 = time.time()
     # 1) Generate all closed-shell satuarated CHO molecules
-    print("Generating closed-shell species...")
+    print("\nGenerating initial closed-shell species...")
     alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
     ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
 
@@ -792,6 +742,7 @@ def gen_chemical_space(
     # Define bond types (C-C, C-H, C-O, O-O, H-H, O-H)
     bond_types = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
 
+    print("\nGenerating bond-breaking reactions...")
     # Dictionary to keep track of processed fragments
     processed_fragments = {}
     unique_reactions = set()
@@ -827,22 +778,22 @@ def gen_chemical_space(
         inchikey = Chem.inchi.MolToInchiKey(mol)
         smiles = Chem.MolToSmiles(mol, isomericSmiles=True, allHsExplicit=True)
         intermediates_dict[inchikey] = mol
-    print("Total number of intermediates:", len(frag_list))
-    print("Total number of bond-breaking reactions:", len(unique_reactions))
-    print("Time taken to generate intermediates and BB reactions: ", time.time() - t0)
+    print("Number of adsorbed intermediates:", len(frag_list))
+    print("Number of bond-breaking reactions:", len(unique_reactions))
+    print("Time taken to generate adsorbed intermediates and BB reactions: ", time.time() - t0)
 
+    print('\nGenerating the Intermediate instances for the adsorbed species...')
     # Generate the Intermediate objects
     t1 = time.time()
     intermediates_class_dict = gen_inter_objs(intermediates_dict)
-    print("Time taken to generate Intermediate objects: ", time.time() - t1)
+    print("Time taken to generate Intermediate instances: ", time.time() - t1)
 
-    # surf_inter = Chem.Mol()
     surf_inter = Intermediate.from_molecule(
         Atoms(), code="*", is_surface=True, phase="surf"
     )
 
+    print("\nGenerating the ElementaryReaction objects...")
     t2 = time.time()
-    print("Generating the ElementaryReaction objects...")
 
     rxns_list = []
     for reaction in unique_reactions:
@@ -873,7 +824,7 @@ def gen_chemical_space(
     print("Time taken to generate ElementaryReaction objects: ", time.time() - t2)
 
     # Generation of additional reactions
-    print("Generating adsorption and rearrangement steps...")
+    print("Generating adsorption steps...")
 
     ads_steps = gen_adsorption_reactions(intermediates_class_dict)
     rxns_list.extend(ads_steps)
