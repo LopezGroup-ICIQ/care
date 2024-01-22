@@ -3,10 +3,10 @@ from random import randint
 from ase import Atoms
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
-from care.crn.netgen_fns import generate_inters_and_rxns
+from care.crn.netgen_fns import gen_chemical_space
 from care.constants import INTER_ELEMS
 
-inters, steps = generate_inters_and_rxns(3, 1)
+inters, steps = gen_chemical_space(3, 1)
 net = ReactionNetwork()
 net.add_intermediates(inters)
 net.add_reactions(steps)
@@ -19,20 +19,21 @@ class TestElementaryReaction(unittest.TestCase):
 		"""
 		for step in steps:
 			self.assertIsInstance(step, ElementaryReaction)
+			self.assertIn(step.r_type, ElementaryReaction.r_types)
 
 	def test_stoichiometry(self):
 		"""
 		Check correctness of steps by checking material balance for each element
 		"""
-		wrong_stoich = 0
+		wrong = 0
 		for step in steps:
 			for element in INTER_ELEMS:
 				element_balance = sum([step.stoic[inter]*inter[element] for inter in list(step.reactants)+list(step.products)])
 				if element_balance != 0:
 					print(step, step.r_type)
-					wrong_stoich += 1
+					wrong += 1
 					continue
-		self.assertEqual(wrong_stoich, 0)
+		self.assertEqual(wrong, 0)
 	
 	def test_uniqueness(self):
 		"""
@@ -45,23 +46,23 @@ class TestElementaryReaction(unittest.TestCase):
 		Check that adsorption/desorption steps are correctly defined
 		"""
 		adsorption_steps = [step for step in steps if step.r_type in ('adsorption', 'desorption', 'eley_rideal')]
-		good_adsorption = 0
+		good = 0
 		for step in adsorption_steps:
 			gas_phase = [inter for inter in list(step.reactants)+list(step.products) if inter.phase == 'gas']
 			if len(gas_phase) == 1:
-				good_adsorption += 1
-		self.assertEqual(good_adsorption, len(adsorption_steps))
+				good += 1
+		self.assertEqual(good, len(adsorption_steps))
 
 	def test_rearrengement(self):
 		"""
 		Check that rearrangement steps are correctly defined
 		"""
 		rearrangement_steps = [step for step in steps if step.r_type == 'rearrangement']
-		good_rearrangement = 0
+		good = 0
 		for step in rearrangement_steps:
 			if len(step.reactants) == 1 and len(step.products) == 1:
-				good_rearrangement += 1
-		self.assertEqual(good_rearrangement, len(rearrangement_steps))
+				good += 1
+		self.assertEqual(good, len(rearrangement_steps))
 
 	def test_energy_barrier(self):
 		"""
@@ -69,8 +70,12 @@ class TestElementaryReaction(unittest.TestCase):
 		Performed only if ElementaryReaction.e_act is not None.
 		"""
 		for reaction in steps:
-			if reaction.e_act != None:
+			if reaction.e_act != None and reaction.e_rxn != None:
 				self.assertGreaterEqual(reaction.e_act, 0)
+				if reaction.e_rxn[0] > 0:
+					self.assertGreaterEqual(reaction.e_act, reaction.e_rxn[0])
+				else:
+					self.assertGreaterEqual(reaction.e_act, 0)
 
 	def test_addition(self):
 		"""
@@ -78,16 +83,16 @@ class TestElementaryReaction(unittest.TestCase):
 		"""
 		step1 = steps[randint(0, len(steps)-1)]
 		step2 = steps[randint(0, len(steps)-1)]
-		step1.energy = -1.0, 0.1
-		step2.energy = -0.3, 0.2
+		step1.e_rxn = -1.0, 0.1
+		step2.e_rxn = -0.3, 0.2
 		addition_step = step1 + step2
 		total = 0
 		for element in INTER_ELEMS:
 			element_balance = sum([addition_step.stoic[inter]*inter[element] for inter in list(addition_step.reactants)+list(addition_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)
-		self.assertEqual(addition_step.energy[0], -1.3)
-		self.assertEqual(addition_step.energy[1], (0.1**2+0.2**2)**0.5)
+		self.assertEqual(addition_step.e_rxn[0], -1.3)
+		self.assertEqual(addition_step.e_rxn[1], (0.1**2+0.2**2)**0.5)
 		self.assertEqual(addition_step.r_type, 'pseudo')
 
 	def test_multiplication(self):
@@ -95,7 +100,7 @@ class TestElementaryReaction(unittest.TestCase):
 		Check that multiplication steps are correctly implemented
 		"""
 		step = steps[randint(0, len(steps)-1)]
-		step.energy = -1.0, 0.1
+		step.e_rxn = -1.0, 0.1
 		random_num = randint(1, 5)
 		mul_step = step * random_num
 		total = 0
@@ -103,8 +108,8 @@ class TestElementaryReaction(unittest.TestCase):
 			element_balance = sum([mul_step.stoic[inter]*inter[element] for inter in list(mul_step.reactants)+list(mul_step.products)])
 			total += element_balance
 		self.assertEqual(total, 0)	
-		self.assertEqual(mul_step.energy[0], step.energy[0]*random_num)
-		self.assertEqual(mul_step.energy[1], abs(random_num)*step.energy[1])
+		self.assertEqual(mul_step.e_rxn[0], step.e_rxn[0]*random_num)
+		self.assertEqual(mul_step.e_rxn[1], abs(random_num)*step.e_rxn[1])
 		self.assertEqual(mul_step.r_type, 'pseudo')
 
 	def test_reverse(self):
@@ -112,15 +117,15 @@ class TestElementaryReaction(unittest.TestCase):
 		Check that reverse steps are correctly implemented
 		"""
 		step = steps[randint(0, len(steps)-1)]
+		step.r_type = 'C-C'
 		reactants, products = step.reactants, step.products
-		step.energy = -1.0, 0.1  # mean, std
-		step.e_act = 0.5, 0.1  # mean, std
+		step.e_is, step.e_fs, step.e_ts = (10, 0.1), (9, 0.1), (10.5, 0.1)
+		step.e_rxn, step.e_act = (-1.0, 0.1), (1.5, 0.1)
 		step.reverse()
 		self.assertEqual(products, step.reactants)
 		self.assertEqual(reactants, step.products)
-		self.assertEqual(step.energy[0], 1.0)
+		self.assertEqual(step.e_rxn[0], 1.0)
 		self.assertEqual(step.e_act[0], 1.5)
-
 
 
 class TestIntermediate(unittest.TestCase):

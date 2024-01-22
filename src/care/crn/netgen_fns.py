@@ -746,14 +746,14 @@ def gen_chemical_space(
     ncc: int, noc: int, ncores: int = mp.cpu_count()
 ) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    Generates all the intermediates and reactions of the reaction network.
+    Generate intermediates and elementary steps of the chemical reaction network.
 
     Parameters
     ----------
     ncc : int
-        Maximum number of carbon atoms in the intermediates.
+        Network Carbon Cutoff, maximum number of C atoms in the intermediates
     noc : int
-        Maximum number of oxygen atoms in the intermediates.
+        Network Oxygen Cutoff, Maximum number of O atoms in the intermediates.
 
     Returns
     -------

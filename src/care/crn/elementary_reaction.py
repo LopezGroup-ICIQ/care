@@ -195,12 +195,12 @@ class ElementaryReaction:
                     reactants.append(specie)
             step = ElementaryReaction(components=[reactants, products], r_type="pseudo")
             step.stoic = stoic_dict
-            if self.energy is None or other.energy is None:
-                step.energy = None
+            if self.e_rxn is None or other.e_rxn is None:
+                step.e_rxn = None
             else:
-                step.energy = (
-                    self.energy[0] + other.energy[0],
-                    (self.energy[1] ** 2 + other.energy[1] ** 2) ** 0.5,
+                step.e_rxn = (
+                    self.e_rxn[0] + other.e_rxn[0],
+                    (self.e_rxn[1] ** 2 + other.e_rxn[1] ** 2) ** 0.5,
                 )
             return step
         else:
@@ -217,10 +217,10 @@ class ElementaryReaction:
             step.stoic = {}
             for k, v in self.stoic.items():
                 step.stoic[k] = v * other
-            if self.energy is None:
-                step.energy = None
+            if self.e_rxn is None:
+                step.e_rxn = None
             else:
-                step.energy = self.energy[0] * other, abs(other) * self.energy[1]
+                step.e_rxn = self.e_rxn[0] * other, abs(other) * self.e_rxn[1]
             return step
         else:
             raise TypeError("The object is not an ElementaryReaction")
@@ -343,15 +343,12 @@ class ElementaryReaction:
             self.r_type = "desorption" if self.r_type == "adsorption" else "adsorption"
         self.reactants, self.products = self.products, self.reactants
         if self.e_rxn != None:
-            self.e_rxn[0] = -self.e_rxn[0]
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
-        if self.e_act != None and '-' in self.e_act[0]:
-            self.e_act[0] = self.e_ts[0] - self.e_is[0]
-            self.e_act[1] = (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5
+        if self.e_act != None and '-' in self.r_type:
+            self.e_act = self.e_ts[0] - self.e_is[0], (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5
             if self.e_act[0] < 0:
-                self.e_act[0] = -self.e_act[0]
-                self.e_act[1] = -self.e_act[1]
-            if self.e_act < self.e_rxn:
-                self.e_act[0] = self.e_rxn[0]
-                self.e_act[1] = self.e_rxn[1]
+                self.e_act = -self.e_act[0], self.e_act[1]
+            if self.e_act[0] < self.e_rxn[0]:
+                self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
