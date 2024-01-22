@@ -98,7 +98,7 @@ class DifferentialPFR(ReactorModel):
         self.ss_tol = ss_tol
         self.ODE_params = {
             "reltol": 1e-12,
-            "abstol": 1e-64,
+            "abstol": 1e-32,
             "tfin": 1e3}
 
 
@@ -209,9 +209,9 @@ class DifferentialPFR(ReactorModel):
         """
         return solve_ivp(
             self.ode,
-            (0, 0.01),
+            (0, 10000),
             y_0,
-            method="RK45",  # "BDF" if stiff
+            method="BDF",  # "BDF" if stiff
             events=end_events,
             jac=jacobian_matrix,
             args=ode_params,

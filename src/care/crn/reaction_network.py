@@ -1046,7 +1046,7 @@ class ReactionNetwork:
         """
         Return the stoichiometric matrix of the network.
         """
-        v = np.zeros((len(self.intermediates), len(self.reactions)))
+        v = np.zeros((len(self.intermediates) + 1, len(self.reactions))) # +1 for the surface
         # gas_mask = np.array(
         #     [inter.phase == "gas" for inter in self.intermediates.values()]
         # )
@@ -1056,6 +1056,7 @@ class ReactionNetwork:
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
                     v[i, j] = reaction.stoic[inter.code]
+                v[-1, j] += reaction.stoic['*'] if '*' in reaction.stoic.keys() else 0
         # for reaction in self.reactions:
         #     rxns.append(reaction.__repr__())
         return v #, inters, rxns, gas_mask
@@ -1100,21 +1101,25 @@ class ReactionNetwork:
         k_dir = np.array([reaction.k_dir for reaction in self.reactions])
         k_rev = np.array([reaction.k_rev for reaction in self.reactions])
         inters = [inter.code for inter in self.intermediates.values()]
-        y0 = np.zeros(len(inters))
-        for i, inter in enumerate(self.intermediates.values()):
-            if inter.is_surface:
-                y0[i] = 1.0
+        y0 = np.zeros(len(inters) + 1)
+        y0[-1] = 1.0  # initial condition: empty surface
+        # for i, inter in enumerate(self.intermediates.values()):
+        #     if inter.is_surface:
+        #         y0[i] = 1.0
         gas_mask = np.array(
-            [inter.phase == "gas" for inter in self.intermediates.values()]
+            [inter.phase == "gas" for inter in self.intermediates.values()] + [False]
         )
-        # inchi_keys = [iupac_to_inchikey(iupac)+'g' for iupac in iv.keys()]
-        # iv = dict(zip(inchi_keys, iv.values()))
         for i, inter in enumerate(self.intermediates.values()):
             if inter.molecule.get_chemical_formula() in iv.keys() and inter.phase == 'gas':
                 y0[i] = self.oc['P'] * iv[inter.molecule.get_chemical_formula()]
+        # print(dict(zip(inters, y0)))
+        # quit()
         reactor = DifferentialPFR(self.oc['T'], self.oc['P'], self.stoichiometric_matrix)
         ode_params = (k_dir, k_rev, gas_mask)
-        return reactor.integrate(y0, ode_params)
+        results = reactor.integrate(y0, ode_params)
+        results['intermediates'] = inters
+        results['rate'] = reactor.net_rate(results['y'][:, -1], k_dir, k_rev)
+        return results
 
 
 
