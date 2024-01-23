@@ -11,7 +11,7 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import rdMolDescriptors
 
 from care import ElementaryReaction, Intermediate
-from care.crn.intermediates_funcs import (
+from care.crn.utilities.species import (
     gen_alkanes,
     gen_epoxides,
     gen_ethers,

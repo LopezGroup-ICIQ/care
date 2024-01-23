@@ -5,7 +5,7 @@ from math import pi
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from numba import jit
+# from numba import jit
 
 from care.constants import N_AV, R
 from care.crn.microkinetic import net_rate, stoic_backward, stoic_forward

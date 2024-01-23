@@ -6,8 +6,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
-from care.crn.intermediates_funcs import atoms_2_graph
-from care.crn.utilities.connectivity_fns import get_voronoi_neighbourlist
+from care.crn.utilities.species import atoms_to_graph, get_voronoi_neighbourlist
 
 
 def get_fragment_energy(atoms: Atoms) -> float:
@@ -184,7 +183,7 @@ class Intermediate:
             new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(
                 new_mol, 0.25, 1, ["C", "H", "O"]
             )
-            new_graph = atoms_2_graph(new_mol, coords=False)
+            new_graph = atoms_to_graph(new_mol, coords=False)
             return cls(
                 code=code,
                 molecule=new_mol,
@@ -213,7 +212,7 @@ class Intermediate:
         Returns:
             obj:`nx.DiGraph` Of the associated molecule.
         """
-        return atoms_2_graph(self.molecule, coords=False)
+        return atoms_to_graph(self.molecule, coords=False)
 
     def is_cyclic(self):
         """

@@ -14,7 +14,7 @@ from rdkit.Chem import AllChem
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
 from care.constants import BOND_ORDER
-from care.crn.intermediates_funcs import rdkit_to_ase
+from care.crn.utilities.species import rdkit_to_ase
 
 
 def connectivity_analysis(graph: nx.Graph) -> list[int]:
