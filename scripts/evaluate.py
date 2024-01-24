@@ -8,7 +8,7 @@ from care.gnn import load_model
 from care import ReactionNetwork
 
 
-if __name__ == "__main__":
+def main():
     argparser = argparse.ArgumentParser(description="Evaluate energy of the adsorbed species with GAME-Net UQ.")
     argparser.add_argument('-i', type=str, dest='i', help="Path to the folder containing the ads_intermediates.pkl file")
     argparser.add_argument('-ncores', type=int, dest='ncores', default=os.cpu_count(), help="Number of cores to use for parallelization")
@@ -53,5 +53,9 @@ if __name__ == "__main__":
     # Save the entire crn object
     with open(args.i+'/crn.pkl', 'wb') as f:
         pkl.dump(crn, f)
+
+
+if __name__ == "__main__":
+    main()
 
         

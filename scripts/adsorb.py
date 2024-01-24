@@ -16,8 +16,7 @@ from care.gnn.graph import atoms_to_data
 
 from care.constants import METAL_STRUCT_DICT
 
-
-if __name__ == "__main__":
+def main():
     argparser = argparse.ArgumentParser(description="Generate initial adsorption structures for the provided intermediates.")
     argparser.add_argument('-i', type=str, dest='i', help="path to the folder containing the intermediates.pkl file")
     argparser.add_argument('-m', type=str, dest='m', help="Metal of the surface. Available options: Ag, Au, Cd, Co, Cu, Fe, Ir, Ni, Os, Pd, Pt, Rh, Ru, Zn")
@@ -85,3 +84,7 @@ if __name__ == "__main__":
 
     with open(f'{output_dir}/surface.pkl', 'wb') as f:
         dump(surface, f)
+
+
+if __name__ == "__main__":
+    main()

@@ -5,7 +5,7 @@ import multiprocessing as mp
 
 from care.crn.utilities.build_netgen import gen_chemical_space
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='Generate intermediates of the reaction network.')
     parser.add_argument('-ncc', type=int, help='Network Carbon Cutoff, i.e., max number of C atoms in the intermediates.', dest='ncc')
     parser.add_argument('-noc', type=int, help='Network Oxygen Cutoff, i.e., max number of O atoms in the intermediates.', dest='noc', default=-1)
@@ -24,3 +24,6 @@ if __name__ == "__main__":
 
     with open(f'{output_dir}/reactions.pkl', 'wb') as f:
         dump(reactions, f)
+    
+if __name__ == "__main__":
+    main()
