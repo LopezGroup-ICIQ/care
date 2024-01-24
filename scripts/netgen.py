@@ -24,7 +24,3 @@ if __name__ == "__main__":
 
     with open(f'{output_dir}/reactions.pkl', 'wb') as f:
         dump(reactions, f)
-
-    print(f'Generated {len(intermediates)} intermediates of the C{args.ncc}O{noc} reaction network and saved in {output_dir}/intermediates.pkl')
-    print(f'Generated {len(reactions)} reactions of the C{args.ncc}O{noc} reaction network and saved in {output_dir}/reactions.pkl')
-    

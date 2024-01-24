@@ -363,7 +363,7 @@ def gen_epoxides(mol_alkanes: list, no: int) -> list[str]:
     return list(set(epoxides))
 
 
-def gen_ethers(mol_alkanes: list, no: int) -> tuple[list[str], list[Chem.Mol]]:
+def gen_ethers(mol_alkanes: list, noc: int) -> tuple[list[str], list[Chem.Mol]]:
     """
     Add an oxygen atom to an alkane to generate an ether.
 
@@ -381,8 +381,8 @@ def gen_ethers(mol_alkanes: list, no: int) -> tuple[list[str], list[Chem.Mol]]:
     """
 
     ethers = []
-    if no == 0:
-        return ethers
+    if noc == 0:
+        return ethers, []
 
     for mol in mol_alkanes:
         # generate list of tuple of adjacent atoms satisfying the cond1
