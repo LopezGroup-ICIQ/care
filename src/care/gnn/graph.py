@@ -9,24 +9,16 @@ from typing import Union
 import numpy as np
 import torch
 from ase import Atoms
-from networkx import (
-    Graph,
-    connected_components,
-    get_node_attributes,
-    set_node_attributes,
-)
+from networkx import (Graph, connected_components, get_node_attributes,
+                      set_node_attributes)
 from scipy.spatial import Voronoi
 from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
 from care import ElementaryReaction
 from care.constants import CORDERO
-from care.gnn.graph_filters import (
-    C_filter,
-    H_filter,
-    adsorption_filter,
-    fragment_filter,
-)
+from care.gnn.graph_filters import (C_filter, H_filter, adsorption_filter,
+                                    fragment_filter)
 
 METALS = [
     "Ag",
@@ -318,13 +310,10 @@ def atoms_to_data(
     Returns:
         graph (Data): PyG Data object.
     """
-    from care.gnn.node_featurizers import (
-        adsorbate_node_featurizer,
-        get_atom_valence,
-        get_gcn,
-        get_magnetization,
-        get_radical_atoms,
-    )
+    from care.gnn.node_featurizers import (adsorbate_node_featurizer,
+                                           get_atom_valence, get_gcn,
+                                           get_magnetization,
+                                           get_radical_atoms)
 
     if not isinstance(structure, Atoms):
         raise TypeError("Structure type must be ase.Atoms")

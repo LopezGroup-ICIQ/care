@@ -136,9 +136,8 @@ def compute_norm_vect(atoms, idxs, cell):
     @return: numpy.ndarray of the coordinates of the vector locally
     perpendicular to the surface.
     """
-    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import (
-        coordination_numbers as coord_nums,
-    )
+    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import \
+        coordination_numbers as coord_nums
 
     if isinstance(idxs, list):
         atm_vect = [
@@ -724,9 +723,8 @@ def ads_internal(
     """
     from copy import deepcopy
 
-    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import (
-        internal_rotate,
-    )
+    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import \
+        internal_rotate
 
     slab_ads_list = []
     # Rotation over bond angle

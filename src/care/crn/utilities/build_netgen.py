@@ -1,24 +1,20 @@
 import multiprocessing as mp
 import re
+import resource
 import time
 import warnings
 from collections import defaultdict
 from itertools import combinations
-from prettytable import PrettyTable
-import resource
 
 import numpy as np
 from ase import Atoms
+from prettytable import PrettyTable
 from rdkit import Chem, RDLogger
 from rdkit.Chem import rdMolDescriptors
 
 from care import ElementaryReaction, Intermediate
-from care.crn.utilities.species import (
-    gen_alkanes,
-    gen_epoxides,
-    gen_ethers,
-    add_oxygens,
-)
+from care.crn.utilities.species import (add_oxygens, gen_alkanes, gen_epoxides,
+                                        gen_ethers)
 
 warnings.filterwarnings("ignore")
 RDLogger.DisableLog("rdApp.*")
@@ -138,8 +134,7 @@ def break_bonds(
         All the reactions are added to the unique reactions set, and all the processed fragments are added to the processed fragments dictionary
     """
 
-    current_smiles = Chem.MolToSmiles(
-        molecule, isomericSmiles=True, allHsExplicit=True)
+    current_smiles = Chem.MolToSmiles(molecule, isomericSmiles=True, allHsExplicit=True)
 
     # Check if this molecule's reactions have already been processed
     if current_smiles in processed_molecules:
@@ -152,11 +147,9 @@ def break_bonds(
         for atom_num1, atom_num2 in bond_types:
             if is_desired_bond(bond, atom_num1, atom_num2):
                 mol_copy = Chem.RWMol(molecule)
-                mol_copy.RemoveBond(bond.GetBeginAtomIdx(),
-                                    bond.GetEndAtomIdx())
+                mol_copy.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
 
-                frags = Chem.GetMolFrags(
-                    mol_copy, asMols=True, sanitizeFrags=False)
+                frags = Chem.GetMolFrags(mol_copy, asMols=True, sanitizeFrags=False)
                 frag_smiles_list = []
                 for frag in frags:
                     frag_smiles = Chem.MolToSmiles(
@@ -165,8 +158,7 @@ def break_bonds(
                     frag_smiles_list.append(frag_smiles)
 
                     if frag_smiles not in processed_fragments[original_smiles]:
-                        processed_fragments[original_smiles].append(
-                            frag_smiles)
+                        processed_fragments[original_smiles].append(frag_smiles)
 
                     # Recursive call with the fragment as the new molecule
                     frag_mol = Chem.MolFromSmiles(frag_smiles, sanitize=False)
@@ -189,8 +181,7 @@ def break_bonds(
                         # Modify the fragment smiles list to have [H] instead of [HH]
                         frag_smiles_list[1] = "[H]"
 
-                reaction_tuple = (current_smiles, tuple(
-                    sorted(frag_smiles_list)))
+                reaction_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
 
                 # Check if the reaction tuple is unique
                 if reaction_tuple not in unique_reactions:
@@ -204,8 +195,7 @@ def break_bonds(
                     r_type = f"{r_type_atoms[0]}-{r_type_atoms[1]}"
 
                     # Extending the reaction tuple with the bond type
-                    reaction_type_tuple = (
-                        reaction_tuple[0], reaction_tuple[1], r_type)
+                    reaction_type_tuple = (reaction_tuple[0], reaction_tuple[1], r_type)
                     unique_reactions.add(reaction_type_tuple)
                     total_bond_counter += 1
 
@@ -274,20 +264,20 @@ def process_inter_objs_chunk(chunk):
     inter_class_dict_chunk = {}
     for key, value in chunk.items():
         # Create an Intermediate instance for the adsorbed phase
-        new_inter_ads = Intermediate(
-            code=key + "*", molecule=value, phase="ads")
+        new_inter_ads = Intermediate(code=key + "*", molecule=value, phase="ads")
         inter_class_dict_chunk[key + "*"] = new_inter_ads
 
         # If the molecule is closed-shell, also create an instance for the gas phase
         if new_inter_ads.closed_shell:
-            new_inter_gas = Intermediate(
-                code=key + "g", molecule=value, phase="gas")
+            new_inter_gas = Intermediate(code=key + "g", molecule=value, phase="gas")
             inter_class_dict_chunk[key + "g"] = new_inter_gas
 
     return inter_class_dict_chunk
 
 
-def gen_intermediates_dict(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, Intermediate]:
+def gen_intermediates_dict(
+    inter_dict: dict[str, Chem.rdchem.Mol]
+) -> dict[str, Intermediate]:
     """
     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
 
@@ -313,8 +303,8 @@ def gen_intermediates_dict(inter_dict: dict[str, Chem.rdchem.Mol]) -> dict[str, 
     chunks = [
         dict(
             zip(
-                keys[i: i + chunk_size],
-                [inter_dict[key] for key in keys[i: i + chunk_size]],
+                keys[i : i + chunk_size],
+                [inter_dict[key] for key in keys[i : i + chunk_size]],
             )
         )
         for i in range(0, len(keys), chunk_size)
@@ -369,12 +359,12 @@ def gen_adsorption_reactions(
     # Create a pool of workers
     with mp.Pool(processes=num_processes) as pool:
         # Map process_chunk function to each chunk
-        results = pool.starmap(process_ads_react_chunk, [(
-            chunk, surf_inter) for chunk in inter_chunks])
+        results = pool.starmap(
+            process_ads_react_chunk, [(chunk, surf_inter) for chunk in inter_chunks]
+        )
 
     # Flatten the list of lists
-    adsorption_steps = list(
-        set([step for sublist in results for step in sublist]))
+    adsorption_steps = list(set([step for sublist in results for step in sublist]))
 
     # Add the dissociative adsorptions for H2 and O2
     for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
@@ -416,14 +406,12 @@ def process_ads_react_chunk(
     """
     adsorption_steps = []
     for inter in inter_chunk:
-
         ads_inter = Intermediate.from_molecule(
             inter.molecule, code=inter.code[:-1] + "*", phase="ads"
         )
         adsorption_steps.append(
             ElementaryReaction(
-                components=(frozenset([surf_inter, inter]),
-                            frozenset([ads_inter])),
+                components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
                 r_type="adsorption",
             )
         )
@@ -663,8 +651,7 @@ def gen_rearrangement_reactions(
         List of all the rearrangement reactions of the reaction network as ElementaryReaction instances.
     """
 
-    ads_inters = [inter for inter in intermediates.values()
-                  if inter.phase == "ads"]
+    ads_inters = [inter for inter in intermediates.values() if inter.phase == "ads"]
 
     # Group intermediates by chemical formula
     formula_groups = group_by_formula(ads_inters)
@@ -678,8 +665,7 @@ def gen_rearrangement_reactions(
 
         # Generate combinations within each isomer subgroup and store in dictionary
         for subgroup in isomer_subgroups:
-            subgroup_pairs_dict[f"subgroup_{index}"] = list(
-                combinations(subgroup, 2))
+            subgroup_pairs_dict[f"subgroup_{index}"] = list(combinations(subgroup, 2))
             index += 1
 
     # Splitting the dictionary into chunks
@@ -690,8 +676,8 @@ def gen_rearrangement_reactions(
     chunks = [
         dict(
             zip(
-                keys[i: i + chunk_size],
-                [subgroup_pairs_dict[key] for key in keys[i: i + chunk_size]],
+                keys[i : i + chunk_size],
+                [subgroup_pairs_dict[key] for key in keys[i : i + chunk_size]],
             )
         )
         for i in range(0, len(keys), chunk_size)
@@ -746,9 +732,7 @@ def gen_chemical_space(
 
     relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
 
-    saturated_species_smiles = (
-        alkanes_smiles + cho_smiles + relev_species
-    )
+    saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
     t0 = time.time() - t00
 
     t01 = time.time()
@@ -773,8 +757,10 @@ def gen_chemical_space(
         frag_list += value
 
     frag_list = list(set(frag_list))
-    all_mol_list = [Chem.MolFromSmiles(smiles) for smiles in list(
-        set(frag_list + saturated_species_smiles + relev_species))]
+    all_mol_list = [
+        Chem.MolFromSmiles(smiles)
+        for smiles in list(set(frag_list + saturated_species_smiles + relev_species))
+    ]
 
     # Generating a dictionary where keys:InChIKeys and values: Chem.Mol molecule
     rdkit_inters_dict = {}
@@ -795,21 +781,22 @@ def gen_chemical_space(
     t03 = time.time()
     rxns_list = []
     for reaction in unique_reactions:
-        reactant = intermediates_dict[Chem.inchi.MolToInchiKey(
-            Chem.MolFromSmiles(reaction[0])) + "*"]
-        product1 = intermediates_dict[Chem.inchi.MolToInchiKey(
-            Chem.MolFromSmiles(reaction[1][0])) + "*"]
+        reactant = intermediates_dict[
+            Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0])) + "*"
+        ]
+        product1 = intermediates_dict[
+            Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0])) + "*"
+        ]
         if len(reaction[1]) == 2:
             # Getting the Intermediate objects from the dictionary
-            product2 = intermediates_dict[Chem.inchi.MolToInchiKey(
-                Chem.MolFromSmiles(reaction[1][1])) + "*"]
-            reaction_components = [
-                [surf_inter, reactant], [product1, product2]]
+            product2 = intermediates_dict[
+                Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1])) + "*"
+            ]
+            reaction_components = [[surf_inter, reactant], [product1, product2]]
         else:
             reaction_components = [[reactant], [product1]]
         rxns_list.append(
-            ElementaryReaction(
-                components=reaction_components, r_type=reaction[2])
+            ElementaryReaction(components=reaction_components, r_type=reaction[2])
         )
     t3 = time.time() - t03
     # Generation of additional reactions
@@ -831,26 +818,26 @@ def gen_chemical_space(
     table.field_names = ["Category", "Number of Items", "Time (s)"]
 
     # Add rows
-    table.add_row(['Saturated molecules', len(
-        saturated_species_smiles), f'{t0:.2f}'])
-    table.add_row(['Fragments and unsaturated species',
-                  len(frag_list), f'{t1:.2f}'])
-    table.add_row(['Bond-breaking reactions',
-                  len(unique_reactions), f'{t1:.2f}'])
-    table.add_row(['Intermediates dictionary', len(
-        intermediates_dict), f'{t2:.2f}'])
-    table.add_row(['ElementaryReactions list', len(rxns_list), f'{t3:.2f}'])
-    table.add_row(['Adsorption reactions', len(ads_steps), f'{t4:.2f}'])
-    table.add_row(['Rearrangement reactions', len(rearr_steps), f'{t5:.2f}'], divider=True)
-    table.add_row(['Total number of species', len(
-        intermediates_dict), f'{t0 + t1 + t2:.2f}'])
-    table.add_row(['Total number of reactions', len(
-        rxns_list), f'{t1 + t3 + t4 + t5:.2f}'], divider=True)
-    table.add_row(['Peak memory usage', '', f'{peak_memory_usage:.2f} GB'])
-    table.add_row(['Total time', '', f'{time.time() - total_time:.2f}'])
+    table.add_row(["Saturated molecules", len(saturated_species_smiles), f"{t0:.2f}"])
+    table.add_row(["Fragments and unsaturated species", len(frag_list), f"{t1:.2f}"])
+    table.add_row(["Bond-breaking reactions", len(unique_reactions), f"{t1:.2f}"])
+    table.add_row(["Intermediates dictionary", len(intermediates_dict), f"{t2:.2f}"])
+    table.add_row(["ElementaryReactions list", len(rxns_list), f"{t3:.2f}"])
+    table.add_row(["Adsorption reactions", len(ads_steps), f"{t4:.2f}"])
+    table.add_row(
+        ["Rearrangement reactions", len(rearr_steps), f"{t5:.2f}"], divider=True
+    )
+    table.add_row(
+        ["Total number of species", len(intermediates_dict), f"{t0 + t1 + t2:.2f}"]
+    )
+    table.add_row(
+        ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"],
+        divider=True,
+    )
+    table.add_row(["Peak memory usage", "", f"{peak_memory_usage:.2f} GB"])
+    table.add_row(["Total time", "", f"{time.time() - total_time:.2f}"])
 
     # Print the table
     print(table)
-
 
     return intermediates_dict, rxns_list

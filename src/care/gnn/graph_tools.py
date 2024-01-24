@@ -5,13 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch_geometric
-from networkx import (
-    Graph,
-    draw_networkx,
-    get_node_attributes,
-    kamada_kawai_layout,
-    set_edge_attributes,
-)
+from networkx import (Graph, draw_networkx, get_node_attributes,
+                      kamada_kawai_layout, set_edge_attributes)
 from sklearn.preprocessing._encoders import OneHotEncoder
 from torch_geometric.data import Data
 

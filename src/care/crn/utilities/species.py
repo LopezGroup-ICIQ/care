@@ -2,10 +2,10 @@ from itertools import product
 
 import networkx as nx
 import numpy as np
-from scipy.spatial import Voronoi
 from ase import Atom, Atoms
 from rdkit import Chem, RDLogger
 from rdkit.Chem import AllChem
+from scipy.spatial import Voronoi
 
 from care.constants import CORDERO
 
@@ -96,7 +96,6 @@ def get_voronoi_neighbourlist(
         if distance <= threshold:
             pairs_lst.append(pair)
     return np.sort(np.array(pairs_lst), axis=1)
-
 
 
 def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:

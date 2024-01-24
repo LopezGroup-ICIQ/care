@@ -6,7 +6,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
-from care.crn.utilities.species import atoms_to_graph, get_voronoi_neighbourlist
+from care.crn.utilities.species import (atoms_to_graph,
+                                        get_voronoi_neighbourlist)
 
 
 def get_fragment_energy(atoms: Atoms) -> float:

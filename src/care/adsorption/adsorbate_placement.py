@@ -312,7 +312,9 @@ def best_fit_plane(atom_coords: np.ndarray) -> tuple[np.ndarray, float]:
     return normal, D
 
 
-def signed_distance_from_plane(atom_coords: np.ndarray, plane_normal: np.ndarray, D: float) -> np.ndarray:
+def signed_distance_from_plane(
+    atom_coords: np.ndarray, plane_normal: np.ndarray, D: float
+) -> np.ndarray:
     """
     Get the signed distance of each atom from a plane. The plane is defined by a normal vector and a distance from the origin.
 
@@ -339,7 +341,9 @@ def signed_distance_from_plane(atom_coords: np.ndarray, plane_normal: np.ndarray
     return distances
 
 
-def atoms_underneath_plane(atom_coords: np.ndarray, plane_normal: np.ndarray, D: float) -> np.ndarray:
+def atoms_underneath_plane(
+    atom_coords: np.ndarray, plane_normal: np.ndarray, D: float
+) -> np.ndarray:
     """Get the atoms underneath a plane. The plane is defined by a normal vector and a distance from the origin.
     The underneath part is defined by the z-component of the normal vector.
 

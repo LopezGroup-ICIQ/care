@@ -96,13 +96,9 @@ read_input: Directs the reading of the parameters in the input file
 """
 import logging
 import os.path
-from configparser import (
-    ConfigParser,
-    DuplicateOptionError,
-    MissingSectionHeaderError,
-    NoOptionError,
-    NoSectionError,
-)
+from configparser import (ConfigParser, DuplicateOptionError,
+                          MissingSectionHeaderError, NoOptionError,
+                          NoSectionError)
 
 import numpy as np
 

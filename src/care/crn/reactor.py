@@ -5,10 +5,13 @@ from math import pi
 
 import numpy as np
 from scipy.integrate import solve_ivp
-# from numba import jit
 
 from care.constants import N_AV, R
 from care.crn.microkinetic import net_rate, stoic_backward, stoic_forward
+
+# from numba import jit
+
+
 
 class ReactorModel(ABC):
     def __init__(self):
@@ -64,10 +67,7 @@ class ReactorModel(ABC):
 
 
 class DifferentialPFR(ReactorModel):
-    def __init__(self, 
-                 temperature: float, 
-                 pressure: float,
-                 v_matrix: np.ndarray):
+    def __init__(self, temperature: float, pressure: float, v_matrix: np.ndarray):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -118,11 +118,8 @@ class DifferentialPFR(ReactorModel):
         mat = np.zeros_like(self.v_matrix)
         mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
         return mat
-    
-    def net_rate(self, 
-                 y: np.ndarray, 
-                 kd: np.ndarray, 
-                 ki: np.ndarray) -> np.ndarray:
+
+    def net_rate(self, y: np.ndarray, kd: np.ndarray, ki: np.ndarray) -> np.ndarray:
         """
         Returns the net reaction rate for each elementary reaction.
         Args:
@@ -132,26 +129,32 @@ class DifferentialPFR(ReactorModel):
         Returns:
             (ndarray): Net reaction rate of the elementary reactions [1/s].
         """
-        return kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(y**self.stoic_backward.T, axis=1)
+        return kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(
+            y**self.stoic_backward.T, axis=1
+        )
 
-    def ode(self, 
-            t: float, 
-            y: np.ndarray, 
-            kd: np.ndarray, 
-            ki: np.ndarray,
-            gas_mask: np.ndarray, 
-            sstol: float) -> np.ndarray:        
-        dy = self.v_matrix @ self.net_rate(y, kd, ki)       
+    def ode(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        ki: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+    ) -> np.ndarray:
+        dy = self.v_matrix @ self.net_rate(y, kd, ki)
         dy[gas_mask] = 0  # Mask gas species
         return dy
 
-    def jacobian(self, 
-                 t: float, 
-                 y: np.ndarray, 
-                 kd: np.ndarray, 
-                 ki: np.ndarray,
-                 gas_mask: np.ndarray, 
-                 sstol: float) -> np.ndarray:
+    def jacobian(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        ki: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+    ) -> np.ndarray:
         J = np.zeros((len(y), len(y)))
         Jg = np.zeros((len(kd), len(y)))
         Jh = np.zeros((len(kd), len(y)))
@@ -179,26 +182,29 @@ class DifferentialPFR(ReactorModel):
         J[gas_mask, :] = 0
         return J
 
-    def steady_state(self, 
-            t: float, 
-            y: np.ndarray, 
-            kd: np.ndarray, 
-            ki: np.ndarray,
-            gas_mask: np.ndarray, 
-            sstol: float) -> float:
+    def steady_state(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        ki: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+    ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y, kd, ki, gas_mask, sstol)))
         print(t, sum_ddt)
         return 0 if sum_ddt <= sstol else sum_ddt
 
     steady_state.terminal = True
 
-    def integrate(self,
+    def integrate(
+        self,
         y_0: np.ndarray,
         ode_params: tuple,
-        rtol: float=1e-5,
-        atol: float=1e-8,
-        sstol: float=1e-5,
-        method: str="BDF",
+        rtol: float = 1e-5,
+        atol: float = 1e-8,
+        sstol: float = 1e-5,
+        method: str = "BDF",
     ) -> dict:
         """
         Integrate the ODE system until steady-state conditions are reached.
@@ -220,14 +226,15 @@ class DifferentialPFR(ReactorModel):
         """
         return solve_ivp(
             self.ode,
-            (0, 1e10),  
+            (0, 1e10),
             y_0,
-            method=method, 
+            method=method,
             events=self.steady_state,
-            jac=None,  #self.jacobian to double check
-            args=ode_params + (sstol,), 
+            jac=None,  # self.jacobian to double check
+            args=ode_params + (sstol,),
             atol=atol,
-            rtol=rtol)
+            rtol=rtol,
+        )
 
     def conversion(self) -> float:
         return 0  # by definition
@@ -247,13 +254,13 @@ class DynamicCSTR(ReactorModel):
         self,
         temperature: float,
         pressure: float,
-        radius: float=0.01,
-        length: float=0.01,
-        Q: float=1e-6,
-        m_cat: float=1e-3,
-        s_bet: float=1e5,
-        a_site: float=1e-19,
-        ss_tol: float=1e-5,
+        radius: float = 0.01,
+        length: float = 0.01,
+        Q: float = 1e-6,
+        m_cat: float = 1e-3,
+        s_bet: float = 1e5,
+        a_site: float = 1e-19,
+        ss_tol: float = 1e-5,
     ):
         """
         Dynamic Continuous Stirred Tank Reactor (CSTR)

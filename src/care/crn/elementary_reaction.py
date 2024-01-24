@@ -19,7 +19,7 @@ class ElementaryReaction:
         r_type (str): Elementary reaction type.
     """
 
-    r_types: list[str]= R_TYPES
+    r_types: list[str] = R_TYPES
 
     def __init__(
         self,
@@ -75,15 +75,15 @@ class ElementaryReaction:
         self.e_act: Optional[tuple[float, float]] = None  # activation energy
 
         # entropy attributes (mu, std)
-        self.s_is: Optional[tuple[float, float]] = 0, 0  
-        self.s_ts: Optional[tuple[float, float]] = 0, 0 
+        self.s_is: Optional[tuple[float, float]] = 0, 0
+        self.s_ts: Optional[tuple[float, float]] = 0, 0
         self.s_fs: Optional[tuple[float, float]] = 0, 0
         self.s_rxn: Optional[tuple[float, float]] = 0, 0
         self.s_act: Optional[tuple[float, float]] = 0, 0
 
         # Gibbs free energy attributes (mu, std)
-        self.g_is: Optional[tuple[float, float]] = None  
-        self.g_ts: Optional[tuple[float, float]] = None 
+        self.g_is: Optional[tuple[float, float]] = None
+        self.g_ts: Optional[tuple[float, float]] = None
         self.g_fs: Optional[tuple[float, float]] = None
         self.g_rxn: Optional[tuple[float, float]] = None
         self.g_act: Optional[tuple[float, float]] = None
@@ -126,7 +126,7 @@ class ElementaryReaction:
             out_str = out_str[:-1]
             out_str += "<->"
         return out_str[:-3]
-    
+
     @property
     def repr_hr(self) -> str:
         comps_str = []
@@ -134,23 +134,23 @@ class ElementaryReaction:
             inters_str = []
             for inter in component:
                 if inter.phase == "surf":
-                    out_str = (
-                        "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
-                    )
+                    out_str = "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
                 elif inter.phase == "gas":
                     out_str = (
                         "[{}]".format(str(abs(self.stoic[inter.code])))
-                        + inter.molecule.get_chemical_formula() + '(g)'
+                        + inter.molecule.get_chemical_formula()
+                        + "(g)"
                     )
                 else:
                     out_str = (
                         "[{}]".format(str(abs(self.stoic[inter.code])))
-                        + inter.molecule.get_chemical_formula() + '*'
+                        + inter.molecule.get_chemical_formula()
+                        + "*"
                     )
                 inters_str.append(out_str)
-            comp_str = ' + '.join(inters_str)
+            comp_str = " + ".join(inters_str)
             comps_str.append(comp_str)
-        return ' <-> '.join(comps_str)
+        return " <-> ".join(comps_str)
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
@@ -345,8 +345,11 @@ class ElementaryReaction:
         if self.e_rxn != None:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
-        if self.e_act != None and '-' in self.r_type:
-            self.e_act = self.e_ts[0] - self.e_is[0], (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5
+        if self.e_act != None and "-" in self.r_type:
+            self.e_act = (
+                self.e_ts[0] - self.e_is[0],
+                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+            )
             if self.e_act[0] < 0:
                 self.e_act = -self.e_act[0], self.e_act[1]
             if self.e_act[0] < self.e_rxn[0]:

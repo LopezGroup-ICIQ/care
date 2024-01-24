@@ -138,5 +138,5 @@ def find_flux(graph: nx.DiGraph, source: str) -> nx.Digraph:
     nx.DiGraph
         Flux graph.
     """
-    
+
     #
