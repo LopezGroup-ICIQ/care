@@ -1003,11 +1003,15 @@ class ReactionNetwork:
                 reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
                 reaction.k_rev = reaction.k_dir / reaction.k_eq
 
-    def run_microkinetic(self, iv: dict[str, float]):
+    def run_microkinetic(self, 
+                         iv: dict[str, float], 
+                         rtol: float = 1e-6,
+                         atol: float = 1e-64,
+                         sstol: float = 1e-12,):
         if sum(iv.values()) != 1.0:
             raise ValueError('Sum of molar fractions is not 1.0')
-        kdir = np.array([reaction.k_dir for reaction in self.reactions])
-        krev = np.array([reaction.k_rev for reaction in self.reactions])
+        kd = np.array([reaction.k_dir for reaction in self.reactions])
+        kr = np.array([reaction.k_rev for reaction in self.reactions])
         inters = [inter.code for inter in self.intermediates.values()]
         y0 = np.zeros(len(inters) + 1)
         y0[-1] = 1.0  # initial condition: empty surface
@@ -1018,9 +1022,9 @@ class ReactionNetwork:
             if inter.molecule.get_chemical_formula() in iv.keys() and inter.phase == 'gas':
                 y0[i] = self.oc['P'] * iv[inter.molecule.get_chemical_formula()]
         reactor = DifferentialPFR(self.temperature, self.pressure, self.stoichiometric_matrix)
-        results = reactor.integrate(y0, (kdir, krev, gas_mask))
+        results = reactor.integrate(y0, (kd, kr, gas_mask), rtol=rtol, atol=atol, sstol=sstol)
         results['inters'] = inters
-        results['rates'] = reactor.net_rate(results['y'][:, -1], kdir, krev)
+        results['rates'] = reactor.net_rate(results['y'][:, -1], kd, kr)
         consumption_rate = np.zeros((len(inters)+1, len(self.reactions)))
         for i, reaction in enumerate(self.reactions):
             for j, inter in enumerate(inters):

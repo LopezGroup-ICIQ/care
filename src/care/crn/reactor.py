@@ -77,20 +77,16 @@ class DifferentialPFR(ReactorModel):
             - Perfect mixing
 
         Args:
-            temperature(float): Temperature of the differential reactor [K]
-            pressure(float): Pressure of the differential reactor [Pa]
-            ss_tol(float): Tolerance parameter for controlling automatic stop when
-                           steady-state conditions are reached by the solver.
+            temperature(float): Reactor temperature in K.
+            pressure(float): Reactor pressure in Pa.
+            v_matrix(ndarray): Stoichiometric matrix of the reaction network.
         """
+        assert temperature > 0, "Temperature must be positive"
+        assert pressure > 0, "Pressure must be positive"
+
         self.temperature = temperature
         self.pressure = pressure
         self.v_matrix = v_matrix
-        self.reactor_type = "Differential PFR"
-        self.ode_params = {
-            "reltol": 1e-12,
-            "abstol": 1e-100, 
-            "ss_tol": 1e-10}
-
 
     @property
     def stoic_forward(self) -> np.ndarray:
@@ -103,11 +99,9 @@ class DifferentialPFR(ReactorModel):
         Returns:
             mat(ndarray): Filtered matrix for constructing forward reaction rates.
         """
-        mat = np.zeros([self.v_matrix.shape[0], self.v_matrix.shape[1]])
-        for i in range(mat.shape[0]):
-            for j in range(mat.shape[1]):
-                if self.v_matrix[i][j] < 0:
-                    mat[i][j] = -self.v_matrix[i][j]
+
+        mat = np.zeros_like(self.v_matrix)
+        mat[self.v_matrix < 0] = -self.v_matrix[self.v_matrix < 0]
         return mat
 
     @property
@@ -121,17 +115,14 @@ class DifferentialPFR(ReactorModel):
         Returns:
             mat(ndarray): Filtered matrix for constructing reverse reaction rates.
         """
-        mat = np.zeros([self.v_matrix.shape[0], self.v_matrix.shape[1]])
-        for i in range(mat.shape[0]):
-            for j in range(mat.shape[1]):
-                if self.v_matrix[i][j] > 0:
-                    mat[i][j] = self.v_matrix[i][j]
+        mat = np.zeros_like(self.v_matrix)
+        mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
         return mat
     
-    # @jit(nopython=True)
-    def net_rate(self, y: np.ndarray, 
-             kd: np.ndarray, 
-             ki: np.ndarray) -> np.ndarray:
+    def net_rate(self, 
+                 y: np.ndarray, 
+                 kd: np.ndarray, 
+                 ki: np.ndarray) -> np.ndarray:
         """
         Returns the net reaction rate for each elementary reaction.
         Args:
@@ -143,14 +134,24 @@ class DifferentialPFR(ReactorModel):
         """
         return kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(y**self.stoic_backward.T, axis=1)
 
-    # @jit(nopython=True)
-    def ode(self, t, y, kd, ki, gas_mask: np.ndarray) -> np.ndarray:
-        
-        dy = self.v_matrix @ self.net_rate(y, kd, ki)  # Surface species        
+    def ode(self, 
+            t: float, 
+            y: np.ndarray, 
+            kd: np.ndarray, 
+            ki: np.ndarray,
+            gas_mask: np.ndarray, 
+            sstol: float) -> np.ndarray:        
+        dy = self.v_matrix @ self.net_rate(y, kd, ki)       
         dy[gas_mask] = 0  # Mask gas species
         return dy
 
-    def jacobian(self, t, y, kd, ki, gas_mask) -> np.ndarray:
+    def jacobian(self, 
+                 t: float, 
+                 y: np.ndarray, 
+                 kd: np.ndarray, 
+                 ki: np.ndarray,
+                 gas_mask: np.ndarray, 
+                 sstol: float) -> np.ndarray:
         J = np.zeros((len(y), len(y)))
         Jg = np.zeros((len(kd), len(y)))
         Jh = np.zeros((len(kd), len(y)))
@@ -178,23 +179,41 @@ class DifferentialPFR(ReactorModel):
         J[gas_mask, :] = 0
         return J
 
-    def steady_state(self, time, y, kd, ki, gas_mask) -> float:
-        error = np.sum(abs(self.ode(time, y, kd, ki, gas_mask)))
-        criteria = 0 if error <= self.ode_params['ss_tol'] else error
-        print(time, error)
-        return criteria
+    def steady_state(self, 
+            t: float, 
+            y: np.ndarray, 
+            kd: np.ndarray, 
+            ki: np.ndarray,
+            gas_mask: np.ndarray, 
+            sstol: float) -> float:
+        sum_ddt = np.sum(abs(self.ode(t, y, kd, ki, gas_mask, sstol)))
+        print(t, sum_ddt)
+        return 0 if sum_ddt <= sstol else sum_ddt
 
     steady_state.terminal = True
 
     def integrate(self,
         y_0: np.ndarray,
         ode_params: tuple,
+        rtol: float=1e-5,
+        atol: float=1e-8,
+        sstol: float=1e-5,
+        method: str="BDF",
     ) -> dict:
         """
         Integrate the ODE system until steady-state conditions are reached.
+
         Args:
             y_0(ndarray): Initial conditions for the ODE system.
-            ode_params(tuple): Parameters for the ODE system, containing kdirect, kreverse, gas_mask.
+            ode_params(tuple): Parameters for the ODE system, containing kdirect, kreverse, gas_mask
+            rtol(float): Relative tolerance for the integration.
+            atol(float): Absolute tolerance for the integration.
+            ss_tol(float): Tolerance parameter for controlling automatic stop when
+                            steady-state conditions are reached by the solver. When the sum of the
+                            absolute values of the derivatives is below this value, the integration
+                            is stopped.
+            method(str): Integration method for the ODE system. Strongly recommended to use BDF or Radau
+                            for stiff systems.
 
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
@@ -203,16 +222,15 @@ class DifferentialPFR(ReactorModel):
             self.ode,
             (0, 1e10),  
             y_0,
-            method="BDF", 
+            method=method, 
             events=self.steady_state,
-            jac=None, #self.jacobian,
-            args=ode_params,
-            atol=self.ode_params['abstol'],
-            rtol=self.ode_params['reltol'])
+            jac=None,  #self.jacobian to double check
+            args=ode_params + (sstol,), 
+            atol=atol,
+            rtol=rtol)
 
-
-    def conversion(self, P_in, P_out) -> float:
-        return 1 - (P_out / P_in)
+    def conversion(self) -> float:
+        return 0  # by definition
 
     def selectivity(self, r_target, r_tot) -> float:
         return r_target / r_tot
@@ -220,8 +238,8 @@ class DifferentialPFR(ReactorModel):
     def reaction_rate(self):
         pass
 
-    def yyield(self, P_in, P_out, r_target, r_tot) -> float:
-        return self.conversion(P_in, P_out) * self.selectivity(r_target, r_tot)
+    def yyield(self) -> float:
+        return 0  # by definition
 
 
 class DynamicCSTR(ReactorModel):
