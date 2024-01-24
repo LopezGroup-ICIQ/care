@@ -1089,8 +1089,8 @@ class ReactionNetwork:
                     ):
                         run_graph.remove_edge(*edge)
                         new_edge = (reaction.code, inter.code)
-                        run_graph.add_edge(*new_edge)
-                        run_graph.edges[*new_edge]["rate"] = abs(consumption_rate)
+                        run_graph.add_edge(new_edge)
+                        run_graph.edges[new_edge]["rate"] = abs(consumption_rate)
                     else:
                         run_graph.edges[edge]["rate"] = abs(consumption_rate)
 
@@ -1107,8 +1107,8 @@ class ReactionNetwork:
                 ):
                     run_graph.remove_edge(*edge)
                     new_edge = (reaction.code, "*")
-                    run_graph.add_edge(*new_edge)
-                    run_graph.edges[*new_edge]["rate"] = abs(consumption_rate)
+                    run_graph.add_edge(new_edge)
+                    run_graph.edges[new_edge]["rate"] = abs(consumption_rate)
                 else:
                     run_graph.edges[edge]["rate"] = abs(consumption_rate)
         run_graph.remove_node("*")
