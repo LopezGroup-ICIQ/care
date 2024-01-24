@@ -67,8 +67,7 @@ class DifferentialPFR(ReactorModel):
     def __init__(self, 
                  temperature: float, 
                  pressure: float,
-                 v_matrix: np.ndarray, 
-                 ss_tol: float = 1e-6):
+                 v_matrix: np.ndarray):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -87,11 +86,10 @@ class DifferentialPFR(ReactorModel):
         self.pressure = pressure
         self.v_matrix = v_matrix
         self.reactor_type = "Differential PFR"
-        self.ss_tol = ss_tol
-        self.ODE_params = {
+        self.ode_params = {
             "reltol": 1e-12,
-            "abstol": 1e-64,
-            "tfin": 1e3}
+            "abstol": 1e-100, 
+            "ss_tol": 1e-10}
 
 
     @property
@@ -146,20 +144,18 @@ class DifferentialPFR(ReactorModel):
         return kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(y**self.stoic_backward.T, axis=1)
 
     # @jit(nopython=True)
-    def ode(self, _, y, kd, ki, gas_mask: np.ndarray) -> np.ndarray:
+    def ode(self, t, y, kd, ki, gas_mask: np.ndarray) -> np.ndarray:
         
         dy = self.v_matrix @ self.net_rate(y, kd, ki)  # Surface species        
         dy[gas_mask] = 0  # Mask gas species
-        print(_)
         return dy
 
-    def jacobian(self, time, y, kd, ki, v_matrix, NC_sur) -> np.ndarray:
-        # TODO Taken from Pymkm, readapt!
+    def jacobian(self, t, y, kd, ki, gas_mask) -> np.ndarray:
         J = np.zeros((len(y), len(y)))
         Jg = np.zeros((len(kd), len(y)))
         Jh = np.zeros((len(kd), len(y)))
-        v_f = stoic_forward(v_matrix)
-        v_b = stoic_backward(v_matrix)
+        v_f = self.stoic_forward
+        v_b = self.stoic_backward
         for r in range(len(kd)):
             for s in range(len(y)):
                 if v_f[s, r] == 1:
@@ -178,13 +174,14 @@ class DifferentialPFR(ReactorModel):
                     v_b[s, r] -= 1
                     Jh[r, s] = 2 * ki[r] * np.prod(y ** v_b[:, r])
                     v_b[s, r] += 1
-        J = v_matrix @ (Jg - Jh)
-        J[NC_sur:, :] = 0.0
+        J = self.v_matrix @ (Jg - Jh)
+        J[gas_mask, :] = 0
         return J
 
     def steady_state(self, time, y, kd, ki, gas_mask) -> float:
         error = np.sum(abs(self.ode(time, y, kd, ki, gas_mask)))
-        criteria = 0 if error <= self.ss_tol else error
+        criteria = 0 if error <= self.ode_params['ss_tol'] else error
+        print(time, error)
         return criteria
 
     steady_state.terminal = True
@@ -204,14 +201,14 @@ class DifferentialPFR(ReactorModel):
         """
         return solve_ivp(
             self.ode,
-            (0, 1e6),
+            (0, 1e10),  
             y_0,
             method="BDF", 
             events=self.steady_state,
-            jac=None,  # To readapt
+            jac=None, #self.jacobian,
             args=ode_params,
-            atol=self.ODE_params['abstol'],
-            rtol=self.ODE_params['reltol'])
+            atol=self.ode_params['abstol'],
+            rtol=self.ode_params['reltol'])
 
 
     def conversion(self, P_in, P_out) -> float:

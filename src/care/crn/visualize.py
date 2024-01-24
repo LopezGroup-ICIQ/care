@@ -3,27 +3,34 @@
 import networkx as nx
 import re
 import numpy as np
-import math
-from pydot import Dot, Node, Edge, Subgraph
+from pydot import Subgraph
 
-def write_dotgraph(graph, 
-                   filename: str):
+from care.crn.microkinetic import max_flux
+
+def write_dotgraph(graph: nx.DiGraph, 
+                   filename: str,
+                   source: str = None):
+        if source is not None:
+            edge_list = max_flux(graph, source)
+            for edge in graph.edges(data=True):
+                if edge in edge_list:
+                    edge[2]['max'] = 'max'
+                else:
+                    edge[2]['max'] = 'no'
         pos = nx.kamada_kawai_layout(graph)
         nx.set_node_attributes(graph, pos, "pos")
         plot = nx.drawing.nx_pydot.to_pydot(graph)
-        plot.set_orientation("landscape")
         subgraph_source = Subgraph("source", rank="source")
         subgraph_ads = Subgraph("ads", rank="same")
         subgraph_sink = Subgraph("sink", rank="sink")
         subgraph_des = Subgraph("des", rank="same")
         subgraph_same = Subgraph("same", rank="same")
-        plot.rankdir = "LR"
+        plot.rankdir = "TB"
         for node in plot.get_nodes():
             node.set_orientation("portrait")
             attrs = node.get_attributes()
             if attrs["category"] == 'intermediate':
                 formula = node.get_attributes()["formula"]
-                # add '(g)' in subscript if phase is gas else '*'
                 formula += "" if attrs['phase'] == "gas" else "*"
                 for num in re.findall(r"\d+", formula):
                     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
@@ -47,7 +54,6 @@ def write_dotgraph(graph,
                     node.set_shape("cylinder")
                     node.set_fillcolor("lightcoral")
                     node.set_fontsize("150")
-                    # give rank
                     subgraph_source.add_node(node)
                 elif attrs['phase'] == 'gas' and float(attrs['molar_fraction']) == 0.0:
                     # give lowest rank
@@ -77,21 +83,22 @@ def write_dotgraph(graph,
         max_scale, min_scale = 10, 1
         max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
         for edge in plot.get_edges():
+            print(edge.get_attributes())
             if edge.get_source() == '*' or edge.get_destination() == '*':
                 plot.del_edge(edge.get_source(), edge.get_destination())
                 continue
-            # print(edge)
             rate = float(edge.get_attributes()["rate"])
             # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
             edge_width = -np.log10(rate)
             width = (max_scale - min_scale) / (max_weight - min_weight) * (
                 edge_width - max_weight
             ) + max_scale
-            # if width > 5:
-                # set color red
-                # edge.set_color("firebrick")
-            edge.set_penwidth(width)
-            width_list.append(width)
+            if edge.get_attributes()["max"] == "max":
+                edge.set_color("firebrick")
+                edge.set_penwidth(30)
+            else:
+                edge.set_penwidth(width)
+                width_list.append(width)
         
         plot.add_subgraph(subgraph_source)
         plot.add_subgraph(subgraph_sink)
@@ -101,10 +108,8 @@ def write_dotgraph(graph,
         # set min distance between nodes
         plot.set_overlap("false")
         plot.set_splines("true")
-        plot.set_nodesep(0.3)    
-        a4_dims = (120, 120)  # In inches
-        
-        # plot.set_size(f"{a4_dims[0],a4_dims[1]}!")
+        plot.set_nodesep(0.5) 
+        plot.set_ranksep(1)   
         plot.set_bgcolor("white")
         
         plot.set_dpi(20)

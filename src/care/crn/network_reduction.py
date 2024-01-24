@@ -2,6 +2,7 @@
 ReactionNetworkSimplifier class implementation.
 Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
 """
+import networkx as nx
 
 from care import Intermediate, ReactionNetwork
 
@@ -119,3 +120,23 @@ def is_alkane(inter: Intermediate) -> bool:
         True if the intermediate is an alkane, False otherwise.
     """
     return set(inter.molecule.get_chemical_symbols()) == set(["C", "H"])
+
+
+def find_flux(graph: nx.DiGraph, source: str) -> nx.Digraph:
+    """
+    Finds the flux of the given source node.
+
+    Parameters
+    ----------
+    graph : nx.DiGraph
+        Graph.
+    source : str
+        Source node.
+
+    Returns
+    -------
+    nx.DiGraph
+        Flux graph.
+    """
+    
+    #
