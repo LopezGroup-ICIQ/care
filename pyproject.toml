@@ -4,50 +4,42 @@ build-backend = "hatchling.build"
 
 [project]
 name = "care"
-version = "2024.0.0"
+version = "0.0.1"
 dependencies = [
-  "httpx",
-  "gidgethub[httpx]>4.0.0",
-  "django>2.1; os_name != 'nt'",
-  "django>2.0; os_name == 'nt'",
+  "acat==1.6.8",
+  "ase==3.22.1",
+  "energydiagram==0.2.0",
+  "matplotlib==3.8.0",
+  "networkx==3.2",
+  "numpy==1.26.3",
+  "pandas==2.2.0",
+  "prettytable==3.9.0",
+  "pydot==2.0.0",
+  "pymatgen==2023.10.11",
+  "rdkit==2023.3.3",
+  "scikit_learn==1.3.1",
+  "scipy==1.12.0",
+  "setuptools==68.2.2",
+  "torch==2.1.0",
+  "torch_geometric==2.4.0"
 ]
 requires-python = ">=3.9"
 authors = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
-  {name = "Oliver Loveday", email = "oloveday@iciq.es"},
-  {name = "Sergio Pablo-García", email = "sgarcia@iciq.es"}
+  {name = "Oliver Loveday", email = "oloveday@iciq.es"}
 ]
 maintainers = [
-  {name = "Oliver Loveday", email = "smorandi@iciq.es"}
+  {name = "Santiago Morandi", email = "smorandi@iciq.es"},
+  {name = "Oliver Loveday", email = "oloveday@iciq.es"}
 ]
 description = "Chemical Reaction Network generator for heterogenous catalysis"
 readme = "README.md"
-license = {file = "LICENSE"}
-keywords = ["heterogeneous catalysis", "chemical reaction network", "kinetics", "machine learning"]
+license = "LICENSE"
+keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python"
 ]
 
-[project.optional-dependencies]
-gui = ["PyQt5"]
-cli = [
-  "rich",
-  "click",
-]
-
 [project.urls]
-Homepage = "https://example.com"
-Documentation = "https://readthedocs.org"
-Repository = "https://github.com/me/spam.git"
-"Bug Tracker" = "https://github.com/me/spam/issues"
-Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
-
-[project.scripts]
-spam-cli = "spam:main_cli"
-
-[project.gui-scripts]
-spam-gui = "spam:main_gui"
-
-[project.entry-points."spam.magical"]
-tomatoes = "spam:main_tomatoes"
+Repository = "https://github.com/LopezGroup-ICIQ/care"
