@@ -34,7 +34,7 @@ maintainers = [
 ]
 description = "Chemical Reaction Network generator for heterogenous catalysis"
 readme = "README.md"
-license = "LICENSE"
+license = "MIT"
 keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -45,7 +45,9 @@ classifiers = [
 Repository = "https://github.com/LopezGroup-ICIQ/care"
 
 [tool.hatch.build.targets.wheel]
-packages = { include = ["care"], source-dir = "src" }
+packages = ["care"]  
+source-dir = "src"   
 
 [tool.hatch.build.targets.sdist]
-packages = { include = ["care"], source-dir = "src" }
+packages = ["care"]  
+source-dir = "src"   
