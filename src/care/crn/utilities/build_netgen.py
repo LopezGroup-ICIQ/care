@@ -6,9 +6,11 @@ import warnings
 from collections import defaultdict
 from itertools import combinations
 
+import cpuinfo
 import numpy as np
 from ase import Atoms
 from prettytable import PrettyTable
+import psutil
 from rdkit import Chem, RDLogger
 from rdkit.Chem import rdMolDescriptors
 
@@ -808,6 +810,7 @@ def gen_chemical_space(
     rxns_list.extend(rearr_steps)
     t5 = time.time() - t05
 
+    ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1e6
 
     # Create a table object
@@ -820,8 +823,6 @@ def gen_chemical_space(
     table.add_row(["Saturated molecules", len(saturated_species_smiles), f"{t0:.2f}"])
     table.add_row(["Fragments and unsaturated species", len(frag_list), f"{t1:.2f}"])
     table.add_row(["Bond-breaking reactions", len(unique_reactions), f"{t1:.2f}"])
-    table.add_row(["Intermediates dictionary", len(intermediates_dict), f"{t2:.2f}"])
-    table.add_row(["ElementaryReactions list", len(rxns_list), f"{t3:.2f}"])
     table.add_row(["Adsorption reactions", len(ads_steps), f"{t4:.2f}"])
     table.add_row(
         ["Rearrangement reactions", len(rearr_steps), f"{t5:.2f}"], divider=True
@@ -831,12 +832,16 @@ def gen_chemical_space(
     )
     table.add_row(
         ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"],
-        divider=True,
     )
-    table.add_row(["Peak memory usage", "", f"{peak_memory_usage:.2f} GB"])
-    table.add_row(["Total time", "", f"{time.time() - total_time:.2f}"])
+    # table.add_row(["Total time", "", f"{time.time() - total_time:.2f}"])
+    
+    table2 = PrettyTable()
+    table2.field_names = ["Process", "Model", "Usage"]
+    table2.add_row(["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
+    table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available", f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
+    table2.add_row(["Total Execution Time", "", f"{time.time() - total_time:.2f}s"])
 
-    # Print the table
-    print(table)
+    print(f"\n{table}")
+    print(f"\n{table2}")
 
     return intermediates_dict, rxns_list

@@ -7,6 +7,7 @@ from care.crn.utilities.build_netgen import gen_chemical_space
 
 
 def main():
+    
     parser = argparse.ArgumentParser(
         description="Generate intermediates of the reaction network."
     )
@@ -32,6 +33,30 @@ def main():
     )
     args = parser.parse_args()
 
+    ascii_logo = """
+              _____                    _____                    _____                    _____          
+             /\    \                  /\    \                  /\    \                  /\    \         
+            /::\    \                /::\    \                /::\    \                /::\    \        
+           /::::\    \              /::::\    \              /::::\    \              /::::\    \       
+          /::::::\    \            /::::::\    \            /::::::\    \            /::::::\    \      
+         /:::/\:::\    \          /:::/\:::\    \          /:::/\:::\    \          /:::/\:::\    \     
+        /:::/  \:::\    \        /:::/__\:::\    \        /:::/__\:::\    \        /:::/__\:::\    \    
+       /:::/    \:::\    \      /::::\   \:::\    \      /::::\   \:::\    \      /::::\   \:::\    \   
+      /:::/    / \:::\    \    /::::::\   \:::\    \    /::::::\   \:::\    \    /::::::\   \:::\    \  
+     /:::/    /   \:::\    \  /:::/\:::\   \:::\    \  /:::/\:::\   \:::\____\  /:::/\:::\   \:::\    \ 
+    /:::/____/     \:::\____\/:::/  \:::\   \:::\____\/:::/  \:::\   \:::|    |/:::/__\:::\   \:::\____\\
+    \:::\    \      \::/    /\::/    \:::\  /:::/    /\::/   |::::\  /:::|____|\:::\   \:::\   \::/    /
+     \:::\    \      \/____/  \/____/ \:::\/:::/    /  \/____|:::::\/:::/    /  \:::\   \:::\   \/____/ 
+      \:::\    \                       \::::::/    /         |:::::::::/    /    \:::\   \:::\    \     
+       \:::\    \                       \::::/    /          |::|\::::/    /      \:::\   \:::\____\    
+        \:::\    \                      /:::/    /           |::| \::/____/        \:::\   \::/    /    
+         \:::\    \                    /:::/    /            |::|  ~|               \:::\   \/____/     
+          \:::\    \                  /:::/    /             |::|   |                \:::\    \         
+           \:::\____\                /:::/    /              \::|   |                 \:::\____\        
+            \::/    /                \::/    /                \:|   |                  \::/    /        
+             \/____/                  \/____/                  \|___|                   \/____/ """
+    
+    print(ascii_logo)    
     # If args.noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
     noc = args.noc if args.noc > 0 else args.ncc * 2 + 2
 
@@ -39,7 +64,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     intermediates, reactions = gen_chemical_space(
-        args.ncc, args.noc, ncores=args.ncores
+        args.ncc, args.noc,
     )
     with open(f"{output_dir}/intermediates.pkl", "wb") as f:
         dump(intermediates, f)
