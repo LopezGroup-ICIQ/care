@@ -113,19 +113,6 @@ METAL_STRUCT_DICT = {
     "Zn": "hcp",
 }
 
-INTERPOL = {
-    "O-H": {"alpha": 0.39, "beta": 0.89},
-    "C-H": {"alpha": 0.63, "beta": 0.81},
-    "H-C": {"alpha": 0.63, "beta": 0.81},
-    "C-C": {"alpha": 1.00, "beta": 0.64},
-    "C-O": {"alpha": 1.00, "beta": 1.24},
-    "C-OH": {"alpha": 1.00, "beta": 1.48},
-    "O-O": {"alpha": 1.00, "beta": 1.00},  # from these, values are random
-    "H-H": {"alpha": 1.00, "beta": 1.00},
-    "O-OH": {"alpha": 1.00, "beta": 1.00},
-    "default": {"alpha": 0.00, "beta": 0.00},
-}
-
 BOND_ORDER = {"C": 4, "O": 2, "H": 1}
 
 ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16}
@@ -282,22 +269,3 @@ H = 4.1357e-15  # eV*s
 cf = 96.49  # (kJ/mol)/eV
 F = 96485.3329  # s*A/mol
 E = 1.602176634e-19  # C
-MASS_DICT = {
-    "C": 12.0107,
-    "H": 1.00784,
-    "O": 15.9994,
-    "N": 14.0067,
-    "P": 30.97696,
-    "S": 32.065,
-    "F": 18.998403,
-    "Cl": 35.453,
-    "Br": 79.904,
-    "I": 126.9044,
-    "He": 4.002602,
-    "Ne": 20.1797,
-    "Ar": 39.948,
-    "Kr": 83.798,
-    "Xe": 131.293,
-    "Rn": 220.0,
-    "Og": 294.0,
-}  # g/mol

@@ -1015,9 +1015,9 @@ class ReactionNetwork:
     def run_microkinetic(
         self,
         iv: dict[str, float],
-        rtol: float = 1e-6,
+        rtol: float = 1e-12,
         atol: float = 1e-64,
-        sstol: float = 1e-12,
+        sstol: float = 1e-16,
     ):
         if sum(iv.values()) != 1.0:
             raise ValueError("Sum of molar fractions is not 1.0")
@@ -1088,9 +1088,7 @@ class ReactionNetwork:
                         consumption_rate >= 0 and reaction.stoic[inter.code] < 0
                     ):
                         run_graph.remove_edge(*edge)
-                        new_edge = (reaction.code, inter.code)
-                        run_graph.add_edge(new_edge)
-                        run_graph.edges[new_edge]["rate"] = abs(consumption_rate)
+                        run_graph.add_edge(reaction.code, inter.code, rate=abs(consumption_rate))
                     else:
                         run_graph.edges[edge]["rate"] = abs(consumption_rate)
 
@@ -1106,9 +1104,7 @@ class ReactionNetwork:
                     consumption_rate >= 0 and reaction.stoic["*"] < 0
                 ):
                     run_graph.remove_edge(*edge)
-                    new_edge = (reaction.code, "*")
-                    run_graph.add_edge(new_edge)
-                    run_graph.edges[new_edge]["rate"] = abs(consumption_rate)
+                    run_graph.add_edge(reaction.code, "*", rate=abs(consumption_rate))
                 else:
                     run_graph.edges[edge]["rate"] = abs(consumption_rate)
         run_graph.remove_node("*")

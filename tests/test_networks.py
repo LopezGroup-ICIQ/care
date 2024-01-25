@@ -1,6 +1,8 @@
 import unittest
 from random import randint
 from ase import Atoms
+import sys
+sys.path.append('../src/')
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
 from care.crn.utilities.build_netgen import gen_chemical_space
