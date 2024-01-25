@@ -2,6 +2,7 @@
 
 import itertools as it
 from typing import Any
+import random
 
 import networkx as nx
 import numpy as np
@@ -13,7 +14,7 @@ from rdkit.Chem import AllChem
 
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
-from care.constants import BOND_ORDER
+from care.constants import BOND_ORDER, COORD_DICT
 from care.crn.utilities.species import rdkit_to_ase
 
 
@@ -393,41 +394,21 @@ def ads_placement_graph(
         Tuple containing the code of the intermediate and its list of adsorption configurations as graph representations.
     """
 
-    # Dictionary containing for each facets (fcc and hcp) the corresponding coordination number of C, H, O
-    facet_coord_dict = {
-        "fcc": {
-            "C": 3,
-            "H": 1,
-            "O": 4,
-        },
-        "hcp": {
-            "C": 4,
-            "H": 1,
-            "O": 4,
-        },
-        "bcc": {
-            "C": 4,
-            "H": 1,
-            "O": 4,
-        },
-    }
 
-    # Getting the element of the surface
+    # Getting the surface
     surf_elem = surface.metal
     surf_struct = surface.crystal_structure
 
     # Getting the coordination number of the surface
-    surf_coord = facet_coord_dict[surf_struct]
+    # surf_coord = facet_coord_dict[surf_struct]
 
     rdkit_mol = intermediate.rdkit
     # Adding Hs to the molecule
     rdkit_mol = Chem.AddHs(rdkit_mol)
-
-    num_conformers = 1
+    num_conformers = 2
     conformers = AllChem.EmbedMultipleConfs(rdkit_mol, numConfs=num_conformers)
 
     graph_config_list = []
-    print(f"Generating adsorption structures for {intermediate}")
     for conf_id in conformers:
         # try:
         conf = rdkit_mol.GetConformer(conf_id)
@@ -464,11 +445,6 @@ def ads_placement_graph(
             normal, D = best_fit_plane(anchoring_atoms_coords)
             selected_atoms = atoms_underneath_plane(mol_coords, normal, D)
 
-            # Adding the anchoring atoms to the selected atoms (securing that the anchoring atoms are always in the selected atoms)
-            selected_atoms = np.concatenate(
-                (selected_atoms, anchoring_atoms_coords), axis=0
-            )
-
             # Removing duplicates
             selected_atoms = np.unique(selected_atoms, axis=0)
 
@@ -483,14 +459,10 @@ def ads_placement_graph(
             selected_atoms_elem = []
             for idx in selected_atoms_idx:
                 selected_atoms_elem.append(ase_mol[idx].symbol)
-            # If all the anchoring atoms are not in the selected atoms, skip this conformer
-            if len(set(anchoring_atoms_elem) & set(selected_atoms_elem)) == 0:
-                continue
 
-        elif len(anchoring_atoms) == 0:
-            anchoring_atoms_elem = intermediate.graph.nodes[0]["elem"]
-            selected_atoms_idx = [0]
-            selected_atoms_elem = anchoring_atoms_elem
+            if len(set(anchoring_atoms_elem) & set(selected_atoms_elem)) == 0:
+                selected_atoms_idx = anchoring_atoms
+                selected_atoms_elem = anchoring_atoms_elem
 
         else:
             anchoring_atoms_elem = [ase_mol[anchoring_atoms[0]].symbol]
@@ -500,8 +472,12 @@ def ads_placement_graph(
         # Generating all possible combinations from 0 to the number of coordination, for each atom in selected_atoms_elem
         comb_list = []
         for elem in selected_atoms_elem:
-            comb_list.append(list(range(1, surf_coord[elem] + 1)))
+            comb_list.append(list(range(1, COORD_DICT[elem] + 1)))
         comb_list = list(it.product(*comb_list))
+
+        # If the length of comb list is greater than 5, randomly selecting 5 combinations
+        if len(comb_list) > 3:
+            comb_list = random.sample(comb_list, 3)
 
         # Creating a mapping of combinations to atom indices and elements
         comb_mapping = []
@@ -523,18 +499,18 @@ def ads_placement_graph(
                     new_graph.add_node(len(new_graph.nodes()), elem=surf_elem)
                     # Adding the edge between the node and the node with the surf_elem element
                     new_graph.add_edge(node[0], len(new_graph.nodes()) - 1)
-                # Connecting the surf_elem nodes between them
-                for i in range(node[2]):
-                    for j in range(i + 1, node[2]):
-                        new_graph.add_edge(
-                            len(new_graph.nodes()) - i - 1,
-                            len(new_graph.nodes()) - j - 1,
-                        )
 
+            # Connecting all the nodes with the surf_elem element between them
+            for node in new_graph.nodes():
+                if new_graph.nodes[node]["elem"] == surf_elem:
+                    for i in range(node + 1, len(new_graph.nodes())):
+                        if new_graph.nodes[i]["elem"] == surf_elem:
+                            new_graph.add_edge(node, i)
+            
             # If the new graph does not containt new nodes, skip it
             if len(new_graph.nodes()) == len(intermediate.graph.nodes()):
                 continue
-            else:
-                graph_config_list.append(new_graph)
+
+            graph_config_list.append(new_graph)
 
     return intermediate.code, graph_config_list

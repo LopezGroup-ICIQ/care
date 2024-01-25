@@ -121,6 +121,30 @@ INTER_ELEMS = ["C", "H", "O", "*"]
 
 INTER_PHASES = ["gas", "ads", "surf"]
 
+COORD_DICT = {
+        "C": 3,
+        "H": 1,
+        "O": 3,
+    }
+
+METALS = [
+    "Ag",
+    "Au",
+    "Cd",
+    "Co",
+    "Cu",
+    "Fe",
+    "Ir",
+    "Ni",
+    "Os",
+    "Pd",
+    "Pt",
+    "Rh",
+    "Ru",
+    "Zn",
+]
+ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
+
 R_TYPES = [
     "desorption",
     "C-O",

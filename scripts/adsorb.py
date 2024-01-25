@@ -1,19 +1,22 @@
 import argparse
 import itertools as it
 import multiprocessing as mp
+import numpy as np
 import os
 from pickle import dump, load
+import time
 
 from ase import Atoms
 from ase.db import connect
-from torch_geometric.data import Data
+from sklearn.preprocessing import OneHotEncoder
 
 from care import DB_PATH, MODEL_PATH
 from care.adsorption.adsorbate_placement import (ads_placement,
                                                  ads_placement_graph)
-from care.constants import METAL_STRUCT_DICT
+from care.constants import METAL_STRUCT_DICT, METALS, ADSORBATE_ELEMS
 from care.crn.surface import Surface
 from care.gnn.graph import atoms_to_data
+from care.gnn.graph_tools import nx_to_pyg_adsorb
 
 
 def main():
@@ -71,6 +74,10 @@ def main():
     with open(args.i + "/intermediates.pkl", "rb") as f:
         intermediates = load(f)
 
+    ohe_elements = OneHotEncoder().fit(
+        np.array(METALS + ADSORBATE_ELEMS).reshape(-1, 1)
+    )
+
     adsorbed_dict = {}
     for key, intermediate in intermediates.items():
         if intermediate.is_surface:  # empty surface
@@ -93,13 +100,18 @@ def main():
         adsorption_structs = {key: value for key, value in result_list}
 
     elif args.t == "g":
+        print('Using graph-based adsorbate placement.')
+        t0 = time.time()
         with mp.Pool(processes=args.ncores // 2) as p:
             result_list = p.starmap(
                 ads_placement_graph,
                 iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)),
             )
+        print(f'Adsorbate placement took {time.time() - t0} seconds.')
         adsorption_structs = {key: value for key, value in result_list}
 
+    print('Retrieving adsorption structures...')
+    t1 = time.time()
     for key, intermediate in adsorption_structs.items():
         ads_config_dict = {}
         counter = 0
@@ -109,12 +121,14 @@ def main():
             ads_config_dict[f"{counter}"]["pyg"] = (
                 atoms_to_data(config, graph_params)
                 if isinstance(config, Atoms)
-                else Data()
+                else nx_to_pyg_adsorb(config, ohe_elements, graph_params)
             )
             ads_config_dict[f"{counter}"]["mu"] = 0
             ads_config_dict[f"{counter}"]["s"] = 0
             counter += 1
         intermediates[key].ads_configs = ads_config_dict
+    print('Adsorption structures retrieved.')
+    print(f'Retrieval took {time.time() - t1} seconds.')
 
     if args.t == "s":
         with open(f"{output_dir}/ads_intermediates.pkl", "wb") as f:
