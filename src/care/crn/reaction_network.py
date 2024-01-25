@@ -1019,6 +1019,19 @@ class ReactionNetwork:
         atol: float = 1e-64,
         sstol: float = 1e-16,
     ):
+        """
+        Run microkinetic simulation on a differential reactor.
+
+        Args:
+            iv (dict): Initial values of the molar fractions of the gas phase
+                intermediates. Surface is assumed to be empty.
+            rtol (float, optional): Relative tolerance. Defaults to 1e-12.
+            atol (float, optional): Absolute tolerance. Defaults to 1e-64.
+            sstol (float, optional): Steady state tolerance. Defaults to 1e-16.
+
+        Returns:
+            dict containing the results of the simulation.
+        """
         if sum(iv.values()) != 1.0:
             raise ValueError("Sum of molar fractions is not 1.0")
         kd = np.array([reaction.k_dir for reaction in self.reactions])

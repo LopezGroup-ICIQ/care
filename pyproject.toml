@@ -43,3 +43,9 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/LopezGroup-ICIQ/care"
+
+[tool.hatch.build.targets.wheel]
+packages = { include = ["care"], source-dir = "src" }
+
+[tool.hatch.build.targets.sdist]
+packages = { include = ["care"], source-dir = "src" }

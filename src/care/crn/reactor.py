@@ -158,8 +158,8 @@ class DifferentialPFR(ReactorModel):
         J = np.zeros((len(y), len(y)))
         Jg = np.zeros((len(kd), len(y)))
         Jh = np.zeros((len(kd), len(y)))
-        v_f = self.stoic_forward
-        v_b = self.stoic_backward
+        v_f = self.stoic_forward.copy()
+        v_b = self.stoic_backward.copy()
         for r in range(len(kd)):
             for s in range(len(y)):
                 if v_f[s, r] == 1:
@@ -254,13 +254,13 @@ class DynamicCSTR(ReactorModel):
         self,
         temperature: float,
         pressure: float,
+        v_matrix: np.ndarray,
         radius: float = 0.01,
         length: float = 0.01,
         Q: float = 1e-6,
         m_cat: float = 1e-3,
         s_bet: float = 1e5,
-        a_site: float = 1e-19,
-        ss_tol: float = 1e-5,
+        a_site: float = 1e-19
     ):
         """
         Dynamic Continuous Stirred Tank Reactor (CSTR)
@@ -270,18 +270,25 @@ class DynamicCSTR(ReactorModel):
             - Finite volume
             - Perfect mixing
         Args:
-            temperature(float): Temperature of the tubular reactor [K]
-            pressure(float): Pressure of the tubular reactor [Pa]
+            temperature(float): Reactor temperature in K.
+            pressure(float): Reactor pressure in Pa.
+            v_matrix(ndarray): Stoichiometric matrix of the reaction network.
             radius(float): Radius of the tubular reactor [m]
             length(float): Axial length of the tubular reactor [m]
             Q(float): Inlet volumetric flowrate [m3 s-1]
             m_cat(float): catalyst mass [kg]
             s_bet(float): BET surface [m2 kg_cat-1]
-            a_site(float): Active site area [m2/ active site]
-            ss_tol(float): Tolerance parameter for controlling automatic stop when
-                           steady-state conditions are reached by the solver.
+            a_site(float): Active site area in m^2 active_site^-1
         """
-        self.reactor_type = "Dynamic CSTR"
+        assert temperature > 0, "Temperature must be positive"
+        assert pressure > 0, "Pressure must be positive"
+        assert radius > 0, "Radius must be positive"
+        assert length > 0, "Length must be positive"
+        assert Q > 0, "Volumetric flowrate must be positive"
+        assert m_cat > 0, "Catalyst mass must be positive"
+        assert s_bet > 0, "BET surface must be positive"
+        assert a_site > 0, "Active site area must be positive"
+
         self.temperature = temperature
         self.pressure = pressure
         self.radius = radius
@@ -292,12 +299,9 @@ class DynamicCSTR(ReactorModel):
         self.m_cat = m_cat
         self.s_bet = s_bet
         self.a_site = a_site
-        self.ss_tol = ss_tol
 
     def ode(self, time, y, kd, ki, v_matrix, NC_sur, P_in):
-        # Surface species
         dy = v_matrix @ net_rate(y, kd, ki, v_matrix)
-        # Gas species
         dy[NC_sur:] *= R * self.temperature / (N_AV * self.volume)
         dy[NC_sur:] *= self.s_bet * self.m_cat / self.a_site
         dy[NC_sur:] += (P_in - y[NC_sur:]) / self.tau
@@ -336,14 +340,14 @@ class DynamicCSTR(ReactorModel):
             J[NC_sur + i, NC_sur + i] -= 1 / self.tau
         return J
 
-    def termination_event(self, time, y, kd, ki, v_matrix, NC_sur, temperature, P_in):
-        error = np.sum(
+    def steady_state(self, time, y, kd, ki, v_matrix, NC_sur, temperature, P_in):
+        sum_ddt = np.sum(
             abs(self.ode(time, y, kd, ki, v_matrix, NC_sur, temperature, P_in))
         )
-        criteria = 0 if error <= self.ss_tol else error
+        criteria = 0 if sum_ddt <= self.ss_tol else sum_ddt
         return criteria
 
-    termination_event.terminal = True
+    steady_state.terminal = True
 
     def conversion(self, gas_reactant_index, P_in, P_out):
         """
