@@ -816,12 +816,9 @@ def gen_chemical_space(
     # Create a table object
     table = PrettyTable()
 
-    # Add columns
     table.field_names = ["Category", "Number of Items", "Time (s)"]
-
-    # Add rows
     table.add_row(["Saturated molecules", len(saturated_species_smiles), f"{t0:.2f}"])
-    table.add_row(["Fragments and unsaturated species", len(frag_list), f"{t1:.2f}"])
+    table.add_row(["Fragments and unsaturated molecules", len(frag_list), f"{t1:.2f}"], divider=True)
     table.add_row(["Bond-breaking reactions", len(unique_reactions), f"{t1:.2f}"])
     table.add_row(["Adsorption reactions", len(ads_steps), f"{t4:.2f}"])
     table.add_row(
@@ -833,7 +830,6 @@ def gen_chemical_space(
     table.add_row(
         ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"],
     )
-    # table.add_row(["Total time", "", f"{time.time() - total_time:.2f}"])
     
     table2 = PrettyTable()
     table2.field_names = ["Process", "Model", "Usage"]

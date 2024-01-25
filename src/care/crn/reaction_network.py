@@ -1161,7 +1161,6 @@ class ReactionNetwork:
         bond = tuple(step.r_type.split("-"))
 
         # Select intermediate that is fragmented in the reaction (A*)
-        # inters_dict = {inter.code: inter for inter in list(step.reactants)+list(step.products) if not inter.is_surface}
         inters = {
             inter.code: inter.graph.number_of_edges()
             for inter in list(step.reactants) + list(step.products)

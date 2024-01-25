@@ -6,17 +6,13 @@ import os
 from pickle import dump, load
 import time
 
-from ase import Atoms
 from ase.db import connect
-from sklearn.preprocessing import OneHotEncoder
 
 from care import DB_PATH, MODEL_PATH
-from care.adsorption.adsorbate_placement import (ads_placement,
-                                                 ads_placement_graph)
-from care.constants import METAL_STRUCT_DICT, METALS, ADSORBATE_ELEMS
+from care.adsorption.adsorbate_placement import ads_placement
+from care.constants import METAL_STRUCT_DICT
 from care.crn.surface import Surface
 from care.gnn.graph import atoms_to_data
-from care.gnn.graph_tools import nx_to_pyg_adsorb
 
 
 def main():
@@ -40,13 +36,6 @@ def main():
         type=str,
         dest="hkl",
         help="Surface facet. Available options: fcc/bcc 111, 100, 110; hcp 0001, 10m10, 10m11",
-    )
-    argparser.add_argument(
-        "-t",
-        type=str,
-        dest="t",
-        default="s",
-        help="Type of adsorbate placement. Available options: g (graph), s (dockonsurf)",
     )
     argparser.add_argument(
         "-ncores",
@@ -74,9 +63,6 @@ def main():
     with open(args.i + "/intermediates.pkl", "rb") as f:
         intermediates = load(f)
 
-    ohe_elements = OneHotEncoder().fit(
-        np.array(METALS + ADSORBATE_ELEMS).reshape(-1, 1)
-    )
 
     adsorbed_dict = {}
     for key, intermediate in intermediates.items():
@@ -91,24 +77,12 @@ def main():
         else:  # adsorbed intermediate
             adsorbed_dict[key] = intermediate
 
-    if args.t == "s":
-        with mp.Pool(processes=args.ncores) as p:
-            result_list = p.starmap(
-                ads_placement,
-                iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)),
-            )
-        adsorption_structs = {key: value for key, value in result_list}
-
-    elif args.t == "g":
-        print('Using graph-based adsorbate placement.')
-        t0 = time.time()
-        with mp.Pool(processes=args.ncores // 2) as p:
-            result_list = p.starmap(
-                ads_placement_graph,
-                iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)),
-            )
-        print(f'Adsorbate placement took {time.time() - t0} seconds.')
-        adsorption_structs = {key: value for key, value in result_list}
+    with mp.Pool(processes=args.ncores) as p:
+        result_list = p.starmap(
+            ads_placement,
+            iterable=zip(list(adsorbed_dict.values()), it.repeat(surface)),
+        )
+    adsorption_structs = {key: value for key, value in result_list}
 
     print('Retrieving adsorption structures...')
     t1 = time.time()
@@ -120,8 +94,6 @@ def main():
             ads_config_dict[f"{counter}"]["config"] = config
             ads_config_dict[f"{counter}"]["pyg"] = (
                 atoms_to_data(config, graph_params)
-                if isinstance(config, Atoms)
-                else nx_to_pyg_adsorb(config, ohe_elements, graph_params)
             )
             ads_config_dict[f"{counter}"]["mu"] = 0
             ads_config_dict[f"{counter}"]["s"] = 0

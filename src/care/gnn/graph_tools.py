@@ -110,56 +110,6 @@ def nx_to_pyg(graph_nx: Graph, one_hot_encoder_elements: OneHotEncoder) -> Data:
     )
     return graph_pyg
 
-def nx_to_pyg_adsorb(graph_nx: Graph, ohe_elements: Union[OneHotEncoder, list], graph_params) -> Data:
-    """
-    Convert graph object from networkx to pytorch_geometric type.
-    Args:
-        graph(networkx.classes.graph.Graph): networkx graph object
-    Returns:
-        new_g(torch_geometric.data.Data): torch_geometric graph object
-    """
-    elements_list = (
-        list(ohe_elements.categories_[0])
-        if type(ohe_elements) == OneHotEncoder
-        else ohe_elements
-    )
-
-    elements_list = list(ohe_elements.categories_[0])
-    node_features_list = list(ohe_elements.categories_[0])
-    for key, value in graph_params["features"].items():
-        if value:
-            node_features_list.append(key.upper())
-
-
-    n_nodes = graph_nx.number_of_nodes()
-    n_edges = graph_nx.number_of_edges()
-    node_features = torch.zeros((n_nodes, len(elements_list)))
-    edge_features = torch.zeros((n_edges, 1))
-    edge_index = torch.zeros((2, n_edges), dtype=torch.long)
-    node_index = torch.zeros((n_nodes), dtype=torch.long)
-    elem_list = []
-    for i, node in enumerate(graph_nx.nodes):
-        node_index[i] = node
-        elem = graph_nx.nodes[node]["elem"]
-        node_features[i, elements_list.index(elem)] = 1
-        elem_list.append(elem)
-    for i, edge in enumerate(graph_nx.edges):
-        edge_index[0, i] = edge[0]
-        edge_index[1, i] = edge[1]
-
-    graph_pyg = Data(
-        x=node_features, edge_index=edge_index, edge_attr=edge_features, y=node_index, elem_list=elem_list, node_feats=node_features_list
-    )
-
-    # temporary, CHECK direction of edge
-    gcn = torch.zeros((n_nodes, 1))
-    for i, node in enumerate(graph_nx.nodes):
-        gcn[i] = 0 if elem_list[i] in ('C', 'H', 'O') else 0.6
-
-    graph_pyg.x = torch.cat((graph_pyg.x, gcn), dim=1)
-
-    return graph_pyg
-
 
 # def graph_plotter(graph: Data,
 #                   one_hot_encoder_elements: OneHotEncoder,
