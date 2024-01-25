@@ -102,7 +102,7 @@ class DifferentialPFR(ReactorModel):
 
         mat = np.zeros_like(self.v_matrix)
         mat[self.v_matrix < 0] = -self.v_matrix[self.v_matrix < 0]
-        return mat
+        return mat.T
 
     @property
     def stoic_backward(self) -> np.ndarray:
@@ -117,7 +117,7 @@ class DifferentialPFR(ReactorModel):
         """
         mat = np.zeros_like(self.v_matrix)
         mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
-        return mat
+        return mat.T
 
     def net_rate(self, y: np.ndarray, kd: np.ndarray, ki: np.ndarray) -> np.ndarray:
         """
@@ -129,8 +129,8 @@ class DifferentialPFR(ReactorModel):
         Returns:
             (ndarray): Net reaction rate of the elementary reactions [1/s].
         """
-        return kd * np.prod(y**self.stoic_forward.T, axis=1) - ki * np.prod(
-            y**self.stoic_backward.T, axis=1
+        return kd * np.prod(y**self.stoic_forward, axis=1) - ki * np.prod(
+            y**self.stoic_backward, axis=1
         )
 
     def ode(

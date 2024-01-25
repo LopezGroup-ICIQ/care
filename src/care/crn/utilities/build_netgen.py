@@ -694,8 +694,7 @@ def gen_rearrangement_reactions(
 
 
 def gen_chemical_space(
-    ncc: int, noc: int, ncores: int = mp.cpu_count()
-) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+    ncc: int, noc: int) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the entire chemical space for the given boundaries (ncc and noc) of the CRN.
 
@@ -709,7 +708,7 @@ def gen_chemical_space(
     Returns
     -------
     intermediates_dict : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+        Dictionary of the Intermediate instances of all the chemical species of the reaction network.
         Each key is the InChIKey of a molecule, and each value is a list of Intermediate instances for that molecule.
     rxns_list : list[ElementaryReaction]
         List of all the reactions of the reaction network as ElementaryReaction instances.
