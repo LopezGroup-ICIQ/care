@@ -102,22 +102,15 @@ def main():
     print('Adsorption structures retrieved.')
     print(f'Retrieval took {time.time() - t1} seconds.')
 
-    if args.t == "s":
-        with open(f"{output_dir}/ads_intermediates.pkl", "wb") as f:
-            dump(intermediates, f)
-        print(
-            "Adsorbate placement completed. The results are saved in the folder: {}".format(
-                output_dir
-            )
+
+    with open(f"{output_dir}/ads_intermediates.pkl", "wb") as f:
+        dump(intermediates, f)
+    print(
+        "Adsorbate placement completed. The results are saved in the folder: {}".format(
+            output_dir
         )
-    else:
-        with open(f"{output_dir}/ads_intermediates.pkl", "wb") as f:
-            dump(intermediates, f)
-        print(
-            "Adsorbate placement completed. The results are saved in the folder: {}".format(
-                output_dir
-            )
-        )
+    )
+
 
     with open(f"{output_dir}/surface.pkl", "wb") as f:
         dump(surface, f)
