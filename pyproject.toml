@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "care"
@@ -34,7 +34,7 @@ maintainers = [
 ]
 description = "Chemical Reaction Network generator for heterogenous catalysis"
 readme = "README.md"
-license = "MIT"
+license = {file = "LICENSE"}
 keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -44,10 +44,5 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/LopezGroup-ICIQ/care"
 
-[tool.hatch.build.targets.wheel]
-packages = ["care"]  
-source-dir = "src"   
-
-[tool.hatch.build.targets.sdist]
-packages = ["care"]  
-source-dir = "src"   
+[tool.setuptools]
+include-package-data = true
