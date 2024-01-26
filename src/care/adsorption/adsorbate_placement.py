@@ -243,8 +243,7 @@ def ads_placement(
                     ads_height += 0.2
                     total_config_list.extend(config_list)
 
-        print(f"{intermediate.code} placed on the surface")
-        return intermediate.code, total_config_list
+        return total_config_list
 
     # If the chemical species is a single atom, placing the atom on the surface
     else:
@@ -258,5 +257,4 @@ def ads_placement(
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
 
-        print(f"{intermediate.code} placed on the surface")
-        return intermediate.code, total_config_list
+        return total_config_list

@@ -1,0 +1,8 @@
+[chemspace]
+ncc = 1
+noc = 4
+
+
+[surface]
+m = "Cu"
+hkl = 100

@@ -1,37 +1,16 @@
-import argparse
 import multiprocessing as mp
 import os
-from pickle import dump
+import toml
+import itertools as it
 
+from care.gnn.interface import GameNetUQ, ReactionEnergy
 from care.crn.utilities.chemspace import gen_chemical_space
-
+from care import MODEL_PATH
 
 def main():
-    
-    parser = argparse.ArgumentParser(
-        description="Generate intermediates of the reaction network."
-    )
-    parser.add_argument(
-        "-ncc",
-        type=int,
-        help="Network Carbon Cutoff, i.e., max number of C atoms in the intermediates.",
-        dest="ncc",
-    )
-    parser.add_argument(
-        "-noc",
-        type=int,
-        help="Network Oxygen Cutoff, i.e., max number of O atoms in the intermediates.",
-        dest="noc",
-        default=-1,
-    )
-    parser.add_argument(
-        "-ncores",
-        type=int,
-        help="Number of cores to use.",
-        dest="ncores",
-        default=mp.cpu_count(),
-    )
-    args = parser.parse_args()
+    # Load configuration file
+    with open("../notebooks/config.toml", "r") as f:
+        config = toml.load(f)
 
     care_logo = """
               _____                    _____                    _____                    _____          
@@ -56,22 +35,50 @@ def main():
             \::/    /                \::/    /                \:|   |                  \::/    /        
              \/____/                  \/____/                  \|___|                   \/____/ """
     
-    print(care_logo)    
-    # If args.noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
-    noc = args.noc if args.noc > 0 else args.ncc * 2 + 2
+    print(care_logo)
+    print("\nInitializing CARE (Catalytic Automatic Reaction Estimator)...\n")
+    
+    # Loading parameters
+    ncc = config['chemspace']['ncc']
+    noc = config['chemspace']['noc']
+    # If noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
+    noc = noc if noc > 0 else ncc * 2 + 2
 
-    output_dir = f"C{args.ncc}O{noc}"
+    # If noc is > ncc * 2 + 2, raise an error
+    if noc > ncc * 2 + 2:
+        raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
+
+    m = config['surface']['m']
+    hkl = config['surface']['hkl']
+
+    # Create output directory
+    output_dir = f"C{ncc}O{noc}/{m}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
-    intermediates, reactions = gen_chemical_space(
-        args.ncc, args.noc,
-    )
-    with open(f"{output_dir}/intermediates.pkl", "wb") as f:
-        dump(intermediates, f)
+    # 1. Generate the chemical space (chemical spieces and reactions)
+    print("Generating the chemical space...")
 
-    with open(f"{output_dir}/reactions.pkl", "wb") as f:
-        dump(reactions, f)
+    intermediates, reactions = gen_chemical_space(ncc, noc)
+
+    print("Chemical space generated.\n")
+
+    # 2. Evaluation of the chemical space
+    print("Evaluating the chemical space...")
+
+    # 2.1. Adsorbate placement and energy estimation
+    print("Placing the adsorbates and estimating its energies...")
+
+    # Loading the model
+    model = GameNetUQ(MODEL_PATH)
+
+    for intermediate in intermediates.values():
+        model.estimate_energy(intermediate, metal=m, facet=hkl)
+
+    print(model)
+
+    pass
 
 
 if __name__ == "__main__":
     main()
+

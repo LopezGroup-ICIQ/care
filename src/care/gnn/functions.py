@@ -63,4 +63,5 @@ def load_model(path: str) -> Module:
     model.load_state_dict(load(path + "/GNN.pth"))
     model.y_scale_params = {"mean": scale_params[0], "std": scale_params[1]}
     model.eval()
+    model.graph_params = graph_params
     return model
