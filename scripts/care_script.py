@@ -1,11 +1,13 @@
-import multiprocessing as mp
 import os
 import toml
-import itertools as it
 
-from care.gnn.interface import GameNetUQ, ReactionEnergy
+from ase.db import connect
+
+from care import MODEL_PATH, DB_PATH, Surface
+from care.constants import METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
-from care import MODEL_PATH
+from care.gnn.interface import GameNetUQ, ReactionEnergy
+
 
 def main():
     # Load configuration file
@@ -34,10 +36,10 @@ def main():
            \:::\____\                /:::/    /              \::|   |                 \:::\____\        
             \::/    /                \::/    /                \:|   |                  \::/    /        
              \/____/                  \/____/                  \|___|                   \/____/ """
-    
+
     print(care_logo)
     print("\nInitializing CARE (Catalytic Automatic Reaction Estimator)...\n")
-    
+
     # Loading parameters
     ncc = config['chemspace']['ncc']
     noc = config['chemspace']['noc']
@@ -48,11 +50,18 @@ def main():
     if noc > ncc * 2 + 2:
         raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
 
-    m = config['surface']['m']
+    metal = config['surface']['metal']
     hkl = config['surface']['hkl']
 
+    # Loading surface from database
+    metal_db = connect(os.path.abspath(DB_PATH))
+    metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
+    surface_ase = metal_db.get_atoms(
+        calc_type="surface", metal=metal, facet=metal_structure)
+    surface = Surface(surface_ase, str(hkl))
+
     # Create output directory
-    output_dir = f"C{ncc}O{noc}/{m}{hkl}"
+    output_dir = f"C{ncc}O{noc}/{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
@@ -69,16 +78,13 @@ def main():
     print("Placing the adsorbates and estimating its energies...")
 
     # Loading the model
-    model = GameNetUQ(MODEL_PATH)
+    model = GameNetUQ(MODEL_PATH, surface)
 
+    # Estimate the energy of each intermediate
     for intermediate in intermediates.values():
-        model.estimate_energy(intermediate, metal=m, facet=hkl)
+        model.estimate_energy(intermediate)
 
-    print(model)
-
-    pass
-
+    print("Adsorbates placed and energies estimated.\n")
 
 if __name__ == "__main__":
     main()
-

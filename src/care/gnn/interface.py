@@ -20,15 +20,16 @@ from care.gnn.graph_tools import pyg_to_nx
 
 class GameNetUQ(IntermediateEnergyEstimator):
     def __init__(self,
-                 model_path: str):
+                 model_path: str,
+                 surface: Optional[Surface] = None,):
+        
         self.path = model_path
         self.model = load_model(model_path)
+        self.surface = surface
+
 
     def estimate_energy(self,
                         intermediate: Intermediate,
-                        surface: Optional[Surface] = None,
-                        metal: Optional[str] = None,
-                        facet: Optional[str] = None,
                         ) -> None:
         """
         Estimate the energy of a state.
@@ -36,9 +37,7 @@ class GameNetUQ(IntermediateEnergyEstimator):
         Parameters
         ----------
         intermediate : Intermediate
-            The intermediate.
-        surface : Optional[Surface], optional
-            The surface. Defaults to None.
+            The intermediate to evaluate.
 
         Returns
         -------
@@ -46,17 +45,6 @@ class GameNetUQ(IntermediateEnergyEstimator):
             Updates the Intermediate object with the estimated energy.
         """
 
-        if surface is None and intermediate.phase != "gas":
-            if metal is None or facet is None:
-                raise ValueError(
-                    "Either a surface or a metal and a facet must be provided.")
-
-            # Loading surface from database
-            metal_db = connect(os.path.abspath(DB_PATH))
-            metal_structure = f"{METAL_STRUCT_DICT[metal]}({facet})"
-            surface_ase = metal_db.get_atoms(
-                calc_type="surface", metal=metal, facet=metal_structure)
-            surface = Surface(surface_ase, str(facet))
         # Estimate the energy of the intermediate
         if intermediate.is_surface:
             intermediate.ads_configs = {
@@ -71,7 +59,7 @@ class GameNetUQ(IntermediateEnergyEstimator):
 
         else:
             # Adsorbate placement
-            config_list = ads_placement(intermediate, surface)
+            config_list = ads_placement(intermediate, self.surface)
 
             counter = 0
             ads_config_dict = {}
