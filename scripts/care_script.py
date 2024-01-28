@@ -11,7 +11,7 @@ from care.gnn.interface import GameNetUQ, ReactionEnergy
 
 def main():
     # Load configuration file
-    with open("../notebooks/config.toml", "r") as f:
+    with open("config.toml", "r") as f:
         config = toml.load(f)
 
     care_logo = """

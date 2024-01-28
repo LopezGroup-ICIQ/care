@@ -4,5 +4,5 @@ noc = 4
 
 
 [surface]
-m = "Cu"
+metal = "Cu"
 hkl = 100
