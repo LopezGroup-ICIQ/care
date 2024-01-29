@@ -1015,9 +1015,10 @@ class ReactionNetwork:
     def run_microkinetic(
         self,
         iv: dict[str, float],
+        inerts: dict[str, float] = None,
         rtol: float = 1e-12,
         atol: float = 1e-64,
-        sstol: float = 1e-16,
+        sstol: float = 1e-12,
     ):
         """
         Run microkinetic simulation on a differential reactor.
@@ -1025,6 +1026,10 @@ class ReactionNetwork:
         Args:
             iv (dict): Initial values of the molar fractions of the gas phase
                 intermediates. Surface is assumed to be empty.
+            inerts (dict, optional): Initial values of the molar fractions of
+                the inert species. Defaults to None. The key should be the
+                chemical formula of the molecule (e.g., 'Ar') and the value
+                should be the molar fraction (e.g. 0.1)
             rtol (float, optional): Relative tolerance. Defaults to 1e-12.
             atol (float, optional): Absolute tolerance. Defaults to 1e-64.
             sstol (float, optional): Steady state tolerance. Defaults to 1e-16.

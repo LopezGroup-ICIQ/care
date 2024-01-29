@@ -8,7 +8,6 @@ version = "0.0.1"
 dependencies = [
   "acat==1.6.8",
   "ase==3.22.1",
-  "energydiagram==0.2.0",
   "matplotlib==3.8.0",
   "networkx==3.2",
   "numpy==1.26.3",

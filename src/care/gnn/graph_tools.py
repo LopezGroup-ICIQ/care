@@ -12,33 +12,6 @@ from torch_geometric.data import Data
 
 from care.constants import RGB_COLORS
 
-# def pyg_to_nx(graph: Data,
-#               ohe_elements: Union[list, OneHotEncoder]) -> Graph:
-#     """
-#     Convert graph in pytorch_geometric to NetworkX type.
-#     For each node in the graph, the label corresponding to the atomic species
-#     is added as attribute together with a corresponding color.
-#     Args:
-#         graph(torch_geometric.data.Data): torch_geometric graph object.
-#         encoder(sklearn.preprocessing._encoders.OneHotEncoder): One-hot encoder for atomic elements.
-#     Returns:
-#         nx_graph(networkx.classes.graph.Graph): NetworkX graph object.
-#     """
-#     node_features_matrix = graph.x.numpy()
-#     n_nodes = graph.num_nodes
-#     atom_list = []
-#     elements_list = list(ohe_elements.categories_[0]) if type(ohe_elements) == OneHotEncoder else ohe_elements
-#     for i in range(n_nodes):
-#         index = np.where(node_features_matrix[i,:] == 1)[0][0]
-#         atom_list.append(elements_list[index])
-#     g = torch_geometric.utils.to_networkx(graph, to_undirected=True)
-#     connections = list(g.edges)
-#     nx_graph = Graph()
-#     for i in range(n_nodes):
-#         nx_graph.add_node(i, elem=atom_list[i], rgb=RGB_COLORS[atom_list[i]])
-#     nx_graph.add_edges_from(connections, minlen=2)
-#     return nx_graph
-
 
 def pyg_to_nx(graph: Data, ohe_elements: Union[list, OneHotEncoder]) -> Graph:
     """
