@@ -381,6 +381,8 @@ class Intermediate:
                 for symbol, position in zip(symbols, positions)
             ]
         )
+        # Setting pbc to True
+        ase_atoms.set_pbc(True)
 
         return ase_atoms
 

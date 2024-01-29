@@ -16,6 +16,7 @@ from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
 from care.constants import CORDERO
+from care.crn.utilities.species import atoms_to_graph
 from care.gnn.graph_filters import (C_filter, H_filter, fragment_filter)
 
 METALS = [
@@ -85,7 +86,7 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             if distance <= threshold:
                 pairs.append(pair)
  
-        gasc = all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms)))
+        # gasc = all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms)))
         c1 = any(
             atoms[pair[0]].symbol in adsorbate_elems
             and atoms[pair[1]].symbol not in adsorbate_elems
@@ -96,7 +97,7 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             and atoms[pair[1]].symbol in adsorbate_elems
             for pair in pairs
         )
-        if (c1 or c2) or gasc:
+        if (c1 or c2):# or gasc:
             break
         else:
             increment += 0.2
@@ -188,7 +189,7 @@ def atoms_to_nx(
     # 3) Construct graph with the atoms in the ensemble
     graph = Graph()
     graph.add_nodes_from(list(ensemble_idxs))
-    set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "element")
+    set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "elem")
     ensemble_neighbour_list = [
         pair
         for pair in neighbour_list
@@ -232,7 +233,10 @@ def atoms_to_pyg(atoms: Atoms,
     """
     if calc_type not in ["int", "ts"]:
         raise ValueError("calc_type must be either 'int' or 'ts'.")
-    nx, surface_neighbors, bb_idxs = atoms_to_nx(atoms, voronoi_tol, scaling_factor, second_order, adsorbate_elems, calc_type)
+    if all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
+        nx, surface_neighbors, bb_idxs = atoms_to_graph(atoms), None, None
+    else:
+        nx, surface_neighbors, bb_idxs = atoms_to_nx(atoms, voronoi_tol, scaling_factor, second_order, adsorbate_elems, calc_type)
     elem_list = list(get_node_attributes(nx, "elem").values())
     elem_array = np.array(elem_list).reshape(-1, 1)
     elem_enc = one_hot_encoder.transform(elem_array).toarray()

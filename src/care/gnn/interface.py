@@ -44,7 +44,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         None
             Updates the Intermediate object with the estimated energy.
         """
-
         # Estimate the energy of the intermediate
         if intermediate.is_surface:
             intermediate.ads_configs = {
@@ -52,11 +51,24 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             }
 
         elif intermediate.phase == "gas":
-            # Obtaining the reference energy
-            intermediate.ads_configs = {
-                "gas": {"conf": intermediate.molecule, "mu": intermediate.ref_energy(), "s": 0.0}
-            }
-
+            # Calculating the gas-phase energy
+            config = intermediate.molecule
+            with no_grad():
+                pyg = atoms_to_data(config, self.model.graph_params)
+                y = self.model(pyg)
+                intermediate.ads_configs = {
+                    "gas": {
+                        "conf": config,
+                        "pyg": pyg,
+                        "mu": (
+                            y.mean * self.model.y_scale_params["std"]
+                            + self.model.y_scale_params["mean"]
+                        ).item(),  # eV
+                        "s": (
+                            y.scale * self.model.y_scale_params["std"]
+                        ).item(),  # eV
+                    }
+                }
         else:
             # Adsorbate placement
             config_list = ads_placement(intermediate, self.surface)

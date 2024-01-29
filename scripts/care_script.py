@@ -95,7 +95,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
-    print(f"\n┏━━━━━━━━━━━ Generating the chemical space for C{ncc}O{noc} ━━━━━━━━━━━┓\n")
+    print(f"\n┏━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━┓\n")
 
     intermediates, reactions = gen_chemical_space(ncc, noc)
 
@@ -103,7 +103,7 @@ def main():
 
     # 2. Evaluation of the chemical space
     # print(f"Evaluating the C{ncc}O{noc} chemical space on {metal}({hkl})\n")
-    print(f"\n┏━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl} ━━━━━━━━━━━┓\n")
+    print(f"\n┏━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
     # 2.1. Adsorbate placement and energy estimation
 

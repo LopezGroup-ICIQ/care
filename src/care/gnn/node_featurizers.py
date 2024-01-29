@@ -58,6 +58,10 @@ def get_gcn(
         Data: PyG Data object with the gcn as a node feature. Data.x.shape[1] increases by 1.
                 Data.node_feats is also updated.
     """
+    if all(graph.elem[i] in adsorbate_elements for i in range(len(graph.elem))):
+        graph.x = torch.cat((graph.x, torch.zeros((graph.x.shape[0], 1))), dim=1)
+        graph.node_feats.append("gcn")
+        return graph
     y = get_voronoi_neighbourlist(
         atoms, 0.5, 1.0, adsorbate_elements
     )  # only slab atoms are considered
