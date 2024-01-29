@@ -83,10 +83,18 @@ class ReactionNetwork:
     @property
     def temperature(self):
         return self.oc["T"]
+    
+    @temperature.setter
+    def temperature(self, other: float):
+        self.oc["T"] = other
 
     @property
     def pressure(self):
         return self.oc["P"]
+    
+    @pressure.setter
+    def pressure(self, other: float):
+        self.oc["P"] = other
 
     def __getitem__(self, other: Union[str, int]):
         if isinstance(other, str):
@@ -1006,8 +1014,12 @@ class ReactionNetwork:
                 reaction.k_dir *= np.exp(-reaction.e_act[0] / K_B / t)
                 reaction.k_rev = reaction.k_dir / reaction.k_eq
             elif reaction.r_type == "desorption":
-                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
-                reaction.k_rev = reaction.k_dir / reaction.k_eq
+                # reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
+                # reaction.k_rev = reaction.k_dir / reaction.k_eq
+                adsorbate_mass = list(reaction.reactants)[0].mass
+                reaction.k_rev = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
+                reaction.k_rev *= np.exp(-(reaction.e_is[0] - reaction.e_fs[0]) / K_B / t)
+                reaction.k_dir = reaction.k_rev / np.exp(reaction.e_rxn[0] / t / K_B)
             else:  # Surface reaction
                 reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
                 reaction.k_rev = reaction.k_dir / reaction.k_eq
@@ -1015,7 +1027,8 @@ class ReactionNetwork:
     def run_microkinetic(
         self,
         iv: dict[str, float],
-        inerts: dict[str, float] = None,
+        temperature: float = None,
+        pressure: float = None,
         rtol: float = 1e-12,
         atol: float = 1e-64,
         sstol: float = 1e-12,
@@ -1025,40 +1038,81 @@ class ReactionNetwork:
 
         Args:
             iv (dict): Initial values of the molar fractions of the gas phase
-                intermediates. Surface is assumed to be empty.
-            inerts (dict, optional): Initial values of the molar fractions of
-                the inert species. Defaults to None. The key should be the
-                chemical formula of the molecule (e.g., 'Ar') and the value
-                should be the molar fraction (e.g. 0.1)
+                intermediates. Surface is assumed to be empty. Keys are the
+                chemical formulas of the intermediates and values are the
+                molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}), 
+                where the sum of the values must be 1.0.
             rtol (float, optional): Relative tolerance. Defaults to 1e-12.
             atol (float, optional): Absolute tolerance. Defaults to 1e-64.
-            sstol (float, optional): Steady state tolerance. Defaults to 1e-16.
+            sstol (float, optional): Steady state tolerance. Defaults to 1e-12.
 
         Returns:
             dict containing the results of the simulation.
         """
+        # SET UP INITIAL CONDITIONS AND PARAMETERS
         if sum(iv.values()) != 1.0:
             raise ValueError("Sum of molar fractions is not 1.0")
-        kd = np.array([reaction.k_dir for reaction in self.reactions])
-        kr = np.array([reaction.k_rev for reaction in self.reactions])
+        if temperature is None:
+            if self.temperature is None:
+                raise ValueError("temperature not specified")
+            else:
+                T = temperature
+        else:
+            T = temperature
+
+        if pressure is None:
+            if self.pressure is None:
+                raise ValueError("pressure not specified")
+            else:
+                P = pressure
+        else:   
+            P = pressure
         inters = [inter.code for inter in self.intermediates.values()]
-        y0 = np.zeros(len(inters) + 1)
-        y0[-1] = 1.0  # initial condition: empty surface
+        inters_formula = [inter.molecule.get_chemical_formula() for inter in self.intermediates.values()]
         gas_mask = np.array(
             [inter.phase == "gas" for inter in self.intermediates.values()] + [False]
         )
+        v = self.stoichiometric_matrix.copy()
+        y0 = np.zeros(len(inters) + 1)
+        y0[-1] = 1.0   # Initial condition: empty surface
+        num_inerts = 0
+        for key in iv.keys():
+            if key not in inters_formula:  # inert
+                v = np.vstack((v, np.zeros(len(self.reactions))))
+                y0 = np.append(y0, self.pressure * iv[key])
+                gas_mask = np.append(gas_mask, True)
+                num_inerts += 1
+                print(f"Added inert {key}")
+            elif key in inters_formula:
+                for i, inter in enumerate(self.intermediates.values()):
+                    if inter.molecule.get_chemical_formula() == key and inter.phase == "gas":
+                        y0[i] = self.pressure * iv[key]
+                        print(f"Added gas reactant {key}")
+                        break
+            else:
+                continue
         for i, inter in enumerate(self.intermediates.values()):
-            if (
-                inter.molecule.get_chemical_formula() in iv.keys()
-                and inter.phase == "gas"
-            ):
-                y0[i] = self.oc["P"] * iv[inter.molecule.get_chemical_formula()]
-        reactor = DifferentialPFR(
-            self.temperature, self.pressure, self.stoichiometric_matrix
-        )
-        results = reactor.integrate(
-            y0, (kd, kr, gas_mask), rtol=rtol, atol=atol, sstol=sstol
-        )
+            print(inter.code, inter.phase, y0[i], gas_mask[i])
+
+        self.get_kinetic_constants(T)
+        kd = np.array([reaction.k_dir for reaction in self.reactions])
+        kr = np.array([reaction.k_rev for reaction in self.reactions])
+
+        # # REDIRECT ADSORPTION/DESORPTION TO FACILITATE CONVERGENCE
+        # for i, step in enumerate(self.reactions):
+        #     if step.r_type == "adsorption":
+        #         # if none of the iv keys is in the reactants, define the step in the opposite direction
+        #         if not any(
+        #             [inter.molecule.get_chemical_formula() in iv.keys() for inter in list(step.reactants)+list(step.products)]
+        #         ):
+        #             kd[i], kr[i] = kr[i], kd[i]
+        #             # change sign to the stoichiometric matrix, column i
+        #             v[:, i] = -v[:, i]
+        
+
+        # RUN SIMULATION
+        reactor = DifferentialPFR(T, P, v)
+        results = reactor.integrate(y0, (kd, kr, gas_mask), rtol, atol, sstol)
         results["inters"] = inters
         results["rates"] = reactor.net_rate(results["y"][:, -1], kd, kr)
         consumption_rate = np.zeros((len(inters) + 1, len(self.reactions)))
@@ -1066,12 +1120,22 @@ class ReactionNetwork:
             for j, inter in enumerate(inters):
                 if inter in reaction.stoic.keys():
                     consumption_rate[j, i] = reaction.stoic[inter] * results["rates"][i]
-                if "*" in reaction.stoic.keys():
-                    consumption_rate[-1, i] = reaction.stoic["*"] * results["rates"][i]
+            if "*" in reaction.stoic.keys():
+                consumption_rate[-1, i] = reaction.stoic["*"] * results["rates"][i]
         results["consumption_rate"] = consumption_rate
 
-        # Rewire CRN graph based on simulation output
+        from pandas import DataFrame
+        # Create dataframe of consumption rates
+        df = DataFrame(
+            consumption_rate,
+            index=inters_formula + ["*"],
+            columns=['R{}'.format(i) for i in range(1, len(self.reactions) + 1)],
+        )
+
+        # REWIRE CRN GRAPH BASED ON CRN OUTPUT
         run_graph = self.graph.copy()
+        # Remove all edges
+        run_graph.remove_edges_from(list(run_graph.edges))
         run_graph.temperature = self.temperature
         run_graph.pressure = self.pressure
         run_graph.max_rate = np.max(np.abs(consumption_rate))
@@ -1091,59 +1155,20 @@ class ReactionNetwork:
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
             run_graph.nodes[reaction.code]["rate"] = results["rates"][i]
-
-        # give edges a net consumption rate >= 0 and adjust direction accordingly
+            
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
-                    edge = (
-                        (inter.code, reaction.code)
-                        if reaction.stoic[inter.code] < 0
-                        else (reaction.code, inter.code)
-                    )
-                    consumption_rate = results["consumption_rate"][i, j]
-                    if (consumption_rate <= 0 and reaction.stoic[inter.code] > 0) or (
-                        consumption_rate >= 0 and reaction.stoic[inter.code] < 0
-                    ):
-                        run_graph.remove_edge(*edge)
-                        run_graph.add_edge(reaction.code, inter.code, rate=abs(consumption_rate))
+                    if consumption_rate[i, j] < 0:
+                        run_graph.add_edge(inter.code, reaction.code, rate=-consumption_rate[i, j])
                     else:
-                        run_graph.edges[edge]["rate"] = abs(consumption_rate)
-
-        for j, reaction in enumerate(self.reactions):
-            if "*" in reaction.stoic.keys():
-                edge = (
-                    ("*", reaction.code)
-                    if reaction.stoic["*"] < 0
-                    else (reaction.code, "*")
-                )
-                consumption_rate = results["consumption_rate"][-1, j]
-                if (consumption_rate <= 0 and reaction.stoic["*"] > 0) or (
-                    consumption_rate >= 0 and reaction.stoic["*"] < 0
-                ):
-                    run_graph.remove_edge(*edge)
-                    run_graph.add_edge(reaction.code, "*", rate=abs(consumption_rate))
-                else:
-                    run_graph.edges[edge]["rate"] = abs(consumption_rate)
+                        run_graph.add_edge(reaction.code, inter.code, rate=consumption_rate[i, j])
         run_graph.remove_node("*")
+        results["run_graph"] = run_graph
 
-        for node in run_graph.nodes:
-            if run_graph.nodes[node]["category"] == "intermediate":
-                pass
-            else:
-                if run_graph.nodes[node]["r_type"] == "adsorption":
-                    if run_graph.nodes[node]["rate"] >= 0:
-                        continue
-                    else:
-                        run_graph.nodes[node]["r_type"] = "desorption"
-                elif run_graph.nodes[node]["r_type"] == "desorption":
-                    if run_graph.nodes[node]["rate"] >= 0:
-                        continue
-                    else:
-                        run_graph.nodes[node]["r_type"] = "adsorption"
-
-        results["graph"] = run_graph
         return results
+
+
 
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """

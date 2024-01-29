@@ -201,9 +201,9 @@ class DifferentialPFR(ReactorModel):
         self,
         y_0: np.ndarray,
         ode_params: tuple,
-        rtol: float = 1e-5,
-        atol: float = 1e-8,
-        sstol: float = 1e-5,
+        rtol: float,
+        atol: float,
+        sstol: float,
         method: str = "BDF",
     ) -> dict:
         """
@@ -226,7 +226,7 @@ class DifferentialPFR(ReactorModel):
         """
         return solve_ivp(
             self.ode,
-            (0, 1e10),
+            (0, 1e16),
             y_0,
             method=method,
             events=self.steady_state,
