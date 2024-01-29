@@ -8,7 +8,7 @@ from rich.progress import Progress
 from ase.db import connect
 
 from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork
-from care.constants import METAL_STRUCT_DICT
+from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
@@ -44,31 +44,9 @@ def main():
     with open("config.toml", "r") as f:
         config = toml.load(f)
 
-    care_logo = """
-              _____                    _____                    _____                    _____          
-             /\    \                  /\    \                  /\    \                  /\    \         
-            /::\    \                /::\    \                /::\    \                /::\    \        
-           /::::\    \              /::::\    \              /::::\    \              /::::\    \       
-          /::::::\    \            /::::::\    \            /::::::\    \            /::::::\    \      
-         /:::/\:::\    \          /:::/\:::\    \          /:::/\:::\    \          /:::/\:::\    \     
-        /:::/  \:::\    \        /:::/__\:::\    \        /:::/__\:::\    \        /:::/__\:::\    \    
-       /:::/    \:::\    \      /::::\   \:::\    \      /::::\   \:::\    \      /::::\   \:::\    \   
-      /:::/    / \:::\    \    /::::::\   \:::\    \    /::::::\   \:::\    \    /::::::\   \:::\    \  
-     /:::/    /   \:::\    \  /:::/\:::\   \:::\    \  /:::/\:::\   \:::\____\  /:::/\:::\   \:::\    \ 
-    /:::/____/     \:::\____\/:::/  \:::\   \:::\____\/:::/  \:::\   \:::|    |/:::/__\:::\   \:::\____\\
-    \:::\    \      \::/    /\::/    \:::\  /:::/    /\::/   |::::\  /:::|____|\:::\   \:::\   \::/    /
-     \:::\    \      \/____/  \/____/ \:::\/:::/    /  \/____|:::::\/:::/    /  \:::\   \:::\   \/____/ 
-      \:::\    \                       \::::::/    /         |:::::::::/    /    \:::\   \:::\    \     
-       \:::\    \                       \::::/    /          |::|\::::/    /      \:::\   \:::\____\    
-        \:::\    \                      /:::/    /           |::| \::/____/        \:::\   \::/    /    
-         \:::\    \                    /:::/    /            |::|  ~|               \:::\   \/____/     
-          \:::\    \                  /:::/    /             |::|   |                \:::\    \         
-           \:::\____\                /:::/    /              \::|   |                 \:::\____\        
-            \::/    /                \::/    /                \:|   |                  \::/    /        
-             \/____/                  \/____/                  \|___|                   \/____/ """
-
-    print(care_logo)
+   
     print("\nInitializing CARE (Catalytic Automatic Reaction Estimator)...\n")
+    print(f"{LOGO}\n")
 
     # Loading parameters
     ncc = config['chemspace']['ncc']
@@ -95,20 +73,20 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
-    print(f"\n┏━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━┓\n")
+    print(f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
 
     intermediates, reactions = gen_chemical_space(ncc, noc)
 
-    print("\n┗━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━┛\n")
+    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
     # 2. Evaluation of the chemical space
     # print(f"Evaluating the C{ncc}O{noc} chemical space on {metal}({hkl})\n")
-    print(f"\n┏━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
+    print(f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
     # 2.1. Adsorbate placement and energy estimation
 
     # 2.1.1. Intermediate energy estimation
-    print("Energy estimation of the intermediates...")
+    print(" Energy estimation of the intermediates...")
     intermediate_model = GameNetUQInter(MODEL_PATH, surface)
 
     manager = mp.Manager()
@@ -121,23 +99,23 @@ def main():
         result_async = pool.starmap_async(evaluate_intermediate, tasks)
 
         with Progress() as progress:
-            task = progress.add_task("[green]Processing...", total=len(tasks))
+            task = progress.add_task(" [green]Processing...", total=len(tasks))
             processed_items = 0
 
             while not result_async.ready():
                 while not progress_queue.empty():
                     progress_queue.get()
                     processed_items += 1
-                    progress.update(task, advance=1, description=f"Processing {processed_items}/{len(tasks)}")
+                    progress.update(task, advance=1, description=f" Processing {processed_items}/{len(tasks)}")
 
     # Updating the intermediates with the estimated energies
     intermediates = {intermediate.code: intermediate for intermediate in result_async.get()}
 
     # 2.1.2. Reaction energy estimation
-    print("\nEnergy estimation of the reactions...")
+    print("\n Energy estimation of the reactions...")
     rxn_model = GameNetUQRxn(MODEL_PATH, intermediates)
     
-    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
     manager_rxn = mp.Manager()
     progress_queue_rxn = manager_rxn.Queue()
@@ -145,21 +123,19 @@ def main():
     tasks = [(reaction, rxn_model, progress_queue_rxn) for reaction in reactions]
 
     with mp.Pool(mp.cpu_count()) as pool:
-        # Asynchronously map the tasks
         result_async = pool.starmap_async(evaluate_reaction, tasks)
-
         with Progress() as progress:
-            task = progress.add_task("[green]Processing...", total=len(tasks))
+            task = progress.add_task(" [green]Processing...", total=len(tasks))
             processed_items = 0
 
             while not result_async.ready():
                 while not progress_queue_rxn.empty():
                     progress_queue_rxn.get()
                     processed_items += 1
-                    progress.update(task, advance=1, description=f"Processing {processed_items}/{len(tasks)}")
+                    progress.update(task, advance=1, description=f" Processing {processed_items}/{len(tasks)}")
 
     reactions = [reaction for reaction in result_async.get()]
-    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
     # 3. Building and saving the CRN
     crn = ReactionNetwork(intermediates, reactions)
