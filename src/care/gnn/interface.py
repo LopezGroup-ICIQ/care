@@ -18,7 +18,7 @@ from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
 
 
-class GameNetUQ(IntermediateEnergyEstimator):
+class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(self,
                  model_path: str,
                  surface: Optional[Surface] = None,):
@@ -80,9 +80,9 @@ class GameNetUQ(IntermediateEnergyEstimator):
                     ).item()  # eV
                     counter += 1
             intermediate.ads_configs = ads_config_dict
+        return intermediate
 
-
-class ReactionEnergy(ReactionEnergyEstimator):
+class GameNetUQRxn(ReactionEnergyEstimator):
     """
     Base class for reaction energy estimators.
     """
@@ -297,12 +297,15 @@ class ReactionEnergy(ReactionEnergyEstimator):
                 )
             # Estimate the activation energy
             self.calc_reaction_barrier(reaction)
-            print(reaction, reaction.r_type)
-            print(
-                "\nEact [eV]: N({:.2f}, {:.2f})    Erxn [eV]: N({:.2f}, {:.2f})".format(
-                    reaction.e_act[0],
-                    reaction.e_act[1],
-                    reaction.e_rxn[0],
-                    reaction.e_rxn[1],
-                )
-            )
+            # print(reaction, reaction.r_type)
+            # print(
+            #     "\nEact [eV]: N({:.2f}, {:.2f})    Erxn [eV]: N({:.2f}, {:.2f})".format(
+            #         reaction.e_act[0],
+            #         reaction.e_act[1],
+            #         reaction.e_rxn[0],
+            #         reaction.e_rxn[1],
+            #     )
+            # )
+
+            return reaction
+            

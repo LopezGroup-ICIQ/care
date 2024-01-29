@@ -1,12 +1,42 @@
 import os
 import toml
+import multiprocessing as mp
+from pickle import dump
+import resource
+from rich.progress import Progress
 
 from ase.db import connect
 
-from care import MODEL_PATH, DB_PATH, Surface
+from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork
 from care.constants import METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
-from care.gnn.interface import GameNetUQ, ReactionEnergy
+from care.gnn.interface import GameNetUQInter, GameNetUQRxn
+
+
+def evaluate_intermediate(intermediate, model, progress_queue):
+    """
+    Evaluates an intermediate.
+
+    Args:
+        intermediate (Intermediate): The intermediate.
+        model (GameNetUQ): The model.
+    """
+    eval_inter = model.estimate_energy(intermediate)
+    progress_queue.put(1)
+    return eval_inter
+
+
+def evaluate_reaction(reaction, model, progress_queue):
+    """
+    Evaluates a reaction.
+
+    Args:
+        reaction (Reaction): The reaction.
+        model (GameNetUQ): The model.
+    """
+    eval_rxn = model.estimate_energy(reaction)
+    progress_queue.put(1)
+    return eval_rxn
 
 
 def main():
@@ -61,30 +91,84 @@ def main():
     surface = Surface(surface_ase, str(hkl))
 
     # Create output directory
-    output_dir = f"C{ncc}O{noc}/{metal}{hkl}"
+    output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
-    print("Generating the chemical space...")
+    print(f"\n┏━━━━━━━━━━━ Generating the chemical space for C{ncc}O{noc} ━━━━━━━━━━━┓\n")
 
     intermediates, reactions = gen_chemical_space(ncc, noc)
 
-    print("Chemical space generated.\n")
+    print("\n┗━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━┛\n")
 
     # 2. Evaluation of the chemical space
-    print("Evaluating the chemical space...")
+    # print(f"Evaluating the C{ncc}O{noc} chemical space on {metal}({hkl})\n")
+    print(f"\n┏━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl} ━━━━━━━━━━━┓\n")
 
     # 2.1. Adsorbate placement and energy estimation
-    print("Placing the adsorbates and estimating its energies...")
 
-    # Loading the model
-    model = GameNetUQ(MODEL_PATH, surface)
+    # 2.1.1. Intermediate energy estimation
+    print("Energy estimation of the intermediates...")
+    intermediate_model = GameNetUQInter(MODEL_PATH, surface)
 
-    # Estimate the energy of each intermediate
-    for intermediate in intermediates.values():
-        model.estimate_energy(intermediate)
+    manager = mp.Manager()
+    progress_queue = manager.Queue()
 
-    print("Adsorbates placed and energies estimated.\n")
+    tasks = [(intermediate, intermediate_model, progress_queue) for intermediate in intermediates.values()]
+
+    with mp.Pool(mp.cpu_count()) as pool:
+
+        result_async = pool.starmap_async(evaluate_intermediate, tasks)
+
+        with Progress() as progress:
+            task = progress.add_task("[green]Processing...", total=len(tasks))
+            processed_items = 0
+
+            while not result_async.ready():
+                while not progress_queue.empty():
+                    progress_queue.get()
+                    processed_items += 1
+                    progress.update(task, advance=1, description=f"Processing {processed_items}/{len(tasks)}")
+
+    # Updating the intermediates with the estimated energies
+    intermediates = {intermediate.code: intermediate for intermediate in result_async.get()}
+
+    # 2.1.2. Reaction energy estimation
+    print("\nEnergy estimation of the reactions...")
+    rxn_model = GameNetUQRxn(MODEL_PATH, intermediates)
+    
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+    manager_rxn = mp.Manager()
+    progress_queue_rxn = manager_rxn.Queue()
+
+    tasks = [(reaction, rxn_model, progress_queue_rxn) for reaction in reactions]
+
+    with mp.Pool(mp.cpu_count()) as pool:
+        # Asynchronously map the tasks
+        result_async = pool.starmap_async(evaluate_reaction, tasks)
+
+        with Progress() as progress:
+            task = progress.add_task("[green]Processing...", total=len(tasks))
+            processed_items = 0
+
+            while not result_async.ready():
+                while not progress_queue_rxn.empty():
+                    progress_queue_rxn.get()
+                    processed_items += 1
+                    progress.update(task, advance=1, description=f"Processing {processed_items}/{len(tasks)}")
+
+    reactions = [reaction for reaction in result_async.get()]
+    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+
+    # 3. Building and saving the CRN
+    crn = ReactionNetwork(intermediates, reactions)
+
+    print("\nSaving the CRN...")
+    with open(f"{output_dir}/crn.pickle", "wb") as f:
+        dump(crn,f)
+    print("Done!")
+
 
 if __name__ == "__main__":
     main()
