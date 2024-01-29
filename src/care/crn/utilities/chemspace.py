@@ -5,6 +5,7 @@ import time
 import warnings
 from collections import defaultdict
 from itertools import combinations
+from rich.progress import Progress
 
 import cpuinfo
 import numpy as np
@@ -20,6 +21,11 @@ from care.crn.utilities.species import (add_oxygens, gen_alkanes, gen_epoxides,
 
 warnings.filterwarnings("ignore")
 RDLogger.DisableLog("rdApp.*")
+
+
+def format_description(description, width=75):
+    """Format the progress bar description to a fixed width."""
+    return description.ljust(width)[:width]
 
 
 def is_desired_bond(bond: Chem.rdchem.Bond, atom_num1: int, atom_num2: int) -> bool:
@@ -248,7 +254,7 @@ def process_molecule(
     )
 
 
-def process_inter_objs_chunk(chunk):
+def process_inter_objs_chunk(chunk, progress_queue):
     """
     Process a chunk of the inter_dict dictionary.
 
@@ -273,6 +279,7 @@ def process_inter_objs_chunk(chunk):
         if new_inter_ads.closed_shell:
             new_inter_gas = Intermediate(code=key + "g", molecule=value, phase="gas")
             inter_class_dict_chunk[key + "g"] = new_inter_gas
+    progress_queue.put(1)
 
     return inter_class_dict_chunk
 
@@ -312,13 +319,27 @@ def gen_intermediates_dict(
         for i in range(0, len(keys), chunk_size)
     ]
 
-    # Create a pool of workers and map the processing function to each chunk
-    with mp.Pool(n_cores) as pool:
-        results = pool.map(process_inter_objs_chunk, chunks)
+    manager_inter_obj = mp.Manager()
+    progress_queue_inter = manager_inter_obj.Queue()
+
+    tasks = [(chunk, progress_queue_inter) for chunk in chunks]
+    with mp.Pool(mp.cpu_count()) as pool:
+        result_async = pool.starmap_async(process_inter_objs_chunk, tasks)
+        with Progress() as progress:
+            task_desc = format_description("[green]Generating Intermediate objects...")
+            task = progress.add_task(task_desc, total=len(tasks))
+            processed_items = 0
+
+            while not result_async.ready():
+                while not progress_queue_inter.empty():
+                    progress_queue_inter.get()
+                    processed_items += 1
+                    progress.update(task, advance=1)
+
 
     # Combine the results from all chunks
     combined_result = {}
-    for result in results:
+    for result in result_async.get():
         combined_result.update(result)
 
     return combined_result
@@ -358,15 +379,28 @@ def gen_adsorption_reactions(
     # Splitting the intermediates into chunks
     inter_chunks = np.array_split(gas_intermediates, num_processes)
 
-    # Create a pool of workers
-    with mp.Pool(processes=num_processes) as pool:
-        # Map process_chunk function to each chunk
-        results = pool.starmap(
-            process_ads_react_chunk, [(chunk, surf_inter) for chunk in inter_chunks]
-        )
 
-    # Flatten the list of lists
-    adsorption_steps = list(set([step for sublist in results for step in sublist]))
+    manager_ads_rxn = mp.Manager()
+    progress_queue_rxn = manager_ads_rxn.Queue()
+
+    tasks = [(chunk, surf_inter, progress_queue_rxn) for chunk in inter_chunks]
+
+    with mp.Pool(mp.cpu_count()) as pool:
+        result_async = pool.starmap_async(process_ads_react_chunk, tasks)
+        with Progress() as progress:
+            task_desc = format_description("[green]Generating adsorption reactions...")
+            task = progress.add_task(task_desc, total=len(tasks))
+            processed_items = 0
+
+            while not result_async.ready():
+                while not progress_queue_rxn.empty():
+                    progress_queue_rxn.get()
+                    processed_items += 1
+                    progress.update(task, advance=1)
+    
+    # Combine the results from all chunks
+    adsorption_steps = list(set([rxn for sublist in result_async.get() for rxn in sublist]))
+    # adsorption_steps = list(set([step for sublist in result_async for step in sublist]))
 
     # Add the dissociative adsorptions for H2 and O2
     for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
@@ -389,7 +423,7 @@ def gen_adsorption_reactions(
 
 
 def process_ads_react_chunk(
-    inter_chunk: list[Intermediate], surf_inter: Intermediate
+    inter_chunk: list[Intermediate], surf_inter: Intermediate, progress_queue
 ) -> list[ElementaryReaction]:
     """
     Processes a chunk of the intermediates to generate the adsorption reactions as ElementaryReaction instances.
@@ -417,6 +451,8 @@ def process_ads_react_chunk(
                 r_type="adsorption",
             )
         )
+
+    progress_queue.put(1)
     return adsorption_steps
 
 
@@ -609,7 +645,7 @@ def subgroup_by_isomers(intermediates: list[Intermediate]) -> list[list[Intermed
     return isomer_groups
 
 
-def process_subgroup(subgroup_pairs_dict):
+def process_subgroup(subgroup_pairs_dict, progress_queue):
     """
     Process a chunk of subgroups.
 
@@ -631,6 +667,7 @@ def process_subgroup(subgroup_pairs_dict):
             result = check_rearrangement(pair)
             if result is not None:
                 results.append(result)
+    progress_queue.put(1)
 
     return results
 
@@ -685,12 +722,26 @@ def gen_rearrangement_reactions(
         for i in range(0, len(keys), chunk_size)
     ]
 
-    # Create a pool of workers and map the processing function to each chunk
-    with mp.Pool() as pool:
-        results = pool.map(process_subgroup, chunks)
+    manager_rearr_rxn = mp.Manager()
+    progress_queue_rxn = manager_rearr_rxn.Queue()
+
+    tasks = [(chunk, progress_queue_rxn) for chunk in chunks]
+
+    with mp.Pool(mp.cpu_count()) as pool:
+        result_async = pool.starmap_async(process_subgroup, tasks)
+        with Progress() as progress:
+            task_desc = format_description("[green]Generating rearrangement reactions...")
+            task = progress.add_task(task_desc, total=len(tasks))
+            processed_items = 0
+
+            while not result_async.ready():
+                while not progress_queue_rxn.empty():
+                    progress_queue_rxn.get()
+                    processed_items += 1
+                    progress.update(task, advance=1)
 
     # Combine the results from all chunks
-    rearrangement_rxns = [rxn for sublist in results for rxn in sublist]
+    rearrangement_rxns = [rxn for sublist in result_async.get() for rxn in sublist]
 
     return rearrangement_rxns
 
@@ -717,23 +768,36 @@ def gen_chemical_space(
     """
     total_time = time.time()
     t00 = time.time()
-    alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
+    with Progress() as progress:
+        task_desc = format_description("[green]Generating Chemical Space...")
+        task = progress.add_task(task_desc, total=6)
 
-    ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
+        # Step 1: Generate Alkanes
+        alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
+        progress.update(task, advance=1)
 
-    epoxides_smiles = gen_epoxides(mol_alkanes, noc)
+        # Step 2: Generate Ethers
+        ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
+        progress.update(task, advance=1)
 
-    mol_alkanes_ethers = mol_alkanes + mol_ethers
+        # Step 3: Generate Epoxides
+        epoxides_smiles = gen_epoxides(mol_alkanes, noc)
+        progress.update(task, advance=1)
 
-    # Add oxygens to alkanes and ethers (generating alcohols and esters)
-    cho_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes_ethers]
-    cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
+        # Step 4: Combine Alkanes and Ethers
+        mol_alkanes_ethers = mol_alkanes + mol_ethers
+        progress.update(task, advance=1)
 
-    cho_smiles += epoxides_smiles + ethers_smiles
+        # Step 5: Add Oxygens
+        cho_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes_ethers]
+        cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
+        progress.update(task, advance=1)
 
-    relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
-
-    saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
+        # Step 6: Finalize the Species List
+        cho_smiles += epoxides_smiles + ethers_smiles
+        relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
+        saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
+        progress.update(task, advance=1)
     t0 = time.time() - t00
 
     t01 = time.time()
@@ -743,14 +807,18 @@ def gen_chemical_space(
     # Dictionary to keep track of processed fragments
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()
     # Process each molecule in the list
-    for smiles in saturated_species_smiles:
-        process_molecule(
-            smiles,
-            bond_types,
-            processed_fragments,
-            unique_reactions,
-            processed_molecules,
-        )
+    with Progress() as progress:
+        task_desc = format_description("[green]Generating Bond-Breakings and extending the Chemical Space...")
+        task = progress.add_task(task_desc, total=len(saturated_species_smiles))
+        for smiles in saturated_species_smiles:
+            process_molecule(
+                smiles,
+                bond_types,
+                processed_fragments,
+                unique_reactions,
+                processed_molecules,
+            )
+            progress.update(task, advance=1)
 
     # Converting the dictionary to a list
     frag_list = []
@@ -781,24 +849,31 @@ def gen_chemical_space(
 
     t03 = time.time()
     rxns_list = []
-    for reaction in unique_reactions:
-        reactant = intermediates_dict[
-            Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0])) + "*"
-        ]
-        product1 = intermediates_dict[
-            Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0])) + "*"
-        ]
-        if len(reaction[1]) == 2:
-            # Getting the Intermediate objects from the dictionary
-            product2 = intermediates_dict[
-                Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1])) + "*"
+    with Progress() as progress:
+        task_desc = format_description("[green]Processing ElementaryReactions...")
+        task = progress.add_task(task_desc, total=len(unique_reactions))
+
+        for reaction in unique_reactions:
+            reactant = intermediates_dict[
+                Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[0])) + "*"
             ]
-            reaction_components = [[surf_inter, reactant], [product1, product2]]
-        else:
-            reaction_components = [[reactant], [product1]]
-        rxns_list.append(
-            ElementaryReaction(components=reaction_components, r_type=reaction[2])
-        )
+            product1 = intermediates_dict[
+                Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][0])) + "*"
+            ]
+
+            if len(reaction[1]) == 2:
+                product2 = intermediates_dict[
+                    Chem.inchi.MolToInchiKey(Chem.MolFromSmiles(reaction[1][1])) + "*"
+                ]
+                reaction_components = [[surf_inter, reactant], [product1, product2]]
+            else:
+                reaction_components = [[reactant], [product1]]
+
+            rxns_list.append(
+                ElementaryReaction(components=reaction_components, r_type=reaction[2])
+            )
+            progress.update(task, advance=1)
+
     t3 = time.time() - t03
     # Generation of additional reactions
     t04 = time.time()

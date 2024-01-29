@@ -68,9 +68,6 @@ def main():
         calc_type="surface", metal=metal, facet=metal_structure)
     surface = Surface(surface_ase, str(hkl))
 
-    # Create output directory
-    output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
-    os.makedirs(output_dir, exist_ok=True)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
     print(f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
@@ -140,6 +137,10 @@ def main():
     # 3. Building and saving the CRN
     crn = ReactionNetwork(intermediates, reactions)
 
+    # Create output directory
+    output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
+    os.makedirs(output_dir, exist_ok=True)
+    
     print("\nSaving the CRN...")
     with open(f"{output_dir}/crn.pickle", "wb") as f:
         dump(crn,f)
