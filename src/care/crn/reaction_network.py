@@ -848,12 +848,12 @@ class ReactionNetwork:
                 y0 = np.append(y0, self.pressure * iv[key])
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
-                print(f"Added inert {key}")
+                # print(f"Added inert {key}")
             elif key in inters_formula:
                 for i, inter in enumerate(self.intermediates.values()):
                     if inter.molecule.get_chemical_formula() == key and inter.phase == "gas":
-                        y0[i] = self.pressure * iv[key]
-                        print(f"Added gas reactant {key}")
+                        y0[i] = P * iv[key]
+                        # print(f"Added gas reactant {key}")
                         break
             else:
                 continue

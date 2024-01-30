@@ -58,8 +58,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
         metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if mol_type == "int" else "N/A"
 
-        conf_type = "gas" if mol_type == "gas" else 0
-
+        conf_type = "dft"
+        stable_conf = []
+        max = np.inf
         for row in self.dft_db.select(f'calc_type={mol_type},metal={metal},facet={metal_struct},nC={nC},nH={nH},nO={nO},nN=0,nS=0'):
             atoms_object = row.toatoms()
 
@@ -78,10 +79,18 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             # isomorphism check
             if nx.is_isomorphic(intermediate.graph, adsorbate_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
                 # Retrieving the energy of the intermediate
-                intermediate.ads_configs = {f"{conf_type}": {"conf": atoms_object, "pyg": atoms_to_data(
-                    atoms_object, self.model.graph_params), "mu": row.get("scaled_energy"), "s": 0}}
-                return True
+                # intermediate.ads_configs = {f"{conf_type}": {"conf": atoms_object, "pyg": atoms_to_data(
+                #     atoms_object, self.model.graph_params), "mu": row.get("scaled_energy"), "s": 0}}
+                if row.get("scaled_energy") < max:
+                    stable_conf.append([atoms_object, row.get("scaled_energy")])
+                    max = row.get("scaled_energy")
+        
+        if len(stable_conf):
+            intermediate.ads_configs = {f"{conf_type}": {"conf": stable_conf[0][0], "pyg": atoms_to_data(
+                stable_conf[0][0], self.model.graph_params), "mu": stable_conf[0][1], "s": 0}}
+            return True
         return False
+    
 
     def estimate_energy(self,
                         intermediate: Intermediate,

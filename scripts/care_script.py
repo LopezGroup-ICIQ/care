@@ -14,6 +14,7 @@ from ase.db import connect
 from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
+from care.crn.reactors import DifferentialPFR, DynamicCSTR
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 DFT_DB_PATH = '../src/care/data/FG2dataset.db'
@@ -160,6 +161,27 @@ def main():
     with open(f"{output_dir}/crn.pickle", "wb") as f:
         dump(crn, f)
     print("Done!")
+
+    # 4. Running MKM
+    if config['mkm']['run']:
+        print("\nRunning the MKM...")
+        oc = config['operating_conditions']
+        y0 = config['initial_conditions']
+        r = config['reactor']
+        print(r)
+        print(y0)
+        print(type(r['rtol']), type(r['atol']), type(r['sstol']))
+        reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR 
+        results = crn.run_microkinetic(y0, 
+                                       oc['temperature'],
+                                       oc['pressure'],
+                                       r['rtol'],
+                                       r['atol'],
+                                       r['sstol'],
+                                       model=reactor)
+        print("\nSaving the MKM results...")
+        with open(f"{output_dir}/mkm.pickle", "wb") as f:
+            dump(results, f)
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
