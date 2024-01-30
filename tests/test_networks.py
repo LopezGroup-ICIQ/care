@@ -5,7 +5,7 @@ import sys
 sys.path.append('../src/')
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
-from care.crn.utilities.build_netgen import gen_chemical_space
+from care.crn.utilities.chemspace import gen_chemical_space
 from care.constants import INTER_ELEMS
 
 inters, steps = gen_chemical_space(3, 1)

@@ -1,7 +1,6 @@
 import re
 from copy import deepcopy
-from os import makedirs
-from os.path import abspath
+
 from shutil import rmtree
 from typing import Union
 
@@ -11,23 +10,17 @@ import networkx.algorithms.isomorphism as iso
 import numpy as np
 import pandas as pd
 from ase import Atoms
-from ase.io import write
 from ase.visualize import view
-from energydiagram import ED
-from matplotlib import cm
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
-from matplotlib.patches import BoxStyle, Rectangle
 from pydot import Node
 from torch import where
 from torch_geometric.data import Data
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, OC_UNITS, H
-from care.crn.microkinetic import (iupac_to_inchikey, stoic_backward,
-                                   stoic_forward)
-from care.crn.reactor import DifferentialPFR, DynamicCSTR
+from care.crn.reactors import DifferentialPFR, DynamicCSTR
 from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
+from care.crn.visualize import visualize_reaction
 
 
 class ReactionNetwork:
@@ -71,7 +64,7 @@ class ReactionNetwork:
         self.num_closed_shell_mols = len(self.closed_shells)
         self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
         self.num_reactions = len(self.reactions)
-        # check that keys in oc are valid
+        
         if oc is not None:
             if all([key in OC_KEYS for key in oc.keys()]):
                 self.oc = oc
@@ -96,6 +89,22 @@ class ReactionNetwork:
     def pressure(self, other: float):
         self.oc["P"] = other
 
+    @property
+    def overpotential(self):
+        return self.oc["U"]
+    
+    @overpotential.setter
+    def overpotential(self, other: float):
+        self.oc["U"] = other
+
+    @property
+    def pH(self):
+        return self.oc["pH"]
+    
+    @pH.setter
+    def pH(self, other: float):
+        self.oc["pH"] = other
+
     def __getitem__(self, other: Union[str, int]):
         if isinstance(other, str):
             return self.intermediates[other]
@@ -113,7 +122,7 @@ class ReactionNetwork:
         string += "Surface: {}\n".format(self.surface)
         string += "Temperature: {} {}\n".format(self.oc["T"], OC_UNITS["T"])
         string += "Pressure: {} {}\n".format(self.oc["P"], OC_UNITS["P"])
-        string += "Potential: {} {}\n".format(self.oc["U"], OC_UNITS["U"])
+        string += "Overpotential: {} {}\n".format(self.oc["U"], OC_UNITS["U"])
         string += "Network Carbon cutoff: C{}\n".format(self.ncc)
         string += "Network Oxygen cutoff: O{}\n".format(self.noc)
         return string
@@ -403,11 +412,10 @@ class ReactionNetwork:
             The graph is not directed properly, it needs further post-processing,
             i.e. microkinetic modeling.
         """
-        crn_graph = nx.DiGraph()
+        graph = nx.DiGraph()
 
-        # Intermediate nodes
         for inter in self.intermediates.values():
-            crn_graph.add_node(
+            graph.add_node(
                 inter.code,
                 category="intermediate",
                 phase=inter.phase,
@@ -417,14 +425,13 @@ class ReactionNetwork:
                 nO=inter["O"],
             )
 
-        # Reaction nodes
         for reaction in self.reactions:
             r_type = (
                 reaction.r_type
                 if reaction.r_type in ("adsorption", "desorption", "eley_rideal")
                 else "surface_reaction"
             )
-            crn_graph.add_node(
+            graph.add_node(
                 reaction.code,
                 category="reaction",
                 r_type=r_type,
@@ -432,11 +439,11 @@ class ReactionNetwork:
 
             # Reaction edges (intermediate -> reaction -> intermediate)
             for comp in reaction.components[0]:  # reactants to reaction node
-                crn_graph.add_edge(comp.code, reaction.code)
+                graph.add_edge(comp.code, reaction.code)
             for comp in reaction.components[1]:  # reaction node to products
-                crn_graph.add_edge(reaction.code, comp.code)
+                graph.add_edge(reaction.code, comp.code)
 
-        return crn_graph
+        return graph
 
     def get_min_max(self):
         """
@@ -446,7 +453,6 @@ class ReactionNetwork:
         Returns:
             list of two floats containing the min and max value.
         """
-        # def get_min_max(self):
         eners = [node.energy for node in self.nodes if node.energy is not None]
         # return [min(eners), max(eners)]
         # eners = [inter.energy for inter in self.intermediates.values()]
@@ -540,97 +546,6 @@ class ReactionNetwork:
     @graph.setter
     def graph(self, other):
         self._graph = other
-
-    def draw_graph(self):
-        """Create a networkx graph representing the network.
-
-        Returns:
-            obj:`nx.DiGraph` with all the information of the network.
-        """
-        # norm_vals = self.get_min_max()
-        colormap = cm.inferno_r
-        # norm = mpl.colors.Normalize(*norm_vals)
-        node_inf = {
-            "inter": {"node_lst": [], "color": [], "size": []},
-            "ts": {"node_lst": [], "color": [], "size": []},
-        }
-        edge_cl = []
-        for node in self.graph.nodes():
-            sel_node = self.graph.nodes[node]
-            try:
-                # color = colormap(norm(sel_node['energy']))
-                if sel_node["category"] in ("gas", "ads", "surf"):
-                    node_inf["inter"]["node_lst"].append(node)
-                    node_inf["inter"]["color"].append("blue")
-                    # node_inf['inter']['color'].append(mpl.colors.to_hex(color))
-                    node_inf["inter"]["size"].append(20)
-                # elif sel_node['category']  'ts':
-                else:
-                    if "electro" in sel_node:
-                        if sel_node["electro"]:
-                            node_inf["ts"]["node_lst"].append(node)
-                            node_inf["ts"]["color"].append("red")
-                            node_inf["ts"]["size"].append(5)
-                    else:
-                        node_inf["ts"]["node_lst"].append(node)
-                        node_inf["ts"]["color"].append("green")
-                        # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
-                        node_inf["ts"]["size"].append(5)
-                # elif sel_node['electro']:
-                #     node_inf['ts']['node_lst'].append(node)
-                #     node_inf['ts']['color'].append('green')
-                #     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
-                #     node_inf['ts']['size'].append(10)
-            except KeyError:
-                node_inf["ts"]["node_lst"].append(node)
-                node_inf["ts"]["color"].append("green")
-                node_inf["ts"]["size"].append(10)
-
-        # for edge in self.graph.edges():
-        #     sel_edge = self.graph.edges[edge]
-        # color = colormap(norm(sel_edge['energy']))
-        # color = mpl.colors.to_rgba(color, 0.2)
-        # edge_cl.append(color)
-
-        fig = plt.Figure()
-        axes = fig.gca()
-        axes.get_xaxis().set_visible(False)
-        axes.get_yaxis().set_visible(False)
-        fig.patch.set_visible(False)
-        axes.axis("off")
-
-        pos = nx.drawing.layout.kamada_kawai_layout(self.graph)
-
-        nx.drawing.draw_networkx_nodes(
-            self.graph,
-            pos=pos,
-            ax=axes,
-            nodelist=node_inf["ts"]["node_lst"],
-            node_color=node_inf["ts"]["color"],
-            node_size=node_inf["ts"]["size"],
-        )
-
-        nx.drawing.draw_networkx_nodes(
-            self.graph,
-            pos=pos,
-            ax=axes,
-            nodelist=node_inf["inter"]["node_lst"],
-            node_color=node_inf["inter"]["color"],
-            node_size=node_inf["inter"]["size"],
-        )
-        #    node_shape='v')
-        nx.drawing.draw_networkx_edges(
-            self.graph,
-            pos=pos,
-            ax=axes,
-            #    edge_color=edge_cl,
-            width=0.3,
-            arrowsize=0.1,
-        )
-        # add white background to the plot
-        axes.set_facecolor("white")
-        fig.tight_layout()
-        return fig
 
     def search_reaction(
         self,
@@ -762,151 +677,8 @@ class ReactionNetwork:
         Returns:
             obj:`ED` with the energy diagram of the reaction.
         """
-        rxn = self.reactions[idx].__repr__()
-        # components = rxn.split("<->")
-        # reactants, products = components[0].split("+"), components[1].split("+")
-        # for i, inter in enumerate(reactants):
-        #     if "0000000000*" in inter:
-        #         where_surface = "reactants"
-        #         surf_index = i
-        #         break
-        # for i, inter in enumerate(products):
-        #     if "0000000000*" in inter:
-        #         where_surface = "products"
-        #         surf_index = i
-        #         break
-        # v_reactants = [
-        #     re.findall(r"\[([a-zA-Z0-9])\]", reactant) for reactant in reactants
-        # ]
-        # v_products = [re.findall(r"\[([a-zA-Z0-9])\]", product) for product in products]
-        # v_reactants = [item for sublist in v_reactants for item in sublist]
-        # v_products = [item for sublist in v_products for item in sublist]
-        # reactants = [re.findall(r"\((.*?)\)", reactant) for reactant in reactants]
-        # products = [re.findall(r"\((.*?)\)", product) for product in products]
-        # reactants = [item for sublist in reactants for item in sublist]
-        # products = [item for sublist in products for item in sublist]
-        # for i, reactant in enumerate(reactants):
-        #     if v_reactants[i] != "1":
-        #         reactants[i] = v_reactants[i] + reactant
-        #     if "(g" in reactant:
-        #         reactants[i] += ")"
-        #     if where_surface == "reactants" and i == surf_index:
-        #         reactants[i] = "*"
-        # for i, product in enumerate(products):
-        #     if v_products[i] != "1":
-        #         products[i] = v_products[i] + product
-        #     if "(g" in product:
-        #         products[i] += ")"
-        #     if where_surface == "products" and i == surf_index:
-        #         products[i] = "*"
-        # rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
-        rxn_string = self.reactions[idx].repr_hr
-        where_surface = (
-            "reactants"
-            if any(inter.is_surface for inter in self.reactions[idx].reactants)
-            else "products"
-        )
-        diagram = ED()
-        diagram.add_level(0, rxn_string.split(" <-> ")[0])
-        diagram.add_level(round(self.reactions[idx].e_act[0], 2), "TS", color="r")
-        diagram.add_level(
-            round(self.reactions[idx].e_rxn[0], 2),
-            rxn_string.split(" <-> ")[1],
-        )
-        diagram.add_link(0, 1)
-        diagram.add_link(1, 2)
-        y = diagram.plot(ylabel="Energy / eV")
-        plt.title(rxn_string, fontname="Arial", fontweight="bold", y=1.05)
-        artists = diagram.fig.get_default_bbox_extra_artists()
-        size = artists[2].get_position()[0] - artists[3].get_position()[0]
-        ap_reactants = (
-            artists[3].get_position()[0],
-            artists[3].get_position()[1] + 0.15,
-        )
-        ap_products = (
-            artists[11].get_position()[0],
-            artists[11].get_position()[1] + 0.15,
-        )
-        from matplotlib.patches import Rectangle
+        return visualize_reaction(self.reactions[idx], show_uncertainty)
 
-        makedirs("tmp", exist_ok=True)
-        counter = 0
-        for i, inter in enumerate(self.reactions[idx].reactants):
-            if inter.is_surface:
-                pass
-            else:
-                fig_path = abspath("tmp/reactant_{}.png".format(i))
-                write(fig_path, inter.molecule, show_unit_cell=0)
-                arr_img = plt.imread(fig_path)
-                im = OffsetImage(arr_img)
-                if where_surface == "reactants":
-                    ab = AnnotationBbox(
-                        im,
-                        (
-                            ap_reactants[0] + size / 2,
-                            ap_reactants[1] + size * (0.5 + counter),
-                        ),
-                        frameon=False,
-                    )
-                    diagram.ax.add_artist(ab)
-                    counter += 1
-                else:
-                    ab = AnnotationBbox(
-                        im,
-                        (
-                            ap_reactants[0] + size / 2,
-                            ap_reactants[1] + size * (0.5 + i),
-                        ),
-                        frameon=False,
-                    )
-                    diagram.ax.add_artist(ab)
-        counter = 0
-        for i, inter in enumerate(self.reactions[idx].products):
-            if inter.is_surface:
-                pass
-            else:
-                fig_path = abspath("tmp/product_{}.png".format(i))
-                write(fig_path, inter.molecule, show_unit_cell=0)
-                arr_img = plt.imread(fig_path)
-                im = OffsetImage(arr_img)
-                if where_surface == "products":
-                    ab = AnnotationBbox(
-                        im,
-                        (
-                            ap_products[0] + size / 2,
-                            ap_products[1] + size * (0.5 + counter),
-                        ),
-                        frameon=False,
-                    )
-                    diagram.ax.add_artist(ab)
-                    counter += 1
-                else:
-                    ab = AnnotationBbox(
-                        im,
-                        (ap_products[0] + size / 2, ap_products[1] + size * (0.5 + i)),
-                        frameon=False,
-                    )
-                    diagram.ax.add_artist(ab)
-        if show_uncertainty:
-            from matplotlib.patches import Rectangle
-
-            width = artists[2].get_position()[0] - artists[3].get_position()[0]
-            height_ts = 1.96 * 2 * self.reactions[idx].e_act[1]
-            anchor_point_ts = (
-                min(artists[6].get_position()[0], artists[7].get_position()[0]),
-                round(self.reactions[idx].e_act[0], 2) - 0.5 * height_ts,
-            )
-            ts_box = Rectangle(
-                anchor_point_ts,
-                width,
-                height_ts,
-                fill=True,
-                color="#FFD1DC",
-                linewidth=1.5,
-                zorder=-1,
-            )
-            diagram.ax.add_patch(ts_box)
-        return diagram
 
     def get_num_global_reactions(
         self, reactants: list[str], products: list[str]
@@ -974,14 +746,6 @@ class ReactionNetwork:
         return v
 
     @property
-    def stoic_forward(self) -> np.ndarray:
-        return stoic_forward(self.stoichiometric_matrix)
-
-    @property
-    def stoic_backward(self) -> np.ndarray:
-        return stoic_backward(self.stoichiometric_matrix)
-
-    @property
     def df_stoic(self) -> pd.DataFrame:
         """
         Return the stoichiometric matrix of the network.
@@ -1010,16 +774,16 @@ class ReactionNetwork:
             reaction.k_eq = np.exp(-reaction.e_rxn[0] / t / K_B)
             if reaction.r_type == "adsorption":  # Hertz-Knudsen
                 adsorbate_mass = list(reaction.products)[0].mass
-                reaction.k_dir = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
+                reaction.k_dir = 1e-18 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
                 reaction.k_dir *= np.exp(-reaction.e_act[0] / K_B / t)
                 reaction.k_rev = reaction.k_dir / reaction.k_eq
             elif reaction.r_type == "desorption":
-                # reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
-                # reaction.k_rev = reaction.k_dir / reaction.k_eq
-                adsorbate_mass = list(reaction.reactants)[0].mass
-                reaction.k_rev = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
-                reaction.k_rev *= np.exp(-(reaction.e_is[0] - reaction.e_fs[0]) / K_B / t)
-                reaction.k_dir = reaction.k_rev / np.exp(reaction.e_rxn[0] / t / K_B)
+                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
+                reaction.k_rev = reaction.k_dir / reaction.k_eq
+                # adsorbate_mass = list(reaction.reactants)[0].mass
+                # reaction.k_rev = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
+                # reaction.k_rev *= np.exp(-(reaction.e_is[0] - reaction.e_fs[0]) / K_B / t)
+                # reaction.k_dir = reaction.k_rev / np.exp(reaction.e_rxn[0] / t / K_B)
             else:  # Surface reaction
                 reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
                 reaction.k_rev = reaction.k_dir / reaction.k_eq
@@ -1032,6 +796,8 @@ class ReactionNetwork:
         rtol: float = 1e-12,
         atol: float = 1e-64,
         sstol: float = 1e-12,
+        model: Union[DifferentialPFR, DynamicCSTR] = DifferentialPFR,
+        **kwargs,
     ):
         """
         Run microkinetic simulation on a differential reactor.
@@ -1091,8 +857,6 @@ class ReactionNetwork:
                         break
             else:
                 continue
-        for i, inter in enumerate(self.intermediates.values()):
-            print(inter.code, inter.phase, y0[i], gas_mask[i])
 
         self.get_kinetic_constants(T)
         kd = np.array([reaction.k_dir for reaction in self.reactions])
@@ -1111,35 +875,18 @@ class ReactionNetwork:
         
 
         # RUN SIMULATION
-        reactor = DifferentialPFR(T, P, v)
+        reactor_args = (T, P, v, *kwargs)
+        reactor = model(*reactor_args)
         results = reactor.integrate(y0, (kd, kr, gas_mask), rtol, atol, sstol)
         results["inters"] = inters
-        results["rates"] = reactor.net_rate(results["y"][:, -1], kd, kr)
-        consumption_rate = np.zeros((len(inters) + 1, len(self.reactions)))
-        for i, reaction in enumerate(self.reactions):
-            for j, inter in enumerate(inters):
-                if inter in reaction.stoic.keys():
-                    consumption_rate[j, i] = reaction.stoic[inter] * results["rates"][i]
-            if "*" in reaction.stoic.keys():
-                consumption_rate[-1, i] = reaction.stoic["*"] * results["rates"][i]
-        results["consumption_rate"] = consumption_rate
-
-        from pandas import DataFrame
-        # Create dataframe of consumption rates
-        df = DataFrame(
-            consumption_rate,
-            index=inters_formula + ["*"],
-            columns=['R{}'.format(i) for i in range(1, len(self.reactions) + 1)],
-        )
 
         # REWIRE CRN GRAPH BASED ON CRN OUTPUT
         run_graph = self.graph.copy()
-        # Remove all edges
         run_graph.remove_edges_from(list(run_graph.edges))
         run_graph.temperature = self.temperature
         run_graph.pressure = self.pressure
-        run_graph.max_rate = np.max(np.abs(consumption_rate))
-        run_graph.min_rate = np.min(np.abs(consumption_rate[consumption_rate != 0]))
+        run_graph.max_rate = np.max(np.abs(results["consumption_rate"]))
+        run_graph.min_rate = np.min(np.abs(results["consumption_rate"][results["consumption_rate"] != 0]))
 
         for i, inter in enumerate(self.intermediates.values()):
             if inter.phase == "gas":
@@ -1154,21 +901,20 @@ class ReactionNetwork:
 
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
-            run_graph.nodes[reaction.code]["rate"] = results["rates"][i]
+            run_graph.nodes[reaction.code]["rate"] = results["rate"][i]
             
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
-                    if consumption_rate[i, j] < 0:
-                        run_graph.add_edge(inter.code, reaction.code, rate=-consumption_rate[i, j])
+                    if results["consumption_rate"][i, j] < 0:
+                        run_graph.add_edge(inter.code, reaction.code, rate=-results["consumption_rate"][i, j])
                     else:
-                        run_graph.add_edge(reaction.code, inter.code, rate=consumption_rate[i, j])
+                        run_graph.add_edge(reaction.code, inter.code, rate=results["consumption_rate"][i, j])
         run_graph.remove_node("*")
         results["run_graph"] = run_graph
 
         return results
-
-
+    
 
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """

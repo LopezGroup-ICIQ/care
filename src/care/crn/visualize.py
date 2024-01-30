@@ -1,11 +1,20 @@
 """Visualization modules for ReactionNetwork objects."""
 
 import re
+from os import makedirs
+from os.path import abspath
 
 import networkx as nx
 import numpy as np
 from pydot import Subgraph
+from energydiagram import ED
+from matplotlib import cm
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
+from matplotlib.patches import BoxStyle, Rectangle
+import matplotlib.pyplot as plt
+from ase.io import write
 
+from care import ElementaryReaction
 from care.crn.microkinetic import max_flux
 
 
@@ -115,3 +124,241 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     plot.set_dpi(20)
     plot.write_svg("./" + filename)
     return width_list
+
+
+def visualize_reaction(step: ElementaryReaction, 
+                        show_uncertainty: bool = True):
+    # components = rxn.split("<->")
+    # reactants, products = components[0].split("+"), components[1].split("+")
+    # for i, inter in enumerate(reactants):
+    #     if "0000000000*" in inter:
+    #         where_surface = "reactants"
+    #         surf_index = i
+    #         break
+    # for i, inter in enumerate(products):
+    #     if "0000000000*" in inter:
+    #         where_surface = "products"
+    #         surf_index = i
+    #         break
+    # v_reactants = [
+    #     re.findall(r"\[([a-zA-Z0-9])\]", reactant) for reactant in reactants
+    # ]
+    # v_products = [re.findall(r"\[([a-zA-Z0-9])\]", product) for product in products]
+    # v_reactants = [item for sublist in v_reactants for item in sublist]
+    # v_products = [item for sublist in v_products for item in sublist]
+    # reactants = [re.findall(r"\((.*?)\)", reactant) for reactant in reactants]
+    # products = [re.findall(r"\((.*?)\)", product) for product in products]
+    # reactants = [item for sublist in reactants for item in sublist]
+    # products = [item for sublist in products for item in sublist]
+    # for i, reactant in enumerate(reactants):
+    #     if v_reactants[i] != "1":
+    #         reactants[i] = v_reactants[i] + reactant
+    #     if "(g" in reactant:
+    #         reactants[i] += ")"
+    #     if where_surface == "reactants" and i == surf_index:
+    #         reactants[i] = "*"
+    # for i, product in enumerate(products):
+    #     if v_products[i] != "1":
+    #         products[i] = v_products[i] + product
+    #     if "(g" in product:
+    #         products[i] += ")"
+    #     if where_surface == "products" and i == surf_index:
+    #         products[i] = "*"
+    # rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
+    rxn_string = step.repr_hr
+    where_surface = (
+        "reactants"
+        if any(inter.is_surface for inter in step.reactants)
+        else "products"
+    )
+    diagram = ED()
+    diagram.add_level(0, rxn_string.split(" <-> ")[0])
+    diagram.add_level(round(step.e_act[0], 2), "TS", color="r")
+    diagram.add_level(
+        round(step.e_rxn[0], 2),
+        rxn_string.split(" <-> ")[1],
+    )
+    diagram.add_link(0, 1)
+    diagram.add_link(1, 2)
+    y = diagram.plot(ylabel="Energy / eV")
+    plt.title(rxn_string, fontname="Arial", fontweight="bold", y=1.05)
+    artists = diagram.fig.get_default_bbox_extra_artists()
+    size = artists[2].get_position()[0] - artists[3].get_position()[0]
+    ap_reactants = (
+        artists[3].get_position()[0],
+        artists[3].get_position()[1] + 0.15,
+    )
+    ap_products = (
+        artists[11].get_position()[0],
+        artists[11].get_position()[1] + 0.15,
+    )
+    from matplotlib.patches import Rectangle
+    makedirs("tmp", exist_ok=True)
+    counter = 0
+    for i, inter in enumerate(step.reactants):
+        if inter.is_surface:
+            pass
+        else:
+            fig_path = abspath("tmp/reactant_{}.png".format(i))
+            write(fig_path, inter.molecule, show_unit_cell=0)
+            arr_img = plt.imread(fig_path)
+            im = OffsetImage(arr_img)
+            if where_surface == "reactants":
+                ab = AnnotationBbox(
+                    im,
+                    (
+                        ap_reactants[0] + size / 2,
+                        ap_reactants[1] + size * (0.5 + counter),
+                    ),
+                    frameon=False,
+                )
+                diagram.ax.add_artist(ab)
+                counter += 1
+            else:
+                ab = AnnotationBbox(
+                    im,
+                    (
+                        ap_reactants[0] + size / 2,
+                        ap_reactants[1] + size * (0.5 + i),
+                    ),
+                    frameon=False,
+                )
+                diagram.ax.add_artist(ab)
+    counter = 0
+    for i, inter in enumerate(step.products):
+        if inter.is_surface:
+            pass
+        else:
+            fig_path = abspath("tmp/product_{}.png".format(i))
+            write(fig_path, inter.molecule, show_unit_cell=0)
+            arr_img = plt.imread(fig_path)
+            im = OffsetImage(arr_img)
+            if where_surface == "products":
+                ab = AnnotationBbox(
+                    im,
+                    (
+                        ap_products[0] + size / 2,
+                        ap_products[1] + size * (0.5 + counter),
+                    ),
+                    frameon=False,
+                )
+                diagram.ax.add_artist(ab)
+                counter += 1
+            else:
+                ab = AnnotationBbox(
+                    im,
+                    (ap_products[0] + size / 2, ap_products[1] + size * (0.5 + i)),
+                    frameon=False,
+                )
+                diagram.ax.add_artist(ab)
+    if show_uncertainty:
+        from matplotlib.patches import Rectangle
+        width = artists[2].get_position()[0] - artists[3].get_position()[0]
+        height_ts = 1.96 * 2 * step.e_act[1]
+        anchor_point_ts = (
+            min(artists[6].get_position()[0], artists[7].get_position()[0]),
+            round(step.e_act[0], 2) - 0.5 * height_ts,
+        )
+        ts_box = Rectangle(
+            anchor_point_ts,
+            width,
+            height_ts,
+            fill=True,
+            color="#FFD1DC",
+            linewidth=1.5,
+            zorder=-1,
+        )
+        diagram.ax.add_patch(ts_box)
+    return diagram
+
+
+# def draw_graph(self):
+    #     """Create a networkx graph representing the network.
+
+    #     Returns:
+    #         obj:`nx.DiGraph` with all the information of the network.
+    #     """
+    #     # norm_vals = self.get_min_max()
+    #     colormap = cm.inferno_r
+    #     # norm = mpl.colors.Normalize(*norm_vals)
+    #     node_inf = {
+    #         "inter": {"node_lst": [], "color": [], "size": []},
+    #         "ts": {"node_lst": [], "color": [], "size": []},
+    #     }
+    #     edge_cl = []
+    #     for node in self.graph.nodes():
+    #         sel_node = self.graph.nodes[node]
+    #         try:
+    #             # color = colormap(norm(sel_node['energy']))
+    #             if sel_node["category"] in ("gas", "ads", "surf"):
+    #                 node_inf["inter"]["node_lst"].append(node)
+    #                 node_inf["inter"]["color"].append("blue")
+    #                 # node_inf['inter']['color'].append(mpl.colors.to_hex(color))
+    #                 node_inf["inter"]["size"].append(20)
+    #             # elif sel_node['category']  'ts':
+    #             else:
+    #                 if "electro" in sel_node:
+    #                     if sel_node["electro"]:
+    #                         node_inf["ts"]["node_lst"].append(node)
+    #                         node_inf["ts"]["color"].append("red")
+    #                         node_inf["ts"]["size"].append(5)
+    #                 else:
+    #                     node_inf["ts"]["node_lst"].append(node)
+    #                     node_inf["ts"]["color"].append("green")
+    #                     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
+    #                     node_inf["ts"]["size"].append(5)
+    #             # elif sel_node['electro']:
+    #             #     node_inf['ts']['node_lst'].append(node)
+    #             #     node_inf['ts']['color'].append('green')
+    #             #     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
+    #             #     node_inf['ts']['size'].append(10)
+    #         except KeyError:
+    #             node_inf["ts"]["node_lst"].append(node)
+    #             node_inf["ts"]["color"].append("green")
+    #             node_inf["ts"]["size"].append(10)
+
+    #     # for edge in self.graph.edges():
+    #     #     sel_edge = self.graph.edges[edge]
+    #     # color = colormap(norm(sel_edge['energy']))
+    #     # color = mpl.colors.to_rgba(color, 0.2)
+    #     # edge_cl.append(color)
+
+    #     fig = plt.Figure()
+    #     axes = fig.gca()
+    #     axes.get_xaxis().set_visible(False)
+    #     axes.get_yaxis().set_visible(False)
+    #     fig.patch.set_visible(False)
+    #     axes.axis("off")
+
+    #     pos = nx.drawing.layout.kamada_kawai_layout(self.graph)
+
+    #     nx.drawing.draw_networkx_nodes(
+    #         self.graph,
+    #         pos=pos,
+    #         ax=axes,
+    #         nodelist=node_inf["ts"]["node_lst"],
+    #         node_color=node_inf["ts"]["color"],
+    #         node_size=node_inf["ts"]["size"],
+    #     )
+
+    #     nx.drawing.draw_networkx_nodes(
+    #         self.graph,
+    #         pos=pos,
+    #         ax=axes,
+    #         nodelist=node_inf["inter"]["node_lst"],
+    #         node_color=node_inf["inter"]["color"],
+    #         node_size=node_inf["inter"]["size"],
+    #     )
+    #     #    node_shape='v')
+    #     nx.drawing.draw_networkx_edges(
+    #         self.graph,
+    #         pos=pos,
+    #         ax=axes,
+    #         #    edge_color=edge_cl,
+    #         width=0.3,
+    #         arrowsize=0.1,
+    #     )
+    #     # add white background to the plot
+    #     axes.set_facecolor("white")
+    #     fig.tight_layout()
+    #     return fig
