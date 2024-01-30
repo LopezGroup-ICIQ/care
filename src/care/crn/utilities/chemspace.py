@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 RDLogger.DisableLog("rdApp.*")
 
 
-def format_description(description, width=75):
+def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 
@@ -326,7 +326,7 @@ def gen_intermediates_dict(
     with mp.Pool(mp.cpu_count()) as pool:
         result_async = pool.starmap_async(process_inter_objs_chunk, tasks)
         with Progress() as progress:
-            task_desc = format_description("[green]Generating Intermediate objects...")
+            task_desc = format_description("[green]Processing Intermediate objects...")
             task = progress.add_task(task_desc, total=len(tasks))
             processed_items = 0
 
@@ -808,7 +808,7 @@ def gen_chemical_space(
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()
     # Process each molecule in the list
     with Progress() as progress:
-        task_desc = format_description("[green]Generating Bond-Breakings and extending the Chemical Space...")
+        task_desc = format_description("[green]Generating extended Chemical Space...")
         task = progress.add_task(task_desc, total=len(saturated_species_smiles))
         for smiles in saturated_species_smiles:
             process_molecule(
@@ -885,9 +885,6 @@ def gen_chemical_space(
     rxns_list.extend(rearr_steps)
     t5 = time.time() - t05
 
-    ram_mem = psutil.virtual_memory().available / 1e9
-    peak_memory_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1e6
-
     # Create a table object
     table = PrettyTable()
 
@@ -905,14 +902,7 @@ def gen_chemical_space(
     table.add_row(
         ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"],
     )
-    
-    table2 = PrettyTable()
-    table2.field_names = ["Process", "Model", "Usage"]
-    table2.add_row(["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
-    table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available", f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
-    table2.add_row(["Total Execution Time", "", f"{time.time() - total_time:.2f}s"])
 
     print(f"\n{table}")
-    print(f"\n{table2}")
-
+    
     return intermediates_dict, rxns_list

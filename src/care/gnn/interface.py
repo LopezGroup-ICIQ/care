@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 
+from ase import Atoms
 from ase.db import connect
 from copy import deepcopy
 import networkx as nx
@@ -9,9 +10,10 @@ from torch import no_grad, where
 from torch_geometric.data import Data
 
 
-from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator, DB_PATH
+from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption.adsorbate_placement import ads_placement
 from care.constants import METAL_STRUCT_DICT
+from care.crn.utilities.species import atoms_to_graph
 from care.gnn import load_model
 from care.gnn.graph import atoms_to_data
 from care.gnn.graph_filters import extract_adsorbate
@@ -21,12 +23,65 @@ from care.gnn.graph_tools import pyg_to_nx
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(self,
                  model_path: str,
-                 surface: Optional[Surface] = None,):
-        
+                 surface: Surface = None,
+                 dft_db_path: Optional[str] = None,):
+
         self.path = model_path
         self.model = load_model(model_path)
-        self.surface = surface
+        self.surface = surface if surface else None
+        self.dft_db = connect(dft_db_path) if dft_db_path else None
 
+    def retrieve_from_db(self, intermediate: Intermediate, mol_type: str) -> bool:
+        """
+        Check if the intermediate is already in the database.
+
+        Parameters
+        ----------
+        intermediate : Intermediate
+            The intermediate to evaluate.
+        mol_type : str
+            The type of molecule to look for in the database. "int" for adsorbates, "gas" for gas-phase molecules.
+
+        Returns
+        -------
+        bool
+            True if the intermediate is in the database, False otherwise.
+        """
+
+        # Getting the nC, nH and nO values from the intermediate
+        nC = intermediate["C"]
+        nH = intermediate["H"]
+        nO = intermediate["O"]
+
+        metal = self.surface.metal if mol_type == "int" else "N/A"
+        hkl = self.surface.facet if mol_type == "int" else "N/A"
+
+        metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if mol_type == "int" else "N/A"
+
+        conf_type = "gas" if mol_type == "gas" else 0
+
+        for row in self.dft_db.select(f'calc_type={mol_type},metal={metal},facet={metal_struct},nC={nC},nH={nH},nO={nO},nN=0,nS=0'):
+            atoms_object = row.toatoms()
+
+            # Removing the atoms that are not C, H or O
+            if mol_type == "int":
+                adsorbate = Atoms(
+                    symbols=[atom.symbol for atom in atoms_object if atom.symbol in [
+                        "C", "H", "O"]],
+                    positions=[
+                        atom.position for atom in atoms_object if atom.symbol in ["C", "H", "O"]],
+                )
+
+            # Generating the graph of the adsorbate
+            adsorbate_graph = atoms_to_graph(adsorbate)
+
+            # isomorphism check
+            if nx.is_isomorphic(intermediate.graph, adsorbate_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
+                # Retrieving the energy of the intermediate
+                intermediate.ads_configs = {f"{conf_type}": {"conf": atoms_object, "pyg": atoms_to_data(
+                    atoms_object, self.model.graph_params), "mu": row.get("scaled_energy"), "s": 0}}
+                return True
+        return False
 
     def estimate_energy(self,
                         intermediate: Intermediate,
@@ -52,47 +107,56 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
         elif intermediate.phase == "gas":
             # Calculating the gas-phase energy
-            config = intermediate.molecule
-            with no_grad():
-                pyg = atoms_to_data(config, self.model.graph_params)
-                y = self.model(pyg)
-                intermediate.ads_configs = {
-                    "gas": {
-                        "conf": config,
-                        "pyg": pyg,
-                        "mu": (
+            if self.dft_db:
+                in_db = self.retrieve_from_db(intermediate, "gas")
+
+            if (not in_db) or (not self.dft_db):
+                config = intermediate.molecule
+                with no_grad():
+                    pyg = atoms_to_data(config, self.model.graph_params)
+                    y = self.model(pyg)
+                    intermediate.ads_configs = {
+                        "gas": {
+                            "conf": config,
+                            "pyg": pyg,
+                            "mu": (
+                                y.mean * self.model.y_scale_params["std"]
+                                + self.model.y_scale_params["mean"]
+                            ).item(),  # eV
+                            "s": (
+                                y.scale * self.model.y_scale_params["std"]
+                            ).item(),  # eV
+                        }
+                    }
+        else:
+            if self.dft_db:
+                in_db = self.retrieve_from_db(intermediate, "int")
+
+            if (not in_db) or (not self.dft_db):
+                # Adsorbate placement
+                config_list = ads_placement(intermediate, self.surface)
+
+                counter = 0
+                ads_config_dict = {}
+                for config in config_list:
+                    with no_grad():
+                        ads_config_dict[f"{counter}"] = {}
+                        ads_config_dict[f"{counter}"]["config"] = config
+                        ads_config_dict[f"{counter}"]["pyg"] = (
+                            atoms_to_data(config, self.model.graph_params)
+                        )
+                        y = self.model(ads_config_dict[f"{counter}"]["pyg"])
+                        ads_config_dict[f"{counter}"]["mu"] = (
                             y.mean * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
-                        ).item(),  # eV
-                        "s": (
+                        ).item()  # eV
+                        ads_config_dict[f"{counter}"]["s"] = (
                             y.scale * self.model.y_scale_params["std"]
-                        ).item(),  # eV
-                    }
-                }
-        else:
-            # Adsorbate placement
-            config_list = ads_placement(intermediate, self.surface)
-
-            counter = 0
-            ads_config_dict = {}
-            for config in config_list:
-                with no_grad():
-                    ads_config_dict[f"{counter}"] = {}
-                    ads_config_dict[f"{counter}"]["config"] = config
-                    ads_config_dict[f"{counter}"]["pyg"] = (
-                        atoms_to_data(config, self.model.graph_params)
-                    )
-                    y = self.model(ads_config_dict[f"{counter}"]["pyg"])
-                    ads_config_dict[f"{counter}"]["mu"] = (
-                        y.mean * self.model.y_scale_params["std"]
-                        + self.model.y_scale_params["mean"]
-                    ).item()  # eV
-                    ads_config_dict[f"{counter}"]["s"] = (
-                        y.scale * self.model.y_scale_params["std"]
-                    ).item()  # eV
-                    counter += 1
-            intermediate.ads_configs = ads_config_dict
+                        ).item()  # eV
+                        counter += 1
+                intermediate.ads_configs = ads_config_dict
         return intermediate
+
 
 class GameNetUQRxn(ReactionEnergyEstimator):
     """
@@ -211,7 +275,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
 
         if "-" not in step.r_type:
-            raise ValueError("Input reaction must be a bond-breaking reaction.")
+            raise ValueError(
+                "Input reaction must be a bond-breaking reaction.")
         bond = tuple(step.r_type.split("-"))
 
         # Select intermediate that is fragmented in the reaction (A*)
@@ -225,7 +290,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             self.intermediates[inter_code].ads_configs,
             key=lambda x: self.intermediates[inter_code].ads_configs[x]["mu"],
         )
-        ts_graph = deepcopy(self.intermediates[inter_code].ads_configs[idx]["pyg"])
+        ts_graph = deepcopy(
+            self.intermediates[inter_code].ads_configs[idx]["pyg"])
         competitors = [
             inter
             for inter in list(step.reactants) + list(step.products)
@@ -236,7 +302,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         if len(competitors) == 1:
             if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
                 nx_bc = [competitors[0].graph, competitors[0].graph]
-                mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
+                mapping = {n: n + nx_bc[0].number_of_nodes()
+                           for n in nx_bc[1].nodes()}
                 nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
                 nx_bc = nx.compose(nx_bc[0], nx_bc[1])
             elif abs(step.stoic[competitors[0].code]) == 1:  # A* -> B* (ring opening)
@@ -245,12 +312,13 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 raise ValueError("Reaction stoichiometry not supported.")
         else:  # asymmetric fragmentation
             nx_bc = [competitors[0].graph, competitors[1].graph]
-            mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
+            mapping = {n: n + nx_bc[0].number_of_nodes()
+                       for n in nx_bc[1].nodes()}
             nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
             nx_bc = nx.compose(nx_bc[0], nx_bc[1])
 
         # Lool for potential edges to break
-        atom_symbol = lambda idx: ts_graph.node_feats[
+        def atom_symbol(idx): return ts_graph.node_feats[
             where(ts_graph.x[idx] == 1)[0].item()
         ]
         potential_edges = []
@@ -278,7 +346,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             ):
                 ts_graph.edge_attr[potential_edges[counter]] = 1
                 idx = np.where(
-                    (ts_graph.edge_index[0] == v) & (ts_graph.edge_index[1] == u)
+                    (ts_graph.edge_index[0] == v) & (
+                        ts_graph.edge_index[1] == u)
                 )[0].item()
                 ts_graph.edge_attr[idx] = 1
                 break
@@ -309,15 +378,4 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 )
             # Estimate the activation energy
             self.calc_reaction_barrier(reaction)
-            # print(reaction, reaction.r_type)
-            # print(
-            #     "\nEact [eV]: N({:.2f}, {:.2f})    Erxn [eV]: N({:.2f}, {:.2f})".format(
-            #         reaction.e_act[0],
-            #         reaction.e_act[1],
-            #         reaction.e_rxn[0],
-            #         reaction.e_rxn[1],
-            #     )
-            # )
-
             return reaction
-            

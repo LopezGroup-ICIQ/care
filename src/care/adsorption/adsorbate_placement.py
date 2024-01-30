@@ -6,6 +6,7 @@ import networkx as nx
 from ase import Atoms
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
+import random
 
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
@@ -222,8 +223,34 @@ def ads_placement(
     }
 
     total_config_list = []
-    # If the chemical species is not a single atom, placing the molecule on the surface using DockonSurf
-    if len(intermediate.molecule) > 1:
+
+    if len(intermediate.molecule) > 3:
+        
+        site_idx = random.choice(
+            [
+                site_idxs
+                for site_idxs in active_sites.values()
+                if site_idxs != []
+            ]
+        )
+
+        ads_height = 2.5
+        config_list = []
+        while config_list == []:
+            inp_vars = generate_inp_vars(
+                adsorbate=intermediate.molecule,
+                surface=slab,
+                ads_height=ads_height,
+                max_structures=3,
+                molec_ctrs=connect_sites_molec,
+                sites=site_idx,
+            )
+            config_list = dos.dockonsurf(inp_vars)
+            ads_height += 0.2
+            total_config_list.extend(config_list)
+        return total_config_list
+
+    elif 2 <= len(intermediate.molecule) <= 3:
         ads_height = (
             2.2 if intermediate.molecule.get_chemical_formula() != "H2" else 1.8
         )
