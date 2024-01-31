@@ -872,7 +872,7 @@ class ReactionNetwork:
         # RUN SIMULATION
         reactor_args = (T, P, v, *kwargs)
         reactor = model(*reactor_args)
-        rtol, atol, sstol = 1e-16, 1e-64, 1e-12
+        rtol, atol, sstol = 1e-16, 1e-64, 1e-10
         count_atol_decrease = 0
         status = None
         while status != 1:  # 1 = steady state reached

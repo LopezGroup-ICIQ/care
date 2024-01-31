@@ -94,7 +94,6 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     max_scale, min_scale = 10, 1
     max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
     for edge in plot.get_edges():
-        print(edge.get_attributes())
         if edge.get_source() == "*" or edge.get_destination() == "*":
             plot.del_edge(edge.get_source(), edge.get_destination())
             continue

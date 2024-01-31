@@ -132,7 +132,7 @@ class DifferentialPFR(ReactorModel):
         sstol: float,
     ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y, kd, ki, gas_mask, sstol)))
-        # print(t, sum_ddt)
+        print(f"Sum of the derivatives: {sum_ddt}")
         return 0 if sum_ddt <= sstol else sum_ddt
 
     steady_state.terminal = True

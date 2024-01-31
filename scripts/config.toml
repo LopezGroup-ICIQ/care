@@ -1,11 +1,11 @@
 [chemspace]
-ncc = 1  # Network Carbon Cutoff
-noc = -1  # Network Oxygen Cutoff (if negative value, maximum number of Os added)
+ncc = 3  # Network Carbon Cutoff
+noc = 3  # Network Oxygen Cutoff (if negative value, maximum number of Os added)
 
 
 [surface]
-metal = "Cu"  # Catalyst
-hkl = 100  # Surface facet
+metal = "Co"  # Catalyst
+hkl = "0001"  # Surface facet
 
 
 [mkm]
@@ -15,20 +15,21 @@ run = true  # Run microkinetic simulation
 [reactor]
 type = "DifferentialPFR"  # Reactor type. Available: "DynamicCSTR", "DifferentialPFR"
 electro = false  # Electrochemical process
-rtol = 1E-12  # Relative tolerance of the ODE solver
-atol = 1E-70  # Absolute tolerance of the ODE solver
-sstol = 1E-16  # Steady State termination criteria
 
 
 [operating_conditions]
-temperature = 473  # K
-pressure = 10E6  # Pa
+temperature = 573  # K
+pressure = 30E5  # Pa
 radius = 0.0175  # m
 length = 0.01  # m
 Q = 0.01  # m^3/s
 m_cat = 0.005  # kg
 s_bet = 10E5  # m^2/kg_cat
 
+
 [initial_conditions]
-CO2 = 0.5 # Molar fraction of inlet gas
-H2 = 0.5 # Molar fraction of inlet gas
+# CH2O2 = 0.0261 # Molar fraction of inlet gas
+# CO2 = 0.1461
+# He = 0.8278 # Molar fraction of inlet gas
+H2 = 0.5
+CO = 0.5
