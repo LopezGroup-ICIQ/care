@@ -793,9 +793,6 @@ class ReactionNetwork:
         iv: dict[str, float],
         temperature: float = None,
         pressure: float = None,
-        rtol: float = 1e-12,
-        atol: float = 1e-64,
-        sstol: float = 1e-12,
         model: Union[DifferentialPFR, DynamicCSTR] = DifferentialPFR,
         **kwargs,
     ):
@@ -877,7 +874,31 @@ class ReactionNetwork:
         # RUN SIMULATION
         reactor_args = (T, P, v, *kwargs)
         reactor = model(*reactor_args)
-        results = reactor.integrate(y0, (kd, kr, gas_mask), rtol, atol, sstol)
+        rtol, atol, sstol = 1e-16, 1e-64, 1e-12
+        count_atol_decrease = 0
+        status = None
+        while status != 1:  # 1 = steady state reached
+            try:
+                results = reactor.integrate(y0, (kd, kr, gas_mask), rtol, atol, sstol)
+                status = results["status"]
+                atol *= 1e2
+                count_atol_decrease += 1
+                if count_atol_decrease % 4 == 0: 
+                    rtol *= 1e2
+                    print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
+
+                print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+            except ValueError:
+                status = None
+                atol *= 1e2
+                count_atol_decrease += 1
+                if count_atol_decrease % 4 == 0:
+                    rtol *= 1e2
+                    print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
+                print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+
+        print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
+
         results["inters"] = inters
 
         # REWIRE CRN GRAPH BASED ON CRN OUTPUT

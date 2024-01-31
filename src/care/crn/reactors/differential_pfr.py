@@ -169,7 +169,7 @@ class DifferentialPFR(ReactorModel):
             the tolerance parameter `sstol`.
         """
         results = solve_ivp(self.ode,
-                            (0, 1e20),  # high value to allow reaching steady state
+                            (0, 1e30),  # high value to allow reaching steady state
                             y0,
                             method=method,
                             events=self.steady_state,

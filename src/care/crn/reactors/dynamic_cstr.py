@@ -202,7 +202,7 @@ class DynamicCSTR(ReactorModel):
             the tolerance parameter `sstol`.
         """
         results = solve_ivp(self.ode,
-                            (0, 1e16),
+                            (0, 1e30),
                             y0,
                             method=method,
                             events=self.steady_state,
