@@ -845,12 +845,10 @@ class ReactionNetwork:
                 y0 = np.append(y0, self.pressure * iv[key])
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
-                # print(f"Added inert {key}")
             elif key in inters_formula:
                 for i, inter in enumerate(self.intermediates.values()):
                     if inter.molecule.get_chemical_formula() == key and inter.phase == "gas":
                         y0[i] = P * iv[key]
-                        # print(f"Added gas reactant {key}")
                         break
             else:
                 continue
@@ -901,47 +899,49 @@ class ReactionNetwork:
 
         results["inters"] = inters
 
-        # REWIRE CRN GRAPH BASED ON CRN OUTPUT
-        run_graph = self.graph.copy()
-        run_graph.remove_edges_from(list(run_graph.edges))
-        run_graph.temperature = self.temperature
-        run_graph.pressure = self.pressure
-        run_graph.max_rate = np.max(np.abs(results["consumption_rate"]))
-        run_graph.min_rate = np.min(np.abs(results["consumption_rate"][results["consumption_rate"] != 0]))
+        # REWIRE CRN GRAPH BASED ON MKM OUTPUT
+        graph = self.graph.copy()
+        graph.remove_edges_from(list(self.graph.edges))
+        graph.temperature, graph.pressure = T, P
+        graph.max_rate = np.max(np.abs(results["consumption_rate"]))
+        graph.min_rate = np.min(np.abs(results["consumption_rate"][results["consumption_rate"] != 0]))
 
         for i, inter in enumerate(self.intermediates.values()):
             if inter.phase == "gas":
-                run_graph.nodes[inter]["molar_fraction"] = (
+                graph.nodes[inter]["molar_fraction"] = (
                     results["y"][i, -1] / self.pressure
                 )
             elif inter.phase == "ads":
-                run_graph.nodes[inter]["coverage"] = results["y"][i, -1]
-        run_graph.nodes["*"]["coverage"] = results["y"][
-            -1, -1
-        ]  # intermediates do not contain *
+                graph.nodes[inter]["coverage"] = results["y"][i, -1]
+        graph.nodes["*"]["coverage"] = results["y"][-1, -1]
 
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
-            run_graph.nodes[reaction.code]["rate"] = results["rate"][i]
+            graph.nodes[reaction.code]["rate"] = results["rate"][i]
             
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
-                    if results["consumption_rate"][i, j] < 0:
-                        run_graph.add_edge(inter.code, reaction.code, rate=-results["consumption_rate"][i, j])
+                    r = results["consumption_rate"][i, j]
+                    if r < 0:
+                        graph.add_edge(inter.code, 
+                                       reaction.code, 
+                                       rate=abs(r))
                     else:
-                        run_graph.add_edge(reaction.code, inter.code, rate=results["consumption_rate"][i, j])
-        run_graph.remove_node("*")
+                        graph.add_edge(reaction.code, 
+                                       inter.code, 
+                                       rate=abs(r))
+        graph.remove_node("*")
 
         # Define r_type of adsorption/desorption
         for reaction in self.reactions:
             if reaction.r_type == "adsorption":
-                if run_graph.nodes[reaction.code]["rate"] < 0:
-                    run_graph.nodes[reaction.code]["r_type"] = "desorption"
+                if graph.nodes[reaction.code]["rate"] < 0:
+                    graph.nodes[reaction.code]["r_type"] = "desorption"
                 else:
-                    run_graph.nodes[reaction.code]["r_type"] = "adsorption"
+                    graph.nodes[reaction.code]["r_type"] = "adsorption"
             else:
-                run_graph.nodes[reaction.code]["r_type"] = "surface_reaction"
-        results["run_graph"] = run_graph
+                graph.nodes[reaction.code]["r_type"] = "surface_reaction"
+        results["run_graph"] = graph
 
         return results

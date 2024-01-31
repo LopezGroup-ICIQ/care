@@ -11,7 +11,7 @@ import time
 
 from ase.db import connect
 
-from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork
+from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate, ElementaryReaction, IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
 from care.crn.reactors import DifferentialPFR, DynamicCSTR
@@ -20,7 +20,9 @@ from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 DFT_DB_PATH = '../src/care/data/FG2dataset.db'
 
 
-def evaluate_intermediate(intermediate, model, progress_queue):
+def evaluate_intermediate(intermediate: Intermediate, 
+                          model: IntermediateEnergyEstimator, 
+                          progress_queue: mp.Queue):
     """
     Evaluates an intermediate.
 
@@ -28,12 +30,14 @@ def evaluate_intermediate(intermediate, model, progress_queue):
         intermediate (Intermediate): The intermediate.
         model (GameNetUQ): The model.
     """
-    eval_inter = model.estimate_energy(intermediate)
+    eval_inter = model.eval(intermediate)
     progress_queue.put(1)
     return eval_inter
 
 
-def evaluate_reaction(reaction, model, progress_queue):
+def evaluate_reaction(reaction: ElementaryReaction, 
+                      model: ReactionEnergyEstimator, 
+                      progress_queue: mp.Queue):
     """
     Evaluates a reaction.
 
@@ -41,7 +45,7 @@ def evaluate_reaction(reaction, model, progress_queue):
         reaction (Reaction): The reaction.
         model (GameNetUQ): The model.
     """
-    eval_rxn = model.estimate_energy(reaction)
+    eval_rxn = model.eval(reaction)
     progress_queue.put(1)
     return eval_rxn
 

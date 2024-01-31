@@ -5,7 +5,7 @@ Base class for energy estimators.
 from typing import Optional
 from abc import ABC, abstractmethod
 
-from care import Intermediate, Surface
+from care import Intermediate, Surface, ElementaryReaction
 
 class IntermediateEnergyEstimator(ABC):
     """
@@ -17,9 +17,9 @@ class IntermediateEnergyEstimator(ABC):
         pass
 
     @abstractmethod
-    def estimate_energy(self, 
-                        inter: Intermediate, 
-                        surf: Optional[Surface] = None) -> None:
+    def eval(self,
+             inter: Intermediate, 
+             surf: Optional[Surface] = None) -> None:
         """
         Estimate the energy of a state.
 
@@ -39,9 +39,7 @@ class ReactionEnergyEstimator(ABC):
         pass
 
     @abstractmethod
-    def estimate_energy(self, 
-                        inter: Intermediate, 
-                        surf: Optional[Surface] = None) -> None:
+    def eval(self, reaction: ElementaryReaction) -> None:
         """
         Estimate the energy of a state.
 
