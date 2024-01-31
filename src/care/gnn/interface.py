@@ -78,9 +78,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
             # isomorphism check
             if nx.is_isomorphic(intermediate.graph, adsorbate_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
-                # Retrieving the energy of the intermediate
-                # intermediate.ads_configs = {f"{conf_type}": {"conf": atoms_object, "pyg": atoms_to_data(
-                #     atoms_object, self.model.graph_params), "mu": row.get("scaled_energy"), "s": 0}}
                 if row.get("scaled_energy") < max:
                     stable_conf.append([atoms_object, row.get("scaled_energy")])
                     max = row.get("scaled_energy")

@@ -15,6 +15,7 @@ from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
 from care.crn.reactors import DifferentialPFR, DynamicCSTR
+from care.crn.visualize import write_dotgraph
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 DFT_DB_PATH = '../src/care/data/FG2dataset.db'
@@ -73,7 +74,7 @@ def main():
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     surface_ase = metal_db.get_atoms(
         calc_type="surface", metal=metal, facet=metal_structure)
-    surface = Surface(surface_ase, str(hkl))
+    surface = Surface(surface_ase, hkl)
 
     # 1. Generate the chemical space (chemical spieces and reactions)
     print(
@@ -158,7 +159,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     print("\nSaving the CRN...")
-    with open(f"{output_dir}/crn.pickle", "wb") as f:
+    with open(f"{output_dir}/crn.pkl", "wb") as f:
         dump(crn, f)
     print("Done!")
 
@@ -168,20 +169,16 @@ def main():
         oc = config['operating_conditions']
         y0 = config['initial_conditions']
         r = config['reactor']
-        print(r)
-        print(y0)
-        print(type(r['rtol']), type(r['atol']), type(r['sstol']))
         reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR 
         results = crn.run_microkinetic(y0, 
                                        oc['temperature'],
                                        oc['pressure'],
-                                       r['rtol'],
-                                       r['atol'],
-                                       r['sstol'],
                                        model=reactor)
         print("\nSaving the MKM results...")
-        with open(f"{output_dir}/mkm.pickle", "wb") as f:
+        with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
+
+    write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CH2O2')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
