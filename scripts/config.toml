@@ -1,6 +1,7 @@
 [chemspace]
-ncc = 3  # Network Carbon Cutoff
-noc = 3  # Network Oxygen Cutoff (if negative value, maximum number of Os added)
+ncc = 4  # Network Carbon Cutoff
+noc = 1  # Network Oxygen Cutoff (if negative value, maximum number of Os added)
+regen = true  # Force the re-generatation of the existing CRN
 
 
 [surface]
@@ -28,8 +29,8 @@ s_bet = 10E5  # m^2/kg_cat
 
 
 [initial_conditions]
-# CH2O2 = 0.0261 # Molar fraction of inlet gas
+# CH2O2 = 0.0261  # Molar fraction of inlet gas
 # CO2 = 0.1461
-# He = 0.8278 # Molar fraction of inlet gas
+# He = 0.8278  # Molar fraction of inlet gas
 H2 = 0.5
 CO = 0.5
