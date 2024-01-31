@@ -911,6 +911,16 @@ class ReactionNetwork:
                     else:
                         run_graph.add_edge(reaction.code, inter.code, rate=results["consumption_rate"][i, j])
         run_graph.remove_node("*")
+
+        # Define r_type of adsorption/desorption
+        for reaction in self.reactions:
+            if reaction.r_type == "adsorption":
+                if run_graph.nodes[reaction.code]["rate"] < 0:
+                    run_graph.nodes[reaction.code]["r_type"] = "desorption"
+                else:
+                    run_graph.nodes[reaction.code]["r_type"] = "adsorption"
+            else:
+                run_graph.nodes[reaction.code]["r_type"] = "surface_reaction"
         results["run_graph"] = run_graph
 
         return results

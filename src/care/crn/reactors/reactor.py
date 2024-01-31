@@ -15,6 +15,8 @@ class ReactorModel(ABC):
         """
         Provides the ODE system representing the reactor model,
         based on species, material, momentum and energy balances.
+        self.ode, self.jacobian, self.steady_state should have the same
+        signature if scipy.solve_ivp is used to integrate the ODE system.
         """
         ...
 
@@ -22,7 +24,9 @@ class ReactorModel(ABC):
     def jacobian(self):
         """
         Provides the Jacobian matrix of the ODE system for the
-        defined reactor model. J is a square matrix, typically sparse.
+        defined reactor model. J is a sparse square matrix.
+        self.ode, self.jacobian, self.steady_state should have the same
+        signature if scipy.solve_ivp is used to integrate the ODE system.
         """
         ...
 
@@ -31,9 +35,18 @@ class ReactorModel(ABC):
         """
         Defines the criteria needed to stop the integration. Typically,
         the termination occurs when steady-state conditions are reached.
+        self.ode, self.jacobian, self.steady_state should have the same
+        signature if scipy.solve_ivp is used to integrate the ODE system.
         """
         ...
 
+    @abstractmethod
+    def integrate(self):
+        """
+        Integrates the ODE system until steady-state conditions are reached.
+        """
+        ...
+        
     @abstractmethod
     def conversion(self):
         """

@@ -169,11 +169,11 @@ class DifferentialPFR(ReactorModel):
             the tolerance parameter `sstol`.
         """
         results = solve_ivp(self.ode,
-                            (0, 1e16),
+                            (0, 1e20),  # high value to allow reaching steady state
                             y0,
                             method=method,
                             events=self.steady_state,
-                            jac=None,  # self.jacobian to double check, to readapt
+                            jac=None,  # jacobian to to readapt
                             args=ode_params + (sstol,),
                             atol=atol,
                             rtol=rtol)
@@ -186,14 +186,49 @@ class DifferentialPFR(ReactorModel):
         results["consumption_rate"] = consumption_rate
         return results
 
-    def conversion(self) -> float:
-        return 0
+    def conversion(self, 
+                   reactant_idx: int, 
+                   y: np.ndarray) -> float:
+        """
+        Conversion of the reactant i.
+        By definition, conversion is 0 due to infinitesimal volume of the reactor.
+        """
+        return 1 - y[reactant_idx, -1] / y[reactant_idx, 0]
 
-    def selectivity(self, r_target, r_tot) -> float:
+    def selectivity(self, 
+                    target_idx: int, 
+                    product_idxs: list[int], 
+                    consumption_rate: np.ndarray) -> float:
+        """
+        Selectivity towards a target product.
+        As conversion is zero, the selectivity is computed as the ratio between the
+        consumption rate of the target product and the total consumption rate.
+        Args:
+            target_idx(int): Index of the target product.
+            product_idxs(list[int]): Indexes of the products. It must contain the target index.
+            consumption_rate(ndarray): Consumption rate matrix of each species.
+
+        Returns:
+            (float): Selectivity towards the target product (between 0 and 1)
+        """
+        r_target = np.sum(consumption_rate[target_idx, :])
+        r_tot = np.sum(consumption_rate[product_idxs, :])
         return r_target / r_tot
 
-    def reaction_rate(self):
-        pass
+    def reaction_rate(self, 
+                      product_idx: int, 
+                      consumption_rate: np.ndarray) -> float:
+        return np.sum(consumption_rate[product_idx, :])
 
-    def yyield(self) -> float:
-        return 0
+    def yyield(self, 
+               reactant_idx: int, 
+               target_idx: int,
+               product_idxs: list[int], 
+               consumption_rate:np.ndarray) -> float:
+        """
+        Yield of reactant i towards product j.
+        By definition, yield is 0 due to infinitesimal volume of the reactor.
+        """
+        X = self.conversion(reactant_idx)
+        S = self.selectivity(target_idx, product_idxs, consumption_rate)
+        return X * S

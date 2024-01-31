@@ -68,7 +68,8 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
                 # give lowest rank
                 subgraph_sink.add_node(node)
             else:
-                subgraph_same.add_node(node)
+                # subgraph_same.add_node(node)
+                pass
         else:  # REACTION
             node.set_shape("square")
             node.set_style("filled")
@@ -78,14 +79,15 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
             if attrs["r_type"] in ("adsorption", "desorption"):
                 if attrs["r_type"] == "adsorption":
                     subgraph_ads.add_node(node)
-                    node.set_fillcolor("palegreen2")
+                    node.set_fillcolor("tomato1")
                 else:
                     subgraph_des.add_node(node)
-                    node.set_fillcolor("palegreen3")
+                    node.set_fillcolor("palegreen2")
             elif attrs["r_type"] == "eley_rideal":
                 node.set_fillcolor("mediumpurple1")
             else:
                 node.set_fillcolor("steelblue3")
+                subgraph_same.add_node(node)
 
     # set edge width as function of consumption rate
     width_list = []
@@ -362,3 +364,10 @@ def visualize_reaction(step: ElementaryReaction,
     #     axes.set_facecolor("white")
     #     fig.tight_layout()
     #     return fig
+
+
+def build_energy_profile(reactions: list[ElementaryReaction]):
+    """
+    Generate energy profile with the energydiagram package.
+    """
+    pass
