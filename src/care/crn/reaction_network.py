@@ -729,7 +729,7 @@ class ReactionNetwork:
         Return the stoichiometric matrix of the network.
         """
         v = np.zeros(
-            (len(self.intermediates) + 1, len(self.reactions)), dtype = np.int8
+            (len(self.intermediates) + 1, len(self.reactions)), dtype=np.int8
         )  # +1 for the surface
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
@@ -814,16 +814,16 @@ class ReactionNetwork:
         inters = [inter.code for inter in self.intermediates.values()]
         inters_formula = [inter.molecule.get_chemical_formula() for inter in self.intermediates.values()]
         gas_mask = np.array(
-            [inter.phase == "gas" for inter in self.intermediates.values()] + [False]
+            [inter.phase == "gas" for inter in self.intermediates.values()] + [False], dtype=bool
         )
         v = self.stoichiometric_matrix.copy()
-        y0 = np.zeros(len(inters) + 1)
+        y0 = np.zeros(len(inters) + 1, dtype=np.float64)
         y0[-1] = 1.0   # Initial condition: empty surface
         num_inerts = 0
         for key in iv.keys():
             if key not in inters_formula:  # inert
-                v = np.vstack((v, np.zeros(len(self.reactions))))
-                y0 = np.append(y0, self.pressure * iv[key])
+                v = np.vstack((v, np.zeros(len(self.reactions), dtype=np.int8)), dtype=np.int8)
+                y0 = np.append(y0, P * iv[key])
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
             elif key in inters_formula:
@@ -835,8 +835,8 @@ class ReactionNetwork:
                 continue
 
         self.get_kinetic_constants(T)
-        kd = np.array([reaction.k_dir for reaction in self.reactions])
-        kr = np.array([reaction.k_rev for reaction in self.reactions])
+        kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
+        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
 
         # # REDIRECT ADSORPTION/DESORPTION TO FACILITATE CONVERGENCE
         # for i, step in enumerate(self.reactions):
@@ -853,7 +853,7 @@ class ReactionNetwork:
         # RUN SIMULATION
         reactor_args = (T, P, v, *kwargs)
         reactor = model(*reactor_args)
-        rtol, atol, sstol = 1e-16, 1e-64, 1e-10
+        rtol, atol, sstol = 1e-12, 1e-64, 1e-10
         count_atol_decrease = 0
         status = None
         while status != 1:  # 1 = steady state reached

@@ -3,6 +3,9 @@
 import networkx as nx
 import numpy as np
 from rdkit import Chem
+from numba import njit, cuda
+import math
+
 
 def iupac_to_inchikey(iupac_name: str) -> str:
     mol = Chem.MolFromIUPACName(iupac_name)
@@ -83,3 +86,38 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
         current_node = int_node
 
     return path_edges
+
+@njit
+def net_rate(y, kd, kr, sf, sb):
+    rates = np.empty_like(kd)
+    for i in range(kd.shape[0]):  # Assuming kd and kr have the same shape
+        forward_product = 1.0
+        backward_product = 1.0
+        for j in range(sf.shape[1]):  # Assuming sf and sb have the same shape [reactions, species]
+            forward_product *= y[j] ** sf[i, j]
+            backward_product *= y[j] ** sb[i, j]
+        rates[i] = kd[i] * forward_product - kr[i] * backward_product
+    return rates
+
+@cuda.jit()
+def net_rate_cuda(y, kd, kr, stoic_forward, stoic_backward, net_rate):
+    # Calculate the thread's unique index
+    idx = cuda.grid(1)
+
+    # Check if index is within bounds
+    if idx >= kd.shape[0]:
+        return
+
+    forward_product = 1.0
+    backward_product = 1.0
+
+    # Assuming stoic_forward and stoic_backward are 2D arrays with shape [num_reactions, num_species]
+    # and y is a 1D array with shape [num_species]
+    for j in range(stoic_forward.shape[1]):  # Iterate over species
+        if stoic_forward[idx, j] != 0:  # If stoichiometry is not zero, contribute to product
+            forward_product *= math.pow(y[j], stoic_forward[idx, j])
+        if stoic_backward[idx, j] != 0:  # Similarly for backward reaction
+            backward_product *= math.pow(y[j], stoic_backward[idx, j])
+
+    # Compute net rate and store in output array
+    net_rate[idx] = kd[idx] * forward_product - kr[idx] * backward_product

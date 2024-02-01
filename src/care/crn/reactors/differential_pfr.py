@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.sparse import csr_matrix
 
 from care.crn.reactors.reactor import ReactorModel
+from care.crn.microkinetic import net_rate, net_rate_cuda
 
 class DifferentialPFR(ReactorModel):
     def __init__(self, 
@@ -26,38 +28,21 @@ class DifferentialPFR(ReactorModel):
 
         self.temperature = temperature
         self.pressure = pressure
-        self.v_matrix = v_matrix
+        self.v_matrix_dense = v_matrix
+        self.v_matrix_sparse = csr_matrix(v_matrix, dtype=np.int8)
 
-    @property
-    def stoic_forward(self) -> np.ndarray:
-        """
-        Filter function for the stoichiometric matrix.
-        Negative elements are considered and changed of sign in order to
-        compute the direct reaction rates.
-        Args:
-            matrix(ndarray): Stoichiometric matrix
-        Returns:
-            mat(ndarray): Filtered matrix for constructing forward reaction rates.
-        """
+        self.stoic_forward_dense = np.zeros_like(self.v_matrix_dense, dtype=np.int8)
+        self.stoic_forward_dense[self.v_matrix_dense < 0] = -self.v_matrix_dense[self.v_matrix_dense < 0]
+        self.stoic_forward_dense = self.stoic_forward_dense.T
+        self.stoic_forward_sparse = csr_matrix(self.stoic_forward_dense)
 
-        mat = np.zeros_like(self.v_matrix, dtype=np.int8)
-        mat[self.v_matrix < 0] = -self.v_matrix[self.v_matrix < 0]
-        return mat.T
+        self.stoic_backward_dense = np.zeros_like(self.v_matrix_dense, dtype=np.int8)
+        self.stoic_backward_dense[self.v_matrix_dense > 0] = self.v_matrix_dense[self.v_matrix_dense > 0]
+        self.stoic_backward_dense = self.stoic_backward_dense.T
+        self.stoic_backward_sparse = csr_matrix(self.stoic_backward_dense)
 
-    @property
-    def stoic_backward(self) -> np.ndarray:
-        """
-        Filter function for the stoichiometric matrix.
-        Positive elements are considered and kept in order to compute
-        the reverse reaction rates.
-        Args:
-            matrix(ndarray): stoichiometric matrix
-        Returns:
-            mat(ndarray): Filtered matrix for constructing reverse reaction rates.
-        """
-        mat = np.zeros_like(self.v_matrix, dtype=np.int8)
-        mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
-        return mat.T
+        self.nr = self.v_matrix_dense.shape[1]  # number of reactions
+        self.nc = self.v_matrix_dense.shape[0]  # number of species
 
     def net_rate(self, y: np.ndarray, kd: np.ndarray, kr: np.ndarray) -> np.ndarray:
         """
@@ -69,8 +54,8 @@ class DifferentialPFR(ReactorModel):
         Returns:
             (ndarray): Net reaction rate of the elementary reactions [1/s].
         """
-        return kd * np.prod(y**self.stoic_forward, axis=1) - kr * np.prod(
-            y**self.stoic_backward, axis=1
+        return kd * np.prod(y**self.stoic_forward_dense, axis=1) - kr * np.prod(
+            y**self.stoic_backward_dense, axis=1
         )
 
     def ode(
@@ -82,8 +67,9 @@ class DifferentialPFR(ReactorModel):
         gas_mask: np.ndarray,
         sstol: float,
     ) -> np.ndarray:
-        dy = self.v_matrix @ self.net_rate(y, kd, ki)
-        dy[gas_mask] = 0  # Mask gas species
+        # dy = self.v_matrix_sparse.dot(self.net_rate(y, kd, ki))
+        dy = self.v_matrix_sparse.dot(net_rate(y, kd, ki, self.stoic_forward_dense, self.stoic_backward_dense))
+        dy[gas_mask] = 0
         return dy
 
     def jacobian(
@@ -95,32 +81,57 @@ class DifferentialPFR(ReactorModel):
         gas_mask: np.ndarray,
         sstol: float,
     ) -> np.ndarray:
-        J = np.zeros((len(y), len(y)))
-        Jg = np.zeros((len(kd), len(y)))
-        Jh = np.zeros((len(kd), len(y)))
-        v_f = self.stoic_forward.copy()
-        v_b = self.stoic_backward.copy()
+        """
+        Jacobian matrix of DifferentialPFR model.
+        Considers elementary reactions with stoichiometric coefficients of 1 or 2.
+        Not really helpful as its computation is very expensive.
+        """
+        J = np.zeros((len(y), len(y)), dtype=np.float64)
+        Jg = np.zeros((len(kd), len(y)), dtype=np.float64)
+        Jh = np.zeros((len(kd), len(y)), dtype=np.float64)
+        vf = self.stoic_forward_dense.T.copy()
+        vb = self.stoic_backward_dense.T.copy()
         for r in range(len(kd)):
             for s in range(len(y)):
-                if v_f[s, r] == 1:
-                    v_f[s, r] -= 1
-                    Jg[r, s] = kd[r] * np.prod(y ** v_f[:, r])
-                    v_f[s, r] += 1
-                elif v_f[s, r] == 2:
-                    v_f[s, r] -= 1
-                    Jg[r, s] = 2 * kd[r] * np.prod(y ** v_f[:, r])
-                    v_f[s, r] += 1
-                if v_b[s, r] == 1:
-                    v_b[s, r] -= 1
-                    Jh[r, s] = ki[r] * np.prod(y ** v_b[:, r])
-                    v_b[s, r] += 1
-                elif v_b[s, r] == 2:
-                    v_b[s, r] -= 1
-                    Jh[r, s] = 2 * ki[r] * np.prod(y ** v_b[:, r])
-                    v_b[s, r] += 1
-        J = self.v_matrix @ (Jg - Jh)
+                if vf[s, r] == 1:
+                    vf[s, r] -= 1
+                    Jg[r, s] = kd[r] * np.prod(y ** vf[:, r])
+                    vf[s, r] += 1
+                elif vf[s, r] == 2:
+                    vf[s, r] -= 1
+                    Jg[r, s] = 2 * kd[r] * np.prod(y ** vf[:, r])
+                    vf[s, r] += 1
+                if vb[s, r] == 1:
+                    vb[s, r] -= 1
+                    Jh[r, s] = ki[r] * np.prod(y ** vb[:, r])
+                    vb[s, r] += 1
+                elif vb[s, r] == 2:
+                    vb[s, r] -= 1
+                    Jh[r, s] = 2 * ki[r] * np.prod(y ** vb[:, r])
+                    vb[s, r] += 1
+        J = self.v_matrix_dense @ (Jg - Jh)
         J[gas_mask, :] = 0
         return J
+    
+    def jac_sparsity(self,
+                     gas_mask: np.ndarray) -> np.ndarray:
+        """
+        Matrix defining where the jacobian is non-zero.
+        Not useful as the jacobian is not used in the integration.
+        """
+        J = np.zeros((self.nc, self.nc), dtype=np.float64)
+        Jg = np.zeros((self.nr, self.nc), dtype=np.float64)
+        Jh = np.zeros((self.nr, self.nc), dtype=np.float64)
+        for r in range(self.nr):
+            for s in range(self.nc):
+                if self.stoic_forward_dense.T[s, r] != 0:
+                    Jg[r, s] = 1
+                if self.stoic_backward_dense.T[s, r] != 0:                    
+                    Jh[r, s] = 1
+        J = self.v_matrix_dense @ (Jg - Jh)
+        J[gas_mask, :] = 0
+        return J
+
 
     def steady_state(
         self,
@@ -136,6 +147,7 @@ class DifferentialPFR(ReactorModel):
         return 0 if sum_ddt <= sstol else sum_ddt
 
     steady_state.terminal = True
+    steady_state.direction = 0
 
     def integrate(
         self,
@@ -176,13 +188,14 @@ class DifferentialPFR(ReactorModel):
                             jac=None,  # jacobian to to readapt
                             args=ode_params + (sstol,),
                             atol=atol,
-                            rtol=rtol)
+                            rtol=rtol, 
+                            jac_sparsity=None)
         results["rate"] = self.net_rate(results["y"][:, -1], ode_params[0],
                                          ode_params[1])
-        consumption_rate = np.zeros_like(self.v_matrix)
-        for i in range(self.v_matrix.shape[0]):
-            for j in range(self.v_matrix.shape[1]):
-                    consumption_rate[i, j] = self.v_matrix[i, j] * results["rate"][j]
+        consumption_rate = np.zeros_like(self.v_matrix_dense, dtype=np.float64)
+        for i in range(self.v_matrix_dense.shape[0]):
+            for j in range(self.v_matrix_dense.shape[1]):
+                    consumption_rate[i, j] = self.v_matrix_dense[i, j] * results["rate"][j]
         results["consumption_rate"] = consumption_rate
         return results
 
