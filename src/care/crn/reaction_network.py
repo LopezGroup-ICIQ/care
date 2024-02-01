@@ -1,25 +1,18 @@
 import re
-from copy import deepcopy
 
 from shutil import rmtree
 from typing import Union
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import numpy as np
 import pandas as pd
 from ase import Atoms
 from ase.visualize import view
-from pydot import Node
-from torch import where
-from torch_geometric.data import Data
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, OC_UNITS, H
 from care.crn.reactors import DifferentialPFR, DynamicCSTR
-from care.gnn.graph_filters import extract_adsorbate
-from care.gnn.graph_tools import pyg_to_nx
 from care.crn.visualize import visualize_reaction
 
 
@@ -918,19 +911,27 @@ class ReactionNetwork:
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
             graph.nodes[reaction.code]["rate"] = results["rate"][i]
+            graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+            graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
             
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
                     r = results["consumption_rate"][i, j]
-                    if r < 0:
+                    if r < 0:  # Reaction j consumes inter i
+                        if reaction.e_act[0] == 0 or reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
+                            delta = 0
+                        else:
+                            delta = reaction.e_act[0]
                         graph.add_edge(inter.code, 
                                        reaction.code, 
-                                       rate=abs(r))
-                    else:
+                                       rate=abs(r), 
+                                       delta=delta)
+                    else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
                         graph.add_edge(reaction.code, 
                                        inter.code, 
-                                       rate=abs(r))
+                                       rate=abs(r), 
+                                       delta=-(reaction.e_act[0] - reaction.e_rxn[0]))
         graph.remove_node("*")
 
         # Define r_type of adsorption/desorption

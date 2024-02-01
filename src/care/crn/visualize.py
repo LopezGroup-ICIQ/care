@@ -97,18 +97,19 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
         if edge.get_source() == "*" or edge.get_destination() == "*":
             plot.del_edge(edge.get_source(), edge.get_destination())
             continue
-        rate = float(edge.get_attributes()["rate"])
-        # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
-        edge_width = -np.log10(rate)
-        width = (max_scale - min_scale) / (max_weight - min_weight) * (
-            edge_width - max_weight
-        ) + max_scale
+        # rate = float(edge.get_attributes()["rate"])
+        # # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
+        # edge_width = -np.log10(rate)
+        # width = (max_scale - min_scale) / (max_weight - min_weight) * (
+        #     edge_width - max_weight
+        # ) + max_scale
         if edge.get_attributes()["max"] == "max":
             edge.set_color("firebrick")
             edge.set_penwidth(30)
         else:
-            edge.set_penwidth(width)
-            width_list.append(width)
+            # edge.set_penwidth(width)
+            # width_list.append(width)
+            pass
 
     plot.add_subgraph(subgraph_source)
     plot.add_subgraph(subgraph_sink)
@@ -124,7 +125,7 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
 
     plot.set_dpi(20)
     plot.write_svg("./" + filename)
-    return width_list
+    # return width_list
 
 
 def visualize_reaction(step: ElementaryReaction, 
@@ -364,9 +365,38 @@ def visualize_reaction(step: ElementaryReaction,
     #     fig.tight_layout()
     #     return fig
 
-
-def build_energy_profile(reactions: list[ElementaryReaction]):
+def build_energy_profile(graph: nx.DiGraph, path: list[str]):
     """
     Generate energy profile with the energydiagram package.
+
+    Args:
+        graph (nx.DiGraph): Networkx graph representing the reaction network.
+        path (list[str]): List of tuples with the path of the reaction network.
+
+    Returns:
+        obj:`energydiagram.ED`: Energy diagram object.
     """
-    pass
+    ed = ED()  # TODO: Still not working properly, have to imple,ent better reverse in ElementaryReaction
+    ed.round_energies_at_digit=1
+    ed.add_level(0)
+    counter = 0
+    ref = 0
+    for item in path:
+        if len(item[0]) == 28:  # Intermediate -> step (Add TS)
+            inter, step = item[0], item[1]
+            delta = graph.edges[(inter, step)]['delta']
+            ed.add_level(ref + delta, 'TS', color='r')
+            ref += delta
+            print('inter->TS', ref, delta)
+            counter += 1 
+            ed.add_link(counter-1, counter)
+        else: # Step -> intermediate (Add intermediate always)
+            step, inter = item[0], item[1]
+            delta = graph.edges[(step, inter)]['delta']
+            ed.add_level(ref + delta, 'int')
+            ref += delta
+            print('TS->inter', ref, delta)
+            counter += 1
+            ed.add_link(counter-1, counter)
+
+    return ed

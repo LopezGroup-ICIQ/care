@@ -10,7 +10,7 @@ from care.constants import INTER_ELEMS, R_TYPES
 
 
 class ElementaryReaction:
-    """Class for representing surface elementary reactions.
+    """Class for representing elementary reactions.
 
     Attributes:
         code (str): Code associated with the elementary reaction.

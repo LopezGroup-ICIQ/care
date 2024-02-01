@@ -13,7 +13,7 @@ def iupac_to_inchikey(iupac_name: str) -> str:
 
 
 def max_flux(graph: nx.DiGraph, source: str) -> list:
-    """Collect edges which define maximum flux from source.
+    """Collect edges defining the path with highest flux from source.
 
     Args:
         graph (nx.DiGraph): Reaction network graph. Each edge must have a 'rate' attribute
