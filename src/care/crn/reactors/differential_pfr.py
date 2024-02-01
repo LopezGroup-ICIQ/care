@@ -40,7 +40,7 @@ class DifferentialPFR(ReactorModel):
             mat(ndarray): Filtered matrix for constructing forward reaction rates.
         """
 
-        mat = np.zeros_like(self.v_matrix)
+        mat = np.zeros_like(self.v_matrix, dtype=np.int8)
         mat[self.v_matrix < 0] = -self.v_matrix[self.v_matrix < 0]
         return mat.T
 
@@ -55,7 +55,7 @@ class DifferentialPFR(ReactorModel):
         Returns:
             mat(ndarray): Filtered matrix for constructing reverse reaction rates.
         """
-        mat = np.zeros_like(self.v_matrix)
+        mat = np.zeros_like(self.v_matrix, dtype=np.int8)
         mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
         return mat.T
 

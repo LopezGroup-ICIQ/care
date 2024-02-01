@@ -89,7 +89,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         return False
     
 
-    def estimate_energy(self,
+    def eval(self,
                         intermediate: Intermediate,
                         ) -> None:
         """
@@ -361,7 +361,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 counter += 1
         step.ts_graph = ts_graph
 
-    def estimate_energy(self,
+    def eval(self,
                         reaction: ElementaryReaction,
                         ) -> None:
         """

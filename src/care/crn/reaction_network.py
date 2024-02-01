@@ -729,7 +729,7 @@ class ReactionNetwork:
         Return the stoichiometric matrix of the network.
         """
         v = np.zeros(
-            (len(self.intermediates) + 1, len(self.reactions))
+            (len(self.intermediates) + 1, len(self.reactions)), dtype = np.int8
         )  # +1 for the surface
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
@@ -738,18 +738,6 @@ class ReactionNetwork:
                 v[-1, j] = reaction.stoic["*"] if "*" in reaction.stoic.keys() else 0
         return v
 
-    @property
-    def df_stoic(self) -> pd.DataFrame:
-        """
-        Return the stoichiometric matrix of the network.
-        """
-
-        df = pd.DataFrame(
-            self.stoichiometric_matrix,
-            index=list(self.intermediates.keys()) + ["*"],
-            columns=range(1, len(self.reactions) + 1),
-        )
-        return df
 
     def get_kinetic_constants(self, t: float = None):
         """
