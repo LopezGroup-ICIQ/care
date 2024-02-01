@@ -166,7 +166,7 @@ def main():
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
 
-    write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CH2O2')
+        write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CO')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
