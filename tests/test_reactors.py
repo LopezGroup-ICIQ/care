@@ -32,7 +32,7 @@ class TestDifferentialPFR(unittest.TestCase):
         #                                                 [0, 0, 1, 0],
         #                                                 [0, 0, 0, 1],
         #                                                 [1, 1, 0, 0]]).T.all()))
-        self.assertEqual(pfr.stoic_forward.shape, (4, 7))
+        self.assertEqual(pfr.stoic_forward_dense.shape, (4, 7))
 
     def test_stoic_backward(self):
         """
@@ -46,7 +46,7 @@ class TestDifferentialPFR(unittest.TestCase):
         #                                                  [0, 1, 0, 0],
         #                                                  [0, 0, 1, 1],
         #                                                  [0, 0, 0, 0]]).T.all()))
-        self.assertEqual(pfr.stoic_backward.shape, (4, 7))
+        self.assertEqual(pfr.stoic_backward_dense.shape, (4, 7))
         
 
 class TestDynamicCSTR(unittest.TestCase):
