@@ -2,6 +2,7 @@ import re
 
 from shutil import rmtree
 from typing import Union
+from copy import deepcopy
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -898,10 +899,30 @@ class ReactionNetwork:
 
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
-            graph.nodes[reaction.code]["rate"] = results["rate"][i]
-            graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-            graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-            
+            if results["rate"][i] < 0:
+                reverse_code = deepcopy(reaction.code)
+                graph.remove_node(reaction.code)
+                reverse_code = reverse_code.split("<->")
+                reverse_code = reverse_code[1] + "<->" + reverse_code[0]
+                if reaction.r_type == "adsorption":
+                    updated_type = "desorption"
+                    reaction.code = reverse_code
+                    reaction.r_type = updated_type
+                elif reaction.r_type == "desorption":
+                    updated_type = "adsorption"
+                    reaction.code = reverse_code
+                    reaction.r_type = updated_type
+                else:
+                    updated_type = "surface_reaction"
+                    reaction.code = reverse_code
+                graph.add_node(reverse_code, category="reaction", r_type=updated_type, 
+                               rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
+
+            else:
+                graph.nodes[reaction.code]["rate"] = results["rate"][i]
+                graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+                
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
@@ -922,15 +943,6 @@ class ReactionNetwork:
                                        delta=-(reaction.e_act[0] - reaction.e_rxn[0]))
         graph.remove_node("*")
 
-        # Define r_type of adsorption/desorption
-        for reaction in self.reactions:
-            if reaction.r_type == "adsorption":
-                if graph.nodes[reaction.code]["rate"] < 0:
-                    graph.nodes[reaction.code]["r_type"] = "desorption"
-                else:
-                    graph.nodes[reaction.code]["r_type"] = "adsorption"
-            else:
-                graph.nodes[reaction.code]["r_type"] = "surface_reaction"
         results["run_graph"] = graph
 
         return results
