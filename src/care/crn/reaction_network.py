@@ -888,24 +888,10 @@ class ReactionNetwork:
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
             if results["rate"][i] < 0:
-                reverse_code = deepcopy(reaction.code)
                 graph.remove_node(reaction.code)
-                reverse_code = reverse_code.split("<->")
-                reverse_code = reverse_code[1] + "<->" + reverse_code[0]
-                if reaction.r_type == "adsorption":
-                    updated_type = "desorption"
-                    reaction.code = reverse_code
-                    reaction.r_type = updated_type
-                elif reaction.r_type == "desorption":
-                    updated_type = "adsorption"
-                    reaction.code = reverse_code
-                    reaction.r_type = updated_type
-                else:
-                    updated_type = "surface_reaction"
-                    reaction.code = reverse_code
-                graph.add_node(reverse_code, category="reaction", r_type=updated_type, 
+                reaction.reverse()
+                graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
                                rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-
             else:
                 graph.nodes[reaction.code]["rate"] = results["rate"][i]
                 graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
@@ -916,8 +902,10 @@ class ReactionNetwork:
                 if inter.code in reaction.stoic.keys():
                     r = results["consumption_rate"][i, j]
                     if r < 0:  # Reaction j consumes inter i
-                        if reaction.e_act[0] == 0 or reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
+                        if reaction.e_act[0] == 0:
                             delta = 0
+                        elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
+                            delta = reaction.e_rxn[0]
                         else:
                             delta = reaction.e_act[0]
                         graph.add_edge(inter.code, 

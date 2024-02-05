@@ -35,6 +35,7 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     subgraph_des = Subgraph("des", rank="same")
     subgraph_same = Subgraph("same", rank="same")
     plot.rankdir = "TB"
+    plot.set_dpi(5)
     for node in plot.get_nodes():
         node.set_orientation("portrait")
         attrs = node.get_attributes()
@@ -123,7 +124,6 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     plot.set_ranksep(1)
     plot.set_bgcolor("white")
 
-    plot.set_dpi(20)
     plot.write_svg("./" + filename)
     # return width_list
 
@@ -368,16 +368,9 @@ def visualize_reaction(step: ElementaryReaction,
 def build_energy_profile(graph: nx.DiGraph, path: list[str]):
     """
     Generate energy profile with the energydiagram package.
-
-    Args:
-        graph (nx.DiGraph): Networkx graph representing the reaction network.
-        path (list[str]): List of tuples with the path of the reaction network.
-
-    Returns:
-        obj:`energydiagram.ED`: Energy diagram object.
     """
-    ed = ED()  # TODO: Still not working properly, have to imple,ent better reverse in ElementaryReaction
-    ed.round_energies_at_digit=1
+    ed = ED()
+    ed.round_energies_at_digit=2
     ed.add_level(0)
     counter = 0
     ref = 0
@@ -387,7 +380,6 @@ def build_energy_profile(graph: nx.DiGraph, path: list[str]):
             delta = graph.edges[(inter, step)]['delta']
             ed.add_level(ref + delta, 'TS', color='r')
             ref += delta
-            print('inter->TS', ref, delta)
             counter += 1 
             ed.add_link(counter-1, counter)
         else: # Step -> intermediate (Add intermediate always)
@@ -395,8 +387,6 @@ def build_energy_profile(graph: nx.DiGraph, path: list[str]):
             delta = graph.edges[(step, inter)]['delta']
             ed.add_level(ref + delta, 'int')
             ref += delta
-            print('TS->inter', ref, delta)
             counter += 1
             ed.add_link(counter-1, counter)
-
     return ed
