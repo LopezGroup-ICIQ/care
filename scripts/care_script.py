@@ -11,7 +11,7 @@ import time
 
 from ase.db import connect
 
-from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate, ElementaryReaction, IntermediateEnergyEstimator, ReactionEnergyEstimator
+from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate, IntermediateEnergyEstimator
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
 from care.crn.reactors import DifferentialPFR, DynamicCSTR
@@ -55,6 +55,7 @@ def main():
     if noc > ncc * 2 + 2:
         raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
 
+    additional_rxns = config['chemspace']['additional']
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
 
@@ -78,7 +79,7 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
 
-        intermediates, reactions = gen_chemical_space(ncc, noc)
+        intermediates, reactions = gen_chemical_space(ncc, noc, additional_rxns)
 
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
@@ -159,14 +160,14 @@ def main():
         r = config['reactor']
         reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR 
         results = crn.run_microkinetic(y0, 
-                                       oc['temperature'],
-                                       oc['pressure'],
-                                       model=reactor)
+                                    oc['temperature'],
+                                    oc['pressure'],
+                                    model=reactor)
         print("\nSaving the MKM results...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
 
-        write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CO')
+        write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CH4O')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
@@ -177,9 +178,9 @@ def main():
     table2.add_row(
         ["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
     table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available",
-                   f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
+                f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
     table2.add_row(["Total Execution Time", "",
-                   f"{time.time() - total_time:.2f}s"])
+                f"{time.time() - total_time:.2f}s"])
 
     print(f"\n{table2}")
 

@@ -747,7 +747,7 @@ def gen_rearrangement_reactions(
 
 
 def gen_chemical_space(
-    ncc: int, noc: int) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+    ncc: int, noc: int, additional_rxns: bool) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the entire chemical space for the given boundaries (ncc and noc) of the CRN.
 
@@ -757,6 +757,8 @@ def gen_chemical_space(
         Network Carbon Cutoff, maximum number of C atoms in the intermediates
     noc : int
         Network Oxygen Cutoff, Maximum number of O atoms in the intermediates.
+    additional_rxns : bool
+        If True, additional reactions are generated (rearrangement reactions).
 
     Returns
     -------
@@ -875,15 +877,18 @@ def gen_chemical_space(
             progress.update(task, advance=1)
 
     t3 = time.time() - t03
-    # Generation of additional reactions
+    # Generation of adsorption reactions
     t04 = time.time()
     ads_steps = gen_adsorption_reactions(intermediates_dict)
     rxns_list.extend(ads_steps)
     t4 = time.time() - t04
-    t05 = time.time()
-    rearr_steps = gen_rearrangement_reactions(intermediates_dict)
-    rxns_list.extend(rearr_steps)
-    t5 = time.time() - t05
+    
+    # Generation of additional reactions
+    if additional_rxns:
+        t05 = time.time()
+        rearr_steps = gen_rearrangement_reactions(intermediates_dict)
+        rxns_list.extend(rearr_steps)
+        t5 = time.time() - t05
 
     # Create a table object
     table = PrettyTable()
@@ -893,15 +898,21 @@ def gen_chemical_space(
     table.add_row(["Fragments and unsaturated molecules", len(frag_list), f"{t1:.2f}"], divider=True)
     table.add_row(["Bond-breaking reactions", len(unique_reactions), f"{t1:.2f}"])
     table.add_row(["Adsorption reactions", len(ads_steps), f"{t4:.2f}"])
-    table.add_row(
-        ["Rearrangement reactions", len(rearr_steps), f"{t5:.2f}"], divider=True
-    )
+    if additional_rxns:
+        table.add_row(
+            ["Rearrangement reactions", len(rearr_steps), f"{t5:.2f}"], divider=True
+        )
     table.add_row(
         ["Total number of species", len(intermediates_dict), f"{t0 + t1 + t2:.2f}"]
     )
-    table.add_row(
-        ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"],
-    )
+    if additional_rxns:
+        table.add_row(
+            ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4 + t5:.2f}"]
+        )
+    else:
+        table.add_row(
+            ["Total number of reactions", len(rxns_list), f"{t1 + t3 + t4:.2f}"]
+        )
 
     print(f"\n{table}")
     
