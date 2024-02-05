@@ -98,26 +98,3 @@ def net_rate(y, kd, kr, sf, sb):
             backward_product *= y[j] ** sb[i, j]
         rates[i] = kd[i] * forward_product - kr[i] * backward_product
     return rates
-
-@cuda.jit()
-def net_rate_cuda(y, kd, kr, stoic_forward, stoic_backward, net_rate):
-    # Calculate the thread's unique index
-    idx = cuda.grid(1)
-
-    # Check if index is within bounds
-    if idx >= kd.shape[0]:
-        return
-
-    forward_product = 1.0
-    backward_product = 1.0
-
-    # Assuming stoic_forward and stoic_backward are 2D arrays with shape [num_reactions, num_species]
-    # and y is a 1D array with shape [num_species]
-    for j in range(stoic_forward.shape[1]):  # Iterate over species
-        if stoic_forward[idx, j] != 0:  # If stoichiometry is not zero, contribute to product
-            forward_product *= math.pow(y[j], stoic_forward[idx, j])
-        if stoic_backward[idx, j] != 0:  # Similarly for backward reaction
-            backward_product *= math.pow(y[j], stoic_backward[idx, j])
-
-    # Compute net rate and store in output array
-    net_rate[idx] = kd[idx] * forward_product - kr[idx] * backward_product

@@ -837,29 +837,17 @@ class ReactionNetwork:
 
         self.get_kinetic_constants(T)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
-        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
-
-        # # REDIRECT ADSORPTION/DESORPTION TO FACILITATE CONVERGENCE
-        # for i, step in enumerate(self.reactions):
-        #     if step.r_type == "adsorption":
-        #         # if none of the iv keys is in the reactants, define the step in the opposite direction
-        #         if not any(
-        #             [inter.molecule.get_chemical_formula() in iv.keys() for inter in list(step.reactants)+list(step.products)]
-        #         ):
-        #             kd[i], kr[i] = kr[i], kd[i]
-        #             # change sign to the stoichiometric matrix, column i
-        #             v[:, i] = -v[:, i]
-        
+        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)        
 
         # RUN SIMULATION
-        reactor_args = (T, P, v, *kwargs)
-        reactor = model(*reactor_args)
+        reactor = DifferentialPFR(v, kd, kr, gas_mask)
+        print(reactor)
         rtol, atol, sstol = 1e-12, 1e-64, 1e-10
         count_atol_decrease = 0
         status = None
         while status != 1:  # 1 = steady state reached
             try:
-                results = reactor.integrate(y0, (kd, kr, gas_mask), rtol, atol, sstol)
+                results = reactor.integrate(y0, rtol, atol, sstol, method="BDF")
                 status = results["status"]
                 atol *= 1e2
                 count_atol_decrease += 1

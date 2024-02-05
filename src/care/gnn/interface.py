@@ -6,13 +6,13 @@ from ase.db import connect
 from copy import deepcopy
 import networkx as nx
 import numpy as np
-from torch import no_grad, where
+from torch import no_grad, where, cuda
 from torch_geometric.data import Data
 
 
 from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption.adsorbate_placement import ads_placement
-from care.constants import METAL_STRUCT_DICT
+from care.constants import METAL_STRUCT_DICT, INTER_ELEMS
 from care.crn.utilities.species import atoms_to_graph
 from care.gnn import load_model
 from care.gnn.graph import atoms_to_data
@@ -28,6 +28,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
         self.path = model_path
         self.model = load_model(model_path)
+        self.device = "cuda" if cuda.is_available() else "cpu"
+        self.model.to(self.device)
         self.surface = surface if surface else None
         self.dft_db = connect(dft_db_path) if dft_db_path else None
 
@@ -67,10 +69,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             # Removing the atoms that are not C, H or O
             if mol_type == "int":
                 adsorbate = Atoms(
-                    symbols=[atom.symbol for atom in atoms_object if atom.symbol in [
-                        "C", "H", "O"]],
+                    symbols=[atom.symbol for atom in atoms_object if atom.symbol in INTER_ELEMS],
                     positions=[
-                        atom.position for atom in atoms_object if atom.symbol in ["C", "H", "O"]],
+                        atom.position for atom in atoms_object if atom.symbol in INTER_ELEMS],
                 )
 
             # Generating the graph of the adsorbate
@@ -90,8 +91,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
     
 
     def eval(self,
-                        intermediate: Intermediate,
-                        ) -> None:
+             intermediate: Intermediate,
+             ) -> None:
         """
         Estimate the energy of a state.
 
@@ -151,7 +152,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ads_config_dict[f"{counter}"]["pyg"] = (
                             atoms_to_data(config, self.model.graph_params)
                         )
-                        y = self.model(ads_config_dict[f"{counter}"]["pyg"])
+                        y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
                         ads_config_dict[f"{counter}"]["mu"] = (
                             y.mean * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
@@ -175,6 +176,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                  ):
         self.path = model_path
         self.model = load_model(model_path)
+        self.device = "cuda" if cuda.is_available() else "cpu"
+        self.model.to(self.device)
         self.intermediates = intermediates
 
     def calc_reaction_energy(
@@ -362,8 +365,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         step.ts_graph = ts_graph
 
     def eval(self,
-                        reaction: ElementaryReaction,
-                        ) -> None:
+             reaction: ElementaryReaction,
+             ) -> None:
         """
         Estimate the reaction and the activation energies of a reaction step.
 
@@ -376,7 +379,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             self.calc_reaction_energy(reaction)
             if "-" in reaction.r_type:
                 self.ts_graph(reaction)
-                y = self.model(reaction.ts_graph)
+                y = self.model(reaction.ts_graph.to(self.device))
                 reaction.e_ts = (
                     y.mean.item() * self.model.y_scale_params["std"]
                     + self.model.y_scale_params["mean"],

@@ -3,13 +3,14 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import csr_matrix
 
 from care.crn.reactors.reactor import ReactorModel
-from care.crn.microkinetic import net_rate, net_rate_cuda
+from care.crn.microkinetic import net_rate
 
 class DifferentialPFR(ReactorModel):
-    def __init__(self, 
-                 temperature: float, 
-                 pressure: float, 
-                 v_matrix: np.ndarray):
+    def __init__(self,  
+                 v: np.ndarray, 
+                 kd: np.ndarray,
+                 kr: np.ndarray, 
+                 gas_mask: np.ndarray):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -19,102 +20,96 @@ class DifferentialPFR(ReactorModel):
             - Perfect mixing (zero transport phenomena)
 
         Args:
-            temperature(float): Reactor temperature in K.
-            pressure(float): Reactor pressure in Pa.
-            v_matrix(ndarray): Stoichiometric matrix of the reaction network.
+            v(ndarray): Stoichiometric matrix of the system.
+            kd(ndarray): Kinetic constants of the direct steps.
+            kr(ndarray): Kinetic constants of the reverse steps.
+            gas_mask(ndarray): Boolean array indicating which species are in the gas phase.
         """
-        assert temperature > 0, "Temperature must be positive"
-        assert pressure > 0, "Pressure must be positive"
 
-        self.temperature = temperature
-        self.pressure = pressure
-        self.v_matrix_dense = v_matrix
-        self.v_matrix_sparse = csr_matrix(v_matrix, dtype=np.int8)
+        self.v_dense = v
+        self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
+        self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
+        self.v_forward_dense = self.v_forward_dense.T
+        self.v_backward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
+        self.v_backward_dense[self.v_dense > 0] = self.v_dense[self.v_dense > 0]
+        self.v_backward_dense = self.v_backward_dense.T
 
-        self.stoic_forward_dense = np.zeros_like(self.v_matrix_dense, dtype=np.int8)
-        self.stoic_forward_dense[self.v_matrix_dense < 0] = -self.v_matrix_dense[self.v_matrix_dense < 0]
-        self.stoic_forward_dense = self.stoic_forward_dense.T
-        self.stoic_forward_sparse = csr_matrix(self.stoic_forward_dense)
+        self.v_sparse = csr_matrix(v, dtype=np.int8)
+        self.v_forward_sparse = csr_matrix(self.v_forward_dense, dtype=np.int8)
+        self.v_backward_sparse = csr_matrix(self.v_backward_dense, dtype=np.int8)
 
-        self.stoic_backward_dense = np.zeros_like(self.v_matrix_dense, dtype=np.int8)
-        self.stoic_backward_dense[self.v_matrix_dense > 0] = self.v_matrix_dense[self.v_matrix_dense > 0]
-        self.stoic_backward_dense = self.stoic_backward_dense.T
-        self.stoic_backward_sparse = csr_matrix(self.stoic_backward_dense)
+        self.nr = self.v_dense.shape[1]  # number of reactions
+        self.nc = self.v_dense.shape[0]  # number of species
 
-        self.nr = self.v_matrix_dense.shape[1]  # number of reactions
-        self.nc = self.v_matrix_dense.shape[0]  # number of species
+        self.kd = kd  # Direct kinetic constants
+        self.kr = kr  # Reverse kinetic constants
 
-    def net_rate(self, y: np.ndarray, kd: np.ndarray, kr: np.ndarray) -> np.ndarray:
+        self.gas_mask = gas_mask
+
+        self.sstol = 1e-10  # Tolerance for steady-state conditions
+
+    def __str__(self) -> str:
+        return f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species."
+
+    def net_rate(self, y: np.ndarray) -> np.ndarray:
         """
         Returns the net reaction rate for each elementary reaction.
         Args:
             y(ndarray): surface coverage + partial pressures array [-/Pa].
-            kd, kr(ndarray): kinetic constants of the direct/reverse steps.
-            v_matrix(ndarray): stoichiometric matrix of the system.
         Returns:
             (ndarray): Net reaction rate of the elementary reactions [1/s].
         """
-        return kd * np.prod(y**self.stoic_forward_dense, axis=1) - kr * np.prod(
-            y**self.stoic_backward_dense, axis=1
+        return self.kd * np.prod(y**self.v_forward_dense, axis=1) - self.kr * np.prod(
+            y**self.v_backward_dense, axis=1
         )
 
     def ode(
         self,
         t: float,
         y: np.ndarray,
-        kd: np.ndarray,
-        ki: np.ndarray,
-        gas_mask: np.ndarray,
-        sstol: float,
     ) -> np.ndarray:
-        # dy = self.v_matrix_sparse.dot(self.net_rate(y, kd, ki))
-        dy = self.v_matrix_sparse.dot(net_rate(y, kd, ki, self.stoic_forward_dense, self.stoic_backward_dense))
-        dy[gas_mask] = 0
-        return dy
+        dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
+        dydt[self.gas_mask] = 0
+        return dydt
 
     def jacobian(
         self,
         t: float,
         y: np.ndarray,
-        kd: np.ndarray,
-        ki: np.ndarray,
-        gas_mask: np.ndarray,
-        sstol: float,
     ) -> np.ndarray:
         """
         Jacobian matrix of DifferentialPFR model.
         Considers elementary reactions with stoichiometric coefficients of 1 or 2.
         Not really helpful as its computation is very expensive.
         """
-        J = np.zeros((len(y), len(y)), dtype=np.float64)
-        Jg = np.zeros((len(kd), len(y)), dtype=np.float64)
-        Jh = np.zeros((len(kd), len(y)), dtype=np.float64)
-        vf = self.stoic_forward_dense.T.copy()
-        vb = self.stoic_backward_dense.T.copy()
-        for r in range(len(kd)):
-            for s in range(len(y)):
+        Jg = np.zeros((self.nr, self.nc), dtype=np.float64)
+        Jh = np.zeros((self.nr, self.nc), dtype=np.float64)
+        vf = self.v_forward_dense.T.copy()
+        vb = self.v_backward_dense.T.copy()
+        for r in range(self.nr):
+            for s in range(self.nc):
                 if vf[s, r] == 1:
                     vf[s, r] -= 1
-                    Jg[r, s] = kd[r] * np.prod(y ** vf[:, r])
+                    Jg[r, s] = self.kd[r] * np.prod(y ** vf[:, r])
                     vf[s, r] += 1
                 elif vf[s, r] == 2:
                     vf[s, r] -= 1
-                    Jg[r, s] = 2 * kd[r] * np.prod(y ** vf[:, r])
+                    Jg[r, s] = 2 * self.kd[r] * np.prod(y ** vf[:, r])
                     vf[s, r] += 1
                 if vb[s, r] == 1:
                     vb[s, r] -= 1
-                    Jh[r, s] = ki[r] * np.prod(y ** vb[:, r])
+                    Jh[r, s] = self.kr[r] * np.prod(y ** vb[:, r])
                     vb[s, r] += 1
                 elif vb[s, r] == 2:
                     vb[s, r] -= 1
-                    Jh[r, s] = 2 * ki[r] * np.prod(y ** vb[:, r])
+                    Jh[r, s] = 2 * self.kr[r] * np.prod(y ** vb[:, r])
                     vb[s, r] += 1
-        J = self.v_matrix_dense @ (Jg - Jh)
-        J[gas_mask, :] = 0
+        J = self.v_dense @ (Jg - Jh)
+        J[self.gas_mask, :] = 0
         return J
     
-    def jac_sparsity(self,
-                     gas_mask: np.ndarray) -> np.ndarray:
+    @property    
+    def jac_sparsity(self) -> np.ndarray:
         """
         Matrix defining where the jacobian is non-zero.
         Not useful as the jacobian is not used in the integration.
@@ -124,12 +119,12 @@ class DifferentialPFR(ReactorModel):
         Jh = np.zeros((self.nr, self.nc), dtype=np.float64)
         for r in range(self.nr):
             for s in range(self.nc):
-                if self.stoic_forward_dense.T[s, r] != 0:
+                if self.v_forward_dense.T[s, r] != 0:
                     Jg[r, s] = 1
-                if self.stoic_backward_dense.T[s, r] != 0:                    
+                if self.v_backward_dense.T[s, r] != 0:                    
                     Jh[r, s] = 1
-        J = self.v_matrix_dense @ (Jg - Jh)
-        J[gas_mask, :] = 0
+        J = self.v_dense @ (Jg - Jh)
+        J[self.gas_mask, :] = 0
         return J
 
 
@@ -137,14 +132,10 @@ class DifferentialPFR(ReactorModel):
         self,
         t: float,
         y: np.ndarray,
-        kd: np.ndarray,
-        ki: np.ndarray,
-        gas_mask: np.ndarray,
-        sstol: float,
     ) -> float:
-        sum_ddt = np.sum(abs(self.ode(t, y, kd, ki, gas_mask, sstol)))
-        print(f"Sum of the derivatives: {sum_ddt}")
-        return 0 if sum_ddt <= sstol else sum_ddt
+        sum_ddt = np.sum(abs(self.ode(t, y)))
+        print(f"Sum of the absolute derivatives: {sum_ddt}")
+        return 0 if sum_ddt <= self.sstol else 1
 
     steady_state.terminal = True
     steady_state.direction = 0
@@ -152,10 +143,9 @@ class DifferentialPFR(ReactorModel):
     def integrate(
         self,
         y0: np.ndarray,
-        ode_params: tuple,
         rtol: float,
         atol: float,
-        sstol: float,
+        sstol: float = 1e-10,
         method: str = "BDF",
     ) -> dict:
         """
@@ -180,24 +170,23 @@ class DifferentialPFR(ReactorModel):
             The integration is stopped when the sum of the absolute values of the derivatives is below
             the tolerance parameter `sstol`.
         """
+        self.sstol = sstol
         results = solve_ivp(self.ode,
-                            (0, 1e30),  # high value to allow reaching steady state
+                            (0, 1e20),  
                             y0,
                             method=method,
                             events=self.steady_state,
-                            jac=None,  # jacobian to to readapt
-                            args=ode_params + (sstol,),
+                            jac=None,
                             atol=atol,
                             rtol=rtol, 
                             jac_sparsity=None)
-        results["rate"] = self.net_rate(results["y"][:, -1], ode_params[0],
-                                         ode_params[1])
-        consumption_rate = np.zeros_like(self.v_matrix_dense, dtype=np.float64)
-        for i in range(self.v_matrix_dense.shape[0]):
-            for j in range(self.v_matrix_dense.shape[1]):
-                    consumption_rate[i, j] = self.v_matrix_dense[i, j] * results["rate"][j]
+        results["rate"] = self.net_rate(results["y"][:, -1])
+        consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
+        for i in range(self.v_dense.shape[0]):
+            for j in range(self.v_dense.shape[1]):
+                    consumption_rate[i, j] = self.v_dense[i, j] * results["rate"][j]
         results["consumption_rate"] = consumption_rate
-        return results
+        return results        
 
     def conversion(self, 
                    reactant_idx: int, 
