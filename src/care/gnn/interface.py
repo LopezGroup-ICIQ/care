@@ -109,7 +109,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         # Estimate the energy of the intermediate
         if intermediate.is_surface:
             intermediate.ads_configs = {
-                "surf": {"conf": intermediate.molecule, "mu": 0.0, "s": 0.0}
+                "surf": {"config": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
 
         elif intermediate.phase == "gas":
@@ -124,7 +124,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                     y = self.model(pyg)
                     intermediate.ads_configs = {
                         "gas": {
-                            "conf": config,
+                            "config": config,
                             "pyg": pyg,
                             "mu": (
                                 y.mean * self.model.y_scale_params["std"]

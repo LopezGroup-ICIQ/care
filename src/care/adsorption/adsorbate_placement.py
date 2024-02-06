@@ -140,7 +140,7 @@ def generate_inp_vars(
         "molec_ctrs": molec_ctrs,
         "min_coll_height": 1.5,
         "adsorption_height": float(ads_height),
-        "collision_threshold": 1.2,
+        "collision_threshold": 1.0,
         "max_structures": max_structures,
         "set_angles": "euler",
         "sample_points_per_angle": 3,
@@ -226,14 +226,12 @@ def ads_placement(
 
     if len(intermediate.molecule) > 3:
         
-        site_idx = random.choice(
-            [
-                site_idxs
-                for site_idxs in active_sites.values()
-                if site_idxs != []
-            ]
-        )
-
+        # Get the hollow sites
+        try:
+            site_idx = active_sites['3']
+        except KeyError:
+            site_idx = active_sites['2']
+        
         ads_height = 2.5
         config_list = []
         while config_list == []:

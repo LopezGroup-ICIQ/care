@@ -629,11 +629,11 @@ def ads_euler(
     slab_ads_list = []
     prealigned_molec = align_molec(orig_molec, ctr_coord, norm_vect)
     # rotation around z
-    for alpha in np.arange(0, 360, 360 / num_pts):
+    for alpha in np.arange(0, 360, 360 / num_pts, dtype=np.float32):
         # rotation around x'
-        for beta in np.arange(0, 180, 180 / num_pts):
+        for beta in np.arange(0, 180, 180 / num_pts, dtype=np.float32):
             # rotation around z'
-            for gamma in np.arange(0, 360, 360 / num_pts):
+            for gamma in np.arange(0, 360, 360 / num_pts, dtype=np.float32):
                 if beta == 0 and gamma > 0:
                     continue
                 molec = deepcopy(prealigned_molec)
@@ -816,18 +816,33 @@ def adsorb_confs(conf_list, surf, inp_vars):
         surf.set_cell(inp_vars["pbc_cell"])
 
     surf_ads_list = []
-    sites_coords = np.array([get_atom_coords(surf, site) for site in sites])
+    sites_coords = np.array([get_atom_coords(surf, site) for site in sites], dtype=np.float32)
+    
+    # Finding the center between the site_coords
+    if len(sites_coords) > 1:
+        active_site_coords = [np.mean(sites_coords, axis=0)]
+    else:
+        active_site_coords = sites_coords
+    
     if coll_coeff is not False:
         surf_cutoffs = natural_cutoffs(surf, mult=coll_coeff)
         surf_nghbs = len(neighbor_list("i", surf, surf_cutoffs))
     else:
         surf_nghbs = 0
+    
     for i, conf in enumerate(conf_list):
-        molec_ctr_coords = np.array([get_atom_coords(conf, ctr) for ctr in molec_ctrs])
+        molec_ctr_coords = np.array([get_atom_coords(conf, ctr) for ctr in molec_ctrs], dtype=np.float32)
+        
+        if len(molec_ctrs) > 1:
+            center_molec = [np.mean(molec_ctr_coords, axis=0, dtype=np.float32)]
+        else:
+            center_molec = molec_ctr_coords
+        
         if inp_vars["pbc_cell"] is not False:
             conf.set_pbc(True)
             conf.set_cell(inp_vars["pbc_cell"])
-        for s, site in enumerate(sites_coords):
+        
+        for s, site in enumerate(active_site_coords):
             if isinstance(inp_norm_vect, str) and inp_norm_vect == "auto":
                 norm_vect = compute_norm_vect(surf, sites[s], inp_vars["pbc_cell"])
                 if np.isnan(norm_vect).any():
@@ -838,7 +853,7 @@ def adsorb_confs(conf_list, surf, inp_vars):
                     continue
             else:
                 norm_vect = inp_norm_vect
-            for c, ctr in enumerate(molec_ctr_coords):
+            for c, ctr in enumerate(center_molec):
                 if exclude_ads_ctr and isinstance(molec_ctrs[c], int):
                     exclude_atom = molec_ctrs[c]
                 else:
@@ -923,12 +938,19 @@ def run_screening(inp_vars):
         "Carrying out procedures for the screening of adsorbate-surface" " structures."
     )
 
-    surf = inp_vars["surf_file"]
-    selected_confs = [inp_vars["use_molec_file"]]
-    surf.info = {}
-    surf_ads_list = adsorb_confs(selected_confs, surf, inp_vars)
+    surface = inp_vars["surf_file"]
+    adsorbate = [inp_vars["use_molec_file"]]
+    surface.info = {}
+    surf_ads_list = adsorb_confs(adsorbate, surface, inp_vars)
     if len(surf_ads_list) > inp_vars["max_structures"]:
-        surf_ads_list = random.sample(surf_ads_list, inp_vars["max_structures"])
+        if inp_vars["max_structures"] > 1:
+            # Divide the list in sublists of the same length
+            surf_ads_list = [surf_ads_list[i : i + inp_vars["max_structures"]] for i in range(0, len(surf_ads_list), inp_vars["max_structures"])]
+            # Getting from each sublist the first element until the length of the list is the same as the max_structures
+            surf_ads_list = [sublist[0] for sublist in surf_ads_list]
+        else:
+            # Get the last max_structures elements of the list
+            surf_ads_list = surf_ads_list[-inp_vars["max_structures"]:]
 
     logger.info(
         f"Generated {len(surf_ads_list)} adsorbate-surface atomic "
