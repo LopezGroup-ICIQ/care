@@ -234,3 +234,28 @@ class DifferentialPFR(ReactorModel):
         X = self.conversion(reactant_idx)
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
+    
+    def integrate_jl(self, y0):
+        """
+        Integrate the ODE system using the Julia-based solver.
+        """
+        from julia.api import Julia
+        jl = Julia(compiled_modules=False)
+        from julia import Main
+        Main.eval("using CUDA")
+        Main.eval("using DifferentialEquations")
+        # Define y0 as a CuArray
+        Main.eval("y0 = CuArray(%s)" % y0)
+        # Include the function ode_pfr from differential_pfr.jl module
+        Main.include("differential_pfr.jl")
+        # Define namedtuple p
+        Main.eval("p = (v = %s, kd = %s, kr = %s, gas_mask = %s, vf = %s, vb = %s)" % (self.v_dense, 
+                                                                                       self.kd, 
+                                                                                       self.kr, 
+                                                                                       self.gas_mask, 
+                                                                                       self.v_forward_dense,
+                                                                                       self.v_backward_dense))
+        Main.eval("prob = ODEProblem(ode_pfr, y0, (0.0f0, 1e20f0), p)")
+        Main.eval("sol = solve(prob, Rosenbrock23(), abstol=1e-10, reltol=1e-7)")
+        # Return the solution
+        return Main.eval("sol")
