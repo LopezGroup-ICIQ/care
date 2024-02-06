@@ -740,7 +740,7 @@ class ReactionNetwork:
         return v
 
 
-    def get_kinetic_constants(self, t: float = None):
+    def get_kinetic_constants(self, t: float = None, uq: bool = False):
         """
         Return the kinetic constants of the reactions.
         """
@@ -753,22 +753,27 @@ class ReactionNetwork:
             self.oc["T"] = t
 
         for reaction in self.reactions:
-            reaction.k_eq = np.exp(-reaction.e_rxn[0] / t / K_B)
+            if uq:
+                # Sample from the uncertainty distribution e_act and e_rxn
+                e_act = np.random.normal(reaction.e_act[0], reaction.e_act[1])
+                e_rxn = np.random.normal(reaction.e_rxn[0], reaction.e_rxn[1])
+            else:
+                e_act = reaction.e_act[0]
+                e_rxn = reaction.e_rxn[0]
+            reaction.k_eq = np.exp(-e_rxn / t / K_B)
             if reaction.r_type == "adsorption":  # Hertz-Knudsen
-                adsorbate_mass = list(reaction.products)[0].mass
-                reaction.k_dir = 1e-18 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
-                reaction.k_dir *= np.exp(-reaction.e_act[0] / K_B / t)
-                reaction.k_rev = reaction.k_dir / reaction.k_eq
+                print(f"{reaction.repr_hr} adsorbate_mass: {reaction.adsorbate_mass}")
+                reaction.k_dir = 1e-18 / (2 * np.pi * reaction.adsorbate_mass * K_BU * t) ** 0.5
+                reaction.k_dir *= np.exp(-e_act / K_B / t)
             elif reaction.r_type == "desorption":
-                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
-                reaction.k_rev = reaction.k_dir / reaction.k_eq
+                reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
                 # adsorbate_mass = list(reaction.reactants)[0].mass
                 # reaction.k_rev = 1e-19 / (2 * np.pi * adsorbate_mass * K_BU * t) ** 0.5
                 # reaction.k_rev *= np.exp(-(reaction.e_is[0] - reaction.e_fs[0]) / K_B / t)
                 # reaction.k_dir = reaction.k_rev / np.exp(reaction.e_rxn[0] / t / K_B)
             else:  # Surface reaction
-                reaction.k_dir = (K_B * t / H) * np.exp(-reaction.e_act[0] / t / K_B)
-                reaction.k_rev = reaction.k_dir / reaction.k_eq
+                reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
+            reaction.k_rev = reaction.k_dir / reaction.k_eq
 
     def run_microkinetic(
         self,
@@ -776,6 +781,8 @@ class ReactionNetwork:
         temperature: float = None,
         pressure: float = None,
         model: Union[DifferentialPFR, DynamicCSTR] = DifferentialPFR,
+        uq: bool = False,
+        uq_samples: int = 100,
         **kwargs,
     ):
         """
@@ -835,14 +842,14 @@ class ReactionNetwork:
             else:
                 continue
 
-        self.get_kinetic_constants(T)
+        self.get_kinetic_constants(T, uq)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
         kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)        
 
         # RUN SIMULATION
         reactor = DifferentialPFR(v, kd, kr, gas_mask)
         print(reactor)
-        rtol, atol, sstol = 1e-12, 1e-64, 1e-10
+        rtol, atol, sstol = 1e-10, 1e-100, 1e-12
         count_atol_decrease = 0
         status = None
         while status != 1:  # 1 = steady state reached
