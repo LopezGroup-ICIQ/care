@@ -1,6 +1,7 @@
+module DifferentialPfr
 # DifferentialPFR implementation
 
-module Differential_pfr
+export ode_pfr
 
 using CUDA, DifferentialEquations, DiffEqGPU
 
@@ -27,10 +28,19 @@ function solve(pfr::DifferentialPFR, tspan)
     return solve(prob, Rosenbrock23())
 end
 
+
 function ode_pfr(y, p, t)
-    net_rate = p.kd * prod(y .^ p.v_forward, dims=2) .- p.kr * prod(y .^ p.v_backward, dims=2)
+    fcd = (y .^ p.vf')'
+    fcr = (y .^ p.vb')'
+    #print(size(fcd))
+    direct_rate = p.kd .* prod(fcd, dims=2)
+    reverse_rate = p.kr .* prod(fcr, dims=2)
+    net_rate = direct_rate - reverse_rate
     dydt = p.v * net_rate
-    dydt[p.gas_mask] = 0
-    return dydt
+    dydt[p.gas_mask] .= 0
+    #println(size(dydt), typeof(dydt))
+    println("Time $t, sumddt $(sum(dydt))")
+    return vec(dydt)
 end
+
 end
