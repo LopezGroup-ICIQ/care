@@ -10,6 +10,7 @@ import psutil
 import time
 
 from ase.db import connect
+import numpy as np
 
 from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate, IntermediateEnergyEstimator
 from care.constants import LOGO, METAL_STRUCT_DICT
@@ -102,7 +103,7 @@ def main():
         tasks = [(intermediate, intermediate_model, progress_queue)
                 for intermediate in intermediates.values()]
 
-        with mp.Pool(mp.cpu_count()) as pool:
+        with mp.Pool(mp.cpu_count()//2) as pool:
 
             result_async = pool.starmap_async(evaluate_intermediate, tasks)
 
@@ -154,6 +155,13 @@ def main():
 
     # 4. Running MKM
     if config['mkm']['run']:
+        mkm_uq = config['mkm']['uq']
+        thermo = config['mkm']['thermo']
+        if mkm_uq:
+            uq_samples = config['mkm']['uq_samples']
+        else:
+            uq_samples = 0
+        
         print("\nRunning the MKM...")
         oc = config['operating_conditions']
         y0 = config['initial_conditions']
@@ -162,7 +170,10 @@ def main():
         results = crn.run_microkinetic(y0, 
                                     oc['temperature'],
                                     oc['pressure'],
-                                    model=reactor)
+                                    model=reactor,
+                                    uq=mkm_uq,
+                                    uq_samples=uq_samples,
+                                    thermo=thermo,)
         print("\nSaving the MKM results...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
