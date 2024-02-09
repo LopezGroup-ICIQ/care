@@ -1,17 +1,18 @@
 [chemspace]
-ncc = 1  # Network Carbon Cutoff
-noc = 2 # Network Oxygen Cutoff (if negative value, maximum number of Os added)
+ncc = 2  # Network Carbon Cutoff
+noc = 4 # Network Oxygen Cutoff (if negative value, maximum number of Os added)
 regen = true  # Force the re-generatation of the existing CRN
-additional = false  # Consider additional reactions (i.e., 1.2-H shifts)
+additional = true  # Consider additional reactions (i.e., 1.2-H shifts)
+electro = true  # Electrochemical process, readjusts the reaction expressions accordingly
 
 
 [surface]
-metal = "Co"  # Catalyst
-hkl = "0001"  # Surface facet
+metal = "Cu"  # Catalyst
+hkl = "100"  # Surface facet
 
 
 [mkm]
-run = true  # Run microkinetic simulation
+run = false  # Run microkinetic simulation
 uq = false  # Uncertainty quantification
 uq_samples = 100  # Number of samples to get for the UQ
 thermo = true  # If true, the activation barriers are neglected and only the thermodynamic path is considered. 
@@ -19,12 +20,13 @@ thermo = true  # If true, the activation barriers are neglected and only the the
 
 [reactor]
 type = "DifferentialPFR"  # Reactor type. Available: "DynamicCSTR", "DifferentialPFR"
-electro = false  # Electrochemical process
 
 
 [operating_conditions]
 temperature = 573  # K
 pressure = 20E05  # Pa
+pH = 8  # pH, used only when electro is true
+U = 0  # V, applied overpotential, used only when electro is true
 radius = 0.0175  # m
 length = 0.01  # m
 Q = 0.01  # m^3/s
@@ -34,9 +36,9 @@ s_bet = 10E5  # m^2/kg_cat
 
 [initial_conditions]
 # CH2O2 = 0.0261  # Molar fraction of inlet gas
-# CO = 0.5
-# H2 = 0.5
-CH4O = 0.028
-He = 0.972  # Molar fraction of inlet gas
+CO = 0.5
+H2 = 0.5
+# CH4O = 0.028
+# He = 0.972  # Molar fraction of inlet gas
 # N2 = 0.9
 # CH4O = 0.1

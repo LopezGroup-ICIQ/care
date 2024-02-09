@@ -1,14 +1,16 @@
 import os
 import toml
 import multiprocessing as mp
-from pickle import dump, load
+from pickle import dump, load, dumps
 import resource
 from rich.progress import Progress
 from prettytable import PrettyTable
 import cpuinfo
 import psutil
+import tempfile
 import time
 
+from ase import Atoms
 from ase.db import connect
 import numpy as np
 
@@ -21,10 +23,10 @@ from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 DFT_DB_PATH = '../src/care/data/FG2dataset.db'
 
+lock = mp.Lock()
 
-def evaluate_intermediate(intermediate: Intermediate, 
-                          model: IntermediateEnergyEstimator, 
-                          progress_queue: mp.Queue):
+
+def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progress_queue, f_path):
     """
     Evaluates an intermediate.
 
@@ -32,9 +34,18 @@ def evaluate_intermediate(intermediate: Intermediate,
         intermediate (Intermediate): The intermediate.
         model (GameNetUQ): The model.
     """
-    eval_inter = model.eval(intermediate)
+
+    eval_inter = {}
+    for intermediate in chunk_intermediate:
+        eval_inter[intermediate.code] = model.eval(intermediate)
+
     progress_queue.put(1)
-    return eval_inter
+
+    with lock:
+        with open(f_path, 'ab') as file:
+            # write text to data
+            pkl_str = dumps(eval_inter)
+            file.write(pkl_str)
 
 
 def main():
@@ -66,7 +77,13 @@ def main():
     surface_ase = metal_db.get_atoms(
         calc_type="surface", metal=metal, facet=metal_structure)
     surface = Surface(surface_ase, hkl)
-    
+
+    # Electrochemical parameters
+    electrochem = config['chemspace']['electro']
+    pH = config['operating_conditions']['pH'] if electrochem else None
+    U_pot = config['operating_conditions']['U'] if electrochem else None
+    T = config['operating_conditions']['temperature'] if electrochem else None
+
     # Output directory
     output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
@@ -80,7 +97,21 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
 
-        intermediates, reactions = gen_chemical_space(ncc, noc, additional_rxns)
+        intermediates, reactions = gen_chemical_space(
+            ncc, noc, additional_rxns)
+
+        if electrochem:
+            # Accessing the water gas Intermediate
+            h2o_gas = [intermediate for intermediate in intermediates.values(
+            ) if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
+            oh_code = [intermediate for intermediate in intermediates.values(
+            ) if intermediate.formula == 'HO'][0].code
+            surface_inter = Intermediate(
+                code='*', molecule=Atoms(), phase='surf')
+
+            # Readjusting the reactions to electrochemical nomenclature
+            for reaction in reactions:
+                reaction.electro_rxn(pH, U_pot, T, h2o_gas, oh_code, surface_inter)
 
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
@@ -100,27 +131,39 @@ def main():
         manager = mp.Manager()
         progress_queue = manager.Queue()
 
-        tasks = [(intermediate, intermediate_model, progress_queue)
-                for intermediate in intermediates.values()]
+        if len(intermediates) < 10000:
+            chunk_size = 1
+            tasks = [[intermediate] for intermediate in intermediates.values()]
+        else:
+            chunk_size = len(intermediates) // (mp.cpu_count() * 10)
+            tasks = [list(intermediates.values())[i:i + chunk_size]
+                     for i in range(0, len(intermediates), chunk_size)]
 
-        with mp.Pool(mp.cpu_count()//2) as pool:
+        # Create empty folder to store temp results
+        tmp_folder = tempfile.mkdtemp()
+        _, tmp_file = tempfile.mkstemp(suffix='.pkl', dir=tmp_folder)
 
-            result_async = pool.starmap_async(evaluate_intermediate, tasks)
 
-            with Progress() as progress:
-                task = progress.add_task(" [green]Processing...", total=len(tasks))
-                processed_items = 0
+        with Progress() as progress:
+            task = progress.add_task(
+                " [green]Processing...", total=len(tasks))
+            processed_items = 0
 
-                while not result_async.ready():
-                    while not progress_queue.empty():
-                        progress_queue.get()
-                        processed_items += 1
-                        progress.update(
-                            task, advance=1, description=f" [green]Processing {processed_items}/{len(tasks)}...")
+            with mp.Pool(mp.cpu_count()) as pool:
+                pool.starmap(evaluate_intermediate, [
+                            (task, intermediate_model, progress_queue, tmp_file) for task in tasks])
+                
+                while not progress_queue.empty():
+                    progress.update(task, advance=progress_queue.get(), description=f" [green]Processing {processed_items}/{len(tasks)}...")
+                    processed_items += 1
 
-        # Updating the intermediates with the estimated energies
-        intermediates = {
-            intermediate.code: intermediate for intermediate in result_async.get()}
+        intermediates = {}
+        with open(tmp_file, 'rb') as file:
+            while True:
+                try:
+                    intermediates.update(load(file))              
+                except EOFError:
+                    break
 
         # 2.1.2. Reaction energy estimation
         print("\n Energy estimation of the reactions...")
@@ -128,17 +171,20 @@ def main():
 
         eval_reactions = []
         with Progress() as progress:
-            task = progress.add_task(" [green]Processing...", total=len(reactions))
+            task = progress.add_task(
+                " [green]Processing...", total=len(reactions))
             processed_items = 0
             for reaction in reactions:
                 eval_rxn = rxn_model.eval(reaction)
                 eval_reactions.append(eval_rxn)
                 processed_items += 1
-                progress.update(task, advance=1, description=f" [green]Processing {processed_items}/{len(reactions)}...")
+                progress.update(
+                    task, advance=1, description=f" [green]Processing {processed_items}/{len(reactions)}...")
 
         reactions = eval_reactions
 
-        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+        print(
+            "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 3. Building and saving the CRN
         crn = ReactionNetwork(intermediates, reactions)
@@ -161,24 +207,25 @@ def main():
             uq_samples = config['mkm']['uq_samples']
         else:
             uq_samples = 0
-        
+
         print("\nRunning the MKM...")
         oc = config['operating_conditions']
         y0 = config['initial_conditions']
         r = config['reactor']
-        reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR 
-        results = crn.run_microkinetic(y0, 
-                                    oc['temperature'],
-                                    oc['pressure'],
-                                    model=reactor,
-                                    uq=mkm_uq,
-                                    uq_samples=uq_samples,
-                                    thermo=thermo,)
+        reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR
+        results = crn.run_microkinetic(y0,
+                                       oc['temperature'],
+                                       oc['pressure'],
+                                       model=reactor,
+                                       uq=mkm_uq,
+                                       uq_samples=uq_samples,
+                                       thermo=thermo,)
         print("\nSaving the MKM results...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
 
-        write_dotgraph(results['run_graph'], f"{output_dir}/mkm_res.svg", 'CH4O')
+        write_dotgraph(results['run_graph'],
+                       f"{output_dir}/mkm_res.svg", 'CO')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
@@ -189,9 +236,9 @@ def main():
     table2.add_row(
         ["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
     table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available",
-                f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
+                    f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
     table2.add_row(["Total Execution Time", "",
-                f"{time.time() - total_time:.2f}s"])
+                    f"{time.time() - total_time:.2f}s"])
 
     print(f"\n{table2}")
 

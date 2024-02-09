@@ -12,7 +12,8 @@ from torch_geometric.data import Data
 
 from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption.adsorbate_placement import ads_placement
-from care.constants import METAL_STRUCT_DICT, INTER_ELEMS
+from care.constants import METAL_STRUCT_DICT, INTER_ELEMS, K_B
+from care.crn.utilities.electro import Proton, Electron, Hydroxide, Water
 from care.crn.utilities.species import atoms_to_graph
 from care.gnn import load_model
 from care.gnn.graph import atoms_to_data
@@ -195,48 +196,88 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
         if mean_field:
             mu_is, var_is, mu_fs, var_fs = 0, 0, 0, 0
-            for reactant in reaction.reactants:
-                if reactant.is_surface:
-                    continue
-                energy_list = [
-                    config["mu"]
-                    for config in self.intermediates[reactant.code].ads_configs.values()
-                ]
-                s_list = [
-                    config["s"]
-                    for config in self.intermediates[reactant.code].ads_configs.values()
-                ]
-                e_min_config = min(energy_list)
-                s_min_config = s_list[energy_list.index(e_min_config)]
-                mu_is += (
-                    abs(reaction.stoic[self.intermediates[reactant.code].code])
-                    * e_min_config
-                )
-                var_is += (
-                    reaction.stoic[self.intermediates[reactant.code].code] ** 2
-                    * s_min_config**2
-                )
-            for product in reaction.products:
-                if product.is_surface:
-                    continue
-                energy_list = [
-                    config["mu"]
-                    for config in self.intermediates[product.code].ads_configs.values()
-                ]
-                s_list = [
-                    config["s"]
-                    for config in self.intermediates[product.code].ads_configs.values()
-                ]
-                e_min_config = min(energy_list)
-                s_min_config = s_list[energy_list.index(e_min_config)]
-                mu_fs += (
-                    abs(reaction.stoic[self.intermediates[product.code].code])
-                    * e_min_config
-                )
-                var_fs += (
-                    reaction.stoic[self.intermediates[product.code].code] ** 2
-                    * s_min_config**2
-                )
+
+            if reaction.r_type == "PCET":
+                for reactant in reaction.reactants:
+                    if reactant.is_surface or isinstance(reactant, Electron) or isinstance(reactant, Hydroxide):
+                        continue
+
+                    if isinstance(reactant, Proton) or isinstance(reactant, Water):
+                        # Getting the energies and s from the hydrogen gas intermediate
+                        H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                        energy_list = [
+                            config["mu"] * 1/2
+                            for config in H2_gas.ads_configs.values()
+                        ]
+
+                        e_min_config = min(energy_list)
+                        s_min_config = 0
+                        mu_is += (
+                            abs(reaction.stoic[reactant.code])
+                            * e_min_config
+                        )
+                        
+                    else:
+                        energy_list = [
+                            config["mu"]
+                            for config in self.intermediates[reactant.code].ads_configs.values()
+                        ]
+                        s_list = [
+                            config["s"]
+                            for config in self.intermediates[reactant.code].ads_configs.values()
+                        ]
+                    
+                        e_min_config = min(energy_list)
+                        s_min_config = s_list[energy_list.index(e_min_config)]
+                        mu_is += (
+                            abs(reaction.stoic[reactant.code])
+                            * e_min_config
+                        )
+                    
+
+            else:
+                for reactant in reaction.reactants:
+                    if reactant.is_surface:
+                        continue
+                    energy_list = [
+                        config["mu"]
+                        for config in self.intermediates[reactant.code].ads_configs.values()
+                    ]
+                    s_list = [
+                        config["s"]
+                        for config in self.intermediates[reactant.code].ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    mu_is += (
+                        abs(reaction.stoic[reactant.code])
+                        * e_min_config
+                    )
+                    var_is += (
+                        reaction.stoic[reactant.code] ** 2
+                        * s_min_config**2
+                    )
+                for product in reaction.products:
+                    if product.is_surface:
+                        continue
+                    energy_list = [
+                        config["mu"]
+                        for config in self.intermediates[product.code].ads_configs.values()
+                    ]
+                    s_list = [
+                        config["s"]
+                        for config in self.intermediates[product.code].ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    mu_fs += (
+                        abs(reaction.stoic[product.code])
+                        * e_min_config
+                    )
+                    var_fs += (
+                        reaction.stoic[product.code] ** 2
+                        * s_min_config**2
+                    )
             mu_rxn = mu_fs - mu_is
             std_rxn = (var_fs + var_is) ** 0.5
         else:
@@ -253,7 +294,19 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             reaction (ElementaryReaction): Elementary reaction.
         """
         if "-" not in reaction.r_type:
-            reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
+            e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
+            reaction.e_act = e_act
+            if reaction.r_type == "PCET":
+                alpha = 0.5
+                # self.dg_barrier[reaction] - self.alfa[reaction] * z_i_a * U - z_i_a * 2.3 * K_B * T * pH
+                # Searching for the proton in the components of the reaction
+                stoic_electro = 0
+                for component in reaction.components:
+                    if isinstance(component, Proton) or isinstance(component, Water):
+                        stoic_electro = reaction.stoic[component.code]
+                
+                reaction.e_act = e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0 if reaction.pH <= 7 \
+                                 else e_act[0] - stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0
         else:  # bond-breaking reaction
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],
@@ -388,3 +441,54 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             # Estimate the activation energy
             self.calc_reaction_barrier(reaction)
             return reaction
+
+
+    # def get_reaction_energetics(self,
+    #                                 reaction: ElementaryReaction, 
+    #                                 U: float, 
+    #                                 pH: float, 
+    #                                 T: float) -> tuple:
+    #         """
+    #         Gets the reaction energetics based on the specified overpotential and pH.
+    #         The energetics of electrochemical steps containing the H(e) reactant are modified.               
+    #         Args: 
+    #             U (float): applied overpotential [V].
+    #             pH (float): pH of the electrolyte [unitless]
+    #             T(float): absolute temperature [K].
+    #         Returns:
+    #             (tuple): tuple with three ndarrays for the reaction, barrier and reverse barrier Gibbs free energy.
+    #         """
+
+    #         dg_F_reaction = np.zeros(len(self.NR), dtype=np.float64)
+    #         dg_F_barrier = np.zeros(len(self.NR), dtype=np.float64)
+    #         dg_F_barrier_rev = np.zeros(len(self.NR), dtype=np.float64)
+
+    #         for reaction in range(self.NR):
+    #             if '_e' in self.reaction_type[reaction]:
+
+    #                 if 'a_e' in self.reaction_type[reaction]:
+    #                     index_a = self.species_tot.index('H(e)')
+    #                     z_i_a = self.v_matrix[index_a, reaction]
+    #                     dg_F_reaction[reaction] = self.dg_reaction[reaction] - z_i_a * U - z_i_a * 2.3 * K_B * T * pH
+    #                     dg_F_barrier[reaction] = self.dg_barrier[reaction] - self.alfa[reaction] * z_i_a * U - z_i_a * 2.3 * K_B * T * pH
+    #                 elif 'b_e' in self.reaction_type[reaction]:
+    #                     index_b = self.species_tot.index('H2O(e)')
+    #                     z_i_b = self.v_matrix[index_b, reaction]
+    #                     dg_F_reaction[reaction] = self.dg_reaction[reaction] - z_i_b * U - z_i_b * 2.3 * K_B * T * pH
+    #                     dg_F_barrier[reaction] = self.dg_barrier[reaction] - self.alfa[reaction] * z_i_b * U                     
+                
+    #             else:
+    #                 dg_F_reaction[reaction] = self.dg_reaction[reaction]
+    #                 dg_F_barrier[reaction] = self.dg_barrier[reaction]
+    #             if dg_F_barrier[reaction] < 0:
+    #                 dg_F_barrier[reaction] = 0
+    #             dg_F_barrier_rev[reaction] = dg_F_barrier[reaction] - dg_F_reaction[reaction]
+                
+    #             self.df_gibbs_e = pd.DataFrame(np.array([dg_F_reaction,
+    #                                             dg_F_barrier,
+    #                                             dg_F_barrier_rev]).T,
+    #                                     index=[self.r, self.reaction_type],
+    #                                     columns=['DGR_e / eV',
+    #                                             'DG barrier_e / eV',
+    #                                             'DG reverse barrier_e / eV'])
+    #         return dg_F_reaction, dg_F_barrier, dg_F_barrier_rev
