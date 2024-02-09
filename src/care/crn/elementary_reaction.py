@@ -309,11 +309,14 @@ class ElementaryReaction:
         }  # guess (correct for most of the steps)
         elements = INTER_ELEMS
         nc, na = len(species), len(elements)
-        matrix = np.zeros((nc, na))
+        matrix = np.zeros((nc, na), dtype=np.int8)
         for i, inter in enumerate(species):
             for j, element in enumerate(elements):
-                if element == "*" and inter.phase != "gas":
+                if element == "*" and inter.phase not in ("gas", "solv", "electro"):
                     matrix[i, j] = 1
+                elif element == "q":
+                    charge = species[i].bader
+                    matrix[i, j] = species[i].bader if charge != None else 0
                 else:
                     matrix[i, j] = (
                         species[i].molecule.get_chemical_symbols().count(element)

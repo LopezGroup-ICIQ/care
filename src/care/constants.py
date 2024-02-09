@@ -141,9 +141,9 @@ BOND_ORDER = {"C": 4, "O": 2, "H": 1}
 
 ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16}
 
-INTER_ELEMS = ["C", "H", "O", "*"]
+INTER_ELEMS = ["C", "H", "O", "*", "q"]
 
-INTER_PHASES = ["gas", "ads", "surf"]
+INTER_PHASES = ["gas", "ads", "surf", "solv", "electro"]
 
 COORD_DICT = {
         "C": 3,
@@ -181,6 +181,7 @@ R_TYPES = [
     "adsorption",
     "pseudo",
     "rearrangement",
+    "PCET"
 ]
 
 OC_KEYS = ["T", "P", "U", "pH"]
