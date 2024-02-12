@@ -81,7 +81,7 @@ def main():
     # Electrochemical parameters
     electrochem = config['chemspace']['electro']
     pH = config['operating_conditions']['pH'] if electrochem else None
-    U_pot = config['operating_conditions']['U'] if electrochem else None
+    U = config['operating_conditions']['U'] if electrochem else None
     T = config['operating_conditions']['temperature'] if electrochem else None
 
     # Output directory
@@ -111,7 +111,7 @@ def main():
 
             # Readjusting the reactions to electrochemical nomenclature
             for reaction in reactions:
-                reaction.electro_rxn(pH, U_pot, T, h2o_gas, oh_code, surface_inter)
+                reaction.electro_rxn(pH, U, T, h2o_gas, oh_code, surface_inter)
 
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 

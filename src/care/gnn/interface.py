@@ -212,7 +212,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         ]
 
                         e_min_config = min(energy_list)
-                        s_min_config = 0
                         mu_is += (
                             abs(reaction.stoic[reactant.code])
                             * e_min_config
@@ -342,17 +341,16 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
         if "-" not in reaction.r_type:
             if reaction.r_type == "PCET":
-                # e_act = [0.5, 0]
+                # e_act = [0.5, 0]  TODO: Check with Ranga
                 e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
-                alpha = 0.5
                 # Searching for the proton in the components of the reaction
                 stoic_electro = 0
                 components = list(chain.from_iterable(reaction.components))
                 for component in components:
-                    if isinstance(component, Proton) or isinstance(component, Water):
+                    if isinstance(component, (Proton, Water)):
                         stoic_electro = reaction.stoic[component.code]
-                reaction.e_act = e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0 if reaction.pH <= 7 \
-                                 else e_act[0] - stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0
+                reaction.e_act = e_act[0] - reaction.alpha * stoic_electro * reaction.U - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0 if reaction.pH <= 7 \
+                                 else e_act[0] - stoic_electro * reaction.U - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0
             else:
                 e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
                 reaction.e_act = e_act
@@ -490,54 +488,4 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             # Estimate the activation energy
             self.calc_reaction_barrier(reaction)
             return reaction
-
-
-    # def get_reaction_energetics(self,
-    #                                 reaction: ElementaryReaction, 
-    #                                 U: float, 
-    #                                 pH: float, 
-    #                                 T: float) -> tuple:
-    #         """
-    #         Gets the reaction energetics based on the specified overpotential and pH.
-    #         The energetics of electrochemical steps containing the H(e) reactant are modified.               
-    #         Args: 
-    #             U (float): applied overpotential [V].
-    #             pH (float): pH of the electrolyte [unitless]
-    #             T(float): absolute temperature [K].
-    #         Returns:
-    #             (tuple): tuple with three ndarrays for the reaction, barrier and reverse barrier Gibbs free energy.
-    #         """
-
-    #         dg_F_reaction = np.zeros(len(self.NR), dtype=np.float64)
-    #         dg_F_barrier = np.zeros(len(self.NR), dtype=np.float64)
-    #         dg_F_barrier_rev = np.zeros(len(self.NR), dtype=np.float64)
-
-    #         for reaction in range(self.NR):
-    #             if '_e' in self.reaction_type[reaction]:
-
-    #                 if 'a_e' in self.reaction_type[reaction]:
-    #                     index_a = self.species_tot.index('H(e)')
-    #                     z_i_a = self.v_matrix[index_a, reaction]
-    #                     dg_F_reaction[reaction] = self.dg_reaction[reaction] - z_i_a * U - z_i_a * 2.3 * K_B * T * pH
-    #                     dg_F_barrier[reaction] = self.dg_barrier[reaction] - self.alfa[reaction] * z_i_a * U - z_i_a * 2.3 * K_B * T * pH
-    #                 elif 'b_e' in self.reaction_type[reaction]:
-    #                     index_b = self.species_tot.index('H2O(e)')
-    #                     z_i_b = self.v_matrix[index_b, reaction]
-    #                     dg_F_reaction[reaction] = self.dg_reaction[reaction] - z_i_b * U - z_i_b * 2.3 * K_B * T * pH
-    #                     dg_F_barrier[reaction] = self.dg_barrier[reaction] - self.alfa[reaction] * z_i_b * U                     
-                
-    #             else:
-    #                 dg_F_reaction[reaction] = self.dg_reaction[reaction]
-    #                 dg_F_barrier[reaction] = self.dg_barrier[reaction]
-    #             if dg_F_barrier[reaction] < 0:
-    #                 dg_F_barrier[reaction] = 0
-    #             dg_F_barrier_rev[reaction] = dg_F_barrier[reaction] - dg_F_reaction[reaction]
-                
-    #             self.df_gibbs_e = pd.DataFrame(np.array([dg_F_reaction,
-    #                                             dg_F_barrier,
-    #                                             dg_F_barrier_rev]).T,
-    #                                     index=[self.r, self.reaction_type],
-    #                                     columns=['DGR_e / eV',
-    #                                             'DG barrier_e / eV',
-    #                                             'DG reverse barrier_e / eV'])
-    #         return dg_F_reaction, dg_F_barrier, dg_F_barrier_rev
+        

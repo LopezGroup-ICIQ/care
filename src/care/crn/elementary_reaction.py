@@ -67,7 +67,8 @@ class ElementaryReaction:
         self.products = self.components[1]
 
         self.pH = None
-        self.U_pot = None
+        self.U = None
+        self.alpha = 0.5
 
         # enthalpy attributes (mu, std)
         self.e_is: Optional[tuple[float, float]] = None  # initial state
@@ -371,7 +372,7 @@ class ElementaryReaction:
                 self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
-    def electro_rxn(self, pH: float, U_pot: float, T: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
+    def electro_rxn(self, pH: float, U: float, T: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
         """
         Adjust the elementary reaction to electrochemical nomenclature.
 
@@ -436,7 +437,7 @@ class ElementaryReaction:
             self.products = new_products
             self.r_type = "PCET"
             self.pH = pH
-            self.U_pot = U_pot
+            self.U = U
             self.T = T
             self.stoic = self.solve_stoichiometry()
 
@@ -496,7 +497,7 @@ class ElementaryReaction:
                     self.products = new_products
                     self.r_type = "PCET"
                     self.pH = pH
-                    self.U_pot = U_pot
+                    self.U = U
                     self.T = T
                     self.stoic = self.solve_stoichiometry()
 
