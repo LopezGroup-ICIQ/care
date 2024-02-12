@@ -391,7 +391,7 @@ class ElementaryReaction:
         None
         """
 
-        if self.r_type in ("C-H", "O-H"):
+        if self.r_type in ("C-H", "H-O"):
 
             reactants = [inter for inter in self.reactants]
             products = [inter for inter in self.products]

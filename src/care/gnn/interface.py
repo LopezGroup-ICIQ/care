@@ -4,6 +4,7 @@ from typing import Optional
 from ase import Atoms
 from ase.db import connect
 from copy import deepcopy
+from itertools import chain
 import networkx as nx
 import numpy as np
 from torch import no_grad, where, cuda
@@ -202,7 +203,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     if reactant.is_surface or isinstance(reactant, Electron) or isinstance(reactant, Hydroxide):
                         continue
 
-                    if isinstance(reactant, Proton) or isinstance(reactant, Water):
+                    elif isinstance(reactant, Proton) or isinstance(reactant, Water):
                         # Getting the energies and s from the hydrogen gas intermediate
                         H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
                         energy_list = [
@@ -216,6 +217,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             abs(reaction.stoic[reactant.code])
                             * e_min_config
                         )
+                        var_is += 0
                         
                     else:
                         energy_list = [
@@ -233,7 +235,51 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             abs(reaction.stoic[reactant.code])
                             * e_min_config
                         )
+
+                        var_is += (
+                        reaction.stoic[reactant.code] ** 2
+                        * s_min_config**2
+                        )
                     
+                for product in reaction.products:
+                    if product.is_surface or isinstance(product, Electron) or isinstance(product, Hydroxide):
+                        continue
+
+                    elif isinstance(product, Proton) or isinstance(product, Water):
+                        # Getting the energies and s from the hydrogen gas intermediate
+                        H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                        energy_list = [
+                            config["mu"] * 1/2
+                            for config in H2_gas.ads_configs.values()
+                        ]
+
+                        e_min_config = min(energy_list)
+                        mu_fs += (
+                            abs(reaction.stoic[product.code])
+                            * e_min_config
+                        )
+                        var_fs += 0
+                        
+                    else:
+                        energy_list = [
+                            config["mu"]
+                            for config in self.intermediates[product.code].ads_configs.values()
+                        ]
+                        s_list = [
+                            config["s"]
+                            for config in self.intermediates[product.code].ads_configs.values()
+                        ]
+                    
+                        e_min_config = min(energy_list)
+                        s_min_config = s_list[energy_list.index(e_min_config)]
+                        mu_fs += (
+                            abs(reaction.stoic[product.code])
+                            * e_min_config
+                        )
+                        var_fs += (
+                        reaction.stoic[product.code] ** 2
+                        * s_min_config**2
+                        )
 
             else:
                 for reactant in reaction.reactants:
@@ -278,6 +324,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         reaction.stoic[product.code] ** 2
                         * s_min_config**2
                     )
+
             mu_rxn = mu_fs - mu_is
             std_rxn = (var_fs + var_is) ** 0.5
         else:
@@ -294,19 +341,25 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             reaction (ElementaryReaction): Elementary reaction.
         """
         if "-" not in reaction.r_type:
-            e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
-            reaction.e_act = e_act
             if reaction.r_type == "PCET":
+                print('Im here')
+                # e_act = [0.5, 0]
+                e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
                 alpha = 0.5
-                # self.dg_barrier[reaction] - self.alfa[reaction] * z_i_a * U - z_i_a * 2.3 * K_B * T * pH
                 # Searching for the proton in the components of the reaction
                 stoic_electro = 0
-                for component in reaction.components:
+                components = list(chain.from_iterable(reaction.components))
+                for component in components:
                     if isinstance(component, Proton) or isinstance(component, Water):
                         stoic_electro = reaction.stoic[component.code]
-                
+                print(e_act[0], stoic_electro, reaction.U_pot, K_B, reaction.T, reaction.pH)
+                print(e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH)
                 reaction.e_act = e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0 if reaction.pH <= 7 \
                                  else e_act[0] - stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0
+                print('reaction.e_act: ', reaction.e_act)
+            else:
+                e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
+                reaction.e_act = e_act
         else:  # bond-breaking reaction
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],

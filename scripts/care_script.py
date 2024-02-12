@@ -107,7 +107,7 @@ def main():
             oh_code = [intermediate for intermediate in intermediates.values(
             ) if intermediate.formula == 'HO'][0].code
             surface_inter = Intermediate(
-                code='*', molecule=Atoms(), phase='surf')
+                code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
             # Readjusting the reactions to electrochemical nomenclature
             for reaction in reactions:
@@ -225,7 +225,7 @@ def main():
             dump(results, f)
 
         write_dotgraph(results['run_graph'],
-                       f"{output_dir}/mkm_res.svg", 'CO')
+                        f"{output_dir}/mkm_res.svg", 'CO2')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(
