@@ -6,10 +6,9 @@ class Electron(Intermediate):
     Electron species (e-)  
     """
     def __init__(self):
-        super().__init__("e-", molecule=Atoms())
+        super().__init__(code="e-", molecule=Atoms(), phase='electro')
         self.is_surface = False
         self.closed_shell = False
-        self.phase = 'electro'
         self.mass = 9.10938356e-31  # kg
         self.electrons = 1
         self.bader = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
@@ -24,10 +23,9 @@ class Proton(Intermediate):
     Proton species (H+)  
     """
     def __init__(self):
-        super().__init__("H+", molecule=Atoms('H', positions=[(0, 0, 0)]))
+        super().__init__(code="H+", molecule=Atoms('H', positions=[(0, 0, 0)]), phase='solv')
         self.is_surface = False
         self.closed_shell = False
-        self.phase = "solv"
         self.mass = 1.6726219e-27  # kg
         self.electrons = 0
         self.bader = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
@@ -43,10 +41,9 @@ class Hydroxide(Intermediate):
     Hydroxide species (OH-)  
     """
     def __init__(self):
-        super().__init__("OH-", molecule=Atoms('HO', positions=[(0, 0, 0), (0, 0, 0.96)]))
+        super().__init__(code="OH-", molecule=Atoms('HO', positions=[(0, 0, 0), (0, 0, 0.96)]), phase='solv')
         self.is_surface = False
         self.closed_shell = False
-        self.phase = 'solv'
         self.mass = 3.3496e-26  # kg
         self.electrons = 0
         self.bader = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
@@ -60,10 +57,9 @@ class Water(Intermediate):
     Water species (H2O)  
     """
     def __init__(self):
-        super().__init__("H2O", molecule=Atoms('H2O', positions=[(0, 0, 0), (0.96, 0, 0), (0.48, 0.83, 0)]))
+        super().__init__(code="H2O", molecule=Atoms('H2O', positions=[(0, 0, 0), (0.96, 0, 0), (0.48, 0.83, 0)]), phase='solv')
         self.is_surface = False
         self.closed_shell = False
-        self.phase = 'solv'
         self.mass = 2.991e-26  # kg
         self.electrons = 0
         self.bader = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)

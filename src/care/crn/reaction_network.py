@@ -590,7 +590,6 @@ class ReactionNetwork:
         for reaction in self.reactions:
             if all([condition_dict[i](reaction) for i in condition_dict.keys()]):
                 matches.append(reaction)
-        # print(f"{len(matches)} elementary reactions found")
         return matches
 
     def search_inter_by_elements(self, element_dict):
@@ -778,7 +777,6 @@ class ReactionNetwork:
                     e_rxn = reaction.e_rxn[0]
             reaction.k_eq = np.exp(-e_rxn / t / K_B)
             if reaction.r_type == "adsorption":  # Hertz-Knudsen
-                print(f"{reaction.repr_hr} adsorbate_mass: {reaction.adsorbate_mass}")
                 reaction.k_dir = 1e-18 / (2 * np.pi * reaction.adsorbate_mass * K_BU * t) ** 0.5
                 reaction.k_dir *= np.exp(-e_act / K_B / t)
             elif reaction.r_type == "desorption":
