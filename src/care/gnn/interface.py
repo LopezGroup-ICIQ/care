@@ -342,7 +342,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
         if "-" not in reaction.r_type:
             if reaction.r_type == "PCET":
-                print('Im here')
                 # e_act = [0.5, 0]
                 e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
                 alpha = 0.5
@@ -352,11 +351,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 for component in components:
                     if isinstance(component, Proton) or isinstance(component, Water):
                         stoic_electro = reaction.stoic[component.code]
-                print(e_act[0], stoic_electro, reaction.U_pot, K_B, reaction.T, reaction.pH)
-                print(e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH)
                 reaction.e_act = e_act[0] - alpha * stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0 if reaction.pH <= 7 \
                                  else e_act[0] - stoic_electro * reaction.U_pot - stoic_electro * 2.3 * K_B * reaction.T * reaction.pH, 0
-                print('reaction.e_act: ', reaction.e_act)
             else:
                 e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
                 reaction.e_act = e_act
