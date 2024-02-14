@@ -143,10 +143,10 @@ class DifferentialPFR(ReactorModel):
     def integrate(
         self,
         y0: np.ndarray,
-        rtol: float,
-        atol: float,
+        solver: str = "Julia",
+        rtol: float = 1e-10,
+        atol: float = 1e-32,
         sstol: float = 1e-10,
-        method: str = "BDF",
     ) -> dict:
         """
         Integrate the ODE system until steady-state conditions are reached.
@@ -170,17 +170,22 @@ class DifferentialPFR(ReactorModel):
             The integration is stopped when the sum of the absolute values of the derivatives is below
             the tolerance parameter `sstol`.
         """
-        self.sstol = sstol
-        results = solve_ivp(self.ode,
-                            (0, 1e20),  
-                            y0,
-                            method=method,
-                            events=self.steady_state,
-                            jac=None,
-                            atol=atol,
-                            rtol=rtol, 
-                            jac_sparsity=None)
-        results["rate"] = self.net_rate(results["y"][:, -1])
+        if solver == "Julia":
+            results = {}
+            results["y"] = self.integrate_jl(y0)
+        else:
+            self.sstol = sstol
+            results = solve_ivp(self.ode,
+                                (0, 1e30),  
+                                y0,
+                                method="BDF",
+                                events=self.steady_state,
+                                jac=None,
+                                atol=atol,
+                                rtol=rtol, 
+                                jac_sparsity=None)
+            results["y"] = results["y"][:, -1]
+        results["rate"] = self.net_rate(results["y"])
         consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
         for i in range(self.v_dense.shape[0]):
             for j in range(self.v_dense.shape[1]):
@@ -240,23 +245,47 @@ class DifferentialPFR(ReactorModel):
         Integrate the ODE system using the Julia-based solver.
         """
         from julia.api import Julia
-        jl = Julia(debug=True)
+        jl = Julia()
         from julia import Main
-        Main.include("../src/care/crn/reactors/differential_pfr.jl")
-        Main.eval("using DifferentialEquations, CUDA")
-        Main.eval("using .DifferentialPfr")
         Main.y0 = y0
-        Main.eval("CUDA.allowscalar(true)")
-        Main.eval("y0 = CuArray{Float64}(y0)")
-        Main.eval("CUDA.allowscalar(false)")
         Main.v = self.v_dense
-        Main.kd = self.kd
-        Main.kr = self.kr
-        Main.gas_mask = self.gas_mask
         Main.vf = self.v_forward_dense
         Main.vb = self.v_backward_dense
-        Main.eval("p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf = vf, vb = vb)")
-        Main.eval("prob = ODEProblem(ode_pfr, y0, (0, 1), p)")
-        Main.eval("sol = solve(prob, Rosenbrock23(), abstol=1e-64, reltol=1e-7)")
-        # Return the solution
-        return Main.eval("sol")
+        Main.kd, Main.kr = self.kd, self.kr
+        Main.gas_mask = self.gas_mask
+        Main.eval("""
+        using CUDA
+        using DifferentialEquations
+        using SparseArrays
+        CUDA.allowscalar(true)
+        y0 = CuArray{Float64}(y0)
+        v = CuArray{Int8}(sparse(v))
+        kd = CuArray{Float64}(kd)
+        kr = CuArray{Float64}(kr)
+        vf = CuArray{Int8}(sparse(vf))
+        vb = CuArray{Int8}(sparse(vb))
+        gas_mask = CuArray{Bool}(gas_mask)
+        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
+        # println("y0: $(sizeof(y0)/1000) v: $(sizeof(v)/1000) kd: $(sizeof(kd)/1000) kr: $(sizeof(kr)/1000) vf: $(sizeof(vf)/1000) vb: $(sizeof(vb)/1000) gas_mask: $(sizeof(gas_mask)/1000)")
+        # println("y0: $(size(y0)) v: $(size(v)) kd: $(size(kd)) kr: $(size(kr)) vf: $(size(vf)) vb: $(size(vb)) gas_mask: $(size(gas_mask))")
+        println(v)
+        """)
+        Main.eval("""
+        function ode_pfr!(du, u, p, t)
+            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
+            du .= p.v * net_rate
+            du[p.gas_mask] .= 0.0
+        end
+        """)
+        Main.eval("""
+        prob = SteadyStateProblem(ode_pfr!, y0, p)
+        """)
+        Main.eval("""
+        sol = solve(prob, DynamicSS(KenCarp4(autodiff=false)))
+        """)
+        Main.eval("sol = Array(sol)")
+        Main.eval("""
+        CUDA.allowscalar(false)
+        """)
+        solution = Main.sol
+        return solution

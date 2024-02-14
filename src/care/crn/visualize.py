@@ -35,7 +35,7 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     subgraph_des = Subgraph("des", rank="same")
     subgraph_same = Subgraph("same", rank="same")
     plot.rankdir = "TB"
-    plot.set_dpi(5)
+    plot.set_dpi(1)
     for node in plot.get_nodes():
         node.set_orientation("portrait")
         attrs = node.get_attributes()

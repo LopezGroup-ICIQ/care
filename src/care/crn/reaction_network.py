@@ -790,10 +790,11 @@ class ReactionNetwork:
         iv: dict[str, float],
         temperature: float = None,
         pressure: float = None,
-        model: Union[DifferentialPFR, DynamicCSTR] = DifferentialPFR,
         uq: bool = False,
         uq_samples: int = 100,
         thermo: bool = False,
+        solver: str = "Julia",
+        barrier_threshold: float = None,
         **kwargs,
     ):
         """
@@ -855,35 +856,59 @@ class ReactionNetwork:
 
         self.get_kinetic_constants(T, uq, thermo)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
-        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)        
+        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)     
+
+        # APPLY BARRIER THRESHOLD
+        if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
+            filtered_idxs = []
+            condition = lambda x, y: x <= barrier_threshold and y <= barrier_threshold
+            for i, reaction in enumerate(self.reactions):
+                eact_dir, eact_rev = reaction.e_act[0], reaction.e_act[0] - reaction.e_rxn[0]
+                if condition(eact_dir, eact_rev):
+                    filtered_idxs.append(i)
+            v = np.delete(v, filtered_idxs, axis=1)
+            kd = np.delete(kd, filtered_idxs)
+            kr = np.delete(kr, filtered_idxs)
+            filtered_inters_idxs = []
+            for i in range(v.shape[0]):
+                if np.all(v[i, :] == 0):
+                    filtered_inters_idxs.append(i)
+            y0 = np.delete(y0, filtered_inters_idxs)
+            gas_mask = np.delete(gas_mask, filtered_inters_idxs)
+            inters = [inters[i] for i in range(len(inters)) if i not in filtered_inters_idxs]
+            v = np.delete(v, filtered_inters_idxs, axis=0)
+            print(f"Filtered {len(filtered_idxs)} reactions and {len(filtered_inters_idxs)} intermediates")   
 
         # RUN SIMULATION
         reactor = DifferentialPFR(v, kd, kr, gas_mask)
         print(reactor)
-        rtol, atol, sstol = 1e-10, 1e-100, 1e-12
-        count_atol_decrease = 0
-        status = None
-        while status != 1:  # 1 = steady state reached
-            try:
-                results = reactor.integrate(y0, rtol, atol, sstol, method="BDF")
-                status = results["status"]
-                atol *= 1e2
-                count_atol_decrease += 1
-                if count_atol_decrease % 4 == 0: 
-                    rtol *= 1e2
-                    print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
+        if solver == "Julia":
+            results = reactor.integrate(y0)
+        elif solver == "Python":
+            rtol, atol, sstol = 1e-10, 1e-100, 1e-12
+            count_atol_decrease = 0
+            status = None
+            while status != 1:  # 1 = steady state reached
+                try:
+                    results = reactor.integrate(y0, "Python", rtol, atol, sstol)
+                    status = results["status"]
+                    atol *= 1e2
+                    count_atol_decrease += 1
+                    if count_atol_decrease % 4 == 0: 
+                        rtol *= 1e2
+                        print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
 
-                print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
-            except ValueError:
-                status = None
-                atol *= 1e2
-                count_atol_decrease += 1
-                if count_atol_decrease % 4 == 0:
-                    rtol *= 1e2
-                    print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
-                print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+                except ValueError:
+                    status = None
+                    atol *= 1e2
+                    count_atol_decrease += 1
+                    if count_atol_decrease % 4 == 0:
+                        rtol *= 1e2
+                        print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
+                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
 
-        print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
+            print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
 
         results["inters"] = inters
 
