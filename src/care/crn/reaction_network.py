@@ -861,23 +861,13 @@ class ReactionNetwork:
         # APPLY BARRIER THRESHOLD
         if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
             filtered_idxs = []
-            condition = lambda x, y: x <= barrier_threshold and y <= barrier_threshold
+            condition = lambda x, y: x >= barrier_threshold and y >= barrier_threshold
             for i, reaction in enumerate(self.reactions):
                 eact_dir, eact_rev = reaction.e_act[0], reaction.e_act[0] - reaction.e_rxn[0]
                 if condition(eact_dir, eact_rev):
                     filtered_idxs.append(i)
-            v = np.delete(v, filtered_idxs, axis=1)
-            kd = np.delete(kd, filtered_idxs)
-            kr = np.delete(kr, filtered_idxs)
-            filtered_inters_idxs = []
-            for i in range(v.shape[0]):
-                if np.all(v[i, :] == 0):
-                    filtered_inters_idxs.append(i)
-            y0 = np.delete(y0, filtered_inters_idxs)
-            gas_mask = np.delete(gas_mask, filtered_inters_idxs)
-            inters = [inters[i] for i in range(len(inters)) if i not in filtered_inters_idxs]
-            v = np.delete(v, filtered_inters_idxs, axis=0)
-            print(f"Filtered {len(filtered_idxs)} reactions and {len(filtered_inters_idxs)} intermediates")   
+                    v[:, i] = 0
+            print(f"Filtered {len(filtered_idxs)} reactions")   
 
         # RUN SIMULATION
         reactor = DifferentialPFR(v, kd, kr, gas_mask)
@@ -920,12 +910,12 @@ class ReactionNetwork:
         graph.max_rate = np.max(np.abs(results["consumption_rate"]))
         graph.min_rate = np.min(np.abs(results["consumption_rate"][results["consumption_rate"] != 0]))
 
-        for i, inter in enumerate(self.intermediates.values()):
-            if inter.phase == "gas":
+        for i, inter in enumerate(inters):
+            if self.intermediates[inter].phase == "gas":
                 graph.nodes[inter]["molar_fraction"] = (
                     results["y"][i] / self.pressure
                 )
-            elif inter.phase == "ads":
+            elif self.intermediates[inter].phase == "ads":
                 graph.nodes[inter]["coverage"] = results["y"][i]
         graph.nodes["*"]["coverage"] = results["y"][-1]
 
@@ -941,9 +931,9 @@ class ReactionNetwork:
                 graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
                 graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
                 
-        for i, inter in enumerate(self.intermediates.values()):
+        for i, inter in enumerate(inters):
             for j, reaction in enumerate(self.reactions):
-                if inter.code in reaction.stoic.keys():
+                if inter in reaction.stoic.keys():
                     r = results["consumption_rate"][i, j]
                     if r < 0:  # Reaction j consumes inter i
                         if reaction.e_act[0] == 0:
@@ -952,13 +942,13 @@ class ReactionNetwork:
                             delta = reaction.e_rxn[0]
                         else:
                             delta = reaction.e_act[0]
-                        graph.add_edge(inter.code, 
+                        graph.add_edge(inter, 
                                        reaction.code, 
                                        rate=abs(r), 
                                        delta=delta)
                     else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
                         graph.add_edge(reaction.code, 
-                                       inter.code, 
+                                       inter, 
                                        rate=abs(r), 
                                        delta=-(reaction.e_act[0] - reaction.e_rxn[0]))
         graph.remove_node("*")
