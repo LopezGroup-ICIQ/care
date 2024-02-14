@@ -268,13 +268,13 @@ class DifferentialPFR(ReactorModel):
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         # println("y0: $(sizeof(y0)/1000) v: $(sizeof(v)/1000) kd: $(sizeof(kd)/1000) kr: $(sizeof(kr)/1000) vf: $(sizeof(vf)/1000) vb: $(sizeof(vb)/1000) gas_mask: $(sizeof(gas_mask)/1000)")
         # println("y0: $(size(y0)) v: $(size(v)) kd: $(size(kd)) kr: $(size(kr)) vf: $(size(vf)) vb: $(size(vb)) gas_mask: $(size(gas_mask))")
-        println(v)
         """)
         Main.eval("""
         function ode_pfr!(du, u, p, t)
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
+            # print sum of the absolute derivatives
         end
         """)
         Main.eval("""

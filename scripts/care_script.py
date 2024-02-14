@@ -219,7 +219,9 @@ def main():
                                        model=reactor,
                                        uq=mkm_uq,
                                        uq_samples=uq_samples,
-                                       thermo=thermo,)
+                                       thermo=thermo,
+                                       solver=config['mkm']['solver'], 
+                                       barrier_threshold=config['mkm']['barrier_threshold'])
         print("\nSaving the MKM results...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
