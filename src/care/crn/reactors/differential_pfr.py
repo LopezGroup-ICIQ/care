@@ -274,14 +274,14 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            # print sum of the absolute derivatives
+            println(sum(abs.(du)))
         end
         """)
         Main.eval("""
         prob = SteadyStateProblem(ode_pfr!, y0, p)
         """)
         Main.eval("""
-        sol = solve(prob, DynamicSS(KenCarp4(autodiff=false)))
+        sol = solve(prob, DynamicSS(KenCarp4()))
         """)
         Main.eval("sol = Array(sol)")
         Main.eval("""

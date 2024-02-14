@@ -884,6 +884,7 @@ class ReactionNetwork:
         print(reactor)
         if solver == "Julia":
             results = reactor.integrate(y0)
+            print("Steady state reached")
         elif solver == "Python":
             rtol, atol, sstol = 1e-10, 1e-100, 1e-12
             count_atol_decrease = 0
@@ -922,11 +923,11 @@ class ReactionNetwork:
         for i, inter in enumerate(self.intermediates.values()):
             if inter.phase == "gas":
                 graph.nodes[inter]["molar_fraction"] = (
-                    results["y"][i, -1] / self.pressure
+                    results["y"][i] / self.pressure
                 )
             elif inter.phase == "ads":
-                graph.nodes[inter]["coverage"] = results["y"][i, -1]
-        graph.nodes["*"]["coverage"] = results["y"][-1, -1]
+                graph.nodes[inter]["coverage"] = results["y"][i]
+        graph.nodes["*"]["coverage"] = results["y"][-1]
 
         # Reaction node: net rate (forward - reverse), positive or negative
         for i, reaction in enumerate(self.reactions):
