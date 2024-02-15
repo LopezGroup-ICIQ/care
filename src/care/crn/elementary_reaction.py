@@ -434,47 +434,50 @@ class ElementaryReaction:
         elif self.r_type in ("C-O", "O-O"):
             for component_set in self.components:
                 if oh_code in [component.code for component in component_set]:
-                    new_reactants, new_products = [], []
-                    for reactant in self.reactants:
-                        if reactant.is_surface:
-                            new_reactants.append(Electron())
-                            if pH <= 7:
-                                new_reactants.append(Proton())
+                    if len(self.products) == 1:
+                            continue
+                    else:
+                        new_reactants, new_products = [], []
+                        for reactant in self.reactants:
+                            if reactant.is_surface:
+                                new_reactants.append(Electron())
+                                if pH <= 7:
+                                    new_reactants.append(Proton())
+                                else:
+                                    new_reactants.append(Water())
+                            elif reactant.formula == 'HO':
+                                if pH <= 7:
+                                    new_reactants.append(h2o_gas)
+                                    new_reactants.append(surface_inter)
+                                else:
+                                    new_reactants.append(h2o_gas)
+                                    new_reactants.append(Hydroxide())
                             else:
-                                new_reactants.append(Water())
-                        elif reactant.formula == 'HO':
-                            if pH <= 7:
-                                new_reactants.append(h2o_gas)
-                                new_reactants.append(surface_inter)
+                                new_reactants.append(reactant)
+                        for product in self.products:
+                            if product.is_surface:
+                                new_products.append(Electron())
+                                if pH <= 7:
+                                    new_products.append(Proton())
+                                else:
+                                    new_products.append(Water())
+                            elif product.formula == 'HO':
+                                if pH <= 7:
+                                    new_products.append(h2o_gas)
+                                else:
+                                    new_products.append(h2o_gas)
+                                    new_products.append(Hydroxide()) 
+                                if len(self.products) == 1:
+                                    new_products.append(surface_inter)
                             else:
-                                new_reactants.append(h2o_gas)
-                                new_reactants.append(Hydroxide())
-                        else:
-                            new_reactants.append(reactant)
-                    for product in self.products:
-                        if product.is_surface:
-                            new_products.append(Electron())
-                            if pH <= 7:
-                                new_products.append(Proton())
-                            else:
-                                new_products.append(Water())
-                        elif product.formula == 'HO':
-                            if pH <= 7:
-                                new_products.append(h2o_gas)
-                            else:
-                                new_products.append(h2o_gas)
-                                new_products.append(Hydroxide()) 
-                            if len(self.products) == 1:
-                                new_products.append(surface_inter)
-                        else:
-                            new_products.append(product)
+                                new_products.append(product)
 
-                    self.components = [new_reactants, new_products]
-                    self.reactants = new_reactants
-                    self.products = new_products
-                    self.r_type = "PCET"
-                    self.stoic = self.solve_stoichiometry()
-                    self.code = self.__repr__()
+                        self.components = [new_reactants, new_products]
+                        self.reactants = new_reactants
+                        self.products = new_products
+                        self.r_type = "PCET"
+                        self.stoic = self.solve_stoichiometry()
+                        self.code = self.__repr__()
         else:
             pass
 
