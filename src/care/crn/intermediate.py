@@ -96,8 +96,7 @@ class Intermediate:
         self._graph = graph
         self.ads_configs = ads_configs
         self.electrons = self.get_num_electrons()
-        self.bader = None
-        self.voltage = None
+        self.charge = 0
         self.mass = self.molecule.get_masses().sum()
 
         if not self.is_surface:
@@ -140,19 +139,14 @@ class Intermediate:
     def __repr__(self):
         if self.phase in ("surf", "ads"):
             txt = self.code + "({}*)".format(self.formula)
+        elif self.phase == "solv":
+            txt = self.code + "({}(aq))".format(self.formula)
         else:
             txt = self.code + "({}(g))".format(self.formula)
         return txt
 
     def __str__(self):
         return self.__repr__()
-
-    @property
-    def bader_energy(self):
-        if self.bader is None or self.voltage is None:
-            return self.energy
-        # -1 is the electron charge
-        return self.energy - ((self.bader + self.electrons) * (-1.0) * self.voltage)
 
     @classmethod
     def from_molecule(

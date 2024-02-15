@@ -240,7 +240,10 @@ class DifferentialPFR(ReactorModel):
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
     
-    def integrate_jl(self, y0):
+    def integrate_jl(self, 
+                     y0: np.ndarray, 
+                     device: str="cuda", 
+                     solver: str="KenCarp4"):
         """
         Integrate the ODE system using the Julia-based solver.
         """

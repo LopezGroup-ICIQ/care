@@ -11,7 +11,7 @@ class Electron(Intermediate):
         self.closed_shell = False
         self.mass = 9.10938356e-31  # kg
         self.electrons = 1
-        self.bader = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self.charge = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
         self.formula = 'e-'
 
     def __str__(self) -> str:
@@ -28,7 +28,7 @@ class Proton(Intermediate):
         self.closed_shell = False
         self.mass = 1.6726219e-27  # kg
         self.electrons = 0
-        self.bader = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self.charge = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
         self.formula = 'H+'
 
     def __str__(self) -> str:
@@ -46,7 +46,7 @@ class Hydroxide(Intermediate):
         self.closed_shell = False
         self.mass = 3.3496e-26  # kg
         self.electrons = 0
-        self.bader = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self.charge = -1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
         self.formula = 'OH-'
 
     def __str__(self) -> str:
@@ -62,7 +62,7 @@ class Water(Intermediate):
         self.closed_shell = False
         self.mass = 2.991e-26  # kg
         self.electrons = 0
-        self.bader = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self.charge = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
         self.formula = 'H2O'
 
     def __str__(self) -> str:

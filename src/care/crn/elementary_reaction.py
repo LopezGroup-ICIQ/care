@@ -66,8 +66,6 @@ class ElementaryReaction:
         self.reactants = self.components[0]
         self.products = self.components[1]
 
-        self.pH = None
-        self.U = None
         self.alpha = 0.5
 
         # enthalpy attributes (mu, std)
@@ -309,22 +307,17 @@ class ElementaryReaction:
         stoic_dict = {
             specie.code: -1 if specie in reactants else 1 for specie in species
         }  # guess (correct for most of the steps)
-        elements = INTER_ELEMS
-        nc, na = len(species), len(elements)
-        matrix = np.zeros((nc, na), dtype=np.int8)
+        matrix = np.zeros((len(species), len(INTER_ELEMS)), dtype=np.int8)
         for i, inter in enumerate(species):
-            for j, element in enumerate(elements):
+            for j, element in enumerate(INTER_ELEMS):
                 if element == "*" and inter.phase not in ("gas", "solv", "electro"):
                     matrix[i, j] = 1
                 elif element == "q":
-                    charge = species[i].bader
-                    matrix[i, j] = species[i].bader if charge != None else 0
+                    matrix[i, j] = species[i].charge
                 else:
-                    matrix[i, j] = (
-                        species[i].molecule.get_chemical_symbols().count(element)
-                    )
-        y = np.zeros((na, 1))
-        for i, _ in enumerate(elements):
+                    matrix[i, j] = species[i][element]
+        y = np.zeros((len(INTER_ELEMS), 1))
+        for i, _ in enumerate(INTER_ELEMS):
             y[i] = np.dot(
                 matrix[:, i], np.array([stoic_dict[specie.code] for specie in species])
             )
@@ -372,7 +365,7 @@ class ElementaryReaction:
                 self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
-    def electro_rxn(self, pH: float, U: float, T: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
+    def electro_rxn(self, pH: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
         """
         Adjust the elementary reaction to electrochemical nomenclature.
 
@@ -397,14 +390,14 @@ class ElementaryReaction:
             reactants = [inter for inter in self.reactants]
             products = [inter for inter in self.products]
 
-            new_reactants = []
+            new_reactants, new_products = [], []
             for reactant in reactants:
                 if reactant.is_surface:
                     if pH <= 7:
                         continue
                     else:
                         new_reactants.append(Hydroxide())
-                if reactant.formula == 'H':
+                elif reactant.formula == 'H':
                     if pH <= 7:
                         new_reactants.append(Proton())
                         new_reactants.append(Electron())
@@ -414,14 +407,13 @@ class ElementaryReaction:
                 else:
                     if not reactant.is_surface:
                         new_reactants.append(reactant)
-            new_products = []
             for product in products:
                 if product.is_surface:
                     if pH <= 7:
                         continue
                     else:
                         new_reactants.append(Hydroxide())
-                if product.formula == 'H':
+                elif product.formula == 'H':
                     if pH <= 7:
                         new_products.append(Proton())
                         new_products.append(Electron())
@@ -436,29 +428,21 @@ class ElementaryReaction:
             self.reactants = new_reactants
             self.products = new_products
             self.r_type = "PCET"
-            self.pH = pH
-            self.U = U
-            self.T = T
             self.stoic = self.solve_stoichiometry()
-
             self.code = self.__repr__()
 
-        if self.r_type in ("C-O", "O-O"):
-            # Checking if there is a OH* in the self components
+        elif self.r_type in ("C-O", "O-O"):
             for component_set in self.components:
                 if oh_code in [component.code for component in component_set]:
-                    
-                    # Generating new components
-                    new_reactants = []
+                    new_reactants, new_products = [], []
                     for reactant in self.reactants:
                         if reactant.is_surface:
+                            new_reactants.append(Electron())
                             if pH <= 7:
                                 new_reactants.append(Proton())
-                                new_reactants.append(Electron())
                             else:
                                 new_reactants.append(Water())
-                                new_reactants.append(Electron())
-                        if reactant.formula == 'HO':
+                        elif reactant.formula == 'HO':
                             if pH <= 7:
                                 new_reactants.append(h2o_gas)
                                 new_reactants.append(surface_inter)
@@ -466,20 +450,15 @@ class ElementaryReaction:
                                 new_reactants.append(h2o_gas)
                                 new_reactants.append(Hydroxide())
                         else:
-                            if reactant.is_surface:
-                                continue
                             new_reactants.append(reactant)
-                    
-                    new_products = []
                     for product in self.products:
                         if product.is_surface:
+                            new_products.append(Electron())
                             if pH <= 7:
                                 new_products.append(Proton())
-                                new_products.append(Electron())
                             else:
                                 new_products.append(Water())
-                                new_products.append(Electron())
-                        if product.formula == 'HO':
+                        elif product.formula == 'HO':
                             if pH <= 7:
                                 new_products.append(h2o_gas)
                             else:
@@ -488,19 +467,15 @@ class ElementaryReaction:
                             if len(self.products) == 1:
                                 new_products.append(surface_inter)
                         else:
-                            if product.is_surface:
-                                continue
                             new_products.append(product)
 
                     self.components = [new_reactants, new_products]
                     self.reactants = new_reactants
                     self.products = new_products
                     self.r_type = "PCET"
-                    self.pH = pH
-                    self.U = U
-                    self.T = T
                     self.stoic = self.solve_stoichiometry()
-
                     self.code = self.__repr__()
+        else:
+            pass
 
 

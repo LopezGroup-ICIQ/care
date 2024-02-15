@@ -111,7 +111,7 @@ def main():
 
             # Readjusting the reactions to electrochemical nomenclature
             for reaction in reactions:
-                reaction.electro_rxn(pH, U, T, h2o_gas, oh_code, surface_inter)
+                reaction.electro_rxn(pH, h2o_gas, oh_code, surface_inter)
 
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
@@ -167,7 +167,7 @@ def main():
 
         # 2.1.2. Reaction energy estimation
         print("\n Energy estimation of the reactions...")
-        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates)
+        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=pH)
 
         eval_reactions = []
         with Progress() as progress:
