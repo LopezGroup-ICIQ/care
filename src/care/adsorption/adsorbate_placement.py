@@ -246,7 +246,8 @@ def ads_placement(
             total_config_list.extend(config_list)
         return total_config_list
 
-    elif 2 <= len(intermediate.molecule) <= 3:
+    elif 2 <= intermediate["C"] <= 3:
+        
         ads_height = (
             2.2 if intermediate.molecule.get_chemical_formula() != "H2" else 1.8
         )
@@ -263,7 +264,7 @@ def ads_placement(
                         sites=site_idxs,
                     )
                     config_list = dos.dockonsurf(inp_vars)
-                    ads_height += 0.2
+                    ads_height += 0.1
                     total_config_list.extend(config_list)
 
         return total_config_list
@@ -279,5 +280,4 @@ def ads_placement(
             atoms.set_cell(surface.slab.get_cell())
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
-
         return total_config_list
