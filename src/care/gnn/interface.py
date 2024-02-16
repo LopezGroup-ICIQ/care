@@ -163,6 +163,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                             y.scale * self.model.y_scale_params["std"]
                         ).item()  # eV
                         counter += 1
+                # Getting only the top 3 most stable configurations
+                ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:3])
                 intermediate.ads_configs = ads_config_dict
         return intermediate
 
@@ -428,8 +430,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             atom1, atom2 = atom_symbol(edge_idxs[0]), atom_symbol(edge_idxs[1])
             if (atom1, atom2) == bond or (atom2, atom1) == bond:
                 potential_edges.append(i)
+        
         counter = 0
-
         # Find correct one via isomorphic comparison
         while True:
             data = deepcopy(ts_graph)
