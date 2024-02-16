@@ -98,49 +98,6 @@ def get_voronoi_neighbourlist(
     return np.sort(np.array(pairs_lst), axis=1)
 
 
-def rdkit_to_ase(rdkit_molecule: Chem.Mol) -> Atoms:
-    """
-    Generate an ASE Atoms object from an RDKit molecule.
-
-    Parameters
-    ----------
-    rdkit_molecule : Chem.Mol
-        RDKit molecule.
-
-    Returns
-    -------
-    Atoms
-        ASE Atoms object.
-    """
-    # Generate 3D coordinates for the molecule
-    rdkit_molecule = Chem.AddHs(rdkit_molecule)  # Add hydrogens if not already added
-    AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
-
-    # Get the number of atoms in the molecule
-    num_atoms = rdkit_molecule.GetNumAtoms()
-
-    # Initialize lists to store positions and symbols
-    positions = []
-    symbols = []
-
-    # Extract atomic positions and symbols
-    for atom_idx in range(num_atoms):
-        atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
-        atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
-        positions.append(atom_position)
-        symbols.append(atom_symbol)
-
-    # Create an ASE Atoms object
-    ase_atoms = Atoms(
-        [
-            Atom(symbol=symbol, position=position)
-            for symbol, position in zip(symbols, positions)
-        ]
-    )
-
-    return ase_atoms
-
-
 def atoms_to_graph(atoms: Atoms, coords: bool = False) -> nx.Graph:
     """
     Generates a NetworkX Graph from an ASE Atoms object.
@@ -456,3 +413,39 @@ def add_oxygens(mol: Chem.Mol, noc: int) -> set[str]:
         unique_molecules.add(smiles)
 
     return unique_molecules
+
+
+def get_fragment_energy(atoms: Atoms) -> float:
+    """
+    Calculate fragment energy from closed shell structures.
+    This function allows to calculate the energy of both open- and closed-shell structures,
+    keeping the same reference.
+
+    Parameters:
+    ----------
+        atoms (ase.Atoms): Atoms object of the structure to evaluate
+
+    Returns:
+    -------
+        float: Energy of the structure.
+    """
+    # Count elemens in the structure
+    n_C = atoms.get_chemical_symbols().count("C")
+    n_H = atoms.get_chemical_symbols().count("H")
+    n_O = atoms.get_chemical_symbols().count("O")
+    n_N = atoms.get_chemical_symbols().count("N")
+    n_S = atoms.get_chemical_symbols().count("S")
+
+    # Reference DFT energy for C, H, O, N, S
+    e_H2O = -14.21877278  # O
+    e_H2 = -6.76639487  # H
+    e_NH3 = -19.54236910  # N
+    e_H2S = -11.20113092  # S
+    e_CO2 = -22.96215586  # C
+    return (
+        n_C * e_CO2
+        + (n_O - 2 * n_C) * e_H2O
+        + (4 * n_C + n_H - 2 * n_O - 3 * n_N - 2 * n_S) * e_H2 * 0.5
+        + (n_N * e_NH3)
+        + (n_S * e_H2S)
+    )

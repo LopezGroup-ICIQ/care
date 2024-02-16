@@ -7,47 +7,12 @@ from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
 from care.crn.utilities.species import (atoms_to_graph,
-                                        get_voronoi_neighbourlist)
-
-
-def get_fragment_energy(atoms: Atoms) -> float:
-    """
-    Calculate fragment energy from closed shell structures.
-    This function allows to calculate the energy of both open- and closed-shell structures,
-    keeping the same reference.
-
-    Parameters:
-    ----------
-        atoms (ase.Atoms): Atoms object of the structure to evaluate
-
-    Returns:
-    -------
-        float: Energy of the structure.
-    """
-    # Count elemens in the structure
-    n_C = atoms.get_chemical_symbols().count("C")
-    n_H = atoms.get_chemical_symbols().count("H")
-    n_O = atoms.get_chemical_symbols().count("O")
-    n_N = atoms.get_chemical_symbols().count("N")
-    n_S = atoms.get_chemical_symbols().count("S")
-
-    # Reference DFT energy for C, H, O, N, S
-    e_H2O = -14.21877278  # O
-    e_H2 = -6.76639487  # H
-    e_NH3 = -19.54236910  # N
-    e_H2S = -11.20113092  # S
-    e_CO2 = -22.96215586  # C
-    return (
-        n_C * e_CO2
-        + (n_O - 2 * n_C) * e_H2O
-        + (4 * n_C + n_H - 2 * n_O - 3 * n_N - 2 * n_S) * e_H2 * 0.5
-        + (n_N * e_NH3)
-        + (n_S * e_H2S)
-    )
+                                        get_voronoi_neighbourlist, 
+                                        get_fragment_energy)
 
 
 class Intermediate:
-    """Intermediate class that defines the intermediate species of the network.
+    """Intermediate class.
 
     Attributes:
         code (str): Code of the intermediate. InChiKey of the molecule.
@@ -55,7 +20,7 @@ class Intermediate:
         graph (obj:`nx.graph`): Associated molecule graph.
         ads_configs (dict): Adsorption configurations of the intermediate.
         is_surface (bool): Defines if the intermediate corresponds to the empty surface.
-        phase (str): Phase of the intermediate. Can be 'gas', 'ads' or 'surf'.
+        phase (str): Phase of the intermediate.
     """
 
     def __init__(
@@ -71,12 +36,12 @@ class Intermediate:
         self.elements = INTER_ELEMS
         self.code = code
         self.molecule = molecule
+
         if isinstance(self.molecule, Chem.rdchem.Mol):
             self.rdkit = molecule
         elif isinstance(self.molecule, Atoms):
             self.rdkit = self.ase_to_rdkit()
 
-        # If self.molecule is a Chem.rdchem.Mol object, convert to ase.Atoms
         if isinstance(self.molecule, Chem.Mol):
             self.molecule = self.rdkit_to_ase()
 
@@ -114,7 +79,6 @@ class Intermediate:
             if phase not in self.phases:
                 raise ValueError(f"Phase must be one of {self.phases}")
             self.phase = phase
-        self.t_states = [{}, {}]
 
     def __getitem__(self, key: str):
         if key not in self.elements:
@@ -135,6 +99,9 @@ class Intermediate:
         if isinstance(other, Intermediate):
             return self.code == other.code
         raise NotImplementedError
+    
+    def __len__(self):
+        return len(self.molecule)
 
     def __repr__(self):
         if self.phase in ("surf", "ads"):
