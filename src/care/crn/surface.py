@@ -65,18 +65,22 @@ class Surface:
         tol_dict["Os"] = 0.75
         tol_dict["Ru"] = 0.75
         tol_dict["Zn"] = 1.25
-        if self.facet == "10m11":
-            tol_dict = {"Cd": 1.5, "Co": 0.5, "Os":0.75, "Ru": 0.75, "Zn": 1.25}
+        if self.facet == "10m11" or (self.crystal_structure == "bcp" and self.facet in ("111", "100")):
+            tol = 2.0
             sas = SlabAdsorptionSites(
                 self.slab,
                 surface=surf,
-                tol=tol_dict[self.metal],
+                tol=tol,
                 label_sites=True)
-                # allow_6fold=False,
-                # both_sides=False,
-                # composition_effect=False,
-                # label_sites=True,
-                # tol=tol_dict[self.metal])
+
+        elif self.crystal_structure == "fcc" and self.facet == "110":
+            tol = 1.5
+            sas = SlabAdsorptionSites(
+                self.slab,
+                surface=surf,
+                tol=tol,
+                label_sites=True)
+
         else:
             sas = SlabAdsorptionSites(
                 self.slab,
@@ -86,5 +90,5 @@ class Surface:
                 optimize_surrogate_cell=True,
             )
         sas = sas.get_unique_sites()
-        sas = [site for site in sas if site["position"][2] > 0.75 * self.slab_height]
+        sas = [site for site in sas if site["position"][2] > 0.65 * self.slab_height]
         return sas

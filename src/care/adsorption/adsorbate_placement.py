@@ -224,13 +224,11 @@ def ads_placement(
 
     total_config_list = []
 
-    if len(intermediate.molecule) > 3:
+    if intermediate['C'] > 3:
         
-        # Get the hollow sites
-        try:
-            site_idx = active_sites['3']
-        except KeyError:
-            site_idx = active_sites['2']
+        # Getting all the indices of the all the active sites
+        site_idx = [site["indices"] for site in surface.active_sites]
+        site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
         
         ads_height = 2.5
         config_list = []
