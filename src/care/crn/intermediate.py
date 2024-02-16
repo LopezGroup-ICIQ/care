@@ -100,8 +100,6 @@ class Intermediate:
             return self.code == other.code
         raise NotImplementedError
     
-    def __len__(self):
-        return len(self.molecule)
 
     def __repr__(self):
         if self.phase in ("surf", "ads"):

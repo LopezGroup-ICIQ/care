@@ -942,15 +942,6 @@ def run_screening(inp_vars):
     adsorbate = [inp_vars["use_molec_file"]]
     surface.info = {}
     surf_ads_list = adsorb_confs(adsorbate, surface, inp_vars)
-    if len(surf_ads_list) > inp_vars["max_structures"]:
-        if inp_vars["max_structures"] > 1:
-            # Divide the list in sublists of the same length
-            surf_ads_list = [surf_ads_list[i : i + inp_vars["max_structures"]] for i in range(0, len(surf_ads_list), inp_vars["max_structures"])]
-            # Getting from each sublist the first element until the length of the list is the same as the max_structures
-            surf_ads_list = [sublist[0] for sublist in surf_ads_list]
-        else:
-            # Get the last max_structures elements of the list
-            surf_ads_list = surf_ads_list[-inp_vars["max_structures"]:]
 
     logger.info(
         f"Generated {len(surf_ads_list)} adsorbate-surface atomic "

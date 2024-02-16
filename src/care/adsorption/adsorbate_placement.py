@@ -224,7 +224,7 @@ def ads_placement(
 
     total_config_list = []
 
-    if intermediate['C'] > 3:
+    if len(intermediate.molecule) > 6:
         
         # Getting all the indices of the all the active sites
         site_idx = [site["indices"] for site in surface.active_sites]
@@ -246,7 +246,7 @@ def ads_placement(
             total_config_list.extend(config_list)
         return total_config_list
 
-    elif 2 <= intermediate["C"] <= 3:
+    elif 2 <= len(intermediate.molecule) <= 6:
         
         ads_height = (
             2.2 if intermediate.molecule.get_chemical_formula() != "H2" else 1.8
