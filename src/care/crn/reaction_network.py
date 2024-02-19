@@ -785,6 +785,21 @@ class ReactionNetwork:
                 reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
             reaction.k_rev = reaction.k_dir / reaction.k_eq
 
+    def get_hubs(self):
+        """
+        Get hubs of the network.
+
+        Returns:
+            dict where key is the code of the intermediate and value is the
+            number of reactions in which the intermediate is involved.
+        """
+        hubs = {inter.code: 0 for inter in self.intermediates.values()}
+        for inter in self.intermediates.values():
+            for reaction in self.reactions:
+                hubs[inter.code] += 1 if inter.code in reaction.stoic.keys() else 0
+        hubs = dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True))
+        return hubs
+
     def run_microkinetic(
         self,
         iv: dict[str, float],
@@ -913,7 +928,7 @@ class ReactionNetwork:
         for i, inter in enumerate(inters):
             if self.intermediates[inter].phase == "gas":
                 graph.nodes[inter]["molar_fraction"] = (
-                    results["y"][i] / self.pressure
+                    results["y"][i] / P
                 )
             elif self.intermediates[inter].phase == "ads":
                 graph.nodes[inter]["coverage"] = results["y"][i]
@@ -945,12 +960,14 @@ class ReactionNetwork:
                         graph.add_edge(inter, 
                                        reaction.code, 
                                        rate=abs(r), 
-                                       delta=delta)
+                                       delta=delta, 
+                                       weight=1/abs(r))
                     else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
                         graph.add_edge(reaction.code, 
                                        inter, 
                                        rate=abs(r), 
-                                       delta=-(reaction.e_act[0] - reaction.e_rxn[0]))
+                                       delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
+                                       weight=1/abs(r))
         graph.remove_node("*")
 
         results["run_graph"] = graph

@@ -5,6 +5,7 @@ import numpy as np
 from rdkit import Chem
 from numba import njit, cuda
 import math
+from networkx.algorithms import shortest_path
 
 
 def iupac_to_inchikey(iupac_name: str) -> str:
@@ -80,7 +81,7 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
             graph.nodes[int_node]["category"] == "intermediate"
             and graph.nodes[int_node]["phase"] == "gas"
         ):
-            print("Found sink", int_node)
+            print("Found fastest path ({} steps) leading from {}(g) to {}(g)".format(int(len(path_edges)/2), graph.nodes[source_node]["formula"], graph.nodes[int_node]["formula"]))
             break
 
         current_node = int_node
@@ -98,3 +99,34 @@ def net_rate(y, kd, kr, sf, sb):
             backward_product *= y[j] ** sb[i, j]
         rates[i] = kd[i] * forward_product - kr[i] * backward_product
     return rates
+
+def get_all_paths(g: nx.Graph, source:str):
+    if len(source) == 27:
+        source = g.nodes[source + "g"]["formula"]
+
+    # Find the source node based on attributes
+    for node in g.nodes:
+        if (
+            g.nodes[node]["category"] == "intermediate"
+            and g.nodes[node]["phase"] == "gas"
+            and g.nodes[node]["formula"] == source
+        ):
+            source_node = node
+            break
+    else:        
+        return []  # If no source node is found
+    
+    gas_products = [n for n in g.nodes if g.nodes[n]['category'] == 'intermediate' and g.nodes[n]['phase'] == 'gas' and g.nodes[n]['molar_fraction'] == 0]
+    products_dict = {}
+    for product in gas_products:
+        formula = g.nodes[product]['formula']
+        print(f"Searching for paths leading from {source} to {formula}")
+        try:
+            path = shortest_path(g, source_node, product, weight='weight')
+        except nx.NetworkXNoPath:
+            print(f"No path found leading from {source} to {formula}")
+            path = None
+        if path:
+            products_dict[formula] = path
+            print(f"Found path leading from {source} to {formula}")
+    return products_dict
