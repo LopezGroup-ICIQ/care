@@ -13,7 +13,7 @@ from ase.visualize import view
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, OC_UNITS, H
-from care.crn.reactors import DifferentialPFR, DynamicCSTR
+from care.crn.reactors import DifferentialPFR
 from care.crn.visualize import visualize_reaction
 
 
@@ -785,7 +785,7 @@ class ReactionNetwork:
                 reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
             reaction.k_rev = reaction.k_dir / reaction.k_eq
 
-    def get_hubs(self):
+    def get_hubs(self, n:int = None) -> dict[str, int]:
         """
         Get hubs of the network.
 
@@ -798,7 +798,10 @@ class ReactionNetwork:
             for reaction in self.reactions:
                 hubs[inter.code] += 1 if inter.code in reaction.stoic.keys() else 0
         hubs = dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True))
-        return hubs
+        if n is not None:
+            return dict(list(hubs.items())[:n])
+        else:
+            return hubs
 
     def run_microkinetic(
         self,

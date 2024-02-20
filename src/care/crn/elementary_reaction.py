@@ -245,31 +245,7 @@ class ElementaryReaction:
     def bader_energy(self, other):
         self._bader_energy = other
 
-    def bb_order(self):
-        """
-        Set the elementary reaction in the bond-breaking direction, e.g.:
-        CH4 + * -> CH3 + H*
-        If is not in the bond-breaking direction, reverse it
-        Adsorption steps are reversed to desorption steps, while desorption steps are preserved
-        """
-        if self.r_type in ("adsorption", "desorption"):
-            if self.r_type == "adsorption":
-                self.reverse()
-            else:
-                pass
-        else:
-            size_reactants, size_products = [], []
-            for reactant in self.reactants:
-                if not reactant.is_surface:
-                    size_reactants.append(len(reactant.molecule))
-            for product in self.products:
-                if not product.is_surface:
-                    size_products.append(len(product.molecule))
-            if max(size_reactants) < max(size_products):
-                self.reverse()
-            else:
-                pass
-
+    
     @property
     def components(self):
         return self._components
@@ -337,7 +313,7 @@ class ElementaryReaction:
 
     def reverse(self):
         """
-        Reverse the elementary reaction inplace.
+        Reverse the elementary reaction in-place.
         Example: A + B <-> C + D becomes C + D <-> A + B
         reaction energy and barrier are also reversed
         """
@@ -364,6 +340,44 @@ class ElementaryReaction:
             ):  # Barrier lower than self energy
                 self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
+
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        If is not in the bond-breaking direction, reverse it
+        Adsorption steps are reversed to desorption steps, while desorption steps are preserved
+        """
+        if self.r_type in ("adsorption", "desorption"):
+            if self.r_type == "adsorption":
+                self.reverse()
+            else:
+                pass
+        else:
+            size_reactants, size_products = [], []
+            for reactant in self.reactants:
+                if not reactant.is_surface:
+                    size_reactants.append(len(reactant.molecule))
+            for product in self.products:
+                if not product.is_surface:
+                    size_products.append(len(product.molecule))
+            if max(size_reactants) < max(size_products):
+                self.reverse()
+            else:
+                pass
+
+
+    def bb(self):
+        """Set reaction to bond-breaking direction."""
+        self.bb_order()
+        
+
+    def bf(self):
+        """        
+        Set reaction to bond-forming direction.
+        """
+        self.bb_order()
+        self.reverse()
 
     def electro_rxn(self, pH: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
         """

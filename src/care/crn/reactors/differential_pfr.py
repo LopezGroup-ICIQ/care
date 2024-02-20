@@ -240,7 +240,7 @@ class DifferentialPFR(ReactorModel):
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
     
-    def integrate_jl(self, 
+    def integrate_jl_ssp(self, 
                      y0: np.ndarray, 
                      device: str="cuda", 
                      solver: str="KenCarp4"):
@@ -287,6 +287,71 @@ class DifferentialPFR(ReactorModel):
         sol = solve(prob, DynamicSS(KenCarp4()))
         """)
         Main.eval("sol = Array(sol)")
+        Main.eval("""
+        CUDA.allowscalar(false)
+        """)
+        solution = Main.sol
+        return solution
+    
+    def integrate_jl(self, 
+                     y0: np.ndarray, 
+                     device: str="cuda", 
+                     solver: str="KenCarp4"):
+        """
+        Integrate the ODE system using the Julia-based solver.
+        """
+        from julia.api import Julia
+        jl = Julia()
+        from julia import Main
+        Main.y0 = y0
+        Main.v = self.v_dense
+        Main.vf = self.v_forward_dense
+        Main.vb = self.v_backward_dense
+        Main.kd, Main.kr = self.kd, self.kr
+        Main.gas_mask = self.gas_mask
+        Main.eval("""
+        using CUDA
+        using DifferentialEquations
+        using SparseArrays
+        CUDA.allowscalar(true)
+        y0 = CuArray{Float64}(y0)
+        v = CuArray{Int8}(sparse(v))
+        kd = CuArray{Float64}(kd)
+        kr = CuArray{Float64}(kr)
+        vf = CuArray{Int8}(sparse(vf))
+        vb = CuArray{Int8}(sparse(vb))
+        gas_mask = CuArray{Bool}(gas_mask)
+        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
+        """)
+        Main.eval("""
+        function ode_pfr!(du, u, p, t)
+            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
+            du .= p.v * net_rate
+            du[p.gas_mask] .= 0.0
+            println(sum(abs.(du)))
+        end
+        """)
+        Main.eval("""
+        prob = ODEProblem(ode_pfr!, y0, (0.0, 1e30), p)
+        """)
+        Main.eval("""
+        function condition(u, t, integrator)
+            du = similar(u)
+            ode_pfr!(du, u, integrator.p, t)
+            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
+            return sum_abs_du - threshold  # The condition is met when this is 0 or negative
+        end
+        """)
+        Main.eval("""
+        function affect!(integrator)
+            terminate!(integrator)
+        end
+        threshold = 1e-10
+        cb = ContinuousCallback(condition, affect!)""")
+        Main.eval("""
+        sol = solve(prob, KenCarp4(), abstol=1e-20, reltol=1e-10, callback=cb)
+        """)
+        Main.eval("sol = Array(sol[end])")
         Main.eval("""
         CUDA.allowscalar(false)
         """)
