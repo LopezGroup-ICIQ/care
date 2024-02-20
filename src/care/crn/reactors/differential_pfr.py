@@ -349,7 +349,7 @@ class DifferentialPFR(ReactorModel):
         threshold = 1e-10
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, KenCarp4(), abstol=1e-20, reltol=1e-10, callback=cb)
+        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-10, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         Main.eval("""

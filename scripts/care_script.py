@@ -14,7 +14,7 @@ from ase import Atoms
 from ase.db import connect
 import numpy as np
 
-from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate, IntermediateEnergyEstimator
+from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
 from care.crn.reactors import DifferentialPFR, DynamicCSTR
