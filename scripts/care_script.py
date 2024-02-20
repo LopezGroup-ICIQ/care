@@ -103,13 +103,13 @@ def main():
                 ncc, noc, additional_rxns)
             with open(crn_bp_path, "wb") as f:
                 dump(ReactionNetwork(intermediates, reactions), f)
-        else:
-            print("Loading the pre-generated CRN...")
-            with open(crn_bp_path, "rb") as f:
-                crn = load(f)
-                intermediates = crn.intermediates
-                reactions = crn.reactions
-                
+        # else:
+        #     print("Loading the pre-generated CRN...")
+        #     with open(crn_bp_path, "rb") as f:
+        #         crn = load(f)
+        #         intermediates = crn.intermediates
+        #         reactions = crn.reactions
+
         if electrochem:
             # Accessing the water gas Intermediate
             h2o_gas = [intermediate for intermediate in intermediates.values(
@@ -149,7 +149,7 @@ def main():
             chunk_size = len(intermediates) // (mp.cpu_count() * 10)
             tasks = [list(intermediates.values())[i:i + chunk_size]
                      for i in range(0, len(intermediates), chunk_size)]
-            num_cpu = mp.cpu_count() // 2
+            num_cpu = mp.cpu_count()
 
         # Create empty folder to store temp results
         tmp_folder = tempfile.mkdtemp()

@@ -774,7 +774,7 @@ def gen_chemical_space(
         task = progress.add_task(task_desc, total=6)
 
         # Step 0: Generate relevant species
-        relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
+        relev_species = ["[C-]#[O+]", "C(=O)=O", "O", "OO", "[H][H]"]
         progress.update(task, advance=1)
 
         # Step 1: Generate Alkanes
