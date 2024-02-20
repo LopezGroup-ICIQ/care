@@ -316,7 +316,11 @@ def gen_epoxides(mol_alkanes: list, no: int) -> list[str]:
             tmp_mol.UpdatePropertyCache()
             smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
             epoxides.append(smiles)
-    return list(set(epoxides))
+    smiles_epoxides = list(set(epoxides))
+
+    # Generating mol objects
+    mol_epoxides = [Chem.MolFromSmiles(smiles) for smiles in epoxides]
+    return smiles_epoxides, mol_epoxides
 
 
 def gen_ethers(mol_alkanes: list, noc: int) -> tuple[list[str], list[Chem.Mol]]:
@@ -381,6 +385,10 @@ def add_oxygens(mol: Chem.Mol, noc: int) -> set[str]:
     unique_molecules : set[str]
         Set of all possible molecules with added oxygens (SMILES format).
     """
+
+    if noc == 0:
+        return set()
+    
     unique_molecules = set()
 
     # Filter out carbon atoms with no free sites

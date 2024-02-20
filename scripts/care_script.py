@@ -88,6 +88,7 @@ def main():
     output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
+    crn_bp_path = f"{output_dir}/crn_bp.pkl"
     crn_path = f"{output_dir}/crn.pkl"
 
     # 0. Check if the CRN already exists
@@ -97,9 +98,18 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
 
-        intermediates, reactions = gen_chemical_space(
-            ncc, noc, additional_rxns)
-
+        if not os.path.exists(crn_bp_path):
+            intermediates, reactions = gen_chemical_space(
+                ncc, noc, additional_rxns)
+            with open(crn_bp_path, "wb") as f:
+                dump(ReactionNetwork(intermediates, reactions), f)
+        else:
+            print("Loading the pre-generated CRN...")
+            with open(crn_bp_path, "rb") as f:
+                crn = load(f)
+                intermediates = crn.intermediates
+                reactions = crn.reactions
+                
         if electrochem:
             # Accessing the water gas Intermediate
             h2o_gas = [intermediate for intermediate in intermediates.values(
@@ -134,10 +144,12 @@ def main():
         if len(intermediates) < 10000:
             chunk_size = 1
             tasks = [[intermediate] for intermediate in intermediates.values()]
+            num_cpu = mp.cpu_count()
         else:
             chunk_size = len(intermediates) // (mp.cpu_count() * 10)
             tasks = [list(intermediates.values())[i:i + chunk_size]
                      for i in range(0, len(intermediates), chunk_size)]
+            num_cpu = mp.cpu_count() // 2
 
         # Create empty folder to store temp results
         tmp_folder = tempfile.mkdtemp()
@@ -149,7 +161,7 @@ def main():
                 " [green]Processing...", total=len(tasks))
             processed_items = 0
 
-            with mp.Pool(mp.cpu_count()) as pool:
+            with mp.Pool(num_cpu) as pool:
                 pool.starmap(evaluate_intermediate, [
                             (task, intermediate_model, progress_queue, tmp_file) for task in tasks])
                 

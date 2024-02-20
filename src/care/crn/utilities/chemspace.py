@@ -768,38 +768,44 @@ def gen_chemical_space(
     rxns_list : list[ElementaryReaction]
         List of all the reactions of the reaction network as ElementaryReaction instances.
     """
-    total_time = time.time()
     t00 = time.time()
     with Progress() as progress:
         task_desc = format_description("[green]Generating Chemical Space...")
         task = progress.add_task(task_desc, total=6)
 
+        # Step 0: Generate relevant species
+        relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
+        progress.update(task, advance=1)
+
         # Step 1: Generate Alkanes
         alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
         progress.update(task, advance=1)
 
-        # Step 2: Generate Ethers
-        ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
-        progress.update(task, advance=1)
+        if noc > 0:
+            # Step 2: Generate Ethers
+            ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
+            progress.update(task, advance=1)
 
-        # Step 3: Generate Epoxides
-        epoxides_smiles = gen_epoxides(mol_alkanes, noc)
-        progress.update(task, advance=1)
+            # Step 3: Generate Epoxides
+            epox_smiles, mol_epox = gen_epoxides(mol_alkanes, noc)
+            progress.update(task, advance=1)
 
-        # Step 4: Combine Alkanes and Ethers
-        mol_alkanes_ethers = mol_alkanes + mol_ethers
-        progress.update(task, advance=1)
+            # Step 4: Add Oxygens
+            alkanes_oxy_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes]
+            ethers_epox_oxy_smiles = [add_oxygens(mol, noc-1) for mol in mol_ethers+mol_epox]
+            cho_smiles = alkanes_oxy_smiles + ethers_epox_oxy_smiles
+            cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
+            progress.update(task, advance=1)
 
-        # Step 5: Add Oxygens
-        cho_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes_ethers]
-        cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
-        progress.update(task, advance=1)
+            # Step 5: Finalize the Species List
+            cho_smiles += epox_smiles + ethers_smiles
+            saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
+            progress.update(task, advance=1)
 
-        # Step 6: Finalize the Species List
-        cho_smiles += epoxides_smiles + ethers_smiles
-        relev_species = ["CO", "C(O)O", "O", "OO", "[H][H]"]
-        saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
-        progress.update(task, advance=1)
+        else:
+            # Step 2: Finalize the Species List
+            saturated_species_smiles = alkanes_smiles + relev_species
+            progress.update(task, advance=1)
     t0 = time.time() - t00
 
     t01 = time.time()
