@@ -332,7 +332,7 @@ class DifferentialPFR(ReactorModel):
         end
         """)
         Main.eval("""
-        prob = ODEProblem(ode_pfr!, y0, (0.0, 1e30), p)
+        prob = ODEProblem(ode_pfr!, y0, (0.0, 1e20), p)
         """)
         Main.eval("""
         function condition(u, t, integrator)
@@ -349,7 +349,7 @@ class DifferentialPFR(ReactorModel):
         threshold = 1e-10
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-10, callback=cb)
+        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-8, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         Main.eval("""

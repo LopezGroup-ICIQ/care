@@ -782,6 +782,7 @@ def gen_chemical_space(
         progress.update(task, advance=1)
 
         if noc > 0:
+            relev_species =  ["C(=O)=O", "O", "OO", "[H][H]"] if noc == 1 else ["O", "OO", "[H][H]"]
             # Step 2: Generate Ethers
             ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
             progress.update(task, advance=1)
@@ -799,7 +800,7 @@ def gen_chemical_space(
 
             # Step 5: Finalize the Species List
             cho_smiles += epox_smiles + ethers_smiles
-            saturated_species_smiles = alkanes_smiles + cho_smiles + relev_species
+            saturated_species_smiles = list(set(alkanes_smiles + cho_smiles + relev_species))
             progress.update(task, advance=1)
 
         else:
