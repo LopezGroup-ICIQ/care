@@ -313,8 +313,8 @@ def atoms_to_data(
         raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(formula))
     if not C_filter(graph, ADSORBATE_ELEMS):
         raise ValueError("{}: Wrong C connectivity in the adsorbate".format(formula))
-    if not fragment_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Fragmented adsorbate.".format(formula))
+    # if not fragment_filter(graph, ADSORBATE_ELEMS):
+    #     raise ValueError("{}: Fragmented adsorbate.".format(formula))
 
     # NODE FEATURIZATION
     if graph_params["features"]["adsorbate"]:

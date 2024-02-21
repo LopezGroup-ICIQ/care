@@ -86,7 +86,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                     max = row.get("scaled_energy")
         
         if len(stable_conf):
-            intermediate.ads_configs = {f"{conf_type}": {"conf": stable_conf[0][0], "pyg": atoms_to_data(
+            intermediate.ads_configs = {f"{conf_type}": {"ase": stable_conf[0][0], "pyg": atoms_to_data(
                 stable_conf[0][0], self.model.graph_params), "mu": stable_conf[0][1], "s": 0}}
             return True
         return False
@@ -111,7 +111,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         # Estimate the energy of the intermediate
         if intermediate.is_surface:
             intermediate.ads_configs = {
-                "surf": {"config": intermediate.molecule, "mu": 0.0, "s": 0.0}
+                "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
 
         elif intermediate.phase == "gas":
@@ -126,7 +126,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                     y = self.model(pyg)
                     intermediate.ads_configs = {
                         "gas": {
-                            "config": config,
+                            "ase": config,
                             "pyg": pyg,
                             "mu": (
                                 y.mean * self.model.y_scale_params["std"]
@@ -150,7 +150,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 for config in config_list:
                     with no_grad():
                         ads_config_dict[f"{counter}"] = {}
-                        ads_config_dict[f"{counter}"]["config"] = config
+                        ads_config_dict[f"{counter}"]["ase"] = config
                         ads_config_dict[f"{counter}"]["pyg"] = (
                             atoms_to_data(config, self.model.graph_params)
                         )
