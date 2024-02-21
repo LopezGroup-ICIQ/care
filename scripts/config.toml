@@ -1,14 +1,14 @@
 [chemspace]
-ncc = 3 # Network Carbon Cutoff (int)
-noc = 3 # Network Oxygen Cutoff (int, if <0, maximum O saturation)
+ncc = 2 # Network Carbon Cutoff (int)
+noc = 2 # Network Oxygen Cutoff (int, if <0, maximum O saturation)
 regen = false  # Force the re-generatation of the existing CRN (bool)
 additional = false  # Include 1.2-H shifts (bool)
-electro = true # Electrochemical process, readjusts the reaction expressions accordingly (bool)
+electro = false # Electrochemical process, readjusts the reaction expressions accordingly (bool)
 
 
 [surface]
-metal = "Cu"  # metal catalyst (str)
-hkl = "100"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+metal = "Os"  # metal catalyst (str)
+hkl = "0001"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
 
 [mkm]
@@ -21,11 +21,12 @@ thermo = false  # If true, the activation barriers are neglected and only the th
 
 
 [operating_conditions]
-temperature = 298 # temperature in Kelvin (float)
-pressure = 1E05  # total pressure in Pascal (float)
+temperature = 598 # temperature in Kelvin (float)
+pressure = 1E06  # total pressure in Pascal (float)
 pH = 8 # pH, used only when electro is true (float between 1 and 14)
 U = -1.5 # applied potential in Volt, used only when electro is true (float)
 
 
 [initial_conditions] # molar fractions of the species of the gas mixture the reactor is exposed to, total sum must be 1!
-CO2 = 1.0 
+CO2 = 0.5
+H2 = 0.5 

@@ -54,7 +54,6 @@ def main():
     with open("config.toml", "r") as f:
         config = toml.load(f)
 
-    print("\nInitializing CARE (Catalytic Automatic Reaction Estimator)...\n")
     print(f"{LOGO}\n")
 
     # Loading parameters
@@ -102,16 +101,16 @@ def main():
             intermediates, reactions = gen_chemical_space(
                 ncc, noc, additional_rxns)
             with open(crn_bp_path, "wb") as f:
-                dump(ReactionNetwork(intermediates, reactions), f)
+                dump(ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc), f)
         else:
             print("Loading the pre-generated CRN...")
             with open(crn_bp_path, "rb") as f:
                 crn = load(f)
+                print(crn)
                 intermediates = crn.intermediates
                 reactions = crn.reactions
 
         if electrochem:
-            # Accessing the water gas Intermediate
             h2o_gas = [intermediate for intermediate in intermediates.values(
             ) if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
             oh_code = [intermediate for intermediate in intermediates.values(
@@ -119,7 +118,6 @@ def main():
             surface_inter = Intermediate(
                 code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
-            # Readjusting the reactions to electrochemical nomenclature
             for reaction in reactions:
                 reaction.electro_rxn(pH, h2o_gas, oh_code, surface_inter)
 
@@ -199,7 +197,11 @@ def main():
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 3. Building and saving the CRN
-        crn = ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc)
+        crn = ReactionNetwork(intermediates=intermediates, 
+                              reactions=reactions, 
+                              surface=surface, 
+                              ncc=ncc, 
+                              noc=noc)
 
         print("\nSaving the CRN...")
         with open(f"{output_dir}/crn.pkl", "wb") as f:
@@ -226,7 +228,6 @@ def main():
         results = crn.run_microkinetic(y0,
                                        oc['temperature'],
                                        oc['pressure'],
-                                       model=DifferentialPFR,
                                        uq=mkm_uq,
                                        uq_samples=uq_samples,
                                        thermo=thermo,
@@ -235,9 +236,6 @@ def main():
         print("\nSaving the microkinetic simulation...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
-
-        write_dotgraph(results['run_graph'],
-                        f"{output_dir}/mkm_res.svg", 'CO2')
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(

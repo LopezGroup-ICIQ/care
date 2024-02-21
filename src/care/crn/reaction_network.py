@@ -2,7 +2,6 @@ import re
 
 from shutil import rmtree
 from typing import Union
-from copy import deepcopy
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -109,16 +108,13 @@ class ReactionNetwork:
 
     def __str__(self):
         string = "ReactionNetwork({} surface species, {} gas molecules, {} elementary reactions)\n".format(
-            len(self.intermediates) - 1 - self.num_closed_shell_mols,
+            len(self.intermediates) - self.num_closed_shell_mols,
             self.num_closed_shell_mols,
             len(self.reactions),
         )
         string += "Surface: {}\n".format(self.surface)
-        string += "Temperature: {} {}\n".format(self.oc["T"], OC_UNITS["T"])
-        string += "Pressure: {} {}\n".format(self.oc["P"], OC_UNITS["P"])
-        string += "Overpotential: {} {}\n".format(self.oc["U"], OC_UNITS["U"])
-        string += "Network Carbon cutoff: C{}\n".format(self.ncc)
-        string += "Network Oxygen cutoff: O{}\n".format(self.noc)
+        string += "Network Carbon cutoff: {}\n".format(self.ncc)
+        string += "Network Oxygen cutoff: {}\n".format(self.noc)
         return string
 
     def __repr__(self):
@@ -324,7 +320,6 @@ class ReactionNetwork:
             rxn_counter += 1
         num_rxns_fin = len(self.reactions)
 
-        # remove all intermediates that are not participating in any reaction
         for inter in list(self.intermediates.keys()):
             counter = 0
             for reaction in self.reactions:
@@ -390,21 +385,16 @@ class ReactionNetwork:
         Generate a graph using the intermediates and the elementary reactions
         contained in this object.
 
-        Args:
-            del_surf (bool, optional): If True, the surface will not be
-                included in the graph. Defaults to False.
-            highlight (list, optional): List containing the codes of the
-                intermediates that will be highlighted in the graph. Defaults
-                to None.
-            show_steps (bool, optional): If True, the elementary reactions will
-                be shown as single nodes. Defaults to True.
-
         Returns:
-            obj:`nx.DiGraph` of the network.
+            graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
+            Species nodes can only be linked to reaction nodes and vice versa.
 
         Notes:
-            The graph is not directed properly, it needs further post-processing,
-            i.e. microkinetic modeling.
+            The returned graph is correctly directed at the elementary reaction level, 
+            i.e. if A + B -> C + D is a reaction, the species on the same side (e.g. A and B)
+            are linked to the reaction node in the same way (both entering or both exiting).
+            However, at the global level, the graph is ill-defined and further processing 
+            (kinetic modeling) is needed to obtain a correct representation of the network.
         """
         graph = nx.DiGraph()
 
@@ -431,27 +421,12 @@ class ReactionNetwork:
                 r_type=r_type,
             )
 
-            # Reaction edges (intermediate -> reaction -> intermediate)
-            for comp in reaction.components[0]:  # reactants to reaction node
+            for comp in reaction.components[0]:  
                 graph.add_edge(comp.code, reaction.code)
-            for comp in reaction.components[1]:  # reaction node to products
+            for comp in reaction.components[1]:
                 graph.add_edge(reaction.code, comp.code)
 
         return graph
-
-    def get_min_max(self):
-        """
-        Return the minimum and the maximum energy of the intermediates and
-        the elementary reactions.
-
-        Returns:
-            list of two floats containing the min and max value.
-        """
-        eners = [node.energy for node in self.nodes if node.energy is not None]
-        # return [min(eners), max(eners)]
-        # eners = [inter.energy for inter in self.intermediates.values()]
-        # eners += [t_state.energy for t_state in self.t_states]
-        return [min(eners), max(eners)]
 
     def write_dotgraph(
         self,
@@ -648,7 +623,6 @@ class ReactionNetwork:
         Args:
             inter_code (str): Code of the intermediate.
         """
-        # view all the available ads_configs ase atoms object
         configs = [
             config["ase"]
             for config in self.intermediates[inter_code].ads_configs.values()
@@ -730,7 +704,7 @@ class ReactionNetwork:
         """
         v = np.zeros(
             (len(self.intermediates) + 1, len(self.reactions)), dtype=np.int8
-        )  # +1 for the surface
+        )
         for i, inter in enumerate(self.intermediates.values()):
             for j, reaction in enumerate(self.reactions):
                 if inter.code in reaction.stoic.keys():
@@ -739,12 +713,15 @@ class ReactionNetwork:
         return v
 
 
-    def get_kinetic_constants(self, t: float = None, uq: bool = False, thermo: bool = False):
+    def get_kinetic_constants(self, 
+                              t: float = None, 
+                              uq: bool = False, 
+                              thermo: bool = False) -> None:
         """
-        Return the kinetic constants of the reactions.
+        Evaluate the kinetic constants of the reactions in the network.
 
         Args:
-            t (float, optional): Temperature. Defaults to None.
+            t (float, optional): Temperature in Kelvin. Defaults to None.
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
@@ -781,7 +758,7 @@ class ReactionNetwork:
                 reaction.k_dir *= np.exp(-e_act / K_B / t)
             elif reaction.r_type == "desorption":
                 reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
-            else:  # Surface reaction
+            else: 
                 reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
             reaction.k_rev = reaction.k_dir / reaction.k_eq
 
@@ -790,8 +767,9 @@ class ReactionNetwork:
         Get hubs of the network.
 
         Returns:
-            dict where key is the code of the intermediate and value is the
-            number of reactions in which the intermediate is involved.
+            hubs (dict): Dictionary containing the intermediates and the number
+                of reactions in which they are involved, sorted in descending
+                order.
         """
         hubs = {inter.code: 0 for inter in self.intermediates.values()}
         for inter in self.intermediates.values():
@@ -812,11 +790,10 @@ class ReactionNetwork:
         uq_samples: int = 100,
         thermo: bool = False,
         solver: str = "Julia",
-        barrier_threshold: float = None,
-        **kwargs,
+        barrier_threshold: float = None
     ):
         """
-        Run microkinetic simulation on a differential reactor.
+        Run microkinetic simulation.
 
         Args:
             iv (dict): Initial values of the molar fractions of the gas phase
@@ -824,14 +801,24 @@ class ReactionNetwork:
                 chemical formulas of the intermediates and values are the
                 molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}), 
                 where the sum of the values must be 1.0.
-            rtol (float, optional): Relative tolerance. Defaults to 1e-12.
-            atol (float, optional): Absolute tolerance. Defaults to 1e-64.
-            sstol (float, optional): Steady state tolerance. Defaults to 1e-12.
+            temperature (float, optional): Temperature in Kelvin. Defaults to None.
+            pressure (float, optional): Pressure in bar. Defaults to None.
+            uq (bool, optional): If True, the uncertainty of the activation
+                energy and the reaction energy will be considered. Defaults to
+                False.
+            uq_samples (int, optional): Number of samples for the uncertainty
+                quantification. Defaults to 100.
+            thermo (bool, optional): If True, the activation barriers will be
+                neglected and only the thermodynamic path is considered. Defaults
+                to False.
+            solver (str, optional): Solver to be used. Defaults to "Julia".
+            barrier_threshold (float, optional): Threshold for the activation
+                energy of the reactions. If a reaction has an activation energy
+                below this threshold, it will be filtered out. Defaults to None.
 
         Returns:
             dict containing the results of the simulation.
         """
-        # SET UP INITIAL CONDITIONS AND PARAMETERS
         if sum(iv.values()) != 1.0:
             raise ValueError("Sum of molar fractions is not 1.0")
         if temperature is None:
