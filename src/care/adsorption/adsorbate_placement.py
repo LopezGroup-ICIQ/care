@@ -157,7 +157,7 @@ def generate_inp_vars(
     return inp_vars
 
 
-def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 3.0) -> Atoms:
+def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) -> Atoms:
     """
     Adapts the surface depending on the size of the molecule.
 
