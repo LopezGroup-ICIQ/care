@@ -17,7 +17,7 @@ import numpy as np
 from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
-from care.crn.reactors import DifferentialPFR, DynamicCSTR
+from care.crn.reactors import DifferentialPFR
 from care.crn.visualize import write_dotgraph
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
@@ -103,12 +103,12 @@ def main():
                 ncc, noc, additional_rxns)
             with open(crn_bp_path, "wb") as f:
                 dump(ReactionNetwork(intermediates, reactions), f)
-        # else:
-        #     print("Loading the pre-generated CRN...")
-        #     with open(crn_bp_path, "rb") as f:
-        #         crn = load(f)
-        #         intermediates = crn.intermediates
-        #         reactions = crn.reactions
+        else:
+            print("Loading the pre-generated CRN...")
+            with open(crn_bp_path, "rb") as f:
+                crn = load(f)
+                intermediates = crn.intermediates
+                reactions = crn.reactions
 
         if electrochem:
             # Accessing the water gas Intermediate
@@ -199,7 +199,7 @@ def main():
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 3. Building and saving the CRN
-        crn = ReactionNetwork(intermediates, reactions)
+        crn = ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc)
 
         print("\nSaving the CRN...")
         with open(f"{output_dir}/crn.pkl", "wb") as f:
@@ -220,21 +220,19 @@ def main():
         else:
             uq_samples = 0
 
-        print("\nRunning the MKM...")
+        print("\nRunning the microkinetic simulation...")
         oc = config['operating_conditions']
         y0 = config['initial_conditions']
-        r = config['reactor']
-        reactor = DifferentialPFR if r['type'] == 'DifferentialPFR' else DynamicCSTR
         results = crn.run_microkinetic(y0,
                                        oc['temperature'],
                                        oc['pressure'],
-                                       model=reactor,
+                                       model=DifferentialPFR,
                                        uq=mkm_uq,
                                        uq_samples=uq_samples,
                                        thermo=thermo,
                                        solver=config['mkm']['solver'], 
                                        barrier_threshold=config['mkm']['barrier_threshold'])
-        print("\nSaving the MKM results...")
+        print("\nSaving the microkinetic simulation...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
 
