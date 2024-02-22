@@ -15,27 +15,9 @@ from scipy.spatial import Voronoi
 from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
-from care.constants import CORDERO
+from care.constants import CORDERO, METALS, ADSORBATE_ELEMS
 from care.crn.utilities.species import atoms_to_graph
 from care.gnn.graph_filters import (C_filter, H_filter, fragment_filter)
-
-METALS = [
-    "Ag",
-    "Au",
-    "Cd",
-    "Co",
-    "Cu",
-    "Fe",
-    "Ir",
-    "Ni",
-    "Os",
-    "Pd",
-    "Pt",
-    "Rh",
-    "Ru",
-    "Zn",
-]
-ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
 
 
 def get_voronoi_neighbourlist(atoms: Atoms, 
@@ -86,7 +68,6 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             if distance <= threshold:
                 pairs.append(pair)
  
-        # gasc = all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms)))
         c1 = any(
             atoms[pair[0]].symbol in adsorbate_elems
             and atoms[pair[1]].symbol not in adsorbate_elems
@@ -97,42 +78,12 @@ def get_voronoi_neighbourlist(atoms: Atoms,
             and atoms[pair[1]].symbol in adsorbate_elems
             for pair in pairs
         )
-        if (c1 or c2):# or gasc:
+        if (c1 or c2):
             break
         else:
             increment += 0.2
 
     return np.sort(np.array(pairs), axis=1)
-
-
-def detect_ts(atoms: Atoms,
-              adsorbate_elems: list[str], 
-              tol: float) -> tuple[int]:
-    """
-    Return indices of the adsorbate atoms involved in the bond-breaking/forming reaction.
-
-    Args:
-        atoms (Atoms): ASE Atoms object representing the transition state image.
-        adsorbate_elems (list[str]): list of elements present in the adsorbate.
-    Returns:
-        tuple[int]: indices of the atoms of the adsorbate involved in the bond-breaking/forming.
-    """
-    adsorbate_idxs = {atom.index for atom in atoms if atom.symbol in adsorbate_elems}
-    neighbourlist = get_voronoi_neighbourlist(atoms, tol, 1.0, adsorbate_elems)
-    neighbourlist = [(pair[0], pair[1]) for pair in neighbourlist if (pair[0] in adsorbate_idxs) and (pair[1] in adsorbate_idxs)]    
-    nx = Graph()
-    nx.add_nodes_from(adsorbate_idxs)  # Fundamental to initialize nodes! e.g. single atom would be neglected as has no edges
-    nx.add_edges_from(neighbourlist)
-    components = list(connected_components(nx))
-    if len(components) != 2:
-        print(f"{atoms.get_chemical_formula(mode='metal')}: {len(components)} components instead of 2 in the TS {components}\n")
-        return None
-    else:
-        dist_dict = {}
-        for node1 in components[0]:
-            for node2 in components[1]:
-                dist_dict[(node1, node2)] = atoms.get_distance(node1, node2, mic=True)
-        return min(dist_dict, key=dist_dict.get)
 
 
 def atoms_to_nx(
@@ -214,12 +165,7 @@ def atoms_to_nx(
         if pair[0] in graph.nodes() and pair[1] in graph.nodes()
     ]
     graph.add_edges_from(ensemble_neighbour_list, ts_edge=0)
-    if mode == "ts":
-        broken_bond_idxs = detect_ts(atoms, adsorbate_elements, 0.25)
-        graph.add_edge(broken_bond_idxs[0], broken_bond_idxs[1], ts_edge=1)
-        return graph, list(surface_neighbours_idxs), broken_bond_idxs
-    else:
-        return graph, list(surface_neighbours_idxs), None
+    return graph, list(surface_neighbours_idxs), None
 
 
 def atoms_to_pyg(atoms: Atoms,
@@ -266,11 +212,6 @@ def atoms_to_pyg(atoms: Atoms,
     edge_index = torch.tensor([edge_tails, edge_heads], dtype=torch.long)
     # edge attributes
     edge_attr = torch.zeros(edge_index.shape[1], 1)
-    if calc_type == 'ts':
-        for i in range(edge_index.shape[1]):
-            edge_tuple = (nodes_list[edge_index[0, i].item()], nodes_list[edge_index[1, i].item()])
-            if nx.edges[edge_tuple]['ts_edge'] == 1:
-                edge_attr[i, 0] = 1  # As the nxgraph is undirected, the edge attribute is repeated twice
     return Data(x, edge_index, edge_attr, elem=elem_list), surface_neighbors, bb_idxs
 
 

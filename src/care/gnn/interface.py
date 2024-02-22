@@ -383,6 +383,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         bond = tuple(step.r_type.split("-"))
 
         # Select intermediate that is fragmented in the reaction (A*)
+
         inters = {
             inter.code: inter.graph.number_of_edges()
             for inter in list(step.reactants) + list(step.products)
@@ -472,14 +473,17 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             # Estimate the reaction energy
             self.calc_reaction_energy(reaction)
             if "-" in reaction.r_type:
-                self.ts_graph(reaction)
-                y = self.model(reaction.ts_graph.to(self.device))
-                reaction.e_ts = (
-                    y.mean.item() * self.model.y_scale_params["std"]
-                    + self.model.y_scale_params["mean"],
-                    y.scale.item() * self.model.y_scale_params["std"],
-                )
+                try:
+                    self.ts_graph(reaction)
+                    y = self.model(reaction.ts_graph.to(self.device))
+                    reaction.e_ts = (
+                        y.mean.item() * self.model.y_scale_params["std"]
+                        + self.model.y_scale_params["mean"],
+                        y.scale.item() * self.model.y_scale_params["std"],
+                    )
+                    self.calc_reaction_barrier(reaction)
+                except:
+                    print("Error in transition state for {}.".format(reaction.code))
             # Estimate the activation energy
-            self.calc_reaction_barrier(reaction)
             return reaction
         
