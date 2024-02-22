@@ -162,6 +162,24 @@ def atoms_to_nx(
         atoms, voronoi_tolerance, scaling_factor, adsorbate_elements
     )
 
+    # Check connectivity of adsorbate
+    if mode == "int":
+        neighbour_list_adsorbate = [(pair[0], pair[1]) for pair in neighbour_list if (pair[0] in adsorbate_idxs) and (pair[1] in adsorbate_idxs)] 
+        ads_graph = Graph()
+        ads_graph.add_edges_from(neighbour_list_adsorbate)
+        ads_graph.add_nodes_from(adsorbate_idxs)
+        components = list(connected_components(ads_graph))
+        while len(components) != 1:
+            dist_dict = {}
+            for node1 in components[0]:
+                for node2 in components[1]:
+                    dist_dict[(node1, node2)] = atoms.get_distance(node1, node2, mic=True)
+            missing_edge = min(dist_dict, key=dist_dict.get)
+            # add the missing edge to the neighbour_list numpy array (NCx2)
+            neighbour_list = np.vstack((neighbour_list, missing_edge))            
+            ads_graph.add_edge(missing_edge[0], missing_edge[1])
+            components = list(connected_components(ads_graph))
+    
     # 2) Get surface atoms that are neighbours of the adsorbate
     surface_neighbours_idxs = {
         pair[1] if pair[0] in adsorbate_idxs else pair[0]
@@ -261,6 +279,7 @@ def atoms_to_data(
 ) -> Data:
     """
     Convert ASE atoms object to PyG Data object based on the graph parameters.
+    In CARE, this function is used only for intermediate species, no transition states.
     The implementation is similar to the one in the ASE to PyG converter class, but it is not a class method and
     is used for inference. Target values are not included in the Data object.
 
@@ -313,8 +332,8 @@ def atoms_to_data(
         raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(formula))
     if not C_filter(graph, ADSORBATE_ELEMS):
         raise ValueError("{}: Wrong C connectivity in the adsorbate".format(formula))
-    # if not fragment_filter(graph, ADSORBATE_ELEMS):
-    #     raise ValueError("{}: Fragmented adsorbate.".format(formula))
+    if not fragment_filter(graph, ADSORBATE_ELEMS):
+        raise ValueError("{}: Fragmented adsorbate.".format(formula))
 
     # NODE FEATURIZATION
     if graph_params["features"]["adsorbate"]:
