@@ -191,96 +191,31 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.T = T
 
     def calc_reaction_energy(
-        self, reaction: ElementaryReaction, mean_field: bool = True
-    ) -> None:
+        self, 
+        reaction: ElementaryReaction) -> None:
         """
         Get the reaction energy of the elementary reaction.
 
         Args:
             reaction (ElementaryReaction): Elementary reaction.
-            mean_field (bool, optional): If True, the reaction energy will be
-                calculated using the mean field approximation, with the
-                smallest energy for each intermediate.
-                Defaults to True.
         """
-        if mean_field:
-            mu_is, var_is, mu_fs, var_fs = 0, 0, 0, 0
-
-            if reaction.r_type == "PCET":
-                for reactant in reaction.reactants:
-                    if reactant.is_surface or isinstance(reactant, Electron) or isinstance(reactant, Hydroxide):
-                        continue
-                    elif isinstance(reactant, Proton) or isinstance(reactant, Water):
-                        H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
-                        energy_list = [
-                            config["mu"] * 0.5
-                            for config in H2_gas.ads_configs.values()
-                        ]
-
-                        e_min_config = min(energy_list)
-                        mu_is += (
-                            abs(reaction.stoic[reactant.code])
-                            * e_min_config
-                        )
-                        var_is += 0.0                        
-                    else:
-                        energy_list = [
-                            config["mu"]
-                            for config in self.intermediates[reactant.code].ads_configs.values()
-                        ]
-                        s_list = [
-                            config["s"]
-                            for config in self.intermediates[reactant.code].ads_configs.values()
-                        ]                    
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                        mu_is += (
-                            abs(reaction.stoic[reactant.code])
-                            * e_min_config
-                        )
-                        var_is += (
-                        abs(reaction.stoic[reactant.code])  # TO DOUBLECHECK
-                        * s_min_config**2
-                        )                    
-                for product in reaction.products:
-                    if product.is_surface or isinstance(product, Electron) or isinstance(product, Hydroxide):
-                        continue
-                    elif isinstance(product, Proton) or isinstance(product, Water):
-                        H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
-                        energy_list = [
-                            config["mu"] * 0.5
-                            for config in H2_gas.ads_configs.values()
-                        ]
-
-                        e_min_config = min(energy_list)
-                        mu_fs += (
-                            abs(reaction.stoic[product.code])
-                            * e_min_config
-                        )
-                        var_fs += 0.0                        
-                    else:
-                        energy_list = [
-                            config["mu"]
-                            for config in self.intermediates[product.code].ads_configs.values()
-                        ]
-                        s_list = [
-                            config["s"]
-                            for config in self.intermediates[product.code].ads_configs.values()
-                        ]                    
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                        mu_fs += (
-                            abs(reaction.stoic[product.code])
-                            * e_min_config
-                        )
-                        var_fs += (
-                        abs(reaction.stoic[product.code])  # TO DOUBLECHECK
-                        * s_min_config**2
-                        )
-            else:
-                for reactant in reaction.reactants:
-                    if reactant.is_surface:
-                        continue
+        mu_is, var_is, mu_fs, var_fs = 0.0, 0.0, 0.0, 0.0
+        if reaction.r_type == "PCET":
+            for reactant in reaction.reactants:
+                if reactant.is_surface or isinstance(reactant, (Electron, Hydroxide)):
+                    continue
+                elif isinstance(reactant, (Proton, Water)):
+                    H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                    energy_list = [
+                        config["mu"] * 0.5
+                        for config in H2_gas.ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_is += (
+                        abs(reaction.stoic[reactant.code])
+                        * e_min_config
+                    )                       
+                else:
                     energy_list = [
                         config["mu"]
                         for config in self.intermediates[reactant.code].ads_configs.values()
@@ -288,7 +223,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     s_list = [
                         config["s"]
                         for config in self.intermediates[reactant.code].ads_configs.values()
-                    ]
+                    ]                    
                     e_min_config = min(energy_list)
                     s_min_config = s_list[energy_list.index(e_min_config)]
                     mu_is += (
@@ -296,12 +231,24 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         * e_min_config
                     )
                     var_is += (
-                        abs(reaction.stoic[reactant.code])  # TO DOUBLECHECK
-                        * s_min_config**2
-                    )
-                for product in reaction.products:
-                    if product.is_surface:
-                        continue
+                    abs(reaction.stoic[reactant.code]) 
+                    * s_min_config**2
+                    )                    
+            for product in reaction.products:
+                if product.is_surface or isinstance(product, (Electron, Hydroxide)):
+                    continue
+                elif isinstance(product, (Proton, Water)):
+                    H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                    energy_list = [
+                        config["mu"] * 0.5
+                        for config in H2_gas.ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_fs += (
+                        abs(reaction.stoic[product.code])
+                        * e_min_config
+                    )                   
+                else:
                     energy_list = [
                         config["mu"]
                         for config in self.intermediates[product.code].ads_configs.values()
@@ -309,7 +256,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     s_list = [
                         config["s"]
                         for config in self.intermediates[product.code].ads_configs.values()
-                    ]
+                    ]                    
                     e_min_config = min(energy_list)
                     s_min_config = s_list[energy_list.index(e_min_config)]
                     mu_fs += (
@@ -317,17 +264,55 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         * e_min_config
                     )
                     var_fs += (
-                        abs(reaction.stoic[product.code])
-                        * s_min_config**2
+                    abs(reaction.stoic[product.code])  
+                    * s_min_config**2
                     )
-
-            mu_rxn = mu_fs - mu_is
-            std_rxn = (var_fs + var_is) ** 0.5
         else:
-            pass
+            for reactant in reaction.reactants:
+                if reactant.is_surface:
+                    continue
+                energy_list = [
+                    config["mu"]
+                    for config in self.intermediates[reactant.code].ads_configs.values()
+                ]
+                s_list = [
+                    config["s"]
+                    for config in self.intermediates[reactant.code].ads_configs.values()
+                ]
+                e_min_config = min(energy_list)
+                s_min_config = s_list[energy_list.index(e_min_config)]
+                mu_is += (
+                    abs(reaction.stoic[reactant.code])
+                    * e_min_config
+                )
+                var_is += (
+                    abs(reaction.stoic[reactant.code])  
+                    * s_min_config**2
+                )
+            for product in reaction.products:
+                if product.is_surface:
+                    continue
+                energy_list = [
+                    config["mu"]
+                    for config in self.intermediates[product.code].ads_configs.values()
+                ]
+                s_list = [
+                    config["s"]
+                    for config in self.intermediates[product.code].ads_configs.values()
+                ]
+                e_min_config = min(energy_list)
+                s_min_config = s_list[energy_list.index(e_min_config)]
+                mu_fs += (
+                    abs(reaction.stoic[product.code])
+                    * e_min_config
+                )
+                var_fs += (
+                    abs(reaction.stoic[product.code])
+                    * s_min_config**2
+                )
         reaction.e_is = mu_is, var_is**0.5
         reaction.e_fs = mu_fs, var_fs**0.5
-        reaction.e_rxn = mu_rxn, std_rxn
+        reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, 
                               reaction: ElementaryReaction) -> None:
@@ -337,25 +322,24 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Args:
             reaction (ElementaryReaction): Elementary reaction.
         """
-        if "-" not in reaction.r_type:
+        if reaction.e_ts == None:
             reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
+        if "-" not in reaction.r_type:
             if reaction.r_type == "PCET":
                 components = list(chain.from_iterable(reaction.components))
-                for component in components:
-                    if isinstance(component, (Proton, Water)):
-                        stoic_electro = reaction.stoic[component.code]
+                stoic_electron = [reaction.stoic[component.code] for component in components if isinstance(component, (Proton, Water))][0]
                 if self.pH <= 7:
-                    reaction.e_act = max(0, reaction.e_act[0] - reaction.alpha * stoic_electro * self.U - stoic_electro * 2.3 * K_B * self.T * self.pH), reaction.e_rxn[1]
+                    reaction.e_act = max(0, reaction.e_act[0] - stoic_electron * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
                 else:
-                    reaction.e_act = max(0, reaction.e_act[0] - stoic_electro * self.U - stoic_electro * 2.3 * K_B * self.T * self.pH), reaction.e_rxn[1]
-        else:  # bond-breaking reaction
+                    reaction.e_act = max(0, reaction.e_act[0] - stoic_electron * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+        else: 
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],
                 (reaction.e_ts[1] ** 2 + reaction.e_is[1] ** 2) ** 0.5,
             )
 
             if reaction.e_act[0] < 0:  
-                reaction.e_act = 0, 0
+                reaction.e_act = 0.0, 0.0
             if (
                 reaction.e_act[0] < reaction.e_rxn[0]
             ):  # Barrier lower than reaction energy
@@ -421,7 +405,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
             nx_bc = nx.compose(nx_bc[0], nx_bc[1])
 
-        # Lool for potential edges to break
+        # Look for potential edges to break
         def atom_symbol(idx): return ts_graph.node_feats[
             where(ts_graph.x[idx] == 1)[0].item()
         ]
@@ -467,10 +451,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
 
         Args:
             reaction (ElementaryReaction): The ElementaryReaction.
-            surf (Surface, optional): The surface. Defaults to None.
         """
         with no_grad():
-            # Estimate the reaction energy
             self.calc_reaction_energy(reaction)
             if "-" in reaction.r_type:
                 try:
@@ -480,10 +462,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         y.mean.item() * self.model.y_scale_params["std"]
                         + self.model.y_scale_params["mean"],
                         y.scale.item() * self.model.y_scale_params["std"],
-                    )
-                    self.calc_reaction_barrier(reaction)
+                    )                    
                 except:
                     print("Error in transition state for {}.".format(reaction.code))
-            # Estimate the activation energy
+            self.calc_reaction_barrier(reaction)        
             return reaction
         

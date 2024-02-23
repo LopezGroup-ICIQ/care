@@ -215,7 +215,8 @@ class ElementaryReaction:
 
     def __mul__(self, other) -> "ElementaryReaction":
         """
-        The result of multiplying an elementary reaction by a scalar is a new elementary reaction with type 'pseudo'
+        The result of multiplying an elementary reaction by a scalar
+        is a new elementary reaction with type 'pseudo'
         """
         if isinstance(other, float) or isinstance(other, int):
             step = ElementaryReaction(

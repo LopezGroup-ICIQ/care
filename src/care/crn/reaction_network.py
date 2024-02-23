@@ -753,7 +753,7 @@ class ReactionNetwork:
                     e_act = reaction.e_act[0]
                     e_rxn = reaction.e_rxn[0]
             reaction.k_eq = np.exp(-e_rxn / t / K_B)
-            if reaction.r_type == "adsorption":  # Hertz-Knudsen
+            if reaction.r_type == "adsorption":  
                 reaction.k_dir = 1e-18 / (2 * np.pi * reaction.adsorbate_mass * K_BU * t) ** 0.5
                 reaction.k_dir *= np.exp(-e_act / K_B / t)
             elif reaction.r_type == "desorption":
@@ -790,7 +790,8 @@ class ReactionNetwork:
         uq_samples: int = 100,
         thermo: bool = False,
         solver: str = "Julia",
-        barrier_threshold: float = None
+        barrier_threshold: float = None, 
+        ss_tol: float = 1e-10
     ):
         """
         Run microkinetic simulation.
@@ -861,7 +862,12 @@ class ReactionNetwork:
 
         self.get_kinetic_constants(T, uq, thermo)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
-        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)     
+        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
+        # get min and max among all k_dir and k_rev
+        k_dir_max, k_rev_max = np.max(kd), np.max(kr)
+        k_dir_min, k_rev_min = np.min(kd), np.min(kr)
+        print(f"Ratio between max and min k_dir: {k_dir_max/k_dir_min}")
+
 
         # APPLY BARRIER THRESHOLD
         if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
@@ -875,16 +881,16 @@ class ReactionNetwork:
             print(f"Filtered {len(filtered_idxs)} reactions")   
 
         # RUN SIMULATION
-        reactor = DifferentialPFR(v, kd, kr, gas_mask)
+        reactor = DifferentialPFR(v, kd, kr, gas_mask, ss_tol)
         print(reactor)
         if solver == "Julia":
             results = reactor.integrate(y0)
             print("Steady state reached")
         elif solver == "Python":
-            rtol, atol, sstol = 1e-10, 1e-100, 1e-12
+            rtol, atol, sstol = 1e-10, 1e-64, 1e-10
             count_atol_decrease = 0
             status = None
-            while status != 1:  # 1 = steady state reached
+            while status != 1:
                 try:
                     results = reactor.integrate(y0, "Python", rtol, atol, sstol)
                     status = results["status"]

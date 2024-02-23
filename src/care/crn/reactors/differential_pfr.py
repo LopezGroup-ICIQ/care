@@ -10,7 +10,7 @@ class DifferentialPFR(ReactorModel):
                  v: np.ndarray, 
                  kd: np.ndarray,
                  kr: np.ndarray, 
-                 gas_mask: np.ndarray):
+                 gas_mask: np.ndarray, ss_tol: float = 1e-10):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -27,6 +27,9 @@ class DifferentialPFR(ReactorModel):
         """
 
         self.v_dense = v
+        # Get sparsity of the stoichiometric matrix
+        self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100
+        print(f"Sparsity of the stoichiometric matrix: {self.sparsity:.6f}%")
         self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
         self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
         self.v_forward_dense = self.v_forward_dense.T
@@ -46,7 +49,7 @@ class DifferentialPFR(ReactorModel):
 
         self.gas_mask = gas_mask
 
-        self.sstol = 1e-10  # Tolerance for steady-state conditions
+        self.sstol = ss_tol # Tolerance for steady-state conditions
 
     def __str__(self) -> str:
         return f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species."
@@ -309,6 +312,8 @@ class DifferentialPFR(ReactorModel):
         Main.vb = self.v_backward_dense
         Main.kd, Main.kr = self.kd, self.kr
         Main.gas_mask = self.gas_mask
+        Main.ss_tol = self.sstol
+        Main.J_sparsity = self.jac_sparsity
         Main.eval("""
         using CUDA
         using DifferentialEquations
@@ -321,6 +326,7 @@ class DifferentialPFR(ReactorModel):
         vf = CuArray{Int8}(sparse(vf))
         vb = CuArray{Int8}(sparse(vb))
         gas_mask = CuArray{Bool}(gas_mask)
+        # j_sparsity = CuArray{Int8}(J_sparsity)
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         """)
         Main.eval("""
@@ -328,28 +334,31 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            println(sum(abs.(du)))
+            println(t, sum(abs.(du)))
         end
         """)
         Main.eval("""
-        prob = ODEProblem(ode_pfr!, y0, (0.0, 1e20), p)
+        f = ODEFunction(ode_pfr!)#, jac_prototype=J_sparsity)
+            
+                  """)
+        Main.eval("""
+        prob = ODEProblem(f, y0, (0.0, 1e20), p)
         """)
         Main.eval("""
         function condition(u, t, integrator)
             du = similar(u)
             ode_pfr!(du, u, integrator.p, t)
             sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-            return sum_abs_du - threshold  # The condition is met when this is 0 or negative
+            return sum_abs_du - ss_tol  # The condition is met when this is 0 or negative
         end
         """)
         Main.eval("""
         function affect!(integrator)
             terminate!(integrator)
         end
-        threshold = 1e-10
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-8, callback=cb)
+        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-10, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         Main.eval("""
