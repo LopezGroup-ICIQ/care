@@ -57,7 +57,7 @@ class ReactionNetwork:
             if inter.closed_shell and inter.phase == "gas"
         ]
         self.num_closed_shell_mols = len(self.closed_shells)
-        self.num_intermediates = len(self.intermediates) - 1  # -1 for the surface
+        self.num_intermediates = len(self.intermediates)
         self.num_reactions = len(self.reactions)
         
         if oc is not None:
@@ -112,7 +112,7 @@ class ReactionNetwork:
         string = "ReactionNetwork({} surface species, {} gas molecules, {} elementary reactions)\n".format(
             len(self.intermediates) - self.num_closed_shell_mols,
             self.num_closed_shell_mols,
-            len(self.reactions),
+            len(self.reactions)
         )
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: {}\n".format(self.ncc)
@@ -295,7 +295,7 @@ class ReactionNetwork:
         )
         print(f"Number of reactions before: {num_rxns_0}, after: {len(self.reactions)}")
 
-    def add_reactions(self, rxn_lst: list[ElementaryReaction]):
+    def add_reactions(self, rxn_lst: list[ElementaryReaction]) -> None:
         """
         Add elementary reactions to the network.
 
@@ -305,10 +305,10 @@ class ReactionNetwork:
         """
         self.reactions += rxn_lst
 
-    def del_reactions(self, rxn_lst: list[str]):
+    def del_reactions(self, rxn_lst: list[str]) -> None:
         """
-        Delete elementary reactions from the network. Additionally, delete
-        all intermediates that are not participating in any reaction.
+        Delete elementary reactions and consequently the intermediates 
+        that are not participating in any reaction.
 
         Args:
             rxn_lst (list of str): List containing the codes of the transition
@@ -384,8 +384,7 @@ class ReactionNetwork:
 
     def gen_graph(self) -> nx.DiGraph:
         """
-        Generate a graph using the intermediates and the elementary reactions
-        contained in this object.
+        Generate a network graph representation.
 
         Returns:
             graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
@@ -393,8 +392,8 @@ class ReactionNetwork:
 
         Notes:
             The returned graph is correctly directed at the elementary reaction level, 
-            i.e. if A + B -> C + D is a reaction, the species on the same side (e.g. A and B)
-            are linked to the reaction node in the same way (both entering or both exiting).
+            i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
+            are linked to the reaction node in the same way (both entering or exiting).
             However, at the global level, the graph is ill-defined and further processing 
             (kinetic modeling) is needed to obtain a correct representation of the network.
         """
@@ -423,10 +422,10 @@ class ReactionNetwork:
                 r_type=r_type,
             )
 
-            for comp in reaction.components[0]:  
-                graph.add_edge(comp.code, reaction.code)
-            for comp in reaction.components[1]:
-                graph.add_edge(reaction.code, comp.code)
+            for inter in reaction.components[0]:  
+                graph.add_edge(inter.code, reaction.code)
+            for inter in reaction.components[1]:
+                graph.add_edge(reaction.code, inter.code)  #TODO: add electrochemistry
 
         return graph
 
