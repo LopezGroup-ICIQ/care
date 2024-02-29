@@ -308,7 +308,10 @@ def gen_intermediates_dict(
 
     # Splitting the dictionary into chunks
     keys = list(inter_dict.keys())
-    chunk_size = len(keys) // n_cores
+    if len(keys) < n_cores:
+        chunk_size = 1
+    else:
+        chunk_size = len(keys) // n_cores
     chunks = [
         dict(
             zip(
@@ -850,6 +853,7 @@ def gen_chemical_space(
 
     # Generate the Intermediate objects
     t02 = time.time()
+    print('rdkit_inters_dict: ', rdkit_inters_dict)
     intermediates_dict = gen_intermediates_dict(rdkit_inters_dict)
     t2 = time.time() - t02
     surf_inter = Intermediate.from_molecule(

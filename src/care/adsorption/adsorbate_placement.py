@@ -177,7 +177,7 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
     """
     molec_dist_mat = molec_ase.get_all_distances(mic=True)
     max_dist_molec = max(molec_dist_mat)
-    condition = surface.get_shortest_side() - tolerance > max_dist_molec
+    condition = surface.shortest_side - tolerance > max_dist_molec
     if condition:
         new_slab = surface.slab
     else:
