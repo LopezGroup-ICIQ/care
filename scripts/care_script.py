@@ -60,7 +60,7 @@ def main():
     ncc = config['chemspace']['ncc']
     noc = config['chemspace']['noc']
     # If noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
-    noc = noc if noc > 0 else ncc * 2 + 2
+    noc = noc if noc >= 0 else ncc * 2 + 2
 
     # If noc is > ncc * 2 + 2, raise an error
     if noc > ncc * 2 + 2:
