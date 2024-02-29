@@ -57,6 +57,7 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
             if u == current_node and v not in visited_nodes
         ]
         if not int_outgoing_edges:
+            path_edges = []
             print("No sink found", int_outgoing_edges)
             break
 

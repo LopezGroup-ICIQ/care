@@ -26,7 +26,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(self,
                  model_path: str,
                  surface: Surface = None,
-                 dft_db_path: Optional[str] = None,):
+                 dft_db_path: Optional[str] = None):
 
         self.path = model_path
         self.model = load_model(model_path)
@@ -52,14 +52,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             True if the intermediate is in the database, False otherwise.
         """
 
-        # Getting the nC, nH and nO values from the intermediate
         nC = intermediate["C"]
         nH = intermediate["H"]
         nO = intermediate["O"]
-
         metal = self.surface.metal if mol_type == "int" else "N/A"
         hkl = self.surface.facet if mol_type == "int" else "N/A"
-
         metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if mol_type == "int" else "N/A"
 
         conf_type = "dft"
@@ -89,8 +86,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             intermediate.ads_configs = {f"{conf_type}": {"ase": stable_conf[0][0], "pyg": atoms_to_data(
                 stable_conf[0][0], self.model.graph_params), "mu": stable_conf[0][1], "s": 0}}
             return True
-        return False
-    
+        return False    
 
     def eval(self,
              intermediate: Intermediate,
@@ -108,14 +104,12 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         None
             Updates the Intermediate object with the estimated energy.
         """
-        # Estimate the energy of the intermediate
         if intermediate.is_surface:
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
 
         elif intermediate.phase == "gas":
-            # Calculating the gas-phase energy
             if self.dft_db:
                 in_db = self.retrieve_from_db(intermediate, "gas")
 
@@ -142,7 +136,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 in_db = self.retrieve_from_db(intermediate, "int")
 
             if (not in_db) or (not self.dft_db):
-                # Adsorbate placement
                 config_list = ads_placement(intermediate, self.surface)
 
                 counter = 0
@@ -205,7 +198,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 if reactant.is_surface or isinstance(reactant, (Electron, Hydroxide)):
                     continue
                 elif isinstance(reactant, (Proton, Water)):
-                    H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                    H2_gas = [inter for inter in self.intermediates.values() if inter.formula == "H2" and inter.phase == "gas"][0]
                     energy_list = [
                         config["mu"] * 0.5
                         for config in H2_gas.ads_configs.values()
@@ -238,7 +231,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 if product.is_surface or isinstance(product, (Electron, Hydroxide)):
                     continue
                 elif isinstance(product, (Proton, Water)):
-                    H2_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == "H2" and intermediate.phase == "gas"][0]
+                    H2_gas = [inter for inter in self.intermediates.values() if inter.formula == "H2" and inter.phase == "gas"][0]
                     energy_list = [
                         config["mu"] * 0.5
                         for config in H2_gas.ads_configs.values()
@@ -327,11 +320,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         if "-" not in reaction.r_type:
             if reaction.r_type == "PCET":
                 components = list(chain.from_iterable(reaction.components))
-                stoic_electron = [reaction.stoic[component.code] for component in components if isinstance(component, (Proton, Water))][0]
+                n_e = [reaction.stoic[component.code] for component in components if isinstance(component, (Proton, Water))][0]
                 if self.pH <= 7:
-                    reaction.e_act = max(0, reaction.e_act[0] - stoic_electron * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+                    reaction.e_act = max(0, reaction.e_act[0] - n_e * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
                 else:
-                    reaction.e_act = max(0, reaction.e_act[0] - stoic_electron * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+                    reaction.e_act = max(0, reaction.e_act[0] - n_e * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
         else: 
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],

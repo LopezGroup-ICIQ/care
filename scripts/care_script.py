@@ -226,13 +226,15 @@ def main():
         oc = config['operating_conditions']
         y0 = config['initial_conditions']
         results = crn.run_microkinetic(y0,
+                                       config['mkm']['main_reactant'],
                                        oc['temperature'],
                                        oc['pressure'],
                                        uq=mkm_uq,
                                        uq_samples=uq_samples,
                                        thermo=thermo,
                                        solver=config['mkm']['solver'], 
-                                       barrier_threshold=config['mkm']['barrier_threshold'])
+                                       barrier_threshold=config['mkm']['barrier_threshold'], 
+                                       ss_tol=config['mkm']['ss_tol'])
         print("\nSaving the microkinetic simulation...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)

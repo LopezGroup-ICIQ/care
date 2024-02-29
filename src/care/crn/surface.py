@@ -22,40 +22,41 @@ class Surface:
         self.crystal_structure = METAL_STRUCT_DICT[self.metal]
         self.facet = facet
         self.num_atoms = len(ase_atoms_slab)
-        self.num_layers = self.get_num_layers()
-        self.slab_height = self.get_slab_height()
-        self.slab_diag = self.get_slab_diag()
-        self.area = self.get_area()
-        self.active_sites = self.find_active_sites()
 
     def __repr__(self) -> str:
-        return f"{self.slab.get_chemical_formula()}({self.facet})"
-
-    def get_num_layers(self) -> int:
+        return f"{self.metal}({self.facet})"
+    
+    @property
+    def num_layers(self) -> int:
         z = {atom.index: atom.position[2] for atom in self.slab}
         layers_z = list(set(z.values()))
         return len(layers_z)
-
-    def get_slab_height(self) -> float:
+    
+    @property
+    def slab_height(self) -> float:
         z_atoms = self.slab.get_positions()[:, 2]
         return max(z_atoms)
-
-    def get_slab_diag(self) -> float:
+    
+    @property
+    def slab_diag(self) -> float:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(a + b)
-
-    def get_shortest_side(self) -> float:
+    
+    @property
+    def shortest_side(self) -> float:
         a, b, _ = self.slab.get_cell()
         return min(np.linalg.norm(a), np.linalg.norm(b))
-
-    def get_area(self) -> float:
+    
+    @property
+    def area(self) -> float:
         """
         Calculate area in Angstrom^2 of the surface.
         """
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(np.cross(a, b))
-
-    def find_active_sites(self) -> list[dict]:
+    
+    @property
+    def active_sites(self) -> list[dict]:
         surf = self.crystal_structure + self.facet
         if self.facet == "10m10":
             surf += "h"
@@ -72,7 +73,6 @@ class Surface:
                 surface=surf,
                 tol=tol,
                 label_sites=True)
-
         elif self.crystal_structure == "fcc" and self.facet == "110":
             tol = 1.5
             sas = SlabAdsorptionSites(
@@ -80,7 +80,6 @@ class Surface:
                 surface=surf,
                 tol=tol,
                 label_sites=True)
-
         else:
             sas = SlabAdsorptionSites(
                 self.slab,

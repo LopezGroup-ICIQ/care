@@ -2,6 +2,7 @@ import re
 
 from shutil import rmtree
 from typing import Union
+from copy import deepcopy
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -14,6 +15,7 @@ from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, OC_UNITS, H
 from care.crn.reactors import DifferentialPFR
 from care.crn.visualize import visualize_reaction
+from care.crn.microkinetic import max_flux
 
 
 class ReactionNetwork:
@@ -784,6 +786,7 @@ class ReactionNetwork:
     def run_microkinetic(
         self,
         iv: dict[str, float],
+        main_reactant: str,
         temperature: float = None,
         pressure: float = None,
         uq: bool = False,
@@ -792,7 +795,7 @@ class ReactionNetwork:
         solver: str = "Julia",
         barrier_threshold: float = None, 
         ss_tol: float = 1e-10
-    ):
+    ) -> dict:
         """
         Run microkinetic simulation.
 
@@ -864,9 +867,9 @@ class ReactionNetwork:
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
         kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
         # get min and max among all k_dir and k_rev
-        k_dir_max, k_rev_max = np.max(kd), np.max(kr)
-        k_dir_min, k_rev_min = np.min(kd), np.min(kr)
-        print(f"Ratio between max and min k_dir: {k_dir_max/k_dir_min}")
+        ktot = np.concatenate((kd, kr))
+        kmax, kmin = np.max(ktot), np.min(ktot)
+        print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
 
 
         # APPLY BARRIER THRESHOLD
@@ -887,85 +890,80 @@ class ReactionNetwork:
             results = reactor.integrate(y0)
             print("Steady state reached")
         elif solver == "Python":
-            rtol, atol, sstol = 1e-10, 1e-64, 1e-10
+            rtol, atol, sstol = 1e-6, 1e-12, 1e-10
             count_atol_decrease = 0
             status = None
-            while status != 1:
-                try:
+            while status != 1: # play with atol and rtol to get successful integration  
+                try:  
                     results = reactor.integrate(y0, "Python", rtol, atol, sstol)
-                    status = results["status"]
+                    status = results["status"]                    
+                except:
+                    status = None
+                    
+                if status != 1:
                     atol *= 1e2
                     count_atol_decrease += 1
                     if count_atol_decrease % 4 == 0: 
                         rtol *= 1e2
                         print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
+                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+                    
 
-                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
-                except ValueError:
-                    status = None
-                    atol *= 1e2
-                    count_atol_decrease += 1
-                    if count_atol_decrease % 4 == 0:
-                        rtol *= 1e2
-                        print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
-                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
+            path = []
+            while path == []:
+                print("ENTERING MAX FLUX")
+                graph = self.graph.copy()
+                graph.remove_edges_from(list(graph.edges))
+
+                for i, inter in enumerate(inters):
+                    if self.intermediates[inter].phase == "gas":
+                        graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
+                    elif self.intermediates[inter].phase == "ads":
+                        graph.nodes[inter]["coverage"] = results["y"][i]
+                graph.nodes["*"]["coverage"] = results["y"][-1]
+
+                mkm_rxns = deepcopy(self.reactions)
+                for i, reaction in enumerate(mkm_rxns):
+                    if results["rate"][i] < 0:
+                        graph.remove_node(reaction.code)
+                        reaction.reverse()
+                        graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
+                                    rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
+                    else:
+                        graph.nodes[reaction.code]["rate"] = results["rate"][i]
+                        graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                        graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+
+                for i, inter in enumerate(inters):
+                    for j, reaction in enumerate(self.reactions):
+                        if inter in reaction.stoic.keys():
+                            if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
+                                if reaction.e_act[0] == 0:
+                                    delta = 0
+                                elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
+                                    delta = reaction.e_rxn[0]
+                                else:
+                                    delta = reaction.e_act[0]
+                                graph.add_edge(inter, 
+                                            reaction.code, 
+                                            rate=abs(results["consumption_rate"][i, j]), 
+                                            delta=delta, 
+                                            weight=1/abs(results["consumption_rate"][i, j]))
+                            else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
+                                graph.add_edge(reaction.code, 
+                                            inter, 
+                                            rate=abs(results["consumption_rate"][i, j]), 
+                                            delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
+                                            weight=1/abs(results["consumption_rate"][i, j]))
+                graph.remove_node("*")
+
+                path = max_flux(graph, main_reactant)
+                if not path:
+                    atol /= 1e2  # Tight steady state precision to avoid oscillations and help convergence
+                    print('Lowering relative tolerance to improve numerical stability... (atol = {})'.format(atol))
+                    results = reactor.integrate(y0, "Python", rtol, atol, sstol)
+            results["run_graph"] = graph
+            results["inters"] = inters
 
             print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
-
-        results["inters"] = inters
-
-        # REWIRE CRN GRAPH BASED ON MKM OUTPUT
-        graph = self.graph.copy()
-        graph.remove_edges_from(list(self.graph.edges))
-        graph.temperature, graph.pressure = T, P
-        graph.max_rate = np.max(np.abs(results["consumption_rate"]))
-        graph.min_rate = np.min(np.abs(results["consumption_rate"][results["consumption_rate"] != 0]))
-
-        for i, inter in enumerate(inters):
-            if self.intermediates[inter].phase == "gas":
-                graph.nodes[inter]["molar_fraction"] = (
-                    results["y"][i] / P
-                )
-            elif self.intermediates[inter].phase == "ads":
-                graph.nodes[inter]["coverage"] = results["y"][i]
-        graph.nodes["*"]["coverage"] = results["y"][-1]
-
-        # Reaction node: net rate (forward - reverse), positive or negative
-        for i, reaction in enumerate(self.reactions):
-            if results["rate"][i] < 0:
-                graph.remove_node(reaction.code)
-                reaction.reverse()
-                graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
-                               rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-            else:
-                graph.nodes[reaction.code]["rate"] = results["rate"][i]
-                graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-                
-        for i, inter in enumerate(inters):
-            for j, reaction in enumerate(self.reactions):
-                if inter in reaction.stoic.keys():
-                    r = results["consumption_rate"][i, j]
-                    if r < 0:  # Reaction j consumes inter i
-                        if reaction.e_act[0] == 0:
-                            delta = 0
-                        elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
-                            delta = reaction.e_rxn[0]
-                        else:
-                            delta = reaction.e_act[0]
-                        graph.add_edge(inter, 
-                                       reaction.code, 
-                                       rate=abs(r), 
-                                       delta=delta, 
-                                       weight=1/abs(r))
-                    else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                        graph.add_edge(reaction.code, 
-                                       inter, 
-                                       rate=abs(r), 
-                                       delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
-                                       weight=1/abs(r))
-        graph.remove_node("*")
-
-        results["run_graph"] = graph
-
         return results

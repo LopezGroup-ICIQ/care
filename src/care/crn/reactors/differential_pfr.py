@@ -29,7 +29,7 @@ class DifferentialPFR(ReactorModel):
         self.v_dense = v
         # Get sparsity of the stoichiometric matrix
         self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100
-        print(f"Sparsity of the stoichiometric matrix: {self.sparsity:.6f}%")
+        print(f"Sparsity of the stoichiometric matrix: {self.sparsity:.2f}%")
         self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
         self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
         self.v_forward_dense = self.v_forward_dense.T
@@ -73,6 +73,7 @@ class DifferentialPFR(ReactorModel):
     ) -> np.ndarray:
         dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
         dydt[self.gas_mask] = 0
+        # print(dydt)
         return dydt
 
     def jacobian(
@@ -137,8 +138,11 @@ class DifferentialPFR(ReactorModel):
         y: np.ndarray,
     ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y)))
-        print(f"Sum of the absolute derivatives: {sum_ddt}")
+        # abs_rates = abs(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
+        print(f"Sum of the absolute derivative: {sum_ddt}")
         return 0 if sum_ddt <= self.sstol else 1
+        # print(f"Sum of the absolute rates: {np.sum(abs_rates)}")
+        # return 0 if abs_rates <= self.sstol else 1
 
     steady_state.terminal = True
     steady_state.direction = 0
