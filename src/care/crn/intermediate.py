@@ -41,8 +41,11 @@ class Intermediate:
 
         if isinstance(self.molecule, Chem.rdchem.Mol):
             self.rdkit = molecule
-        elif isinstance(self.molecule, Atoms):
+        # If the molecule is an ASE Atoms object and its not empty, convert it to an RDKit molecule, else set the RDKit molecule to None
+        elif isinstance(self.molecule, Atoms) and len(self.molecule) != 0:
             self.rdkit = self.ase_to_rdkit()
+        else:
+            self.rdkit = None
 
         if isinstance(self.molecule, Chem.Mol):
             self.molecule = self.rdkit_to_ase()
@@ -66,7 +69,7 @@ class Intermediate:
         self.charge = 0
         self.mass = self.molecule.get_masses().sum()
 
-        if not self.is_surface:
+        if not self.is_surface and len(self.molecule) != 0:
             self.smiles = self.get_smiles()
             self.cyclic = self.is_cyclic()
         else:
@@ -183,18 +186,6 @@ class Intermediate:
         cycles = list(cycle_basis(self.graph))
         return True if len(cycles) != 0 else False
 
-    def numpy_array_to_xyz(self, molecule_positions, element_symbols):
-        """
-        Converts a numpy array of atomic positions to an XYZ format string.
-        Coordinates are formatted in standard floating-point notation.
-        """
-        xyz_string = f"{len(element_symbols)}\n\n"
-        for symbol, position in zip(element_symbols, molecule_positions):
-            formatted_position = " ".join(f"{coord:.6f}" for coord in position)
-            xyz_string += f"{symbol} {formatted_position}\n"
-
-        return xyz_string
-
     def is_closed_shell(self):
         """
         Check if a molecule is closed-shell or not.
@@ -289,20 +280,6 @@ class Intermediate:
                                 0
                             ] += 1
                 return True
-
-    def numpy_array_to_xyz(self, molecule_positions, element_symbols):
-        """
-        Converts a numpy array of atomic positions to an XYZ format string.
-        Coordinates are formatted in standard floating-point notation.
-        """
-        xyz_string = f"{len(element_symbols)}\n\n"
-        for symbol, position in zip(element_symbols, molecule_positions):
-            formatted_position = " ".join(
-                f"{0.0:.6f}" if abs(coord) < 1.0e-3 else f"{coord:.6f}"
-                for coord in position
-            )
-            xyz_string += f"{symbol} {formatted_position}\n"
-        return xyz_string
 
     def rdkit_to_ase(self) -> Atoms:
         """
