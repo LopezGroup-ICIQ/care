@@ -1,6 +1,8 @@
 from typing import Union
+from io import StringIO
 
 from ase import Atom, Atoms
+from ase.io import write
 from networkx import Graph, cycle_basis
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -349,15 +351,19 @@ class Intermediate:
         """
         Convert an ASE Atoms object to an RDKit molecule.
         """
-        molecule_positions = self.molecule.get_positions()  # NumPy array of positions
-        element_symbols = (
-            self.molecule.get_chemical_symbols()
-        )  # List of element symbols
+        buffer = StringIO()
 
-        # Convert to XYZ string
-        xyz_string = self.numpy_array_to_xyz(molecule_positions, element_symbols)
-        rdkit_molecule = Chem.MolFromXYZBlock(xyz_string)
-        return rdkit_molecule
+        # Write the ASE Atoms object to the buffer in PDB format
+        write(buffer, self.molecule, format='proteindatabank')
+
+        # The buffer's content is the PDB string, so reset the buffer's position to the start
+        buffer.seek(0)
+
+        # Read the content of the buffer
+        pdb_string = buffer.read()
+
+        rdkit_mol = Chem.MolFromPDBBlock(pdb_string, removeHs=False)
+        return rdkit_mol
 
     def get_smiles(self):
         """
