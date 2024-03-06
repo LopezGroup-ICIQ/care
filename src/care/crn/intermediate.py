@@ -329,14 +329,13 @@ class Intermediate:
         Convert an ASE Atoms object to an RDKit molecule.
         """
         buffer = StringIO()
+        curr_mol = self.molecule.copy()
+        curr_mol.set_cell([10, 10, 10])
 
-        # Write the ASE Atoms object to the buffer in PDB format
-        write(buffer, self.molecule, format='proteindatabank')
+        write(buffer, curr_mol, format='proteindatabank')
 
-        # The buffer's content is the PDB string, so reset the buffer's position to the start
         buffer.seek(0)
 
-        # Read the content of the buffer
         pdb_string = buffer.read()
 
         rdkit_mol = Chem.MolFromPDBBlock(pdb_string, removeHs=False)
