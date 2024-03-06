@@ -886,7 +886,7 @@ def gen_chemical_space(
                 ElementaryReaction(components=reaction_components, r_type=reaction[2])
             )
             progress.update(task, advance=1)
-
+    rxns_list = list(set(rxns_list)) # Temporary because of CO addition via SMILES
     t3 = time.time() - t03
     # Generation of adsorption reactions
     t04 = time.time()
