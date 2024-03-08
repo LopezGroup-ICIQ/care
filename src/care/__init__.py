@@ -1,7 +1,7 @@
 import pathlib as pl
 
-from care.crn.surface import Surface
 from care.crn.intermediate import Intermediate
+from care.crn.surface import Surface
 from care.crn.elementary_reaction import ElementaryReaction
 from care.crn.reaction_network import ReactionNetwork
 from care.crn.energy_estimator import ReactionEnergyEstimator, IntermediateEnergyEstimator

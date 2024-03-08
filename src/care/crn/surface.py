@@ -4,19 +4,21 @@ import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
 from ase import Atoms
 
+from care import Intermediate
 from care.constants import METAL_STRUCT_DICT
 
 
-class Surface:
+class Surface(Intermediate):
     """
     Class for representing transition metal surfaces models.
     """
 
     def __init__(
         self,
-        ase_atoms_slab: Atoms,
-        facet: str,
+        ase_atoms_slab: Atoms = Atoms(),
+        facet: str = None,
     ):
+        super().__init__(code='*', molecule=Atoms(), is_surface=True, phase='surf')
         self.slab = ase_atoms_slab
         self.metal = ase_atoms_slab.get_chemical_formula()[:2]
         self.crystal_structure = METAL_STRUCT_DICT[self.metal]
