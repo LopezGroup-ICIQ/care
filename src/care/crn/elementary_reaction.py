@@ -118,21 +118,34 @@ class ElementaryReaction:
 
     def __repr__(self) -> str:
         out_str = ""
-        for component in self.components:
-            for inter in component:
-                if inter.phase == "surf":
-                    out_str += (
-                        "[{}]".format(str(abs(self.stoic[inter.code]))) + "*" + "+"
-                    )
-                else:
-                    out_str += (
-                        "[{}]".format(str(abs(self.stoic[inter.code])))
-                        + inter.__str__()
-                        + "+"
-                    )
-            out_str = out_str[:-1]
-            out_str += "<->"
-        return out_str[:-3]
+
+        lhs, rhs = [], []
+        for inter in self.components[0]:
+            if inter.phase == "surf":
+                out_str = (
+                    "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
+                )
+            else:
+                out_str = (
+                    "[{}]".format(str(abs(self.stoic[inter.code])))
+                    + inter.__str__()
+                )
+            lhs.append(out_str)
+        for inter in self.components[1]:
+            if inter.phase == "surf":
+                out_str = (
+                    "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
+                )
+            else:
+                out_str = (
+                    "[{}]".format(str(abs(self.stoic[inter.code])))
+                    + inter.__str__()
+                )
+            rhs.append(out_str)
+        # sort alphabetically
+        lhs.sort()
+        rhs.sort()
+        return " + ".join(lhs) + " <-> " + " + ".join(rhs)
 
     @property
     def repr_hr(self) -> str:
@@ -318,6 +331,7 @@ class ElementaryReaction:
         Example: A + B <-> C + D becomes C + D <-> A + B
         reaction energy and barrier are also reversed
         """
+
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
@@ -327,19 +341,21 @@ class ElementaryReaction:
         if self.e_rxn != None:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
-        if "-" not in self.r_type:
-            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
-        else:
-            self.e_act = (
-                self.e_ts[0] - self.e_is[0],
-                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
-            )
-            if self.e_act[0] < 0:
-                self.e_act = 0, self.e_rxn[1]
-            if (
-                self.e_act[0] < self.e_rxn[0]
-            ):  # Barrier lower than self energy
-                self.e_act = self.e_rxn[0], self.e_rxn[1]
+
+        if self.e_act:
+            if "-" not in self.r_type:
+                self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+            else:
+                self.e_act = (
+                    self.e_ts[0] - self.e_is[0],
+                    (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+                )
+                if self.e_act[0] < 0:
+                    self.e_act = 0, self.e_rxn[1]
+                if (
+                    self.e_act[0] < self.e_rxn[0]
+                ):  # Barrier lower than self energy
+                    self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
     def bb_order(self):
