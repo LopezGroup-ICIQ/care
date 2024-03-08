@@ -128,6 +128,7 @@ def main():
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
         # 2.1. Adsorbate placement and energy estimation
+        #
 
         # 2.1.1. Intermediate energy estimation
         print(" Energy estimation of the intermediates...")
