@@ -198,6 +198,8 @@ class DifferentialPFR(ReactorModel):
             for j in range(self.v_dense.shape[1]):
                     consumption_rate[i, j] = self.v_dense[i, j] * results["rate"][j]
         results["consumption_rate"] = consumption_rate
+        # sum along rows
+        results["total_consumption_rate"] = np.sum(consumption_rate, axis=1)
         return results        
 
     def conversion(self, 
