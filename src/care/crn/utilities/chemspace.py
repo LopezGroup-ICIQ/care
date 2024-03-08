@@ -853,7 +853,6 @@ def gen_chemical_space(
 
     # Generate the Intermediate objects
     t02 = time.time()
-    print('rdkit_inters_dict: ', rdkit_inters_dict)
     intermediates_dict = gen_intermediates_dict(rdkit_inters_dict)
     t2 = time.time() - t02
     surf_inter = Intermediate.from_molecule(

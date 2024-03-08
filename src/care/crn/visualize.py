@@ -34,6 +34,7 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     subgraph_sink = Subgraph("sink", rank="sink")
     subgraph_des = Subgraph("des", rank="same")
     subgraph_same = Subgraph("same", rank="same")
+    subgraph_electro = Subgraph("electro", rank="same")
     plot.rankdir = "TB"
     plot.set_dpi(1)
     for node in plot.get_nodes():
@@ -71,6 +72,17 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
             else:
                 # subgraph_same.add_node(node)
                 pass
+        elif attrs["category"] == "electro":
+            formula = node.get_attributes()["formula"]
+            node.set_shape("diamond")
+            node.set_style("filled")
+            node.set_label(formula)
+            node.set_width("2/2.54")
+            node.set_height("2/2.54")
+            node.set_fillcolor("yellow")
+            node.set_fontsize("150")
+            node.set_fontname("Arial")
+            subgraph_electro.add_node(node)
         else:  # REACTION
             node.set_shape("square")
             node.set_style("filled")
@@ -91,9 +103,9 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
                 subgraph_same.add_node(node)
 
     # set edge width as function of consumption rate
-    width_list = []
-    max_scale, min_scale = 10, 1
-    max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
+    # width_list = []
+    # max_scale, min_scale = 10, 1
+    # max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
     for edge in plot.get_edges():
         if edge.get_source() == "*" or edge.get_destination() == "*":
             plot.del_edge(edge.get_source(), edge.get_destination())
@@ -104,18 +116,18 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
         # width = (max_scale - min_scale) / (max_weight - min_weight) * (
         #     edge_width - max_weight
         # ) + max_scale
-        if edge.get_attributes()["max"] == "max":
-            edge.set_color("firebrick")
-            edge.set_penwidth(30)
-        else:
+        # if edge.get_attributes()["max"] == "max":
+        #     edge.set_color("firebrick")
+        
+        # edge.set_penwidth(30)
             # edge.set_penwidth(width)
             # width_list.append(width)
-            pass
 
     plot.add_subgraph(subgraph_source)
     plot.add_subgraph(subgraph_sink)
     plot.add_subgraph(subgraph_ads)
     plot.add_subgraph(subgraph_des)
+    plot.add_subgraph(subgraph_electro)
     # plot.add_subgraph(subgraph_same)
     # set min distance between nodes
     plot.set_overlap("false")

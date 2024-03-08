@@ -410,10 +410,20 @@ class ReactionNetwork:
                 nO=inter["O"],
             )
 
+        graph.add_node(
+            "*",
+            category="intermediate",
+            phase="surf",
+            formula="*",
+            nC=0,
+            nH=0,
+            nO=0,
+        )
+
         for reaction in self.reactions:
             r_type = (
                 reaction.r_type
-                if reaction.r_type in ("adsorption", "desorption", "eley_rideal")
+                if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
                 else "surface_reaction"
             )
             graph.add_node(
@@ -422,90 +432,76 @@ class ReactionNetwork:
                 r_type=r_type,
             )
 
-            for inter in reaction.components[0]:  
+            for inter in reaction.components[0]:
                 graph.add_edge(inter.code, reaction.code)
             for inter in reaction.components[1]:
                 graph.add_edge(reaction.code, inter.code)  #TODO: add electrochemistry
 
         return graph
 
-    def write_dotgraph(
-        self,
-        fig_path: str,
-        filename: str,
-        del_surf: bool = False,
-        highlight: list[str] = None,
-        show_steps: bool = True,
-    ):
-        graph = self.gen_graph(
-            del_surf=del_surf, highlight=highlight, show_steps=show_steps
+    def gen_electro_graph(self, graph) -> nx.DiGraph:
+
+        electro_graph = deepcopy(graph)
+
+        # Adding electrochemical species
+        electro_graph.add_node(
+            "H2O(aq)",
+            category="electro",
+            phase="solv",
+            formula="H2O(aq)",
+            nC = 0,
+            nH = 2,
+            nO = 1,
         )
-        pos = nx.kamada_kawai_layout(graph)
-        nx.set_node_attributes(graph, pos, "pos")
-        plot = nx.drawing.nx_pydot.to_pydot(graph)
-        for node in plot.get_nodes():
-            category = node.get_attributes()["category"]
-            if category in ("ads", "gas", "surf"):
-                formula = node.get_attributes()["formula"]
-                for num in re.findall(r"\d+", formula):
-                    SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-                    formula = formula.replace(num, num.translate(SUB))
-                fig_path = node.get_attributes()["fig_path"]
-                node.set_fontname("Arial")
-                # Add figure as html-like label without table borders
-                node.set_label(
-                    f"""<
-                <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0">
-                <TR>
-                <TD><IMG SRC="{fig_path}"/></TD>
-                </TR>
-                <TR>
-                <TD>{formula}</TD>
-                </TR>
-                </TABLE>>"""
-                )
-                node.set_style("filled")
-                if category != "gas":
-                    node.set_fillcolor("wheat")
-                else:
-                    node.set_fillcolor("lightpink")
-                node.set_shape("ellipse")
-                node.set_width("1.5")
-                node.set_height("1.5")
-                node.set_fixedsize("true")
-            else:  # reaction node
-                node.set_shape("square")
-                node.set_style("filled")
-                node.set_label("")
-                node.set_width("0.5")
-                node.set_height("0.5")
-                if node.get_attributes()["category"] in ("adsorption", "desorption"):
-                    node.set_fillcolor("palegreen2")
-                elif node.get_attributes()["category"] == "eley_rideal":
-                    node.set_fillcolor("mediumpurple1")
-                else:
-                    node.set_fillcolor("steelblue3")
-            if highlight is not None and node.get_attributes()["switch"] == "True":
-                node.set_color("red")
-                # increase node width
-                node.set_penwidth("3")
+        electro_graph.add_node(
+            "H+",
+            category="electro",
+            phase="solv",
+            formula="H+",
+            nC = 0,
+            nH = 1,
+            nO = 0,
+        )
+        electro_graph.add_node(
+            "OH-",
+            category="electro",
+            phase="solv",
+            formula="OH-",
+            nC = 0,
+            nH = 1,
+            nO = 1,
+        )
+        electro_graph.add_node(
+            "e-",
+            category="electro",
+            phase="electro",
+            formula="e-",
+            nC = 0,
+            nH = 0,
+            nO = 0,
+        )
 
-        for edge in plot.get_edges():
-            if highlight is not None and edge.get_attributes()["switch"] == "True":
-                edge.set_color("red")
-                edge.set_penwidth("4")
-            else:
-                edge.set_color("black")
-                edge.set_penwidth("1")
+        graph_electro_reactions = []
+        for reaction in electro_graph.nodes:
+            if electro_graph.nodes[reaction]["category"] == "reaction" and electro_graph.nodes[reaction]["r_type"] == "PCET":
+                graph_electro_reactions.append(reaction)
 
-        a4_dims = (8.3, 11.7)  # In inches
-        plot.set_size(f"{a4_dims[1],a4_dims[0]}!")
-        plot.set_orientation("landscape")
-        # define background color
-        plot.set_bgcolor("white")
-        plot.write_png("./" + filename)
-        # remove not empty tmp folder
-        rmtree("tmp")
+        for reaction_code in graph_electro_reactions:
+           
+            crn_rxn = self.search_reaction(code=reaction_code)[0]
+
+            for inter in crn_rxn.components[0]:
+                if inter.phase in ("solv", "electro"):
+                    # if not electro_graph.has_node(inter.code):
+                    #     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    electro_graph.add_edge(inter.code, crn_rxn.code)
+            for inter in crn_rxn.components[1]:
+                if inter.phase in ("solv", "electro"):
+                    # if not electro_graph.has_node(inter.code):
+                    #     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    electro_graph.add_edge(crn_rxn.code, inter.code)
+        return electro_graph
+
 
     @property
     def graph(self):
@@ -706,10 +702,12 @@ class ReactionNetwork:
         v = np.zeros(
             (len(self.intermediates) + 1, len(self.reactions)), dtype=np.int8
         )
-        for i, inter in enumerate(self.intermediates.values()):
+        sorted_intermediates = sorted(
+            self.intermediates.keys())
+        for i, inter in enumerate(sorted_intermediates):
             for j, reaction in enumerate(self.reactions):
-                if inter.code in reaction.stoic.keys():
-                    v[i, j] = reaction.stoic[inter.code]
+                if inter in reaction.stoic.keys():
+                    v[i, j] = reaction.stoic[inter]
                 v[-1, j] = reaction.stoic["*"] if "*" in reaction.stoic.keys() else 0
         return v
 
@@ -839,11 +837,28 @@ class ReactionNetwork:
                 P = pressure
         else:   
             P = pressure
-        inters = [inter.code for inter in self.intermediates.values()]
-        inters_formula = [inter.molecule.get_chemical_formula() for inter in self.intermediates.values()]
+        inters = sorted(
+            self.intermediates.keys(), key=lambda x: self.intermediates[x].code)
+        inters_formula = [self.intermediates[x].molecule.get_chemical_formula() for x in inters]
         gas_mask = np.array(
-            [inter.phase == "gas" for inter in self.intermediates.values()] + [False], dtype=bool
+            [self.intermediates[inter].phase == "gas" for inter in inters] + [False], dtype=bool
         )
+
+        inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]
+        for reaction in self.reactions:
+            if reaction.r_type in ("adsorption", "desorption"):
+                formula_reactants = [inter.molecule.get_chemical_formula() for inter in reaction.components[0] if inter.code != "*"]
+                formula_products = [inter.molecule.get_chemical_formula() for inter in reaction.components[1] if inter.code != "*"]
+                rxn_formulas = formula_reactants + formula_products
+                if any(inlet_molecule in rxn_formulas for inlet_molecule in inlet_molecules):
+                    if reaction.r_type == "adsorption":
+                        continue
+                    else:
+                        reaction.reverse()
+                else:
+                    if reaction.r_type == "adsorption":
+                        reaction.reverse()
+
         v = self.stoichiometric_matrix.copy()
         y0 = np.zeros(len(inters) + 1, dtype=np.float64)
         y0[-1] = 1.0   # Initial condition: empty surface
@@ -854,13 +869,11 @@ class ReactionNetwork:
                 y0 = np.append(y0, P * iv[key])
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
-            elif key in inters_formula:
+            else:
                 for i, inter in enumerate(self.intermediates.values()):
                     if inter.molecule.get_chemical_formula() == key and inter.phase == "gas":
                         y0[i] = P * iv[key]
                         break
-            else:
-                continue
 
         self.get_kinetic_constants(T, uq, thermo)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
@@ -910,31 +923,31 @@ class ReactionNetwork:
 
             path = []
             while path == []:
+                mkm_rxns = deepcopy(self.reactions)
+                new_graph = deepcopy(self.graph)
                 print("ENTERING MAX FLUX")
-                graph = self.graph.copy()
-                graph.remove_edges_from(list(graph.edges))
+                new_graph.remove_edges_from(list(new_graph.edges))
 
                 for i, inter in enumerate(inters):
                     if self.intermediates[inter].phase == "gas":
-                        graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
+                        new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
                     elif self.intermediates[inter].phase == "ads":
-                        graph.nodes[inter]["coverage"] = results["y"][i]
-                graph.nodes["*"]["coverage"] = results["y"][-1]
+                        new_graph.nodes[inter]["coverage"] = results["y"][i]
+                new_graph.nodes["*"]["coverage"] = results["y"][-1]
 
-                mkm_rxns = deepcopy(self.reactions)
                 for i, reaction in enumerate(mkm_rxns):
                     if results["rate"][i] < 0:
-                        graph.remove_node(reaction.code)
+                        new_graph.remove_node(reaction.code)
                         reaction.reverse()
-                        graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
+                        new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
                                     rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
                     else:
-                        graph.nodes[reaction.code]["rate"] = results["rate"][i]
-                        graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                        graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+                        new_graph.nodes[reaction.code]["rate"] = results["rate"][i]
+                        new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                        new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
 
                 for i, inter in enumerate(inters):
-                    for j, reaction in enumerate(self.reactions):
+                    for j, reaction in enumerate(mkm_rxns):
                         if inter in reaction.stoic.keys():
                             if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
                                 if reaction.e_act[0] == 0:
@@ -943,25 +956,28 @@ class ReactionNetwork:
                                     delta = reaction.e_rxn[0]
                                 else:
                                     delta = reaction.e_act[0]
-                                graph.add_edge(inter, 
+                                new_graph.add_edge(inter, 
                                             reaction.code, 
                                             rate=abs(results["consumption_rate"][i, j]), 
                                             delta=delta, 
                                             weight=1/abs(results["consumption_rate"][i, j]))
                             else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                                graph.add_edge(reaction.code, 
+                                new_graph.add_edge(reaction.code, 
                                             inter, 
                                             rate=abs(results["consumption_rate"][i, j]), 
                                             delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
                                             weight=1/abs(results["consumption_rate"][i, j]))
-                graph.remove_node("*")
+                new_graph.remove_node("*")
 
-                path = max_flux(graph, main_reactant)
+                path = max_flux(new_graph, main_reactant)
                 if not path:
                     atol /= 1e2  # Tight steady state precision to avoid oscillations and help convergence
                     print('Lowering relative tolerance to improve numerical stability... (atol = {})'.format(atol))
                     results = reactor.integrate(y0, "Python", rtol, atol, sstol)
-            results["run_graph"] = graph
+
+            if any({reaction.r_type == "PCET" for reaction in self.reactions}):
+                new_graph = self.gen_electro_graph(new_graph)
+            results["run_graph"] = new_graph
             results["inters"] = inters
 
             print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
