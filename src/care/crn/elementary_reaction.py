@@ -115,6 +115,10 @@ class ElementaryReaction:
 
     def __str__(self) -> str:
         return self.__repr__()
+    
+    def __lt__(self, other):
+        return self.code < other.code
+
 
     def __repr__(self) -> str:
         out_str = ""

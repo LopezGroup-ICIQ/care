@@ -860,25 +860,25 @@ class ReactionNetwork:
                         reaction.reverse()
 
         v = self.stoichiometric_matrix.copy()
-        y0 = np.zeros(len(inters) + 1, dtype=np.float64)
+        y0 = np.zeros(len(inters)+1, dtype=np.float64)
         y0[-1] = 1.0   # Initial condition: empty surface
         num_inerts = 0
-        for key in iv.keys():
+        sorted_dict_keys = sorted(iv.keys())
+        for key in sorted_dict_keys:
             if key not in inters_formula:  # inert
                 v = np.vstack((v, np.zeros(len(self.reactions), dtype=np.int8)), dtype=np.int8)
                 y0 = np.append(y0, P * iv[key])
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
-            else:
-                for i, inter in enumerate(self.intermediates.values()):
-                    if inter.molecule.get_chemical_formula() == key and inter.phase == "gas":
-                        y0[i] = P * iv[key]
-                        break
+        for key in sorted_dict_keys:
+            for i, inter in enumerate(inters_formula):
+                if inter == key and gas_mask[i] == True:
+                    y0[i] = P * iv[key]
+                    break
 
         self.get_kinetic_constants(T, uq, thermo)
         kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
         kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
-        # get min and max among all k_dir and k_rev
         ktot = np.concatenate((kd, kr))
         kmax, kmin = np.max(ktot), np.min(ktot)
         print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
@@ -902,7 +902,7 @@ class ReactionNetwork:
             results = reactor.integrate(y0)
             print("Steady state reached")
         elif solver == "Python":
-            rtol, atol, sstol = 1e-6, 1e-12, 1e-10
+            rtol, atol, sstol = 1e-8, 1e-12, 1e-10
             count_atol_decrease = 0
             status = None
             while status != 1: # play with atol and rtol to get successful integration  

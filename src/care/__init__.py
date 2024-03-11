@@ -11,4 +11,4 @@ __version__ = "0.0.1"
 
 MODULEROOT = pl.Path(__file__).parent
 DB_PATH = f"{MODULEROOT}/data/metal_surfaces.db"
-MODEL_PATH = f"{MODULEROOT}/gnn/gamenet_uq_dim192"
+MODEL_PATH = f"{MODULEROOT}/gnn/dim192_5splits"
