@@ -9,6 +9,8 @@ import cpuinfo
 import psutil
 import tempfile
 import time
+import sys
+sys.path.insert(0, "../src")
 
 from ase import Atoms
 from ase.db import connect
@@ -87,174 +89,173 @@ def main():
     output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
-    crn_bp_path = f"{output_dir}/crn_bp.pkl"
-    crn_path = f"{output_dir}/crn.pkl"
+    # crn_bp_path = f"{output_dir}/crn_bp.pkl"
+    # crn_path = f"{output_dir}/crn.pkl"
 
     # 0. Check if the CRN already exists
-    if (not os.path.exists(crn_path)) or (config['chemspace']['regen'] == True):
+    # if (not os.path.exists(crn_path)) or (config['chemspace']['regen'] == True):
 
-        # 1. Generate the chemical space (chemical spieces and reactions)
-        print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
+    # 1. Generate the chemical space (chemical spieces and reactions)
+    print(
+        f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
 
-        if not os.path.exists(crn_bp_path):
-            intermediates, reactions = gen_chemical_space(
-                ncc, noc, additional_rxns)
-            with open(crn_bp_path, "wb") as f:
-                dump(ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc), f)
-        else:
-            print("Loading the pre-generated CRN...")
-            with open(crn_bp_path, "rb") as f:
-                crn = load(f)
-                print(crn)
-                intermediates = crn.intermediates
-                reactions = crn.reactions
+    # if not os.path.exists(crn_bp_path):
+    intermediates, bond_break_rxns = gen_chemical_space(
+        ncc, noc)
+    # with open(crn_bp_path, "wb") as f:
+        # dump(ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc), f)
+    # else:
+    #     print("Loading the pre-generated CRN...")
+    #     with open(crn_bp_path, "rb") as f:
+    #         crn = load(f)
+    #         print(crn)
+    #         intermediates = crn.intermediates
+    #         reactions = crn.reactions
 
-        if electrochem:
-            h2o_gas = [intermediate for intermediate in intermediates.values(
-            ) if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
-            oh_code = [intermediate for intermediate in intermediates.values(
-            ) if intermediate.formula == 'HO'][0].code
-            surface_inter = Intermediate(
-                code='*', molecule=Atoms(), phase='surf', is_surface=True)
+    # if electrochem:
+    #     h2o_gas = [intermediate for intermediate in intermediates.values(
+    #     ) if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
+    #     oh_code = [intermediate for intermediate in intermediates.values(
+    #     ) if intermediate.formula == 'HO'][0].code
+    #     surface_inter = Intermediate(
+    #         code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
-            for reaction in reactions:
-                reaction.electro_rxn(pH, h2o_gas, oh_code, surface_inter)
+    #     for reaction in reactions:
+    #         reaction.electro_rxn(pH, h2o_gas, oh_code, surface_inter)
 
-        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
-        # 2. Evaluation of the chemical space
-        print(
-            f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
+    # 2. Evaluation of the chemical space
+    print(
+        f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # 2.1. Adsorbate placement and energy estimation
-        #
+    # 2.1. Adsorbate placement and energy estimation
 
-        # 2.1.1. Intermediate energy estimation
-        print(" Energy estimation of the intermediates...")
-        intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
+    # 2.1.1. Intermediate energy estimation
+    # print(" Energy estimation of the intermediates...")
+    # intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
 
-        _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+    # _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    # resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
 
-        manager = mp.Manager()
-        progress_queue = manager.Queue()
+    # manager = mp.Manager()
+    # progress_queue = manager.Queue()
 
-        if len(intermediates) < 10000:
-            chunk_size = 1
-            tasks = [[intermediate] for intermediate in intermediates.values()]
-            num_cpu = mp.cpu_count()
-        else:
-            chunk_size = len(intermediates) // (mp.cpu_count() * 10)
-            tasks = [list(intermediates.values())[i:i + chunk_size]
-                     for i in range(0, len(intermediates), chunk_size)]
-            num_cpu = mp.cpu_count()
+    # if len(intermediates) < 10000:
+    #     chunk_size = 1
+    #     tasks = [[intermediate] for intermediate in intermediates.values()]
+    #     num_cpu = mp.cpu_count()
+    # else:
+    #     chunk_size = len(intermediates) // (mp.cpu_count() * 10)
+    #     tasks = [list(intermediates.values())[i:i + chunk_size]
+    #                 for i in range(0, len(intermediates), chunk_size)]
+    #     num_cpu = mp.cpu_count()
 
-        # Create empty folder to store temp results
-        tmp_folder = tempfile.mkdtemp()
-        _, tmp_file = tempfile.mkstemp(suffix='.pkl', dir=tmp_folder)
+    # # Create empty folder to store temp results
+    # tmp_folder = tempfile.mkdtemp()
+    # _, tmp_file = tempfile.mkstemp(suffix='.pkl', dir=tmp_folder)
 
 
-        with Progress() as progress:
-            task = progress.add_task(
-                " [green]Processing...", total=len(tasks))
-            processed_items = 0
+    # with Progress() as progress:
+    #     task = progress.add_task(
+    #         " [green]Processing...", total=len(tasks))
+    #     processed_items = 0
 
-            with mp.Pool(num_cpu) as pool:
-                pool.starmap(evaluate_intermediate, [
-                            (task, intermediate_model, progress_queue, tmp_file) for task in tasks])
-                
-                while not progress_queue.empty():
-                    progress.update(task, advance=progress_queue.get(), description=f" [green]Processing {processed_items}/{len(tasks)}...")
-                    processed_items += 1
+    #     with mp.Pool(num_cpu) as pool:
+    #         pool.starmap(evaluate_intermediate, [
+    #                     (task, intermediate_model, progress_queue, tmp_file) for task in tasks])
+            
+    #         while not progress_queue.empty():
+    #             progress.update(task, advance=progress_queue.get(), description=f" [green]Processing {processed_items}/{len(tasks)}...")
+    #             processed_items += 1
 
-        intermediates = {}
-        with open(tmp_file, 'rb') as file:
-            while True:
-                try:
-                    intermediates.update(load(file))              
-                except EOFError:
-                    break
+    # intermediates = {}
+    # with open(tmp_file, 'rb') as file:
+    #     while True:
+    #         try:
+    #             intermediates.update(load(file))              
+    #         except EOFError:
+    #             break
 
-        # 2.1.2. Reaction energy estimation
-        print("\n Energy estimation of the reactions...")
-        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=pH)
+    # # 2.1.2. Reaction energy estimation
+    # print("\n Energy estimation of the reactions...")
+    # rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=pH)
 
-        eval_reactions = []
-        with Progress() as progress:
-            task = progress.add_task(
-                " [green]Processing...", total=len(reactions))
-            processed_items = 0
-            for reaction in reactions:
-                eval_rxn = rxn_model.eval(reaction)
-                eval_reactions.append(eval_rxn)
-                processed_items += 1
-                progress.update(
-                    task, advance=1, description=f" [green]Processing {processed_items}/{len(reactions)}...")
+    # eval_reactions = []
+    # with Progress() as progress:
+    #     task = progress.add_task(
+    #         " [green]Processing...", total=len(reactions))
+    #     processed_items = 0
+    #     for reaction in reactions:
+    #         eval_rxn = rxn_model.eval(reaction)
+    #         eval_reactions.append(eval_rxn)
+    #         processed_items += 1
+    #         progress.update(
+    #             task, advance=1, description=f" [green]Processing {processed_items}/{len(reactions)}...")
 
-        reactions = eval_reactions
+    # reactions = eval_reactions
 
-        print(
-            "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+    print(
+        "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
-        # 3. Building and saving the CRN
-        crn = ReactionNetwork(intermediates=intermediates, 
-                              reactions=reactions, 
-                              surface=surface, 
-                              ncc=ncc, 
-                              noc=noc)
+    # 3. Building and saving the CRN
+    # crn = ReactionNetwork(intermediates=intermediates, 
+    #                         reactions=reactions, 
+    #                         surface=surface, 
+    #                         ncc=ncc, 
+    #                         noc=noc)
 
-        print("\nSaving the CRN...")
-        with open(f"{output_dir}/crn.pkl", "wb") as f:
-            dump(crn, f)
-        print("Done!")
+    # print("\nSaving the CRN...")
+    # with open(f"{output_dir}/crn.pkl", "wb") as f:
+    #     dump(crn, f)
+    # print("Done!")
 
-    else:
-        print("Loading the CRN...")
-        with open(crn_path, "rb") as f:
-            crn = load(f)
+    # else:
+    #     print("Loading the CRN...")
+    #     with open(crn_path, "rb") as f:
+    #         crn = load(f)
 
     # 4. Running MKM
-    if config['mkm']['run']:
-        mkm_uq = config['mkm']['uq']
-        thermo = config['mkm']['thermo']
-        if mkm_uq:
-            uq_samples = config['mkm']['uq_samples']
-        else:
-            uq_samples = 0
+#     if config['mkm']['run']:
+#         mkm_uq = config['mkm']['uq']
+#         thermo = config['mkm']['thermo']
+#         if mkm_uq:
+#             uq_samples = config['mkm']['uq_samples']
+#         else:
+#             uq_samples = 0
 
-        print("\nRunning the microkinetic simulation...")
-        oc = config['operating_conditions']
-        y0 = config['initial_conditions']
-        results = crn.run_microkinetic(y0,
-                                       config['mkm']['main_reactant'],
-                                       oc['temperature'],
-                                       oc['pressure'],
-                                       uq=mkm_uq,
-                                       uq_samples=uq_samples,
-                                       thermo=thermo,
-                                       solver=config['mkm']['solver'], 
-                                       barrier_threshold=config['mkm']['barrier_threshold'], 
-                                       ss_tol=config['mkm']['ss_tol'])
-        print("\nSaving the microkinetic simulation...")
-        with open(f"{output_dir}/mkm.pkl", "wb") as f:
-            dump(results, f)
+#         print("\nRunning the microkinetic simulation...")
+#         oc = config['operating_conditions']
+#         y0 = config['initial_conditions']
+#         results = crn.run_microkinetic(y0,
+#                                        config['mkm']['main_reactant'],
+#                                        oc['temperature'],
+#                                        oc['pressure'],
+#                                        uq=mkm_uq,
+#                                        uq_samples=uq_samples,
+#                                        thermo=thermo,
+#                                        solver=config['mkm']['solver'], 
+#                                        barrier_threshold=config['mkm']['barrier_threshold'], 
+#                                        ss_tol=config['mkm']['ss_tol'])
+#         print("\nSaving the microkinetic simulation...")
+#         with open(f"{output_dir}/mkm.pkl", "wb") as f:
+#             dump(results, f)
 
-    ram_mem = psutil.virtual_memory().available / 1e9
-    peak_memory_usage = (resource.getrusage(
-        resource.RUSAGE_SELF).ru_maxrss) / 1e6
+#     ram_mem = psutil.virtual_memory().available / 1e9
+#     peak_memory_usage = (resource.getrusage(
+#         resource.RUSAGE_SELF).ru_maxrss) / 1e6
 
-    table2 = PrettyTable()
-    table2.field_names = ["Process", "Model", "Usage"]
-    table2.add_row(
-        ["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
-    table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available",
-                    f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
-    table2.add_row(["Total Execution Time", "",
-                    f"{time.time() - total_time:.2f}s"])
+#     table2 = PrettyTable()
+#     table2.field_names = ["Process", "Model", "Usage"]
+#     table2.add_row(
+#         ["Processor", f"{cpuinfo.get_cpu_info()['brand_raw']} ({mp.cpu_count()} cores)", f"{psutil.cpu_percent()}%"])
+#     table2.add_row(["RAM Memory", f"{ram_mem:.1f} GB available",
+#                     f"{peak_memory_usage / ram_mem * 100:.2f}% ({peak_memory_usage:.2f} GB)"], divider=True)
+#     table2.add_row(["Total Execution Time", "",
+#                     f"{time.time() - total_time:.2f}s"])
 
-    print(f"\n{table2}")
+#     print(f"\n{table2}")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

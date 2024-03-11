@@ -3,7 +3,6 @@ import sys
 sys.path.insert(0, "../src")
 
 
-
 from shutil import rmtree
 from typing import Union
 from copy import deepcopy
@@ -38,6 +37,7 @@ class ReactionNetwork:
             noc: int = None,
             oc: dict[str, float] = None,
     ):
+        self.surface = surface
         if isinstance(intermediates, dict):
             if not all([isinstance(key, str) for key in intermediates.keys()]):
                 raise TypeError("Keys of intermediates must be str")
@@ -60,7 +60,6 @@ class ReactionNetwork:
             else:
                 raise TypeError("Values of reactions must be either list of lists ([[InchiKeys reactants], [InchiKeys products], [Reaction type]]) or a list of ElementaryReaction")
 
-        self.surface = surface
 
     def gen_reactions(self, reactions: list, additional_rxns: bool):
 
@@ -99,13 +98,17 @@ if __name__ == "__main__":
     # Example of a reaction network
     # 1. Generate the chemical space (chemical spieces and reactions)
     intermediates, reactions = chemspace.gen_chemical_space(1, 2)
-    copper_slab = Atoms('Cu', positions=[(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)])
+    copper_slab = Atoms('Cu')
 
     surface = Surface(copper_slab, '111')
-    crn = ReactionNetwork(intermediates=intermediates, reactions=reactions)
+    crn = ReactionNetwork(intermediates=intermediates, reactions=reactions, surface=surface)
 
     print(len(crn.intermediates))
     print(len(crn.reactions))
+
+    from pickle import dump
+    with open("crn_test.pkl", "wb") as f:
+        dump(crn, f)
 # class ReactionNetwork:
 #     """
 #     Reaction network class for representing a network of surface reactions
