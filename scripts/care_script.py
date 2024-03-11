@@ -177,6 +177,8 @@ def main():
                 except EOFError:
                     break
 
+        # print([intermediate.ads_configs for intermediate in intermediates.values()])
+
         # 2.1.2. Reaction energy estimation
         print("\n Energy estimation of the reactions...")
         rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=pH)
@@ -193,7 +195,7 @@ def main():
                 progress.update(
                     task, advance=1, description=f" [green]Processing {processed_items}/{len(reactions)}...")
 
-        reactions = eval_reactions
+        reactions = sorted(eval_reactions)
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
