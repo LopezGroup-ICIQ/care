@@ -9,6 +9,8 @@ import cpuinfo
 import psutil
 import tempfile
 import time
+import sys
+sys.path.append('../src')
 
 from ase import Atoms
 from ase.db import connect
@@ -51,7 +53,7 @@ def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progres
 def main():
     total_time = time.time()
     # Load configuration file
-    with open("config.toml", "r") as f:
+    with open("template.toml", "r") as f:
         config = toml.load(f)
 
     print(f"{LOGO}\n")
