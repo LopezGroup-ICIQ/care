@@ -750,7 +750,7 @@ def gen_rearrangement_reactions(
 
 
 def gen_chemical_space(
-    ncc: int, noc: int, additional_rxns: bool) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+    ncc: int, noc: int, cyclic: bool, additional_rxns: bool) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the entire chemical space for the given boundaries (ncc and noc) of the CRN.
 
@@ -760,6 +760,8 @@ def gen_chemical_space(
         Network Carbon Cutoff, maximum number of C atoms in the intermediates
     noc : int
         Network Oxygen Cutoff, Maximum number of O atoms in the intermediates.
+    cyclic : bool
+        If True, generates cyclic compounds (epoxides).
     additional_rxns : bool
         If True, additional reactions are generated (rearrangement reactions).
 
@@ -790,9 +792,14 @@ def gen_chemical_space(
             ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
             progress.update(task, advance=1)
 
-            # Step 3: Generate Epoxides
-            epox_smiles, mol_epox = gen_epoxides(mol_alkanes, noc)
-            progress.update(task, advance=1)
+            if cyclic:
+                # Step 3: Generate Epoxides
+                epox_smiles, mol_epox = gen_epoxides(mol_alkanes, noc)
+                progress.update(task, advance=1)
+            else:
+                epox_smiles, mol_epox = [], []
+                progress.update(task, advance=1)
+
 
             # Step 4: Add Oxygens
             alkanes_oxy_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes]

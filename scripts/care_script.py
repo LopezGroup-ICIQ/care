@@ -14,16 +14,12 @@ sys.path.append('../src')
 
 from ase import Atoms
 from ase.db import connect
-import numpy as np
 
-from care import MODEL_PATH, DB_PATH, Surface, ReactionNetwork, Intermediate
+from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, Surface, ReactionNetwork, Intermediate
 from care.constants import LOGO, METAL_STRUCT_DICT
 from care.crn.utilities.chemspace import gen_chemical_space
-from care.crn.reactors import DifferentialPFR
-from care.crn.visualize import write_dotgraph
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
-DFT_DB_PATH = '../src/care/data/FG2dataset.db'
 
 lock = mp.Lock()
 
@@ -64,6 +60,8 @@ def main():
     # If noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
     noc = noc if noc >= 0 else ncc * 2 + 2
 
+    cyclic = config['chemspace']['cyclic']
+
     # If noc is > ncc * 2 + 2, raise an error
     if noc > ncc * 2 + 2:
         raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
@@ -101,7 +99,7 @@ def main():
 
         if not os.path.exists(crn_bp_path):
             intermediates, reactions = gen_chemical_space(
-                ncc, noc, additional_rxns)
+                ncc, noc, cyclic, additional_rxns)
             with open(crn_bp_path, "wb") as f:
                 dump(ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc), f)
         else:
@@ -141,15 +139,14 @@ def main():
         manager = mp.Manager()
         progress_queue = manager.Queue()
 
+        num_cpu = mp.cpu_count()
         if len(intermediates) < 10000:
             chunk_size = 1
             tasks = [[intermediate] for intermediate in intermediates.values()]
-            num_cpu = mp.cpu_count()
         else:
             chunk_size = len(intermediates) // (mp.cpu_count() * 10)
             tasks = [list(intermediates.values())[i:i + chunk_size]
                      for i in range(0, len(intermediates), chunk_size)]
-            num_cpu = mp.cpu_count()
 
         # Create empty folder to store temp results
         tmp_folder = tempfile.mkdtemp()
@@ -176,8 +173,6 @@ def main():
                     intermediates.update(load(file))              
                 except EOFError:
                     break
-
-        # print([intermediate.ads_configs for intermediate in intermediates.values()])
 
         # 2.1.2. Reaction energy estimation
         print("\n Energy estimation of the reactions...")
