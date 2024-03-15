@@ -7,6 +7,8 @@ from numba import njit, cuda
 import math
 from networkx.algorithms import shortest_path
 
+from care import ElementaryReaction, Intermediate
+
 
 def iupac_to_inchikey(iupac_name: str) -> str:
     mol = Chem.MolFromIUPACName(iupac_name)
@@ -14,6 +16,65 @@ def iupac_to_inchikey(iupac_name: str) -> str:
         return Chem.inchi.MolToInchiKey(mol)
     else:
         return "Invalid IUPAC name"
+    
+
+def gen_graph(inters: dict[str, Intermediate], 
+              rxns: list[ElementaryReaction]) -> nx.DiGraph:
+        """
+        Generate a network graph representation.
+
+        Returns:
+            graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
+            Species nodes can only be linked to reaction nodes and vice versa.
+
+        Notes:
+            The returned graph is correctly directed at the elementary reaction level, 
+            i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
+            are linked to the reaction node in the same way (both entering or exiting).
+            However, at the global level, the graph is ill-defined and further processing 
+            (kinetic modeling) is needed to obtain a correct representation of the network.
+        """
+        graph = nx.DiGraph()
+
+        for inter in inters.values():
+            graph.add_node(
+                inter.code,
+                category="intermediate",
+                phase=inter.phase,
+                formula=inter.formula,
+                nC=inter["C"],
+                nH=inter["H"],
+                nO=inter["O"],
+            )
+
+        graph.add_node(
+            "*",
+            category="intermediate",
+            phase="surf",
+            formula="*",
+            nC=0,
+            nH=0,
+            nO=0,
+        )
+
+        for reaction in rxns:
+            r_type = (
+                reaction.r_type
+                if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
+                else "surface_reaction"
+            )
+            graph.add_node(
+                reaction.code,
+                category="reaction",
+                r_type=r_type,
+            )
+
+            for inter in reaction.components[0]:
+                graph.add_edge(inter.code, reaction.code)
+            for inter in reaction.components[1]:
+                graph.add_edge(reaction.code, inter.code)  #TODO: add electrochemistry
+
+        return graph
 
 
 def max_flux(graph: nx.DiGraph, source: str) -> list:

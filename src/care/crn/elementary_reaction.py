@@ -6,7 +6,7 @@ from scipy.linalg import null_space
 from torch_geometric.data import Data
 
 from care import Intermediate
-from care.constants import INTER_ELEMS, R_TYPES
+from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
 from care.crn.utilities.electro import Electron, Proton, Hydroxide, Water
 
 class ElementaryReaction:
@@ -515,5 +515,44 @@ class ElementaryReaction:
                         self.code = self.__repr__()
         else:
             pass
+
+    def get_kinetic_constants(self, 
+                              t: float, 
+                              uq: bool = False, 
+                              thermo: bool = False) -> tuple:
+        """
+        Evaluate the kinetic constants of the reactions in the network.
+
+        Args:
+            t (float, optional): Temperature in Kelvin. Defaults to None.
+            uq (bool, optional): If True, the uncertainty of the activation
+                energy and the reaction energy will be considered. Defaults to
+                False.
+            thermo (bool, optional): If True, the activation barriers will be 
+                neglected and only the thermodynamic path is considered. Defaults
+                to False.
+        """
+        if thermo:
+            if uq:
+                e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1])
+                e_act = 0 if e_rxn < 0 else e_rxn
+            else:
+                e_rxn = self.e_rxn[0]
+                e_act = 0 if e_rxn < 0 else e_rxn
+        else:
+            if uq:
+                e_act = np.random.normal(self.e_act[0], self.e_act[1])
+                e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1])
+            else:
+                e_act = self.e_act[0]
+                e_rxn = self.e_rxn[0]
+        k_eq = np.exp(-e_rxn / t / K_B)
+        if self.r_type == "adsorption":  
+            k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
+        else: 
+            k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
+        k_rev = k_dir / k_eq
+
+        return k_dir, k_rev
 
 

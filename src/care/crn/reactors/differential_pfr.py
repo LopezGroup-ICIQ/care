@@ -138,11 +138,8 @@ class DifferentialPFR(ReactorModel):
         y: np.ndarray,
     ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y)))
-        # abs_rates = abs(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
-        print(f"Sum of the absolute derivative: {sum_ddt}")
+        # print(f"Time: {t}    Sum_ddt: {sum_ddt}")
         return 0 if sum_ddt <= self.sstol else 1
-        # print(f"Sum of the absolute rates: {np.sum(abs_rates)}")
-        # return 0 if abs_rates <= self.sstol else 1
 
     steady_state.terminal = True
     steady_state.direction = 0
@@ -183,7 +180,7 @@ class DifferentialPFR(ReactorModel):
         else:
             self.sstol = sstol
             results = solve_ivp(self.ode,
-                                (0, 1e30),  
+                                (0, 1e10),  
                                 y0,
                                 method="BDF",
                                 events=self.steady_state,
@@ -325,10 +322,10 @@ class DifferentialPFR(ReactorModel):
         using DifferentialEquations
         using SparseArrays
         CUDA.allowscalar(true)
-        y0 = CuArray{Float64}(y0)
+        y0 = CuArray{Float32}(y0)
         v = CuArray{Int8}(sparse(v))
-        kd = CuArray{Float64}(kd)
-        kr = CuArray{Float64}(kr)
+        kd = CuArray{Float32}(kd)
+        kr = CuArray{Float32}(kr)
         vf = CuArray{Int8}(sparse(vf))
         vb = CuArray{Int8}(sparse(vb))
         gas_mask = CuArray{Bool}(gas_mask)
@@ -340,7 +337,7 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            println(t, sum(abs.(du)))
+            println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
@@ -348,7 +345,7 @@ class DifferentialPFR(ReactorModel):
             
                   """)
         Main.eval("""
-        prob = ODEProblem(f, y0, (0.0, 1e20), p)
+        prob = ODEProblem(f, y0, (0.0, 1e4), p)
         """)
         Main.eval("""
         function condition(u, t, integrator)
@@ -364,7 +361,7 @@ class DifferentialPFR(ReactorModel):
         end
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-20, reltol=1e-10, callback=cb)
+        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-10, reltol=1e-6, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         Main.eval("""
