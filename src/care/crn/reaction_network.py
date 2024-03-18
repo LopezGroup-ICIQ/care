@@ -1074,6 +1074,7 @@ class ReactionNetwork:
                 P = pressure
 
             INTERS_CODE = [inter.code for inter in self.intermediates.values()]
+            RXN_IDXS = [i for i, reaction in enumerate(self.reactions)]
 
             MKM_GRAPH = deepcopy(self.gen_graph())    
 
@@ -1087,7 +1088,6 @@ class ReactionNetwork:
                         undesired_closed_shell.append(inter.code)
                         count_removed_inters += 1
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter not in undesired_closed_shell]
-                print('INTERS_CODE first filter: ', len(INTERS_CODE))
 
                 rxns_to_remove = []
                 for edge in MKM_GRAPH.edges:
@@ -1101,7 +1101,6 @@ class ReactionNetwork:
 
                 MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
                 RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
-                print('RXN_IDXS first filter: ', len(RXN_IDXS))
                 rm_condition = 0
                 while rm_condition == 0:
                     inter_to_remove = []
@@ -1129,8 +1128,6 @@ class ReactionNetwork:
 
                 RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter in MKM_GRAPH.nodes]
-                print('INTERS_CODE second filter: ', len(INTERS_CODE))
-                print('RXN_IDXS second filter: ', len(RXN_IDXS))
 
             if barrier_threshold is not None:
                 count_removed_inters = 0
@@ -1146,7 +1143,6 @@ class ReactionNetwork:
                         if condition(eact_dir, eact_rev):
                             idxs_rxns_to_remove.append(i)
                             count_removed_reactions += 1
-                    print(idxs_rxns_to_remove)
                     RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
                     # Discard intermediates that do not participate in any reaction
                     idxs_inters_to_remove = []
@@ -1154,7 +1150,6 @@ class ReactionNetwork:
                         if all(inter not in MKM_RXNS[j_i].stoic.keys() for j_i, _ in enumerate(RXN_IDXS)):
                             idxs_inters_to_remove.append(i)
                             count_removed_inters += 1
-                    print(idxs_inters_to_remove)
                     INTERS_CODE = [inter for i, inter in enumerate(INTERS_CODE) if i not in idxs_inters_to_remove]
                 print(f"Filtered {count_removed_reactions} reactions with barrier above {barrier_threshold} eV in both directions")
                 print(f"Filtered {count_removed_inters} intermediates that do not participate in any reaction")       
@@ -1187,6 +1182,14 @@ class ReactionNetwork:
                     else:
                         if reaction.r_type == "adsorption":
                             reaction.reverse()
+                else:
+                    if any([inter.closed_shell and inter.molecule.get_chemical_formula() not in inlet_molecules for inter in reaction.components[0]]):
+                        print("Reversing reaction:", reaction.code)
+                        reaction.reverse()
+                    
+                    if any([inter.closed_shell and inter.molecule.get_chemical_formula() in inlet_molecules for inter in reaction.components[1]]):
+                        print("Reversing reaction:", reaction.code)
+                        reaction.reverse()
 
             v = np.zeros(
                 (len(MKM_INTERS), len(MKM_RXNS)), dtype=np.int8
@@ -1215,10 +1218,17 @@ class ReactionNetwork:
                         y0[i] = P * iv[key]
                         break
 
-            dfv = pd.DataFrame(v, index=inters_formula + inerts, columns=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
-            # add second column index with reaction types
-            dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
-            dfv.to_csv("stoichiometric_matrix.csv")
+            for i, inter in enumerate(inters):
+                if gas_mask[i]:
+                    if not any(v[i, :]):
+                        raise ValueError(f"Gas species {inter} does not participate in any reaction")
+                else:
+                    if np.sum(np.abs(v[i, :])) < 2:
+                        raise ValueError(f"Surface species {inter} does not participate in at least two reactions")
+            # dfv = pd.DataFrame(v, index=inters_formula + inerts, columns=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
+            # # add second column index with reaction types
+            # dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
+            # dfv.to_csv("stoichiometric_matrix.csv")
 
             kd = np.zeros(len(MKM_RXNS), dtype=np.float64)
             kr = np.zeros(len(MKM_RXNS), dtype=np.float64)
@@ -1244,8 +1254,8 @@ class ReactionNetwork:
             elif solver == "Python":
                 SSTOL = 1e-10
                 RTOL, ATOL = 1e-10, 1e-16
-                RTOL_MIN, ATOL_MIN = 1e-10, 1e-32
-                RTOL_MAX, ATOL_MAX = 1e-3, 1e-6
+                RTOL_MIN, ATOL_MIN = 1e-10, 1e-64
+                RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
                 count_atol_increase = 0
                 status = None
                 while status != 1: # play with atol and rtol to get successful integration  
@@ -1333,6 +1343,11 @@ class ReactionNetwork:
                 #     new_graph = self.gen_electro_graph(new_graph)
                 results["run_graph"] = new_graph
                 results["inters"] = inters
+
+                # Saving the tolerance values used
+                results["rtol"] = RTOL
+                results["atol"] = ATOL
+                results["k_ratio"] = kmax / kmin
 
                 print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(RTOL, ATOL, SSTOL))
             return results
