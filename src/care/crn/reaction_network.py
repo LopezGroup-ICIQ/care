@@ -1074,31 +1074,63 @@ class ReactionNetwork:
                 P = pressure
 
             INTERS_CODE = [inter.code for inter in self.intermediates.values()]
-            RXN_IDXS = [i for i, _ in enumerate(self.reactions)]
+
+            MKM_GRAPH = deepcopy(self.gen_graph())    
 
             if target_products is not None:
                 count_removed_inters = 0
                 count_removed_reactions = 0
-                # Discard closed-shell intermediates that are not in the target products nor in the reactants
                 undesired_closed_shell = []
-                idxs_inters_to_remove = []
                 reactants_products = list(iv.keys()) + target_products
                 for inter in self.intermediates.values():
                     if inter.is_closed_shell() and inter.molecule.get_chemical_formula() not in reactants_products:
                         undesired_closed_shell.append(inter.code)
-                        print(inter.code)
-                        idxs_inters_to_remove.append(inter.code)
                         count_removed_inters += 1
-                INTERS_CODE = [inter for inter in INTERS_CODE if inter not in idxs_inters_to_remove]
-                # Discard reactions that involve undesired intermediates
-                idxs_rxns_to_remove = []
-                for i, reaction in enumerate(self.reactions):
-                    if any(inter in undesired_closed_shell for inter in reaction.stoic.keys()):
-                        idxs_rxns_to_remove.append(i)
-                        print(reaction.code)
+                INTERS_CODE = [inter for inter in INTERS_CODE if inter not in undesired_closed_shell]
+                print('INTERS_CODE first filter: ', len(INTERS_CODE))
+
+                rxns_to_remove = []
+                for edge in MKM_GRAPH.edges:
+                    if any([inter in str(edge) for inter in undesired_closed_shell]):
+                        if len(edge[0]) > len(edge[1]):
+                            rxns_to_remove.append(edge[0])
+                        else:
+                            rxns_to_remove.append(edge[1])
+
                         count_removed_reactions += 1
-                RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
-                print(f"Filtered {count_removed_reactions} reactions and {count_removed_inters} intermediates that are not in the target products nor in the reactants")
+
+                MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
+                RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
+                print('RXN_IDXS first filter: ', len(RXN_IDXS))
+                rm_condition = 0
+                while rm_condition == 0:
+                    inter_to_remove = []
+                    for node in MKM_GRAPH.nodes:
+                        if MKM_GRAPH.nodes[node]['category'] == 'intermediate':
+                            if MKM_GRAPH.degree(node) == 0:
+                                inter_to_remove.append(node)
+                            if MKM_GRAPH.degree(node) == 1 and self.intermediates[node].molecule.get_chemical_formula() not in reactants_products:
+                                inter_to_remove.append(node)
+
+                    rxns_to_remove = []
+                    for edge in MKM_GRAPH.edges:
+                        if any([inter in str(edge) for inter in inter_to_remove]):
+                            if len(edge[0]) > len(edge[1]):
+                                rxns_to_remove.append(edge[0])
+                            else:
+                                rxns_to_remove.append(edge[1])
+
+                    if len(inter_to_remove) == 0 and len(rxns_to_remove) == 0:
+                        rm_condition = 1
+                    else:
+                        MKM_GRAPH.remove_nodes_from(list(set(inter_to_remove)))
+                        MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
+                        rm_condition = 0
+
+                RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
+                INTERS_CODE = [inter for inter in INTERS_CODE if inter in MKM_GRAPH.nodes]
+                print('INTERS_CODE second filter: ', len(INTERS_CODE))
+                print('RXN_IDXS second filter: ', len(RXN_IDXS))
 
             if barrier_threshold is not None:
                 count_removed_inters = 0
@@ -1126,45 +1158,6 @@ class ReactionNetwork:
                     INTERS_CODE = [inter for i, inter in enumerate(INTERS_CODE) if i not in idxs_inters_to_remove]
                 print(f"Filtered {count_removed_reactions} reactions with barrier above {barrier_threshold} eV in both directions")
                 print(f"Filtered {count_removed_inters} intermediates that do not participate in any reaction")       
-
-            if barrier_threshold is not None or target_products is not None:
-                count_removed_inters = 0
-                count_removed_reactions = 0
-                # Discard surface 
-                rm_condition = 0
-                while rm_condition == 0:
-                    # Discarding open-shell surface species intermediates that participate in only one reaction
-                    inters_to_remove = []
-                    for i, inter in enumerate(MKM_INTERS.keys()):
-                        if not MKM_INTERS[inter].is_closed_shell() and inter in INTERS_CODE and MKM_INTERS[inter].molecule.get_chemical_formula() not in reactants_products:
-                            print(inter)
-                            # If the inter code appears only once in the list of reaction codes, remove it
-                            n_times = 0
-                            for reaction in MKM_RXNS:
-                                if MKM_INTERS[inter].code in reaction.code:
-                                    print(reaction.code)
-                                    print(MKM_INTERS[inter].code)
-                                    n_times += 1
-                            if n_times == 1:
-                                inters_to_remove.append(inter)
-                                count_removed_inters += 1
-
-                    INTERS_CODE = [inter for inter in INTERS_CODE if inter not in inters_to_remove]
-                    idxs_rxns_to_remove = []
-                    for reaction in MKM_RXNS:
-                        # If the reaction contains an intermediate of the intermediates to remove, remove the reaction
-                        if any(inter in inters_to_remove for inter in reaction.stoic.keys()):
-                            idxs_rxns_to_remove.append(MKM_RXNS.index(reaction))
-                            count_removed_reactions += 1
-                    RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
-                    
-                    if len(inters_to_remove) == 0 and len(idxs_rxns_to_remove) == 0:
-                        rm_condition = 1
-                    else:
-                        rm_condition = 0
-
-                print(f"Filtered {count_removed_reactions} reactions and {count_removed_inters} intermediates that are not in the target products nor in the reactants")
-
 
             MKM_RXNS = [self.reactions[i] for i in RXN_IDXS]
             MKM_INTERS = {inter: self.intermediates[inter] for inter in INTERS_CODE}
