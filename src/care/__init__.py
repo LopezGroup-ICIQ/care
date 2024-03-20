@@ -1,5 +1,6 @@
 import pathlib as pl
 
+from care.constants import *
 from care.crn.surface import Surface
 from care.crn.intermediate import Intermediate
 from care.crn.elementary_reaction import ElementaryReaction

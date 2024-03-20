@@ -56,16 +56,9 @@ def main():
 
     # Loading parameters
     ncc = config['chemspace']['ncc']
-    noc = config['chemspace']['noc']
-    # If noc is a negative number, then the noc is set to the max number of O atoms in the intermediates.
-    noc = noc if noc >= 0 else ncc * 2 + 2
+    noc = config['chemspace']['noc']   
 
-    cyclic = config['chemspace']['cyclic']
-
-    # If noc is > ncc * 2 + 2, raise an error
-    if noc > ncc * 2 + 2:
-        raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
-
+    cyclic = config['chemspace']['cyclic']  
     additional_rxns = config['chemspace']['additional']
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
@@ -79,15 +72,16 @@ def main():
 
     # Electrochemical parameters
     electrochem = config['chemspace']['electro']
-    pH = config['operating_conditions']['pH'] if electrochem else None
+    crn_type = "electrochemical" if electrochem else "thermal"
+    PH = config['operating_conditions']['pH'] if electrochem else None
     U = config['operating_conditions']['U'] if electrochem else None
-    T = config['operating_conditions']['temperature'] if electrochem else None
+    T = config['operating_conditions']['temperature'] 
+    P = config['operating_conditions']['pressure'] 
 
     # Output directory
     output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
 
-    crn_bp_path = f"{output_dir}/crn_bp.pkl"
     crn_path = f"{output_dir}/crn.pkl"
 
     # 0. Check if the CRN already exists
@@ -96,30 +90,19 @@ def main():
         # 1. Generate the chemical space (chemical spieces and reactions)
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
-
-        if not os.path.exists(crn_bp_path):
-            intermediates, reactions = gen_chemical_space(
-                ncc, noc, cyclic, additional_rxns)
-            with open(crn_bp_path, "wb") as f:
-                dump(ReactionNetwork(intermediates, reactions, surface=surface, ncc=ncc, noc=noc), f)
-        else:
-            print("Loading the pre-generated CRN...")
-            with open(crn_bp_path, "rb") as f:
-                crn = load(f)
-                print(crn)
-                intermediates = crn.intermediates
-                reactions = crn.reactions
+        
+        intermediates, reactions = gen_chemical_space(
+            ncc, noc, cyclic, additional_rxns)
+        crn = ReactionNetwork(intermediates=intermediates, 
+                              reactions=reactions, 
+                              surface=surface, 
+                              ncc=ncc, 
+                              noc=noc, 
+                              type=crn_type)
+        print(crn)
 
         if electrochem:
-            h2o_gas = [intermediate for intermediate in intermediates.values(
-            ) if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
-            oh_code = [intermediate for intermediate in intermediates.values(
-            ) if intermediate.formula == 'HO'][0].code
-            surface_inter = Intermediate(
-                code='*', molecule=Atoms(), phase='surf', is_surface=True)
-
-            for reaction in reactions:
-                reaction.electro_rxn(pH, h2o_gas, oh_code, surface_inter)
+            crn.set_electro(PH)
 
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
@@ -176,7 +159,7 @@ def main():
 
         # 2.1.2. Reaction energy estimation
         print("\n Energy estimation of the reactions...")
-        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=pH)
+        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
 
         eval_reactions = []
         with Progress() as progress:
@@ -200,7 +183,8 @@ def main():
                               reactions=reactions, 
                               surface=surface, 
                               ncc=ncc, 
-                              noc=noc)
+                              noc=noc, 
+                              type=crn_type)
 
         print("\nSaving the CRN...")
         with open(f"{output_dir}/crn.pkl", "wb") as f:
@@ -221,13 +205,13 @@ def main():
         else:
             uq_samples = 0
 
-        print("\nRunning the microkinetic simulation...")
-        oc = config['operating_conditions']
-        y0 = config['initial_conditions']
-        results = crn.run_microkinetic(y0,
+        print("\nRunning the microkinetic simulation...") 
+        results = crn.run_microkinetic(config['initial_conditions'],
                                        config['mkm']['main_reactant'],
-                                       oc['temperature'],
-                                       oc['pressure'],
+                                       T,
+                                       P,
+                                       U, 
+                                       PH,
                                        uq=mkm_uq,
                                        uq_samples=uq_samples,
                                        thermo=thermo,

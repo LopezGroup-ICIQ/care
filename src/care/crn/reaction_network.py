@@ -12,7 +12,8 @@ from ase import Atoms
 from ase.visualize import view
 
 from care import ElementaryReaction, Intermediate, Surface
-from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, OC_UNITS, H
+from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, H
+from care.crn.utilities.electro import Electron, Proton, Hydroxide, Water
 from care.crn.reactors import DifferentialPFR
 from care.crn.visualize import visualize_reaction
 from care.crn.microkinetic import max_flux, gen_graph
@@ -42,6 +43,7 @@ class ReactionNetwork:
         ncc: int = None,
         noc: int = None,
         oc: dict[str, float] = None,
+        type: str = None,
     ):
         self.intermediates = intermediates
         self.reactions = reactions
@@ -49,16 +51,16 @@ class ReactionNetwork:
         self.ncc = ncc
         self.noc = noc
         self.excluded = None
-        self._graph = None
-        self._surface = None
-        self.closed_shells = [
+        self.num_closed_shell_mols = len([
             inter
             for inter in self.intermediates.values()
             if inter.closed_shell and inter.phase == "gas"
-        ]
-        self.num_closed_shell_mols = len(self.closed_shells)
+        ])
         self.num_intermediates = len(self.intermediates)
         self.num_reactions = len(self.reactions)
+        if type not in ("thermal", "electrochemical"):
+            raise ValueError("type must be either 'thermal' or 'electrochemical'")
+        self.type = type
         
         if oc is not None:
             if all([key in OC_KEYS for key in oc.keys()]):
@@ -346,43 +348,8 @@ class ReactionNetwork:
         self.intermediates.update(net_dict["intermediates"])
         self.reactions += net_dict["reactions"]
 
-    def search_graph(self, mol_graph, cate=None):
-        """Search for an intermediate with a isomorphic graph.
-
-        Args:
-            mol_graph (obj:`nx.DiGraph`): Digraph that will be used as query.
-        """
-        if cate is None:
-            cate = iso.categorical_node_match(["elem", "elem", "elem"], ["C", "H", "O"])
-
-        for inter in self.intermediates.values():
-            if len(mol_graph) != len(inter.graph):
-                continue
-            if nx.is_isomorphic(
-                mol_graph.to_undirected(), inter.graph.to_undirected(), node_match=cate
-            ):
-                return inter
-
-    def search_graph_closed_shell(self, mol_graph, cate=None):
-        """Search for a gas-phase intermediate with a isomorphic graph.
-
-        Args:
-            mol_graph (obj:`nx.DiGraph`): Digraph that will be used as query.
-        """
-        if cate is None:
-            cate = iso.categorical_node_match(["elem", "elem", "elem"], ["C", "H", "O"])
-        for inter in self.intermediates.values():
-            if inter.phase == "gas":
-                if len(mol_graph) != len(inter.graph):
-                    continue
-                if nx.is_isomorphic(
-                    mol_graph.to_undirected(),
-                    inter.graph.to_undirected(),
-                    node_match=cate,
-                ):
-                    return inter
-
-    def gen_graph(self) -> nx.DiGraph:
+    @property
+    def graph(self) -> nx.DiGraph:
         """
         Generate a network graph representation.
 
@@ -433,85 +400,207 @@ class ReactionNetwork:
             )
 
             for inter in reaction.components[0]:
-                graph.add_edge(inter.code, reaction.code)
+                if inter.phase in ("solv", "electro"):
+                    if not graph.has_node(inter.code):
+                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    graph.add_edge(inter.code, reaction.code)
+                else:
+                    graph.add_edge(inter.code, reaction.code)
             for inter in reaction.components[1]:
-                graph.add_edge(reaction.code, inter.code)  #TODO: add electrochemistry
-
+                if inter.phase in ("solv", "electro"):
+                    if not graph.has_node(inter.code):
+                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    graph.add_edge(reaction.code, inter.code)
+                graph.add_edge(reaction.code, inter.code)
+        
         return graph
+    
+    def set_electro(self, pH: float) -> None:
+        """
+        Adjust the elementary reactions of the CRN according to the 
+        computational hydrogen electrode (CHE) formalism.
 
-    def gen_electro_graph(self, graph) -> nx.DiGraph:
+        Parameters:
+        ----------
+        pH: float
+            pH of the system.
 
-        electro_graph = deepcopy(graph)
+        Returns:
+        -------
+        None
+        """
 
-        # Adding electrochemical species
-        electro_graph.add_node(
-            "H2O(aq)",
-            category="electro",
-            phase="solv",
-            formula="H2O(aq)",
-            nC = 0,
-            nH = 2,
-            nO = 1,
-        )
-        electro_graph.add_node(
-            "H+",
-            category="electro",
-            phase="solv",
-            formula="H+",
-            nC = 0,
-            nH = 1,
-            nO = 0,
-        )
-        electro_graph.add_node(
-            "OH-",
-            category="electro",
-            phase="solv",
-            formula="OH-",
-            nC = 0,
-            nH = 1,
-            nO = 1,
-        )
-        electro_graph.add_node(
-            "e-",
-            category="electro",
-            phase="electro",
-            formula="e-",
-            nC = 0,
-            nH = 0,
-            nO = 0,
-        )
+        h2o_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
+        oh_code = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'HO'][0].code
+        surface_inter = Intermediate(code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
-        graph_electro_reactions = []
-        for reaction in electro_graph.nodes:
-            if electro_graph.nodes[reaction]["category"] == "reaction" and electro_graph.nodes[reaction]["r_type"] == "PCET":
-                graph_electro_reactions.append(reaction)
+        for reaction in self.reactions:
+            if reaction.r_type in ("C-H", "H-O"):
 
-        for reaction_code in graph_electro_reactions:
-           
-            crn_rxn = self.search_reaction(code=reaction_code)[0]
+                reactants = [inter for inter in reaction.reactants]
+                products = [inter for inter in reaction.products]
 
-            for inter in crn_rxn.components[0]:
-                if inter.phase in ("solv", "electro"):
-                    # if not electro_graph.has_node(inter.code):
-                    #     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    electro_graph.add_edge(inter.code, crn_rxn.code)
-            for inter in crn_rxn.components[1]:
-                if inter.phase in ("solv", "electro"):
-                    # if not electro_graph.has_node(inter.code):
-                    #     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    electro_graph.add_edge(crn_rxn.code, inter.code)
-        return electro_graph
+                new_reactants, new_products = [], []
+                for reactant in reactants:
+                    if reactant.is_surface:
+                        if pH <= 7:
+                            continue
+                        else:
+                            new_reactants.append(Hydroxide())
+                    elif reactant.formula == 'H':
+                        if pH <= 7:
+                            new_reactants.append(Proton())
+                            new_reactants.append(Electron())
+                        else:
+                            new_reactants.append(Water())
+                            new_reactants.append(Electron())
+                    else:
+                        if not reactant.is_surface:
+                            new_reactants.append(reactant)
+                for product in products:
+                    if product.is_surface:
+                        if pH <= 7:
+                            continue
+                        else:
+                            new_reactants.append(Hydroxide())
+                    elif product.formula == 'H':
+                        if pH <= 7:
+                            new_products.append(Proton())
+                            new_products.append(Electron())
+                        else:
+                            new_products.append(Water())
+                            new_products.append(Electron())
+                    else:
+                        if not product.is_surface:
+                            new_products.append(product)
+                
+                reaction.components = [new_reactants, new_products]
+                reaction.reactants = new_reactants
+                reaction.products = new_products
+                reaction.r_type = "PCET"
+                reaction.stoic = reaction.solve_stoichiometry()
+                reaction.code = reaction.__repr__()
+
+            elif reaction.r_type in ("C-O", "O-O"):
+                for component_set in reaction.components:
+                    if oh_code in [component.code for component in component_set]:
+                        if len(reaction.products) == 1:
+                                continue
+                        else:
+                            new_reactants, new_products = [], []
+                            for reactant in reaction.reactants:
+                                if reactant.is_surface:
+                                    new_reactants.append(Electron())
+                                    if pH <= 7:
+                                        new_reactants.append(Proton())
+                                    else:
+                                        new_reactants.append(Water())
+                                elif reactant.formula == 'HO':
+                                    if pH <= 7:
+                                        new_reactants.append(h2o_gas)
+                                        new_reactants.append(surface_inter)
+                                    else:
+                                        new_reactants.append(h2o_gas)
+                                        new_reactants.append(Hydroxide())
+                                else:
+                                    new_reactants.append(reactant)
+                            for product in reaction.products:
+                                if product.is_surface:
+                                    new_products.append(Electron())
+                                    if pH <= 7:
+                                        new_products.append(Proton())
+                                    else:
+                                        new_products.append(Water())
+                                elif product.formula == 'HO':
+                                    if pH <= 7:
+                                        new_products.append(h2o_gas)
+                                    else:
+                                        new_products.append(h2o_gas)
+                                        new_products.append(Hydroxide()) 
+                                    if len(reaction.products) == 1:
+                                        new_products.append(surface_inter)
+                                else:
+                                    new_products.append(product)
+
+                            reaction.components = [new_reactants, new_products]
+                            reaction.reactants = new_reactants
+                            reaction.products = new_products
+                            reaction.r_type = "PCET"
+                            reaction.stoic = reaction.solve_stoichiometry()
+                            reaction.code = reaction.__repr__()
+            else:
+                pass
+
+    # def gen_electro_graph(self, graph) -> nx.DiGraph:
+
+    #     electro_graph = deepcopy(graph)
+
+    #     # Adding electrochemical species
+    #     # electro_graph.add_node(
+    #     #     "H2O(aq)",
+    #     #     category="electro",
+    #     #     phase="solv",
+    #     #     formula="H2O(aq)",
+    #     #     nC = 0,
+    #     #     nH = 2,
+    #     #     nO = 1,
+    #     # )
+    #     # electro_graph.add_node(
+    #     #     "H+",
+    #     #     category="electro",
+    #     #     phase="solv",
+    #     #     formula="H+",
+    #     #     nC = 0,
+    #     #     nH = 1,
+    #     #     nO = 0,
+    #     # )
+    #     # electro_graph.add_node(
+    #     #     "OH-",
+    #     #     category="electro",
+    #     #     phase="solv",
+    #     #     formula="OH-",
+    #     #     nC = 0,
+    #     #     nH = 1,
+    #     #     nO = 1,
+    #     # )
+    #     # electro_graph.add_node(
+    #     #     "e-",
+    #     #     category="electro",
+    #     #     phase="electro",
+    #     #     formula="e-",
+    #     #     nC = 0,
+    #     #     nH = 0,
+    #     #     nO = 0,
+    #     # )
+
+    #     graph_electro_reactions = []
+    #     for reaction in electro_graph.nodes:
+    #         if electro_graph.nodes[reaction]["category"] == "reaction" and electro_graph.nodes[reaction]["r_type"] == "PCET":
+    #             graph_electro_reactions.append(reaction)
+    #     for reaction_code in graph_electro_reactions:           
+    #         crn_rxn = self.search_reaction(code=reaction_code)[0]
+    #         for inter in crn_rxn.components[0]:
+    #             if inter.phase in ("solv", "electro"):
+    #                 if not electro_graph.has_node(inter.code):
+    #                     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+    #                 electro_graph.add_edge(inter.code, crn_rxn.code)
+    #         for inter in crn_rxn.components[1]:
+    #             if inter.phase in ("solv", "electro"):
+    #                 if not electro_graph.has_node(inter.code):
+    #                     electro_graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+    #                 electro_graph.add_edge(crn_rxn.code, inter.code)
+    #     return electro_graph
 
 
-    @property
-    def graph(self):
-        if self._graph is None:
-            self._graph = self.gen_graph()
-        return self._graph
+    # @property
+    # def graph(self):
+    #     if self._graph is None:
+    #         self._graph = self.gen_graph()
+    #     return self._graph
 
-    @graph.setter
-    def graph(self, other):
-        self._graph = other
+    # @graph.setter
+    # def graph(self, other):
+    #     self._graph = other
 
     def search_reaction(
         self,
@@ -1020,6 +1109,8 @@ class ReactionNetwork:
             main_reactant: str,
             temperature: float = None,
             pressure: float = None,
+            potential: float = None,
+            pH: float = None,
             uq: bool = False,
             uq_samples: int = 100,
             thermo: bool = False,
@@ -1073,10 +1164,27 @@ class ReactionNetwork:
             else:   
                 P = pressure
 
-            INTERS_CODE = [inter.code for inter in self.intermediates.values()]
-            RXN_IDXS = [i for i, reaction in enumerate(self.reactions)]
+            if self.type == "electrochemical":
+                if potential is None:
+                    raise ValueError("potential not specified")
+                else:
+                    U = potential
+                if pH is None:
+                    raise ValueError("pH not specified")
+                else:
+                    PH = pH
+            
 
-            MKM_GRAPH = deepcopy(self.gen_graph())    
+            MKM_GRAPH = deepcopy(self.graph) 
+            INTERS_CODE = [inter.code for inter in self.intermediates.values()] 
+            if self.type == "electrochemical":
+                if PH <= 7:
+                    ELECTRO_SPECIES = [Proton().code, Electron().code]
+                else:
+                    ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
+                # INTERS_CODE.extend(ELECTRO_SPECIES)     
+
+            RXN_IDXS = [i for i, _ in enumerate(self.reactions)]
 
             if target_products is not None:
                 count_removed_inters = 0
@@ -1101,11 +1209,12 @@ class ReactionNetwork:
 
                 MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
                 RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
+
                 rm_condition = 0
                 while rm_condition == 0:
                     inter_to_remove = []
                     for node in MKM_GRAPH.nodes:
-                        if MKM_GRAPH.nodes[node]['category'] == 'intermediate':
+                        if MKM_GRAPH.nodes[node]['category'] == 'intermediate' and node not in ELECTRO_SPECIES:
                             if MKM_GRAPH.degree(node) == 0:
                                 inter_to_remove.append(node)
                             if MKM_GRAPH.degree(node) == 1 and self.intermediates[node].molecule.get_chemical_formula() not in reactants_products:
@@ -1143,6 +1252,7 @@ class ReactionNetwork:
                         if condition(eact_dir, eact_rev):
                             idxs_rxns_to_remove.append(i)
                             count_removed_reactions += 1
+                            MKM_GRAPH.remove_node(reaction.code)
                     RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
                     # Discard intermediates that do not participate in any reaction
                     idxs_inters_to_remove = []
@@ -1150,10 +1260,16 @@ class ReactionNetwork:
                         if all(inter not in MKM_RXNS[j_i].stoic.keys() for j_i, _ in enumerate(RXN_IDXS)):
                             idxs_inters_to_remove.append(i)
                             count_removed_inters += 1
+                            MKM_GRAPH.remove_node(inter)
+                            print(f"Removing {inter} from the network")
                     INTERS_CODE = [inter for i, inter in enumerate(INTERS_CODE) if i not in idxs_inters_to_remove]
                 print(f"Filtered {count_removed_reactions} reactions with barrier above {barrier_threshold} eV in both directions")
                 print(f"Filtered {count_removed_inters} intermediates that do not participate in any reaction")       
 
+            # Balance all global reactions by removing products that cannot be formed at steady state
+            # To reach proper steady state, the global reactions must be balanced with the available products
+            # TODO: Implement this               
+            # ---------------------------------------------------------------------------------------
             MKM_RXNS = [self.reactions[i] for i in RXN_IDXS]
             MKM_INTERS = {inter: self.intermediates[inter] for inter in INTERS_CODE}
                     
@@ -1182,6 +1298,13 @@ class ReactionNetwork:
                     else:
                         if reaction.r_type == "adsorption":
                             reaction.reverse()
+                elif reaction.r_type == "PCET":
+                    if U < 0:
+                        if Electron() not in reaction.reactants:
+                            reaction.reverse()
+                    else:
+                        if Electron() in reaction.reactants:
+                            reaction.reverse()
                 else:
                     if any([inter.closed_shell and inter.molecule.get_chemical_formula() not in inlet_molecules for inter in reaction.components[0]]):
                         print("Reversing reaction:", reaction.code)
@@ -1197,7 +1320,8 @@ class ReactionNetwork:
             
             for i, reaction in enumerate(MKM_RXNS):
                 for inter, stoic in reaction.stoic.items():
-                    v[inters.index(inter), i] = stoic
+                    if inter not in ELECTRO_SPECIES:
+                        v[inters.index(inter), i] = stoic
 
                 
             y0 = np.zeros(len(inters), dtype=np.float64)
@@ -1225,10 +1349,10 @@ class ReactionNetwork:
                 else:
                     if np.sum(np.abs(v[i, :])) < 2:
                         raise ValueError(f"Surface species {inter} does not participate in at least two reactions")
-            # dfv = pd.DataFrame(v, index=inters_formula + inerts, columns=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
-            # # add second column index with reaction types
-            # dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
-            # dfv.to_csv("stoichiometric_matrix.csv")
+            dfv = pd.DataFrame(v, index=inters_formula + inerts, columns=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
+            # add second column index with reaction types
+            dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
+            dfv.to_csv("stoichiometric_matrix.csv")
 
             kd = np.zeros(len(MKM_RXNS), dtype=np.float64)
             kr = np.zeros(len(MKM_RXNS), dtype=np.float64)
@@ -1238,6 +1362,9 @@ class ReactionNetwork:
 
             dfk = pd.DataFrame({"k_dir": kd, "k_rev": kr}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
             dfk.to_csv("kinetic_constants.csv")
+
+            dfgm = pd.DataFrame(gas_mask, index=inters_formula + inerts, columns=["gas_mask"])
+            dfgm.to_csv("gas_mask.csv")
 
             ktot = np.concatenate((kd, kr))
             kmax, kmin = np.max(ktot), np.min(ktot)
@@ -1280,6 +1407,7 @@ class ReactionNetwork:
                 path = []
                 while path == []:
                     new_graph = gen_graph(MKM_INTERS, MKM_RXNS)
+                    new_graph = deepcopy(MKM_GRAPH)
                     print("ENTERING MAX FLUX")
                     new_graph.remove_edges_from(list(new_graph.edges))
 
@@ -1343,6 +1471,8 @@ class ReactionNetwork:
                 #     new_graph = self.gen_electro_graph(new_graph)
                 results["run_graph"] = new_graph
                 results["inters"] = inters
+                results["gas_mask"] = gas_mask
+                results['y0'] = y0
 
                 # Saving the tolerance values used
                 results["rtol"] = RTOL

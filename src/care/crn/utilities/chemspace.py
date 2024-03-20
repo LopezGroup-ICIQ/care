@@ -760,6 +760,7 @@ def gen_chemical_space(
         Network Carbon Cutoff, maximum number of C atoms in the intermediates
     noc : int
         Network Oxygen Cutoff, Maximum number of O atoms in the intermediates.
+        if is a negative number, then the noc is set to the max number of O atoms in the intermediates.
     cyclic : bool
         If True, generates cyclic compounds (epoxides).
     additional_rxns : bool
@@ -773,6 +774,9 @@ def gen_chemical_space(
     rxns_list : list[ElementaryReaction]
         List of all the reactions of the reaction network as ElementaryReaction instances.
     """
+    noc = noc if noc >= 0 else ncc * 2 + 2
+    if noc > ncc * 2 + 2:
+        raise ValueError("The noc value cannot be greater than ncc * 2 + 2.")
     t00 = time.time()
     with Progress() as progress:
         task_desc = format_description("[green]Generating Chemical Space...")
