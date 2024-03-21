@@ -216,7 +216,7 @@ def main():
                                        uq_samples=uq_samples,
                                        thermo=thermo,
                                        solver=config['mkm']['solver'], 
-                                       barrier_threshold=config['mkm']['barrier_threshold'], 
+                                       barrier_threshold=config['mkm'].get('barrier_threshold'), 
                                        ss_tol=config['mkm']['ss_tol'])
         print("\nSaving the microkinetic simulation...")
         with open(f"{output_dir}/mkm.pkl", "wb") as f:

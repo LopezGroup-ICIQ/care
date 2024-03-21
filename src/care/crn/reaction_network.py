@@ -1182,7 +1182,6 @@ class ReactionNetwork:
                     ELECTRO_SPECIES = [Proton().code, Electron().code]
                 else:
                     ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
-                # INTERS_CODE.extend(ELECTRO_SPECIES)     
 
             RXN_IDXS = [i for i, _ in enumerate(self.reactions)]
 
@@ -1238,7 +1237,7 @@ class ReactionNetwork:
                 RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter in MKM_GRAPH.nodes]
 
-            if barrier_threshold is not None:
+            if not barrier_threshold:
                 count_removed_inters = 0
                 count_removed_reactions = 0
                 if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
@@ -1254,10 +1253,11 @@ class ReactionNetwork:
                             count_removed_reactions += 1
                             MKM_GRAPH.remove_node(reaction.code)
                     RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
+                    
                     # Discard intermediates that do not participate in any reaction
                     idxs_inters_to_remove = []
                     for i, inter in enumerate(MKM_INTERS.keys()):
-                        if all(inter not in MKM_RXNS[j_i].stoic.keys() for j_i, _ in enumerate(RXN_IDXS)):
+                        if all(inter not in MKM_RXNS[j_i].stoic.keys() for j_i, _ in enumerate(RXN_IDXS)) or MKM_GRAPH.degree(inter) == 0:
                             idxs_inters_to_remove.append(i)
                             count_removed_inters += 1
                             MKM_GRAPH.remove_node(inter)
@@ -1307,12 +1307,15 @@ class ReactionNetwork:
                             reaction.reverse()
                 else:
                     if any([inter.closed_shell and inter.molecule.get_chemical_formula() not in inlet_molecules for inter in reaction.components[0]]):
-                        print("Reversing reaction:", reaction.code)
+                        #print("Reversing reaction:", reaction.code)
                         reaction.reverse()
                     
                     if any([inter.closed_shell and inter.molecule.get_chemical_formula() in inlet_molecules for inter in reaction.components[1]]):
-                        print("Reversing reaction:", reaction.code)
+                        #print("Reversing reaction:", reaction.code)
                         reaction.reverse()
+            
+            # Generating new graph with reversed reactions
+            MKM_GRAPH = gen_graph(MKM_INTERS, MKM_RXNS)
 
             v = np.zeros(
                 (len(MKM_INTERS), len(MKM_RXNS)), dtype=np.int8
@@ -1380,7 +1383,7 @@ class ReactionNetwork:
                 print("Steady state reached")
             elif solver == "Python":
                 SSTOL = 1e-10
-                RTOL, ATOL = 1e-10, 1e-16
+                RTOL, ATOL = 1e-6, 1e-10
                 RTOL_MIN, ATOL_MIN = 1e-10, 1e-64
                 RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
                 count_atol_increase = 0
