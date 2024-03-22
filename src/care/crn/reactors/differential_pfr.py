@@ -138,7 +138,7 @@ class DifferentialPFR(ReactorModel):
         y: np.ndarray,
     ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y)))
-        # print(f"Time: {t}    Sum_ddt: {sum_ddt}")
+        print(f"Time: {t}    Sum_ddt: {sum_ddt}")
         return 0 if sum_ddt <= self.sstol else 1
 
     steady_state.terminal = True

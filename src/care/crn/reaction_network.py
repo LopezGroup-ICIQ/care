@@ -857,251 +857,14 @@ class ReactionNetwork:
                 order.
         """
         hubs = {inter.code: 0 for inter in self.intermediates.values()}
-        for inter in self.intermediates.values():
-            for reaction in self.reactions:
-                hubs[inter.code] += 1 if inter.code in reaction.stoic.keys() else 0
+        for reaction in self.reactions:
+            for inter_code in reaction.stoic.keys():
+                hubs[inter_code] += 1
         hubs = dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True))
         if n is not None:
             return dict(list(hubs.items())[:n])
         else:
-            return hubs
-
-    def run_microkinetic_old(
-        self,
-        iv: dict[str, float],
-        main_reactant: str,
-        temperature: float = None,
-        pressure: float = None,
-        uq: bool = False,
-        uq_samples: int = 100,
-        thermo: bool = False,
-        solver: str = "Julia",
-        barrier_threshold: float = None, 
-        ss_tol: float = 1e-10
-    ) -> dict:
-        """
-        Run microkinetic simulation.
-
-        Args:
-            iv (dict): Initial values of the molar fractions of the gas phase
-                intermediates. Surface is assumed to be empty. Keys are the
-                chemical formulas of the intermediates and values are the
-                molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}), 
-                where the sum of the values must be 1.0.
-            temperature (float, optional): Temperature in Kelvin. Defaults to None.
-            pressure (float, optional): Pressure in bar. Defaults to None.
-            uq (bool, optional): If True, the uncertainty of the activation
-                energy and the reaction energy will be considered. Defaults to
-                False.
-            uq_samples (int, optional): Number of samples for the uncertainty
-                quantification. Defaults to 100.
-            thermo (bool, optional): If True, the activation barriers will be
-                neglected and only the thermodynamic path is considered. Defaults
-                to False.
-            solver (str, optional): Solver to be used. Defaults to "Julia".
-            barrier_threshold (float, optional): Threshold for the activation
-                energy of the reactions. If a reaction has an activation energy
-                below this threshold, it will be filtered out. Defaults to None.
-
-        Returns:
-            dict containing the results of the simulation.
-        """
-        if sum(iv.values()) != 1.0:
-            raise ValueError("Sum of molar fractions is not 1.0")
-        if temperature is None:
-            if self.temperature is None:
-                raise ValueError("temperature not specified")
-            else:
-                T = temperature
-        else:
-            T = temperature
-
-        if pressure is None:
-            if self.pressure is None:
-                raise ValueError("pressure not specified")
-            else:
-                P = pressure
-        else:   
-            P = pressure
-        inters = sorted(
-            self.intermediates.keys(), key=lambda x: self.intermediates[x].code)
-        inters_formula = [self.intermediates[x].molecule.get_chemical_formula() for x in inters]
-        gas_mask = np.array(
-            [self.intermediates[inter].phase == "gas" for inter in inters] + [False], dtype=bool
-        )
-
-        inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]
-        for reaction in self.reactions:
-            if reaction.r_type in ("adsorption", "desorption"):
-                formula_reactants = [inter.molecule.get_chemical_formula() for inter in reaction.components[0] if inter.code != "*"]
-                formula_products = [inter.molecule.get_chemical_formula() for inter in reaction.components[1] if inter.code != "*"]
-                rxn_formulas = formula_reactants + formula_products
-                if any(inlet_molecule in rxn_formulas for inlet_molecule in inlet_molecules):
-                    if reaction.r_type == "adsorption":
-                        continue
-                    else:
-                        reaction.reverse()
-                else:
-                    if reaction.r_type == "adsorption":
-                        reaction.reverse()
-
-        v = self.stoichiometric_matrix.copy()
-        y0 = np.zeros(len(inters)+1, dtype=np.float64)
-        y0[-1] = 1.0   # Initial condition: empty surface
-        num_inerts = 0
-        sorted_dict_keys = sorted(iv.keys())
-        for key in sorted_dict_keys:
-            if key not in inters_formula:  # inert
-                v = np.vstack((v, np.zeros(len(self.reactions), dtype=np.int8)), dtype=np.int8)
-                y0 = np.append(y0, P * iv[key])
-                gas_mask = np.append(gas_mask, True)
-                num_inerts += 1
-        for key in sorted_dict_keys:
-            for i, inter in enumerate(inters_formula):
-                if inter == key and gas_mask[i] == True:
-                    y0[i] = P * iv[key]
-                    break
-
-        self.get_kinetic_constants(T, uq, thermo)
-        kd = np.array([reaction.k_dir for reaction in self.reactions], dtype=np.float64)
-        kr = np.array([reaction.k_rev for reaction in self.reactions], dtype=np.float64)
-        # Zero values of k_r for desorption reactions
-        for i, reaction in enumerate(self.reactions):
-            if reaction.r_type == "desorption":
-                kr[i] = 0.0
-        ktot = np.concatenate((kd, kr))
-        kmax, kmin = np.max(ktot), np.min(ktot)
-        print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
-        print("Shape of stoichiometric matrix: {}".format(v.shape))
-        print("Nuumber of values in stoi matrix: {}".format(v.size))
-
-
-        # APPLY BARRIER THRESHOLD
-        # Until here, v contains all rxns and all intermediates including inerts and empty surface
-        filtered_rxns, filtered_inters = [], []
-        if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
-            condition = lambda x, y: x >= barrier_threshold and y >= barrier_threshold
-            for i, reaction in enumerate(self.reactions):
-                eact_dir, eact_rev = reaction.e_act[0], reaction.e_act[0] - reaction.e_rxn[0]
-                if condition(eact_dir, eact_rev):
-                    filtered_rxns.append(i)
-                    v[:, i] = 0
-            kd = np.delete(kd, filtered_rxns)
-            kr = np.delete(kr, filtered_rxns)
-            v = np.delete(v, filtered_rxns, axis=1)
-            filtered_inters = [i for i, inter in enumerate(inters) if v[i, :].all() == 0]  # inter do not contain surface and inerts
-            v = np.delete(v, filtered_inters, axis=0)
-            y0 = np.delete(y0, filtered_inters)
-            gas_mask = np.delete(gas_mask, filtered_inters)
-            print(f"Filtered {len(filtered_rxns)} reactions with barrier above {barrier_threshold} eV in both directions")
-            print(f"Filtered {len(filtered_inters)} intermediates that do not participate in any reaction")   
-            print("Shape of stoichiometric matrix after filtering: {}".format(v.shape))
-            print("Nuumber of values in stoichiometry matrix after filtering: {}".format(v.size))
-
-        # RUN SIMULATION
-        reactor = DifferentialPFR(v, kd, kr, gas_mask, ss_tol)
-        print(reactor)
-        if solver == "Julia":
-            results = reactor.integrate(y0)
-            print("Steady state reached")
-        elif solver == "Python":
-            rtol, atol, sstol = 1e-8, 1e-12, 1e-10
-            count_atol_decrease = 0
-            status = None
-            while status != 1: # play with atol and rtol to get successful integration  
-                try:  
-                    results = reactor.integrate(y0, "Python", rtol, atol, sstol)
-                    status = results["status"]                    
-                except:
-                    status = None
-                    
-                if status != 1:
-                    atol *= 1e2
-                    count_atol_decrease += 1
-                    if count_atol_decrease % 4 == 0: 
-                        rtol *= 1e2
-                        print('Lowering relative tolerance to reach steady state... (rtol = {})'.format(rtol))
-                    print('Lowering absolute tolerance to reach steady state... (atol = {})'.format(atol))
-                    
-
-            path = []
-            while path == []:
-                mkm_rxns = deepcopy(self.reactions)
-                new_graph = deepcopy(self.graph)
-                print("ENTERING MAX FLUX")
-                new_graph.remove_edges_from(list(new_graph.edges))
-                if len(filtered_rxns) > 0:
-                    for idx in filtered_rxns:
-                        new_graph.remove_node(mkm_rxns[idx].code)
-                if len(filtered_inters) > 0:
-                    for idx in filtered_inters:
-                        new_graph.remove_node(inters[idx])
-
-                for i, inter in enumerate(inters):
-                    if i in filtered_inters:
-                        continue
-                    if self.intermediates[inter].phase == "gas":
-                        new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
-                    elif self.intermediates[inter].phase == "ads":
-                        new_graph.nodes[inter]["coverage"] = results["y"][i]
-                new_graph.nodes["*"]["coverage"] = results["y"][-1]
-
-                for i, reaction in enumerate(mkm_rxns):
-                    if i in filtered_rxns:
-                        continue
-                    if results["rate"][i] < 0:
-                        new_graph.remove_node(reaction.code)
-                        reaction.reverse()
-                        new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
-                                    rate = results["rate"][i], e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-                    else:
-                        new_graph.nodes[reaction.code]["rate"] = results["rate"][i]
-                        new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                        new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-
-                for i, inter in enumerate(inters):
-                    if i in filtered_inters:
-                        continue
-                    for j, reaction in enumerate(mkm_rxns):
-                        if j in filtered_rxns:
-                            continue
-                        if inter in reaction.stoic.keys():
-                            if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
-                                if reaction.e_act[0] == 0:
-                                    delta = 0
-                                elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
-                                    delta = reaction.e_rxn[0]
-                                else:
-                                    delta = reaction.e_act[0]
-                                new_graph.add_edge(inter, 
-                                            reaction.code, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=delta, 
-                                            weight=1/abs(results["consumption_rate"][i, j]))
-                            else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                                new_graph.add_edge(reaction.code, 
-                                            inter, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
-                                            weight=1/abs(results["consumption_rate"][i, j]))
-                new_graph.remove_node("*")
-
-                path = max_flux(new_graph, main_reactant)
-                if not path:
-                    atol /= 1e2  # Tight steady state precision to avoid oscillations and help convergence
-                    print('Lowering relative tolerance to improve numerical stability... (atol = {})'.format(atol))
-                    results = reactor.integrate(y0, "Python", rtol, atol, sstol)
-
-            if any({reaction.r_type == "PCET" for reaction in self.reactions}):
-                new_graph = self.gen_electro_graph(new_graph)
-            results["run_graph"] = new_graph
-            results["inters"] = inters
-            results["filtered_rxns"] = filtered_rxns
-            results["filtered_inters"] = filtered_inters
-
-            print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(rtol, atol, sstol))
-        return results
-    
+            return hubs    
 
     def run_microkinetic(
             self,
@@ -1172,10 +935,10 @@ class ReactionNetwork:
                 if pH is None:
                     raise ValueError("pH not specified")
                 else:
-                    PH = pH
-            
+                    PH = pH            
 
             MKM_GRAPH = deepcopy(self.graph) 
+            RXN_IDXS = [i for i, _ in enumerate(self.reactions)]
             INTERS_CODE = [inter.code for inter in self.intermediates.values()] 
             if self.type == "electrochemical":
                 if PH <= 7:
@@ -1183,7 +946,6 @@ class ReactionNetwork:
                 else:
                     ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
 
-            RXN_IDXS = [i for i, _ in enumerate(self.reactions)]
 
             if target_products is not None:
                 count_removed_inters = 0
@@ -1191,10 +953,11 @@ class ReactionNetwork:
                 undesired_closed_shell = []
                 reactants_products = list(iv.keys()) + target_products
                 for inter in self.intermediates.values():
-                    if inter.is_closed_shell() and inter.molecule.get_chemical_formula() not in reactants_products:
+                    if inter.closed_shell and inter.formula not in reactants_products:
                         undesired_closed_shell.append(inter.code)
                         count_removed_inters += 1
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter not in undesired_closed_shell]
+                MKM_GRAPH.remove_nodes_from(undesired_closed_shell)
 
                 rxns_to_remove = []
                 for edge in MKM_GRAPH.edges:
@@ -1203,7 +966,6 @@ class ReactionNetwork:
                             rxns_to_remove.append(edge[0])
                         else:
                             rxns_to_remove.append(edge[1])
-
                         count_removed_reactions += 1
 
                 MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
@@ -1216,16 +978,20 @@ class ReactionNetwork:
                         if MKM_GRAPH.nodes[node]['category'] == 'intermediate' and node not in ELECTRO_SPECIES:
                             if MKM_GRAPH.degree(node) == 0:
                                 inter_to_remove.append(node)
-                            if MKM_GRAPH.degree(node) == 1 and self.intermediates[node].molecule.get_chemical_formula() not in reactants_products:
+                                count_removed_inters += 1
+                            if MKM_GRAPH.degree(node) == 1 and self.intermediates[node].formula not in reactants_products:
                                 inter_to_remove.append(node)
+                                count_removed_inters += 1
 
                     rxns_to_remove = []
                     for edge in MKM_GRAPH.edges:
                         if any([inter in str(edge) for inter in inter_to_remove]):
                             if len(edge[0]) > len(edge[1]):
                                 rxns_to_remove.append(edge[0])
+                                count_removed_reactions += 1
                             else:
                                 rxns_to_remove.append(edge[1])
+                                count_removed_reactions += 1
 
                     if len(inter_to_remove) == 0 and len(rxns_to_remove) == 0:
                         rm_condition = 1
@@ -1236,6 +1002,7 @@ class ReactionNetwork:
 
                 RXN_IDXS = [i for i, reaction in enumerate(self.reactions) if reaction.code in MKM_GRAPH.nodes]
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter in MKM_GRAPH.nodes]
+                print("Filtered {} species and consequently {} reactions (target product filter)".format(count_removed_inters, count_removed_reactions))
 
             if not barrier_threshold:
                 count_removed_inters = 0
@@ -1254,17 +1021,15 @@ class ReactionNetwork:
                             MKM_GRAPH.remove_node(reaction.code)
                     RXN_IDXS = [i for i in RXN_IDXS if i not in idxs_rxns_to_remove]
                     
-                    # Discard intermediates that do not participate in any reaction
                     idxs_inters_to_remove = []
                     for i, inter in enumerate(MKM_INTERS.keys()):
-                        if all(inter not in MKM_RXNS[j_i].stoic.keys() for j_i, _ in enumerate(RXN_IDXS)) or MKM_GRAPH.degree(inter) == 0:
+                        if all(inter not in MKM_RXNS[j].stoic.keys() for j, _ in enumerate(RXN_IDXS)) or MKM_GRAPH.degree(inter) == 0:
                             idxs_inters_to_remove.append(i)
                             count_removed_inters += 1
                             MKM_GRAPH.remove_node(inter)
                             print(f"Removing {inter} from the network")
                     INTERS_CODE = [inter for i, inter in enumerate(INTERS_CODE) if i not in idxs_inters_to_remove]
-                print(f"Filtered {count_removed_reactions} reactions with barrier above {barrier_threshold} eV in both directions")
-                print(f"Filtered {count_removed_inters} intermediates that do not participate in any reaction")       
+                    print("Filtered {} reactions and consequently {} species (Eact > {} eV)".format(count_removed_reactions, count_removed_inters, barrier_threshold)) 
 
             # Balance all global reactions by removing products that cannot be formed at steady state
             # To reach proper steady state, the global reactions must be balanced with the available products
@@ -1306,12 +1071,10 @@ class ReactionNetwork:
                         if Electron() in reaction.reactants:
                             reaction.reverse()
                 else:
-                    if any([inter.closed_shell and inter.molecule.get_chemical_formula() not in inlet_molecules for inter in reaction.components[0]]):
-                        #print("Reversing reaction:", reaction.code)
+                    if any([inter.closed_shell and inter.formula not in inlet_molecules for inter in reaction.components[0]]):
                         reaction.reverse()
                     
-                    if any([inter.closed_shell and inter.molecule.get_chemical_formula() in inlet_molecules for inter in reaction.components[1]]):
-                        #print("Reversing reaction:", reaction.code)
+                    if any([inter.closed_shell and inter.formula in inlet_molecules for inter in reaction.components[1]]):
                         reaction.reverse()
             
             # Generating new graph with reversed reactions
@@ -1409,7 +1172,6 @@ class ReactionNetwork:
 
                 path = []
                 while path == []:
-                    new_graph = gen_graph(MKM_INTERS, MKM_RXNS)
                     new_graph = deepcopy(MKM_GRAPH)
                     print("ENTERING MAX FLUX")
                     new_graph.remove_edges_from(list(new_graph.edges))
