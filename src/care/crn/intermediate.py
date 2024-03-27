@@ -116,7 +116,10 @@ class Intermediate:
         return txt
 
     def __str__(self):
-        return self.__repr__()
+        y = self.__repr__() + "\n"
+        y += "Formula: {}\n".format(self.formula)
+        y += "Reference energy (eV): {}\n".format(self.ref_energy())        
+        return y
 
     @classmethod
     def from_molecule(

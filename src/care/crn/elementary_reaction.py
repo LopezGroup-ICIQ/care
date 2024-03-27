@@ -111,10 +111,6 @@ class ElementaryReaction:
             self.adsorbate_mass = adsorbate.mass
         else:
             self.adsorbate_mass = None
-        
-
-    def __str__(self) -> str:
-        return self.__repr__()
     
     def __lt__(self, other):
         return self.code < other.code
@@ -175,6 +171,15 @@ class ElementaryReaction:
             comp_str = " + ".join(inters_str)
             comps_str.append(comp_str)
         return " <-> ".join(comps_str)
+    
+    def __str__(self) -> str:
+        y = self.__repr__() + "\n"
+        y += self.repr_hr + "\n"
+        y += f"Type: {self.r_type}\n"
+        y += f"Reaction energy (eV): {self.e_rxn}\n"
+        y += f"Activation energy (eV): {self.e_act}\n"    
+        
+        return y
 
     def __eq__(self, other):
         if isinstance(other, ElementaryReaction):
