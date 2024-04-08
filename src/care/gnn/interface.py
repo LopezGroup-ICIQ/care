@@ -260,6 +260,15 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     abs(reaction.stoic[product.code])  
                     * s_min_config**2
                     )
+            reaction.e_is = mu_is, var_is**0.5
+            reaction.e_fs = mu_fs, var_fs**0.5
+            components = list(chain.from_iterable(reaction.components))
+            for component in components:
+                if isinstance(component, Electron):
+                    stoic_electro = reaction.stoic[component.code]
+
+            reaction.e_rxn = mu_fs - mu_is - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH), (var_fs + var_is) ** 0.5
+            
         else:
             for reactant in reaction.reactants:
                 if reactant.is_surface:
@@ -303,9 +312,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     abs(reaction.stoic[product.code])
                     * s_min_config**2
                 )
-        reaction.e_is = mu_is, var_is**0.5
-        reaction.e_fs = mu_fs, var_fs**0.5
-        reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
+            reaction.e_is = mu_is, var_is**0.5
+            reaction.e_fs = mu_fs, var_fs**0.5
+            reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, 
                               reaction: ElementaryReaction) -> None:
@@ -318,13 +327,24 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         if reaction.e_ts == None:
             reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
         if "-" not in reaction.r_type:
+            reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
             if reaction.r_type == "PCET":
-                components = list(chain.from_iterable(reaction.components))
-                n_e = [reaction.stoic[component.code] for component in components if isinstance(component, (Proton, Water))][0]
-                if self.pH <= 7:
-                    reaction.e_act = max(0, reaction.e_act[0] - n_e * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+                # If reaction.e_rxn[0] < 0, reaction.e_act[0] == 0
+                if reaction.e_rxn[0] < 0:
+                    reaction.e_act = 0.0, 0.0
                 else:
-                    reaction.e_act = max(0, reaction.e_act[0] - n_e * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+                    reaction.e_act = reaction.e_rxn[0], reaction.e_rxn[1]
+
+
+                # # Checking if the electron is in the reactants or products
+                # components = list(chain.from_iterable(reaction.components))
+                # for component in components:
+                #     if isinstance(component, (Proton, Water)):
+                #         stoic_electro = reaction.stoic[component.code]
+                # if self.pH <= 7:
+                #     reaction.e_act = max(0, reaction.e_act[0] - stoic_electro * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
+                # else:
+                #     reaction.e_act = max(0, reaction.e_act[0] - stoic_electro * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
         else: 
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],

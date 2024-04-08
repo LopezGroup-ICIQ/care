@@ -219,6 +219,7 @@ def main():
                                        barrier_threshold=config['mkm'].get('barrier_threshold'), 
                                        ss_tol=config['mkm']['ss_tol'])
         print("\nSaving the microkinetic simulation...")
+        # with open(f"{output_dir}/mkm_{PH}_{U}_{T}_{P}.pkl", "wb") as f:
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
             dump(results, f)
 

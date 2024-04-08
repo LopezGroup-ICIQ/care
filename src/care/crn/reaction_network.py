@@ -856,9 +856,11 @@ class ReactionNetwork:
                 of reactions in which they are involved, sorted in descending
                 order.
         """
-        hubs = {inter.code: 0 for inter in self.intermediates.values()}
+        from collections import defaultdict
+        hubs = defaultdict(int)
         for reaction in self.reactions:
             for inter_code in reaction.stoic.keys():
+                # if inter_code not in ["*", "e-", "H+", "OH-", "H2O(aq)"]:
                 hubs[inter_code] += 1
         hubs = dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True))
         if n is not None:
@@ -945,6 +947,8 @@ class ReactionNetwork:
                     ELECTRO_SPECIES = [Proton().code, Electron().code]
                 else:
                     ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
+            else:
+                ELECTRO_SPECIES = []
 
 
             if target_products is not None:
@@ -1004,7 +1008,7 @@ class ReactionNetwork:
                 INTERS_CODE = [inter for inter in INTERS_CODE if inter in MKM_GRAPH.nodes]
                 print("Filtered {} species and consequently {} reactions (target product filter)".format(count_removed_inters, count_removed_reactions))
 
-            if not barrier_threshold:
+            if barrier_threshold:
                 count_removed_inters = 0
                 count_removed_reactions = 0
                 if isinstance(barrier_threshold, (int, float)) and barrier_threshold > 0:
@@ -1146,7 +1150,7 @@ class ReactionNetwork:
                 print("Steady state reached")
             elif solver == "Python":
                 SSTOL = 1e-10
-                RTOL, ATOL = 1e-6, 1e-10
+                RTOL, ATOL = 1e-10, 1e-16
                 RTOL_MIN, ATOL_MIN = 1e-10, 1e-64
                 RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
                 count_atol_increase = 0
@@ -1181,6 +1185,8 @@ class ReactionNetwork:
                             new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
                         elif MKM_INTERS[inter].phase == "ads":
                             new_graph.nodes[inter]["coverage"] = results["y"][i]
+                    if "*" not in new_graph.nodes:
+                        new_graph.add_node("*", category="intermediate", phase="surf", formula="*", nC=0, nH=0, nO=0)
                     new_graph.nodes["*"]["coverage"] = results["y"][-1]
 
                     for i, reaction in enumerate(MKM_RXNS):

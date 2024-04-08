@@ -353,7 +353,18 @@ class ElementaryReaction:
 
         if self.e_act:
             if "-" not in self.r_type:
-                self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+                if self.r_type == "PCET":
+                    self.e_act = (
+                        self.e_act[0] - self.e_rxn[0],
+                        (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+                    )
+                    if self.e_act[0] < 0:
+                        self.e_act = 0, self.e_rxn[1]
+                    if self.e_act[0] < self.e_rxn[0]:
+                        self.e_act = self.e_rxn[0], self.e_rxn[1]
+                        
+                else:
+                    self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
             else:
                 self.e_act = (
                     self.e_ts[0] - self.e_is[0],
