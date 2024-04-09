@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.sparse import csr_matrix
+from time import time
 
 from care.crn.reactors.reactor import ReactorModel
 from care.crn.microkinetic import net_rate
@@ -65,7 +66,7 @@ class DifferentialPFR(ReactorModel):
         return self.kd * np.prod(y**self.v_forward_dense, axis=1) - self.kr * np.prod(
             y**self.v_backward_dense, axis=1
         )
-
+    
     def ode(
         self,
         t: float,
@@ -73,7 +74,9 @@ class DifferentialPFR(ReactorModel):
     ) -> np.ndarray:
         dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
         dydt[self.gas_mask] = 0
-        # print(dydt)
+        # Pressure damping until time=1s to reduce numerical instability
+        # tau = 1.0
+        # dydt[self.gas_mask] = (2/tau) * np.exp(-t/tau) * (1 - np.exp(-t/tau)) * y[self.gas_mask]
         return dydt
 
     def jacobian(
@@ -179,6 +182,7 @@ class DifferentialPFR(ReactorModel):
             results["y"] = self.integrate_jl(y0)
         else:
             self.sstol = sstol
+            time0 = time()
             results = solve_ivp(self.ode,
                                 (0, 1e10),  
                                 y0,
@@ -188,6 +192,8 @@ class DifferentialPFR(ReactorModel):
                                 atol=atol,
                                 rtol=rtol, 
                                 jac_sparsity=None)
+            results["time"] = time() - time0
+            print(f"Integration time: {results['time']:.2f}s")
             results["y"] = results["y"][:, -1]
         results["rate"] = self.net_rate(results["y"])
         consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
@@ -283,6 +289,9 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
+            # Pressure damping until time=1s to reduce numerical instability
+            tau = 1.0
+            du[p.gas_mask] .= (2/tau) * exp(-t/tau) * (1 - exp(-t/tau)) * u[p.gas_mask]
             println(sum(abs.(du)))
         end
         """)
