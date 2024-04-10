@@ -1,20 +1,20 @@
 [chemspace]
-ncc = 2 # Network Carbon Cutoff (int)
+ncc = 3 # Network Carbon Cutoff (int)
 noc = 1  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
-regen = false  # Force the re-generatation of the existing CRN (bool)
+regen = false #Force the re-generatation of the existing CRN (bool)
 additional = false  # Include 1.2-H shifts (bool)
-electro = true # electrochemical process, readjusts the reaction expressions accordingly (bool)
+electro = true #ectrochemical process, readjusts the reaction expressions accordingly (bool)
 cyclic = false
 
 [surface]
 metal = "Cu"  # metal catalyst (str)
-hkl = "111"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+hkl = "110"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
 
 [mkm]
 run = true # Run microkinetic simulation (bool)
-solver = "Julia"  # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
-barrier_threshold = 1.0  # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
+solver = "Python"  # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
+barrier_threshold = 0.0 # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
 uq = false  # Uncertainty quantification (bool)
 uq_samples = 100  # Number of samples to get for the UQ (int)
 thermo = false  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool) 
@@ -23,8 +23,8 @@ main_reactant = "CO2"  # must be present in the initial_conditions keys, used to
 
 
 [operating_conditions]
-temperature = 298 #temperature in Kelvin (float)
-pressure = 101325  # total pressure in Pascal (float)
+temperature = 298 #mperature in Kelvin (float)
+pressure = 1e5  # total pressure in Pascal (float)
 pH = 8 # pH, used only when electro is true (float between 1 and 14)
 U = -1.5 # applied potential in Volt, used only when electro is true (float)
 

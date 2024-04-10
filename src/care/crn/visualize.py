@@ -140,6 +140,107 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
     # return width_list
 
 
+def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
+    plot = nx.drawing.nx_pydot.to_pydot(graph)
+    # subgraph_source = Subgraph("source", rank="source")
+    # subgraph_ads = Subgraph("ads", rank="same")
+    # subgraph_sink = Subgraph("sink", rank="sink")
+    # subgraph_des = Subgraph("des", rank="same")
+    # subgraph_same = Subgraph("same", rank="same")
+    # subgraph_electro = Subgraph("electro", rank="same")
+    subgraph_gas = Subgraph("gas", rank="source")
+    subgraph_ads = Subgraph("ads", rank="same")
+    subgraph_surf = Subgraph("surf", rank="same")
+    plot.rankdir = "LR"
+    plot.set_dpi(100)
+    for node in plot.get_nodes():
+        node.set_orientation("portrait")
+        attrs = node.get_attributes()
+        if attrs["category"] == "intermediate":
+            formula = node.get_attributes()["formula"]
+            formula += "" if attrs["phase"] == "gas" else "*"
+            for num in re.findall(r"\d+", formula):
+                SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+                formula = formula.replace(num, num.translate(SUB))
+            node.set_fontname("Arial")
+            node.set_label(formula)
+            node.set_style("filled")
+            if attrs["phase"] != "gas":
+                node.set_fillcolor("wheat")
+            else:
+                node.set_fillcolor("lightpink")
+            node.set_shape("ellipse")
+            node.set_width("4/2.54")
+            node.set_height("4/2.54")
+            # node.set_fixedsize("true")
+            node.set_fontsize("200")
+            if attrs["phase"] == "gas":
+                # set node_shape to cylinder
+                node.set_width("5/2.54")
+                node.set_height("5/2.54")
+                node.set_shape("cylinder")
+                node.set_fillcolor("lightcoral")
+                node.set_fontsize("150")
+                subgraph_gas.add_node(node)
+        # elif attrs["category"] == "electro":
+        #     formula = node.get_attributes()["formula"]
+        #     node.set_shape("diamond")
+        #     node.set_style("filled")
+        #     node.set_label(formula)
+        #     node.set_width("2/2.54")
+        #     node.set_height("2/2.54")
+        #     node.set_fillcolor("yellow")
+        #     node.set_fontsize("150")
+        #     node.set_fontname("Arial")
+        #     subgraph_electro.add_node(node)
+        else:  # REACTION
+            node.set_shape("square")
+            node.set_style("filled")
+            node.set_label("")
+            node.set_width("2/2.54")
+            node.set_height("2/2.54")
+            if attrs["r_type"] in ("adsorption", "desorption"):
+                if attrs["r_type"] == "adsorption":
+                    subgraph_ads.add_node(node)
+                    node.set_fillcolor("tomato1")
+            elif attrs["r_type"] == "eley_rideal":
+                node.set_fillcolor("mediumpurple1")
+            else:
+                node.set_fillcolor("steelblue3")
+                subgraph_surf.add_node(node)
+
+    # set edge width as function of consumption rate
+    # width_list = []
+    # max_scale, min_scale = 10, 1
+    # max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
+    for edge in plot.get_edges():
+        if edge.get_source() == "*" or edge.get_destination() == "*":
+            plot.del_edge(edge.get_source(), edge.get_destination())
+            continue
+        # rate = float(edge.get_attributes()["rate"])
+        # # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
+        # edge_width = -np.log10(rate)
+        # width = (max_scale - min_scale) / (max_weight - min_weight) * (
+        #     edge_width - max_weight
+        # ) + max_scale
+        # if edge.get_attributes()["max"] == "max":
+        #     edge.set_color("firebrick")
+        
+        # edge.set_penwidth(30)
+            # edge.set_penwidth(width)
+            # width_list.append(width)
+
+    plot.add_subgraph(subgraph_gas)
+    plot.add_subgraph(subgraph_ads)
+    plot.add_subgraph(subgraph_surf)
+    plot.set_overlap("false")
+    plot.set_splines("true")
+    plot.set_ratio(0.45)
+    plot.set_bgcolor("white")
+
+    plot.write_svg("./" + filename)
+
+
 def visualize_reaction(step: ElementaryReaction, 
                         show_uncertainty: bool = True):
     # components = rxn.split("<->")

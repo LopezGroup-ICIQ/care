@@ -75,8 +75,8 @@ class DifferentialPFR(ReactorModel):
         dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
         dydt[self.gas_mask] = 0
         # Pressure damping until time=1s to reduce numerical instability
-        # tau = 1.0
-        # dydt[self.gas_mask] = (2/tau) * np.exp(-t/tau) * (1 - np.exp(-t/tau)) * y[self.gas_mask]
+        tau = 1.0
+        dydt[self.gas_mask] = (2/tau) * np.exp(-t/tau) * (1 - np.exp(-t/tau)) * y[self.gas_mask]
         return dydt
 
     def jacobian(
@@ -252,62 +252,6 @@ class DifferentialPFR(ReactorModel):
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
     
-    def integrate_jl_ssp(self, 
-                     y0: np.ndarray, 
-                     device: str="cuda", 
-                     solver: str="KenCarp4"):
-        """
-        Integrate the ODE system using the Julia-based solver.
-        """
-        from julia.api import Julia
-        jl = Julia()
-        from julia import Main
-        Main.y0 = y0
-        Main.v = self.v_dense
-        Main.vf = self.v_forward_dense
-        Main.vb = self.v_backward_dense
-        Main.kd, Main.kr = self.kd, self.kr
-        Main.gas_mask = self.gas_mask
-        Main.eval("""
-        using CUDA
-        using DifferentialEquations
-        using SparseArrays
-        CUDA.allowscalar(true)
-        y0 = CuArray{Float64}(y0)
-        v = CuArray{Int8}(sparse(v))
-        kd = CuArray{Float64}(kd)
-        kr = CuArray{Float64}(kr)
-        vf = CuArray{Int8}(sparse(vf))
-        vb = CuArray{Int8}(sparse(vb))
-        gas_mask = CuArray{Bool}(gas_mask)
-        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
-        # println("y0: $(sizeof(y0)/1000) v: $(sizeof(v)/1000) kd: $(sizeof(kd)/1000) kr: $(sizeof(kr)/1000) vf: $(sizeof(vf)/1000) vb: $(sizeof(vb)/1000) gas_mask: $(sizeof(gas_mask)/1000)")
-        # println("y0: $(size(y0)) v: $(size(v)) kd: $(size(kd)) kr: $(size(kr)) vf: $(size(vf)) vb: $(size(vb)) gas_mask: $(size(gas_mask))")
-        """)
-        Main.eval("""
-        function ode_pfr!(du, u, p, t)
-            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
-            du .= p.v * net_rate
-            du[p.gas_mask] .= 0.0
-            # Pressure damping until time=1s to reduce numerical instability
-            tau = 1.0
-            du[p.gas_mask] .= (2/tau) * exp(-t/tau) * (1 - exp(-t/tau)) * u[p.gas_mask]
-            println(sum(abs.(du)))
-        end
-        """)
-        Main.eval("""
-        prob = SteadyStateProblem(ode_pfr!, y0, p)
-        """)
-        Main.eval("""
-        sol = solve(prob, DynamicSS(KenCarp4()))
-        """)
-        Main.eval("sol = Array(sol)")
-        Main.eval("""
-        CUDA.allowscalar(false)
-        """)
-        solution = Main.sol
-        return solution
-    
     def integrate_jl(self, 
                      y0: np.ndarray, 
                      device: str="cuda", 
@@ -330,15 +274,7 @@ class DifferentialPFR(ReactorModel):
         using CUDA
         using DifferentialEquations
         using SparseArrays
-        CUDA.allowscalar(true)
-        y0 = CuArray{Float32}(y0)
-        v = CuArray{Int8}(sparse(v))
-        kd = CuArray{Float32}(kd)
-        kr = CuArray{Float32}(kr)
-        vf = CuArray{Int8}(sparse(vf))
-        vb = CuArray{Int8}(sparse(vb))
-        gas_mask = CuArray{Bool}(gas_mask)
-        # j_sparsity = CuArray{Int8}(J_sparsity)
+        using SciPyDiffEq
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         """)
         Main.eval("""
@@ -346,15 +282,17 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
+            tau = 1.0
+            du[p.gas_mask] .= (2/tau) * exp(-t/tau) * (1 - exp(-t/tau)) * u[p.gas_mask]
             println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
-        f = ODEFunction(ode_pfr!)#, jac_prototype=J_sparsity)
+        f = ODEFunction(ode_pfr!)
             
                   """)
         Main.eval("""
-        prob = ODEProblem(f, y0, (0.0, 1e4), p)
+        prob = ODEProblem(f, y0, (0.0, 1e6), p)
         """)
         Main.eval("""
         function condition(u, t, integrator)
@@ -370,11 +308,8 @@ class DifferentialPFR(ReactorModel):
         end
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, KenCarp4(autodiff=false), abstol=1e-10, reltol=1e-6, callback=cb)
+        sol = solve(prob, SciPyDiffEq.BDF(), abstol=1e-24, reltol=1e-10, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
-        Main.eval("""
-        CUDA.allowscalar(false)
-        """)
         solution = Main.sol
         return solution

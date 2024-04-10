@@ -112,29 +112,36 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
 
     while True:
         # INTERMEDIATE -> REACTION
-        int_outgoing_edges = [
-            (u, v, data)
-            for u, v, data in graph.edges(current_node, data=True)
-            if u == current_node and v not in visited_nodes
-        ]
-        if not int_outgoing_edges:
+        # int_out_edges = [
+        #     (u, v, data)
+        #     for u, v, data in graph.edges(current_node, data=True)
+        #     if u == current_node and v not in visited_nodes
+        # ]
+        int_out_edges = [edge for edge in graph.out_edges(current_node, data=True) if edge[1] not in visited_nodes]
+        if not int_out_edges:
             path_edges = []
-            print("No sink found", int_outgoing_edges)
+            print("No sink found", int_out_edges)
             break
 
-        max_edge = max(int_outgoing_edges, key=lambda edge: edge[2]["rate"])
+        max_edge = max(int_out_edges, key=lambda edge: edge[2]["rate"])
         path_edges.append(max_edge)
         rxn_node = max_edge[1]
         visited_nodes.add(rxn_node)
 
         # REACTION -> INTERMEDIATE
-        rxn_outgoing_edges = [
-            (u, v, data)
-            for u, v, data in graph.edges(rxn_node, data=True)
-            if u == rxn_node and graph.nodes[v]["nC"] != 0 and v not in visited_nodes
-        ]
+        # rxn_out_edges = [
+        #     (u, v, data)
+        #     for u, v, data in graph.edges(rxn_node, data=True)
+        #     if u == rxn_node and graph.nodes[v]["nC"] != 0 and v not in visited_nodes
+        # ]
 
-        max_edge = max(rxn_outgoing_edges, key=lambda edge: edge[2]["rate"])
+        rxn_out_edges = [edge for edge in graph.out_edges(rxn_node, data=True) if graph.nodes[edge[1]]["nC"] != 0 and edge[1] not in visited_nodes]
+
+        try:
+            max_edge = max(rxn_out_edges, key=lambda edge: edge[2]["rate"])
+        except:
+            print(rxn_out_edges)
+            raise ValueError(f"No sink found for {rxn_node}")
         path_edges.append(max_edge)
         int_node = max_edge[1]
         visited_nodes.add(int_node)

@@ -206,6 +206,7 @@ def main():
             uq_samples = 0
 
         print("\nRunning the microkinetic simulation...") 
+        # target_prods = ['CO', 'H2O', 'CH4O', 'CH4']
         results = crn.run_microkinetic(config['initial_conditions'],
                                        config['mkm']['main_reactant'],
                                        T,
@@ -213,11 +214,11 @@ def main():
                                        U, 
                                        PH,
                                        uq=mkm_uq,
-                                       uq_samples=uq_samples,
                                        thermo=thermo,
                                        solver=config['mkm']['solver'], 
                                        barrier_threshold=config['mkm'].get('barrier_threshold'), 
                                        ss_tol=config['mkm']['ss_tol'])
+                                    #    target_products=target_prods)
         print("\nSaving the microkinetic simulation...")
         # with open(f"{output_dir}/mkm_{PH}_{U}_{T}_{P}.pkl", "wb") as f:
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
