@@ -903,12 +903,7 @@ class ReactionNetwork:
                                 in_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.in_edges(node)]
                                 reactants = [reactant for reactant in self.reactions[idx].reactants if reactant.phase != 'surf']
                                 products = [product for product in self.reactions[idx].products if product.phase != 'surf']
-                                # reactants = [self.reactions[idx].components[0][i].code for i in range(len(self.reactions[idx].components[0])) if self.reactions[idx].components[0][i].phase != 'surf']
-                                # products = [self.reactions[idx].components[1][i].code for i in range(len(self.reactions[idx].components[1])) if self.reactions[idx].components[1][i].phase != 'surf']
                                 out_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.out_edges(node)]
-                                # if in_list == [] or out_list == []:
-                                #     rxns_to_remove.append(node)
-                                #     count_removed_reactions += 1
                                 if len(in_list) != len(reactants) or len(out_list) != len(products):
                                     rxns_to_remove.append(node)
                                     count_removed_reactions += 1                           
@@ -977,8 +972,6 @@ class ReactionNetwork:
 
                 print("Filtered {} reactions and {} species (Eact > {:.1f} eV)".format(count_removed_reactions, count_removed_inters, barrier_threshold)) 
 
-            # write_dotgraph_undir(MKM_GRAPH, "TEST_PRODUCTS.svg")
-
             RXN_IDXS = [MKM_GRAPH.nodes[node]['idx'] for node in MKM_GRAPH.nodes if MKM_GRAPH.nodes[node]['category'] == 'reaction']
             INTERS_CODE = [node for node in MKM_GRAPH.nodes if MKM_GRAPH.nodes[node]['category'] == 'intermediate']
             MKM_RXNS = [self.reactions[i] for i in RXN_IDXS]
@@ -991,8 +984,6 @@ class ReactionNetwork:
                 for product in step.products:
                     if product.code not in MKM_INTERS.keys() and product.code != "*":
                         print(f'Reaction {step.code} includes product {product.code} which is not in the network')
-
-            # quit()
                     
             inters = sorted(
                 MKM_INTERS.keys(), key=lambda x: MKM_INTERS[x].code)
@@ -1094,160 +1085,123 @@ class ReactionNetwork:
             print("Shape of stoichiometric matrix: {}".format(v.shape))
             print("Nuumber of values in stoichiometry matrix: {}".format(v.size))
 
+            reactants_mask = gas_mask.copy()
+            products_mask  = gas_mask.copy()
+            for i, inter in enumerate(inters):
+                if MKM_INTERS[inter].formula in iv.keys():
+                    products_mask[i] = False
+                else:
+                    reactants_mask[i] = False
+
             # RUN SIMULATION
-            reactor = DifferentialPFR(v, kd, kr, gas_mask, ss_tol)
-            print(reactor)
-            if solver == "Julia":
-                results = reactor.integrate(y0)
-                print("Steady state reached")
-            elif solver == "Python":
-                SSTOL = 1e-12
-                RTOL, ATOL = 1e-10, 1e-20
-                RTOL_MIN, ATOL_MIN = 1e-10, 1e-64
-                RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
-                count_atol_increase = 0
-                status = None
-                while status != 1: # play with atol and rtol to get successful integration  
-                    try:  
-                        results = reactor.integrate(y0, "Python", RTOL, ATOL, SSTOL)
-                        status = results["status"]                    
-                    except:
-                        status = None
+            reactor = DifferentialPFR(v, kd, kr, gas_mask, inters, P, T)
+            print(reactor)         
+            RTOL, ATOL, SSTOL = 1e-10, 1e-16, ss_tol
+            RTOL_MIN, ATOL_MIN = 1e-12, 1e-32
+            RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
+            count_atol_increase = 0
+            status = None
+            while status != 1: # play with atol and rtol to get successful integration  
+                try:  
+                    results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL)
+                    status = results["status"]                    
+                except:
+                    status = None
+                    
+                if status != 1:
+                    ATOL /= 10
+                    count_atol_increase += 1
+                    if count_atol_increase % 2 == 0: 
+                        RTOL *= 10
+                        print('Increasing relative tolerance to reach steady state... (rtol = {})'.format(RTOL))
+                    print('Decreasing absolute tolerance to reach steady state... (atol = {})'.format(ATOL))
+                
+                if ATOL < ATOL_MIN or RTOL > RTOL_MAX:
+                    print("Failed to reach steady state")
+                    return None  
+
+            r_types = [reaction.r_type for reaction in MKM_RXNS]
+            forward_rates = results['forward_rate']
+            reverse_rates = results['backward_rate']
+            net_rates = results['net_rate']
+            df_rates = pd.DataFrame({"type": r_types, "k_dir": kd, "k_rev": kr, "forward_rate": forward_rates, "reverse_rate": reverse_rates, "net_rate": net_rates}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
+            df_rates.to_csv("rates.csv")
+            # print("REACTANTS CHECK")
+            # for i, reactant in enumerate(reactants_mask):
+            #     if reactant:
+            #         if results["y"][i] == 0:
+            #             print("Partial pressure of reactant {} is zero {}".format(inters_formula[i], results["y"][i])) 
+            #         else:
+            #             print("Partial pressure of reactant {} is not zero {}".format(inters_formula[i], results["y"][i]))
+            #         if results["total_consumption_rate"][i] > 0:
+            #             print("Reactant {} has a positive formation rate {}".format(inters_formula[i], results["total_consumption_rate"][i]))
+            #         else:
+            #             print("Reactant {} has a negative formation rate {}".format(inters_formula[i], results["total_consumption_rate"][i]))
+            # # Check that the formation rate for all products is higehr than 0
+            # print("PRODUCTS CHECK")
+            # for i, product in enumerate(products_mask):
+            #     if product:
+            #         if results["y"][i] != 0 :
+            #             print("Partial pressure of product {} is not zero {}".format(inters_formula[i], results["y"][i])) 
+            #         else:
+            #             print("Partial pressure of product {} is zero {}".format(inters_formula[i], results["y"][i]))
+            #         if results["total_consumption_rate"][i] < 0:
+            #             print("Product {} has a negative formation rate {}".format(inters_formula[i], results["total_consumption_rate"][i]))
+            #         else:
+            #             print("Product {} has a positive formation rate {}".format(inters_formula[i], results["total_consumption_rate"][i]))
                         
-                    if status != 1:
-                        ATOL /= 10
-                        count_atol_increase += 1
-                        if count_atol_increase % 2 == 0: 
-                            RTOL *= 10
-                            print('Increasing relative tolerance to reach steady state... (rtol = {})'.format(RTOL))
-                        print('Increasing absolute tolerance to reach steady state... (atol = {})'.format(ATOL))
-                    
-                    if ATOL < ATOL_MIN or RTOL > RTOL_MAX:
-                        print("Failed to reach steady state")
-                        return None    
-
-                new_graph = deepcopy(MKM_GRAPH)
-                MKM_RXNS_COPY = deepcopy(MKM_RXNS)
-                print("ENTERING MAX FLUX")
-                new_graph.remove_edges_from(list(new_graph.edges))
-                for i, inter in enumerate(inters):
-                    if MKM_INTERS[inter].phase == "gas":
-                        new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
-                    elif MKM_INTERS[inter].phase == "ads":
-                        new_graph.nodes[inter]["coverage"] = results["y"][i]
-                    else:
-                        new_graph.nodes[inter]["coverage"] = results["y"][i]
-                for i, reaction in enumerate(MKM_RXNS_COPY):
-                    if results["rate"][i] < 0:
-                        new_graph.remove_node(reaction.code)
-                        reaction.reverse()
-                        new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
-                                    rate = abs(results["rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-                    else:
-                        new_graph.nodes[reaction.code]["rate"] = results["rate"][i]
-                        new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                        new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-                for i, inter in enumerate(inters):
-                    for j, reaction in enumerate(MKM_RXNS_COPY):
-                        if inter in reaction.stoic.keys():
-                            if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
-                                if reaction.e_act[0] == 0:
-                                    delta = 0
-                                elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
-                                    delta = reaction.e_rxn[0]
-                                else:
-                                    delta = reaction.e_act[0]
-                                new_graph.add_edge(inter, 
-                                            reaction.code, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=delta, 
-                                            weight=1/abs(results["consumption_rate"][i, j]))
-                            else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                                new_graph.add_edge(reaction.code, 
-                                            inter, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
-                                            weight=1/abs(results["consumption_rate"][i, j]))
-                new_graph.remove_node("*")                    
-
-                # path = []
-                # while path == []:
-                #     new_graph = deepcopy(MKM_GRAPH)
-                #     MKM_RXNS_COPY = deepcopy(MKM_RXNS)
-                #     print("ENTERING MAX FLUX")
-                #     new_graph.remove_edges_from(list(new_graph.edges))
-
-                #     for i, inter in enumerate(inters):
-                #         if MKM_INTERS[inter].phase == "gas":
-                #             new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
-                #         elif MKM_INTERS[inter].phase == "ads":
-                #             new_graph.nodes[inter]["coverage"] = results["y"][i]
-                #         else:
-                #             new_graph.nodes[inter]["coverage"] = results["y"][i]
-                #     # if "*" not in new_graph.nodes:
-                #     #     new_graph.add_node("*", category="intermediate", phase="surf", formula="*", nC=0, nH=0, nO=0)
-                #     # new_graph.nodes["*"]["coverage"] = results["y"][-1]
-
-                #     for i, reaction in enumerate(MKM_RXNS_COPY):
-                #         if results["rate"][i] < 0:
-                #             new_graph.remove_node(reaction.code)
-                #             reaction.reverse()
-                #             new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
-                #                         rate = abs(results["rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-                #         else:
-                #             new_graph.nodes[reaction.code]["rate"] = results["rate"][i]
-                #             new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                #             new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-
-                #     for i, inter in enumerate(inters):
-                #         for j, reaction in enumerate(MKM_RXNS_COPY):
-                #             if inter in reaction.stoic.keys():
-                #                 if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
-                #                     if reaction.e_act[0] == 0:
-                #                         delta = 0
-                #                     elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
-                #                         delta = reaction.e_rxn[0]
-                #                     else:
-                #                         delta = reaction.e_act[0]
-                #                     new_graph.add_edge(inter, 
-                #                                 reaction.code, 
-                #                                 rate=abs(results["consumption_rate"][i, j]), 
-                #                                 delta=delta, 
-                #                                 weight=1/abs(results["consumption_rate"][i, j]))
-                #                 else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                #                     new_graph.add_edge(reaction.code, 
-                #                                 inter, 
-                #                                 rate=abs(results["consumption_rate"][i, j]), 
-                #                                 delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
-                #                                 weight=1/abs(results["consumption_rate"][i, j]))
-                #     new_graph.remove_node("*")
-
-                #     path = max_flux(new_graph, main_reactant)
-
-                #     if not path:
-                #         ATOL /= 10
-                #         count_atol_increase += 1
-                #         if count_atol_increase % 2 == 0: 
-                #             RTOL *= 10
-                #             print('Increasing relative tolerance to reach steady state... (rtol = {})'.format(RTOL))
-                #         print('Increasing absolute tolerance to reach steady state... (atol = {})'.format(ATOL))
-                    
-                #         if ATOL < ATOL_MIN or RTOL > RTOL_MAX:
-                #             print("Failed to reach steady state")
-                #             return None               
-                #         results = reactor.integrate(y0, "Python", RTOL, ATOL, SSTOL)
-
-                # if any({reaction.r_type == "PCET" for reaction in self.reactions}):
-                #     new_graph = self.gen_electro_graph(new_graph)
-                results["run_graph"] = new_graph
-                results["inters"] = inters
-                results["gas_mask"] = gas_mask
-                results['y0'] = y0
-
-                # Saving the tolerance values used
-                results["rtol"] = RTOL
-                results["atol"] = ATOL
-                results["k_ratio"] = kmax / kmin
-
-                print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(RTOL, ATOL, SSTOL))
+            new_graph = deepcopy(MKM_GRAPH)
+            MKM_RXNS_COPY = deepcopy(MKM_RXNS)
+            new_graph.remove_edges_from(list(new_graph.edges))
+            for i, inter in enumerate(inters):
+                if MKM_INTERS[inter].phase == "gas":
+                    new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
+                elif MKM_INTERS[inter].phase == "ads":
+                    new_graph.nodes[inter]["coverage"] = results["y"][i]
+                else:
+                    new_graph.nodes[inter]["coverage"] = results["y"][i]
+            for i, reaction in enumerate(MKM_RXNS_COPY):
+                if results["net_rate"][i] < 0:
+                    new_graph.remove_node(reaction.code)
+                    reaction.reverse()
+                    new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
+                                rate = abs(results["net_rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
+                else:
+                    new_graph.nodes[reaction.code]["rate"] = results["net_rate"][i]
+                    new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                    new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+            for i, inter in enumerate(inters):
+                for j, reaction in enumerate(MKM_RXNS_COPY):
+                    if inter in reaction.stoic.keys():
+                        if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i
+                            if reaction.e_act[0] == 0:
+                                delta = 0
+                            elif reaction.e_act[0] == reaction.e_rxn[0]:  # for energy diagram
+                                delta = reaction.e_rxn[0]
+                            else:
+                                delta = reaction.e_act[0]
+                            new_graph.add_edge(inter, 
+                                        reaction.code, 
+                                        rate=abs(results["consumption_rate"][i, j]), 
+                                        delta=delta, 
+                                        weight=1/abs(results["consumption_rate"][i, j]))
+                        else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
+                            new_graph.add_edge(reaction.code, 
+                                        inter, 
+                                        rate=abs(results["consumption_rate"][i, j]), 
+                                        delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
+                                        weight=1/abs(results["consumption_rate"][i, j]))
+            new_graph.remove_node("*")                    
+            # if any({reaction.r_type == "PCET" for reaction in self.reactions}):
+            #     new_graph = self.gen_electro_graph(new_graph)
+            results["run_graph"] = new_graph
+            results["inters"] = inters
+            results["gas_mask"] = gas_mask
+            results['y0'] = y0
+            # Saving the tolerance values used
+            results["rtol"] = RTOL
+            results["atol"] = ATOL
+            results["sstol"] = SSTOL
+            results["k_ratio"] = kmax / kmin
+            print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(RTOL, ATOL, SSTOL))
             return results

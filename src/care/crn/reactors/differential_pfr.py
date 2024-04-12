@@ -5,13 +5,17 @@ from time import time
 
 from care.crn.reactors.reactor import ReactorModel
 from care.crn.microkinetic import net_rate
+import matplotlib.pyplot as plt
 
 class DifferentialPFR(ReactorModel):
     def __init__(self,  
                  v: np.ndarray, 
                  kd: np.ndarray,
                  kr: np.ndarray, 
-                 gas_mask: np.ndarray, ss_tol: float = 1e-10):
+                 gas_mask: np.ndarray, 
+                 inters: list[str], 
+                 pressure: float,
+                 temperature: float):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -49,11 +53,39 @@ class DifferentialPFR(ReactorModel):
         self.kr = kr  # Reverse kinetic constants
 
         self.gas_mask = gas_mask
+        self.inters = inters    
 
-        self.sstol = ss_tol # Tolerance for steady-state conditions
+        self.P = pressure  # Pressure of the reactor
+        self.T = temperature # Temperature of the reactor
+
+        self.sstol = None # Tolerance for steady-state conditions
+        self.sum_ddt, self.time = [], []
 
     def __str__(self) -> str:
-        return f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species."
+        y =  f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species\n"
+        y += f"Pressure: {self.P} Pa, Temperature: {self.T} K\n"
+
+        return y
+    
+    def forward_rate(self, y: np.ndarray) -> np.ndarray:
+        """
+        Returns the forward reaction rate for each elementary reaction.
+        Args:
+            y(ndarray): surface coverage + partial pressures array [-/Pa].
+        Returns:
+            (ndarray): forward reaction rate of the elementary reactions [1/s].
+        """
+        return self.kd * np.prod(y**self.v_forward_dense, axis=1)
+    
+    def backward_rate(self, y: np.ndarray) -> np.ndarray:
+        """
+        Returns the backward reaction rate for each elementary reaction.
+        Args:
+            y(ndarray): surface coverage + partial pressures array [-/Pa].
+        Returns:
+            (ndarray): backward reaction rate of the elementary reactions [1/s].
+        """
+        return self.kr * np.prod(y**self.v_backward_dense, axis=1)
 
     def net_rate(self, y: np.ndarray) -> np.ndarray:
         """
@@ -66,17 +98,14 @@ class DifferentialPFR(ReactorModel):
         return self.kd * np.prod(y**self.v_forward_dense, axis=1) - self.kr * np.prod(
             y**self.v_backward_dense, axis=1
         )
-    
+
     def ode(
         self,
-        t: float,
+        _: float,
         y: np.ndarray,
     ) -> np.ndarray:
         dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
-        dydt[self.gas_mask] = 0
-        # Pressure damping until time=1s to reduce numerical instability
-        tau = 1.0
-        dydt[self.gas_mask] = (2/tau) * np.exp(-t/tau) * (1 - np.exp(-t/tau)) * y[self.gas_mask]
+        dydt[self.gas_mask] = 0.0
         return dydt
 
     def jacobian(
@@ -127,9 +156,9 @@ class DifferentialPFR(ReactorModel):
         for r in range(self.nr):
             for s in range(self.nc):
                 if self.v_forward_dense.T[s, r] != 0:
-                    Jg[r, s] = 1
+                    Jg[r, s] = 10
                 if self.v_backward_dense.T[s, r] != 0:                    
-                    Jh[r, s] = 1
+                    Jh[r, s] = 17
         J = self.v_dense @ (Jg - Jh)
         J[self.gas_mask, :] = 0
         return J
@@ -141,19 +170,37 @@ class DifferentialPFR(ReactorModel):
         y: np.ndarray,
     ) -> float:
         sum_ddt = np.sum(abs(self.ode(t, y)))
-        print(f"Time: {t}    Sum_ddt: {sum_ddt}")
+        abssum_ddt_gas = np.sum(abs(self.ode(t, y)[self.gas_mask]))
+        Py_gas = np.sum(y[self.gas_mask])
+        print(f"Time: {t}    Sum_ddt: {sum_ddt}    Gas_ddt: {abssum_ddt_gas}    Gas_sum: {Py_gas}")
+        self.time.append(t)
+        self.sum_ddt.append(sum_ddt)
         return 0 if sum_ddt <= self.sstol else 1
 
     steady_state.terminal = True
     steady_state.direction = 0
 
+    def gas_change_event(
+        self,
+        _: float,
+        y: np.ndarray,
+    ) -> float:
+        """
+        Event function to detect when the gas phase changes.
+        """
+        Py_gas = np.sum(y[self.gas_mask])
+        return 0 if Py_gas != self.P else 1
+    
+    gas_change_event.terminal = False
+    gas_change_event.direction = 0
+
     def integrate(
         self,
         y0: np.ndarray,
-        solver: str = "Julia",
-        rtol: float = 1e-10,
-        atol: float = 1e-32,
-        sstol: float = 1e-10,
+        solver: str,
+        rtol: float,
+        atol: float,
+        sstol: float,
     ) -> dict:
         """
         Integrate the ODE system until steady-state conditions are reached.
@@ -179,29 +226,37 @@ class DifferentialPFR(ReactorModel):
         """
         if solver == "Julia":
             results = {}
-            results["y"] = self.integrate_jl(y0)
+            results["y"] = self.integrate_jl(y0, rtol=rtol, atol=atol, sstol=sstol)
+            results["status"] = 1
         else:
+            self.sum_ddt = []
             self.sstol = sstol
             time0 = time()
+            ode_events = [self.steady_state, self.gas_change_event]
             results = solve_ivp(self.ode,
-                                (0, 1e10),  
+                                (0, 1e8),  
                                 y0,
                                 method="BDF",
-                                events=self.steady_state,
+                                events=ode_events,
                                 jac=None,
                                 atol=atol,
                                 rtol=rtol, 
                                 jac_sparsity=None)
             results["time"] = time() - time0
+            
             print(f"Integration time: {results['time']:.2f}s")
+
             results["y"] = results["y"][:, -1]
-        results["rate"] = self.net_rate(results["y"])
+            results['time_ss'] = self.time
+            results['sum_ddt'] = self.sum_ddt
+        results["forward_rate"] = self.forward_rate(results["y"])
+        results["backward_rate"] = self.backward_rate(results["y"])
+        results["net_rate"] = self.net_rate(results["y"])
         consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
         for i in range(self.v_dense.shape[0]):
             for j in range(self.v_dense.shape[1]):
-                    consumption_rate[i, j] = self.v_dense[i, j] * results["rate"][j]
+                    consumption_rate[i, j] = self.v_dense[i, j] * results["net_rate"][j]
         results["consumption_rate"] = consumption_rate
-        # sum along rows
         results["total_consumption_rate"] = np.sum(consumption_rate, axis=1)
         return results        
 
@@ -254,8 +309,9 @@ class DifferentialPFR(ReactorModel):
     
     def integrate_jl(self, 
                      y0: np.ndarray, 
-                     device: str="cuda", 
-                     solver: str="KenCarp4"):
+                     rtol: float, 
+                     atol: float,
+                     sstol: float) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver.
         """
@@ -268,10 +324,11 @@ class DifferentialPFR(ReactorModel):
         Main.vb = self.v_backward_dense
         Main.kd, Main.kr = self.kd, self.kr
         Main.gas_mask = self.gas_mask
-        Main.ss_tol = self.sstol
+        Main.atol = atol
+        Main.rtol = rtol
+        Main.sstol = sstol
         Main.J_sparsity = self.jac_sparsity
         Main.eval("""
-        using CUDA
         using DifferentialEquations
         using SparseArrays
         using SciPyDiffEq
@@ -282,14 +339,11 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            tau = 1.0
-            du[p.gas_mask] .= (2/tau) * exp(-t/tau) * (1 - exp(-t/tau)) * u[p.gas_mask]
-            println(t,"    ", sum(abs.(du)))
+            # println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
-        f = ODEFunction(ode_pfr!)
-            
+        f = ODEFunction(ode_pfr!)            
                   """)
         Main.eval("""
         prob = ODEProblem(f, y0, (0.0, 1e6), p)
@@ -299,7 +353,7 @@ class DifferentialPFR(ReactorModel):
             du = similar(u)
             ode_pfr!(du, u, integrator.p, t)
             sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-            return sum_abs_du - ss_tol  # The condition is met when this is 0 or negative
+            return sum_abs_du - sstol  # The condition is met when this is 0 or negative
         end
         """)
         Main.eval("""
@@ -308,7 +362,7 @@ class DifferentialPFR(ReactorModel):
         end
         cb = ContinuousCallback(condition, affect!)""")
         Main.eval("""
-        sol = solve(prob, SciPyDiffEq.BDF(), abstol=1e-24, reltol=1e-10, callback=cb)
+        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         solution = Main.sol
