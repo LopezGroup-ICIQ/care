@@ -1096,8 +1096,8 @@ class ReactionNetwork:
             # RUN SIMULATION
             reactor = DifferentialPFR(v, kd, kr, gas_mask, inters, P, T)
             print(reactor)         
-            RTOL, ATOL, SSTOL = 1e-10, 1e-16, ss_tol
-            RTOL_MIN, ATOL_MIN = 1e-12, 1e-32
+            RTOL, ATOL, SSTOL = 1e-6, 1e-16, ss_tol
+            RTOL_MIN, ATOL_MIN = 1e-10, 1e-24
             RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
             count_atol_increase = 0
             status = None
@@ -1112,11 +1112,11 @@ class ReactionNetwork:
                     ATOL /= 10
                     count_atol_increase += 1
                     if count_atol_increase % 2 == 0: 
-                        RTOL *= 10
-                        print('Increasing relative tolerance to reach steady state... (rtol = {})'.format(RTOL))
-                    print('Decreasing absolute tolerance to reach steady state... (atol = {})'.format(ATOL))
+                        RTOL /= 10
+                        print('Decreasing rtol to {} to reach steady state...'.format(RTOL))
+                    print('Decreasing atol to {} to reach steady state...'.format(ATOL))
                 
-                if ATOL < ATOL_MIN or RTOL > RTOL_MAX:
+                if ATOL < ATOL_MIN or RTOL < RTOL_MIN:
                     print("Failed to reach steady state")
                     return None  
 

@@ -783,7 +783,7 @@ def gen_chemical_space(
         task = progress.add_task(task_desc, total=6)
 
         # Step 0: Generate relevant species
-        relev_species = ["[C-]#[O+]", "C(=O)=O", "O", "OO", "[H][H]"]
+        relev_species = ["[C-]#[O+]", "C(=O)=O", "O", "O=O", "[H][H]"]
         progress.update(task, advance=1)
 
         # Step 1: Generate Alkanes
@@ -791,7 +791,7 @@ def gen_chemical_space(
         progress.update(task, advance=1)
 
         if noc > 0:
-            relev_species =  ["C(=O)=O", "O", "OO", "[H][H]"] if noc == 1 else ["O", "OO", "[H][H]"]
+            relev_species =  ["C(=O)=O", "O", "O=O", "[H][H]"] if noc == 1 else ["O", "O=O", "[H][H]"]
             # Step 2: Generate Ethers
             ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
             progress.update(task, advance=1)
