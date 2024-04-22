@@ -407,16 +407,16 @@ class ReactionNetwork:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
                         graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(inter.code, reaction.code, dir='in')
+                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
                 else:
-                    graph.add_edge(inter.code, reaction.code, dir='in')
+                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
             for inter in reaction.components[1]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
                         graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(reaction.code, inter.code, dir='out')
+                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
                 else:
-                    graph.add_edge(reaction.code, inter.code, dir='out')
+                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
 
         graph.remove_node("*")        
         return graph
@@ -883,7 +883,7 @@ class ReactionNetwork:
                     ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
                     ELECTRO_INTERS = [Water(), Hydroxide(), Electron()]
             else:
-                ELECTRO_SPECIES = []
+                ELECTRO_SPECIES, ELECTRO_INTERS = [], []
 
             if target_products is not None:
                 count_removed_inters = 0
@@ -1193,22 +1193,24 @@ class ReactionNetwork:
                                         reaction.code, 
                                         rate=abs(results["consumption_rate"][i, j]), 
                                         delta=delta, 
-                                        weight=1/abs(results["consumption_rate"][i, j]))
+                                        weight=1/abs(results["consumption_rate"][i, j]), 
+                                        v = reaction.stoic[inter])
                         else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
                             g.add_edge(reaction.code, 
                                         inter, 
                                         rate=abs(results["consumption_rate"][i, j]), 
                                         delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
-                                        weight=1/abs(results["consumption_rate"][i, j]))
+                                        weight=1/abs(results["consumption_rate"][i, j]), 
+                                        v = reaction.stoic[inter])
             for species in ELECTRO_INTERS:
                 g.add_node(species, category="intermediate", phase='electro', nC=species['C'], nH=species['H'], nO=species['O'])
             for j, reaction in enumerate(MKM_RXNS_COPY):
                 if reaction.r_type == "PCET":
                     for i, inter in enumerate(ELECTRO_INTERS):
                         if inter in reaction.components[0]:
-                            g.add_edge(inter.code, reaction.code, rate=0, delta=0, weight=0)
+                            g.add_edge(inter.code, reaction.code, rate=0, delta=0, weight=0, v=reaction.stoic[inter.code])
                         if inter.code in reaction.components[1]:
-                            g.add_edge(reaction.code, inter.code, rate=0, delta=0, weight=0)
+                            g.add_edge(reaction.code, inter.code, rate=0, delta=0, weight=0, v=reaction.stoic[inter.code])
             g.remove_node("*")                    
             
             results["run_graph"] = g

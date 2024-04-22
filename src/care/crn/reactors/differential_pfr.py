@@ -346,6 +346,7 @@ class DifferentialPFR(ReactorModel):
         Main.eval("""
         prob = ODEProblem(f, y0, (0.0, 1e8), p)
         """)
+        # Commented part for event handling (still not implemented for scipy stuff)
         # Main.eval("""
         # function condition(u, t, integrator)
         #     du = similar(u)
@@ -358,11 +359,11 @@ class DifferentialPFR(ReactorModel):
         # function affect!(integrator)
         #     println(t,"    ", sum_abs_du)
         #     terminate!(integrator)
-        # end        
+        # end   
+        # cb = DiscreteCallback(condition, affect!)     
         # """)
-        Main.eval("""
-        # cb = DiscreteCallback(condition, affect!)
-        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol, callback=cb)
+        Main.eval(""" 
+        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol) 
         """)
         Main.eval("sol = Array(sol[end])")
         solution = Main.sol

@@ -77,16 +77,16 @@ def gen_graph(inters: dict[str, Intermediate],
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
                         graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(inter.code, reaction.code, dir='in')
+                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
                 else:
-                    graph.add_edge(inter.code, reaction.code, dir='in')
+                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
             for inter in reaction.components[1]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
                         graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(reaction.code, inter.code, dir='out')
+                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
                 else:
-                    graph.add_edge(reaction.code, inter.code, dir='out')
+                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
 
         return graph       
 

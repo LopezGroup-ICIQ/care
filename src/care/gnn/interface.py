@@ -151,9 +151,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                             y.scale * self.model.y_scale_params["std"]
                         ).item()  # eV
                         counter += 1
-            # Getting only the top 3 most stable configurations
-            ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:3])
-            intermediate.ads_configs = ads_config_dict
+                # Getting only the top 3 most stable configurations
+                ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:3])
+                intermediate.ads_configs = ads_config_dict
         return intermediate
 
 
