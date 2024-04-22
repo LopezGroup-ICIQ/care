@@ -375,6 +375,7 @@ class ReactionNetwork:
                 nC=inter["C"],
                 nH=inter["H"],
                 nO=inter["O"],
+                closed_shell=inter.closed_shell,
             )
 
         graph.add_node(
@@ -385,6 +386,7 @@ class ReactionNetwork:
             nC=0,
             nH=0,
             nO=0,
+            closed_shell=False,
         )
 
         for idx, reaction in enumerate(self.reactions):
@@ -397,6 +399,7 @@ class ReactionNetwork:
                 reaction.code,
                 category="reaction",
                 r_type=r_type,
+                r=reaction.r_type,
                 idx=idx,
             )
 
@@ -875,8 +878,10 @@ class ReactionNetwork:
             if self.type == "electrochemical":
                 if PH <= 7:
                     ELECTRO_SPECIES = [Proton().code, Electron().code]
+                    ELECTRO_INTERS = [Proton(), Electron()]
                 else:
                     ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
+                    ELECTRO_INTERS = [Water(), Hydroxide(), Electron()]
             else:
                 ELECTRO_SPECIES = []
 
@@ -1067,19 +1072,18 @@ class ReactionNetwork:
             dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
             dfv.to_csv("stoichiometric_matrix.csv")
 
-            kd = np.zeros(len(MKM_RXNS), dtype=np.float64)
-            kr = np.zeros(len(MKM_RXNS), dtype=np.float64)
+            kf, kr = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(len(MKM_RXNS), dtype=np.float64)
 
             for i, reaction in enumerate(MKM_RXNS):
-                kd[i], kr[i] = reaction.get_kinetic_constants(T, uq, thermo)
+                kf[i], kr[i] = reaction.get_kinetic_constants(T, uq, thermo)
 
-            dfk = pd.DataFrame({"k_dir": kd, "k_rev": kr}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
+            dfk = pd.DataFrame({"k_dir": kf, "k_rev": kr}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
             dfk.to_csv("kinetic_constants.csv")
 
             dfgm = pd.DataFrame(gas_mask, index=inters_formula + inerts, columns=["gas_mask"])
             dfgm.to_csv("gas_mask.csv")
 
-            ktot = np.concatenate((kd, kr))
+            ktot = np.concatenate((kf, kr))
             kmax, kmin = np.max(ktot), np.min(ktot)
             print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
             print("Shape of stoichiometric matrix: {}".format(v.shape))
@@ -1094,14 +1098,14 @@ class ReactionNetwork:
                     reactants_mask[i] = False
 
             # RUN SIMULATION
-            reactor = DifferentialPFR(v, kd, kr, gas_mask, inters, P, T)
+            reactor = DifferentialPFR(v, kf, kr, gas_mask, inters, P, T)
             print(reactor)         
-            RTOL, ATOL, SSTOL = 1e-6, 1e-16, ss_tol
+            RTOL, ATOL, SSTOL = 1e-8, 1e-16, ss_tol
             RTOL_MIN, ATOL_MIN = 1e-10, 1e-24
             RTOL_MAX, ATOL_MAX = 1e-6, 1e-6
             count_atol_increase = 0
             status = None
-            while status != 1: # play with atol and rtol to get successful integration  
+            while status != 1:  
                 try:  
                     results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL)
                     status = results["status"]                    
@@ -1124,7 +1128,7 @@ class ReactionNetwork:
             forward_rates = results['forward_rate']
             reverse_rates = results['backward_rate']
             net_rates = results['net_rate']
-            df_rates = pd.DataFrame({"type": r_types, "k_dir": kd, "k_rev": kr, "forward_rate": forward_rates, "reverse_rate": reverse_rates, "net_rate": net_rates}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
+            df_rates = pd.DataFrame({"type": r_types, "k_dir": kf, "k_rev": kr, "forward_rate": forward_rates, "reverse_rate": reverse_rates, "net_rate": net_rates}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
             df_rates.to_csv("rates.csv")
             # print("REACTANTS CHECK")
             # for i, reactant in enumerate(reactants_mask):
@@ -1150,26 +1154,31 @@ class ReactionNetwork:
             #         else:
             #             print("Product {} has a positive formation rate {}".format(inters_formula[i], results["total_consumption_rate"][i]))
                         
-            new_graph = deepcopy(MKM_GRAPH)
+            g = deepcopy(MKM_GRAPH)
             MKM_RXNS_COPY = deepcopy(MKM_RXNS)
-            new_graph.remove_edges_from(list(new_graph.edges))
+            g.remove_edges_from(list(g.edges))
             for i, inter in enumerate(inters):
                 if MKM_INTERS[inter].phase == "gas":
-                    new_graph.nodes[inter]["molar_fraction"] = results["y"][i] / P
+                    g.nodes[inter]["molar_fraction"] = results["y"][i] / P
                 elif MKM_INTERS[inter].phase == "ads":
-                    new_graph.nodes[inter]["coverage"] = results["y"][i]
+                    g.nodes[inter]["coverage"] = results["y"][i]
                 else:
-                    new_graph.nodes[inter]["coverage"] = results["y"][i]
+                    g.nodes[inter]["coverage"] = results["y"][i]
             for i, reaction in enumerate(MKM_RXNS_COPY):
                 if results["net_rate"][i] < 0:
-                    new_graph.remove_node(reaction.code)
+                    g.remove_node(reaction.code)
                     reaction.reverse()
-                    new_graph.add_node(reaction.code, category="reaction", r_type=reaction.r_type, 
+                    r_type = (
+                        reaction.r_type
+                        if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
+                        else "surface_reaction"
+                    )
+                    g.add_node(reaction.code, category="reaction", r_type=r_type, r = reaction.r_type, idx=i,
                                 rate = abs(results["net_rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
                 else:
-                    new_graph.nodes[reaction.code]["rate"] = results["net_rate"][i]
-                    new_graph.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                    new_graph.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+                    g.nodes[reaction.code]["rate"] = results["net_rate"][i]
+                    g.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                    g.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
             for i, inter in enumerate(inters):
                 for j, reaction in enumerate(MKM_RXNS_COPY):
                     if inter in reaction.stoic.keys():
@@ -1180,21 +1189,29 @@ class ReactionNetwork:
                                 delta = reaction.e_rxn[0]
                             else:
                                 delta = reaction.e_act[0]
-                            new_graph.add_edge(inter, 
+                            g.add_edge(inter, 
                                         reaction.code, 
                                         rate=abs(results["consumption_rate"][i, j]), 
                                         delta=delta, 
                                         weight=1/abs(results["consumption_rate"][i, j]))
                         else:  # Reaction j produces inter i (v,r > 0 or v,r<0)
-                            new_graph.add_edge(reaction.code, 
+                            g.add_edge(reaction.code, 
                                         inter, 
                                         rate=abs(results["consumption_rate"][i, j]), 
                                         delta=-(reaction.e_act[0] - reaction.e_rxn[0]), 
                                         weight=1/abs(results["consumption_rate"][i, j]))
-            new_graph.remove_node("*")                    
-            # if any({reaction.r_type == "PCET" for reaction in self.reactions}):
-            #     new_graph = self.gen_electro_graph(new_graph)
-            results["run_graph"] = new_graph
+            for species in ELECTRO_INTERS:
+                g.add_node(species, category="intermediate", phase='electro', nC=species['C'], nH=species['H'], nO=species['O'])
+            for j, reaction in enumerate(MKM_RXNS_COPY):
+                if reaction.r_type == "PCET":
+                    for i, inter in enumerate(ELECTRO_INTERS):
+                        if inter in reaction.components[0]:
+                            g.add_edge(inter.code, reaction.code, rate=0, delta=0, weight=0)
+                        if inter.code in reaction.components[1]:
+                            g.add_edge(reaction.code, inter.code, rate=0, delta=0, weight=0)
+            g.remove_node("*")                    
+            
+            results["run_graph"] = g
             results["inters"] = inters
             results["gas_mask"] = gas_mask
             results['y0'] = y0

@@ -45,6 +45,7 @@ def gen_graph(inters: dict[str, Intermediate],
                 nC=inter["C"],
                 nH=inter["H"],
                 nO=inter["O"],
+                closed_shell=inter.closed_shell,
             )
 
         graph.add_node(
@@ -55,9 +56,10 @@ def gen_graph(inters: dict[str, Intermediate],
             nC=0,
             nH=0,
             nO=0,
+            closed_shell=False,
         )
 
-        for reaction in rxns:
+        for idx, reaction in enumerate(rxns):
             r_type = (
                 reaction.r_type
                 if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
@@ -67,14 +69,26 @@ def gen_graph(inters: dict[str, Intermediate],
                 reaction.code,
                 category="reaction",
                 r_type=r_type,
+                r=reaction.r_type,
+                idx=idx
             )
 
             for inter in reaction.components[0]:
-                graph.add_edge(inter.code, reaction.code)
+                if inter.phase in ("solv", "electro"):
+                    if not graph.has_node(inter.code):
+                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    graph.add_edge(inter.code, reaction.code, dir='in')
+                else:
+                    graph.add_edge(inter.code, reaction.code, dir='in')
             for inter in reaction.components[1]:
-                graph.add_edge(reaction.code, inter.code)  #TODO: add electrochemistry
+                if inter.phase in ("solv", "electro"):
+                    if not graph.has_node(inter.code):
+                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                    graph.add_edge(reaction.code, inter.code, dir='out')
+                else:
+                    graph.add_edge(reaction.code, inter.code, dir='out')
 
-        return graph
+        return graph       
 
 
 def max_flux(graph: nx.DiGraph, source: str) -> list:

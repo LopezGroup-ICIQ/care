@@ -330,7 +330,6 @@ class DifferentialPFR(ReactorModel):
         Main.J_sparsity = self.jac_sparsity
         Main.eval("""
         using DifferentialEquations
-        using SparseArrays
         using SciPyDiffEq
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         """)
@@ -339,29 +338,30 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            # println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
         f = ODEFunction(ode_pfr!)            
                   """)
         Main.eval("""
-        prob = ODEProblem(f, y0, (0.0, 1e6), p)
+        prob = ODEProblem(f, y0, (0.0, 1e8), p)
         """)
+        # Main.eval("""
+        # function condition(u, t, integrator)
+        #     du = similar(u)
+        #     ode_pfr!(du, u, integrator.p, t)
+        #     sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
+        #     println(t,"    ", sum_abs_du)
+        #     return sum_abs_du <= sstol
+        # end
+
+        # function affect!(integrator)
+        #     println(t,"    ", sum_abs_du)
+        #     terminate!(integrator)
+        # end        
+        # """)
         Main.eval("""
-        function condition(u, t, integrator)
-            du = similar(u)
-            ode_pfr!(du, u, integrator.p, t)
-            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-            return sum_abs_du - sstol  # The condition is met when this is 0 or negative
-        end
-        """)
-        Main.eval("""
-        function affect!(integrator)
-            terminate!(integrator)
-        end
-        cb = ContinuousCallback(condition, affect!)""")
-        Main.eval("""
+        # cb = DiscreteCallback(condition, affect!)
         sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
