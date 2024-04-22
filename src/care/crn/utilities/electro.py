@@ -34,8 +34,6 @@ class Proton(Intermediate):
     def __str__(self) -> str:
         return "Proton(H+)"
 
-
-
 class Hydroxide(Intermediate):
     """
     Hydroxide species (OH-)  

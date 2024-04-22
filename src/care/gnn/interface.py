@@ -37,7 +37,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
     def retrieve_from_db(self, intermediate: Intermediate, mol_type: str) -> bool:
         """
-        Check if the intermediate is already in the database.
+        Check if the intermediate is in the DFT database and in affirmative case, update the intermediate
+        with the most stable configuration.
 
         Parameters
         ----------
@@ -52,18 +53,15 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             True if the intermediate is in the database, False otherwise.
         """
 
-        nC = intermediate["C"]
-        nH = intermediate["H"]
-        nO = intermediate["O"]
+        inchikey = intermediate.code[:-1]  # remove the phase
         metal = self.surface.metal if mol_type == "int" else "N/A"
         hkl = self.surface.facet if mol_type == "int" else "N/A"
         metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if mol_type == "int" else "N/A"
 
-        conf_type = "dft"
-        stable_conf = []
-        max = np.inf
-        for row in self.dft_db.select(f'calc_type=int,metal={metal},facet={metal_struct},C={nC},H={nH},O={nO},N=0,S=0'):
+        stable_conf, max = [], np.inf
+        for row in self.dft_db.select(f'calc_type=int,metal={metal},facet={metal_struct},inchikey={inchikey}'):
             atoms_object = row.toatoms()
+
             if not atoms_object:
                 return False
 
@@ -72,21 +70,17 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 positions=[
                     atom.position for atom in atoms_object if atom.symbol in INTER_ELEMS],
             )
+
             if not len(adsorbate):
                 return False
 
-            # Generating the graph of the adsorbate
-            adsorbate_graph = atoms_to_graph(adsorbate)
-
-            # isomorphism check
-            if nx.is_isomorphic(intermediate.graph, adsorbate_graph, node_match=lambda x, y: x["elem"] == y["elem"]):
-                if row.get("scaled_energy") < max:
-                    stable_conf.append([atoms_object, row.get("scaled_energy")])
-                    max = row.get("scaled_energy")
+            if row.get("scaled_energy") < max:
+                stable_conf.append([atoms_object, row.get("scaled_energy")])
+                max = row.get("scaled_energy")
         
         if len(stable_conf):
-            intermediate.ads_configs = {f"{conf_type}": {"ase": stable_conf[0][0], "pyg": atoms_to_data(
-                stable_conf[0][0], self.model.graph_params), "mu": stable_conf[0][1], "s": 0}}
+            intermediate.ads_configs = {f"dft": {"ase": stable_conf[-1][0], "pyg": atoms_to_data(
+                stable_conf[-1][0], self.model.graph_params), "mu": stable_conf[-1][1], "s": 0}}
             return True
         return False    
 
@@ -106,58 +100,57 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         None
             Updates the Intermediate object with the estimated energy.
         """
-        if intermediate.is_surface:
+
+        if intermediate.phase == "gas":
+            if self.dft_db:
+                in_db = self.retrieve_from_db(intermediate, "gas")
+
+            if (not in_db) or (not self.dft_db):
+                config = intermediate.molecule
+                with no_grad():
+                    pyg = atoms_to_data(config, self.model.graph_params)
+                    y = self.model(pyg)
+                    intermediate.ads_configs = {
+                        "gas": {
+                            "ase": config,
+                            "pyg": pyg,
+                            "mu": (
+                                y.mean * self.model.y_scale_params["std"]
+                                + self.model.y_scale_params["mean"]
+                            ).item(),  # eV
+                            "s": (
+                                y.scale * self.model.y_scale_params["std"]
+                            ).item(),  # eV
+                        }
+                    }
+        elif intermediate.phase == 'surf':
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
+        else:
+            if self.dft_db:
+                in_db = self.retrieve_from_db(intermediate, "int")
 
-        # elif intermediate.phase == "gas":
-        #     if self.dft_db:
-        #         in_db = self.retrieve_from_db(intermediate, "gas")
+            if (not in_db) or (not self.dft_db):
+                config_list = ads_placement(intermediate, self.surface)
 
-        #     if (not in_db) or (not self.dft_db):
-            config = intermediate.molecule
-            with no_grad():
-                pyg = atoms_to_data(config, self.model.graph_params)
-                y = self.model(pyg)
-                intermediate.ads_configs = {
-                    "gas": {
-                        "ase": config,
-                        "pyg": pyg,
-                        "mu": (
+                counter, ads_config_dict = 0, {}
+                for config in config_list:
+                    with no_grad():
+                        ads_config_dict[f"{counter}"] = {}
+                        ads_config_dict[f"{counter}"]["ase"] = config
+                        ads_config_dict[f"{counter}"]["pyg"] = (
+                            atoms_to_data(config, self.model.graph_params)
+                        )
+                        y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
+                        ads_config_dict[f"{counter}"]["mu"] = (
                             y.mean * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
-                        ).item(),  # eV
-                        "s": (
+                        ).item()  # eV
+                        ads_config_dict[f"{counter}"]["s"] = (
                             y.scale * self.model.y_scale_params["std"]
-                        ).item(),  # eV
-                    }
-                }
-        else:
-            # if self.dft_db:
-            #     in_db = self.retrieve_from_db(intermediate, "int")
-
-            # if (not in_db) or (not self.dft_db):
-            config_list = ads_placement(intermediate, self.surface)
-
-            counter = 0
-            ads_config_dict = {}
-            for config in config_list:
-                with no_grad():
-                    ads_config_dict[f"{counter}"] = {}
-                    ads_config_dict[f"{counter}"]["ase"] = config
-                    ads_config_dict[f"{counter}"]["pyg"] = (
-                        atoms_to_data(config, self.model.graph_params)
-                    )
-                    y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
-                    ads_config_dict[f"{counter}"]["mu"] = (
-                        y.mean * self.model.y_scale_params["std"]
-                        + self.model.y_scale_params["mean"]
-                    ).item()  # eV
-                    ads_config_dict[f"{counter}"]["s"] = (
-                        y.scale * self.model.y_scale_params["std"]
-                    ).item()  # eV
-                    counter += 1
+                        ).item()  # eV
+                        counter += 1
             # Getting only the top 3 most stable configurations
             ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:3])
             intermediate.ads_configs = ads_config_dict
@@ -331,22 +324,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         if "-" not in reaction.r_type:
             reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
             if reaction.r_type == "PCET":
-                # If reaction.e_rxn[0] < 0, reaction.e_act[0] == 0
                 if reaction.e_rxn[0] < 0:
                     reaction.e_act = 0.0, 0.0
                 else:
                     reaction.e_act = reaction.e_rxn[0], reaction.e_rxn[1]
-
-
-                # # Checking if the electron is in the reactants or products
-                # components = list(chain.from_iterable(reaction.components))
-                # for component in components:
-                #     if isinstance(component, (Proton, Water)):
-                #         stoic_electro = reaction.stoic[component.code]
-                # if self.pH <= 7:
-                #     reaction.e_act = max(0, reaction.e_act[0] - stoic_electro * (reaction.alpha * self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
-                # else:
-                #     reaction.e_act = max(0, reaction.e_act[0] - stoic_electro * (self.U + 2.3 * K_B * self.T * self.pH)), reaction.e_rxn[1]
         else: 
             reaction.e_act = (
                 reaction.e_ts[0] - reaction.e_is[0],
@@ -465,7 +446,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Estimate the reaction and the activation energies of a reaction step.
 
         Args:
-            reaction (ElementaryReaction): The ElementaryReaction.
+            reaction (ElementaryReaction): The elementary reaction.
         """
         with no_grad():
             self.calc_reaction_energy(reaction)
