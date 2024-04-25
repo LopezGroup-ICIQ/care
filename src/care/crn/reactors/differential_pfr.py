@@ -106,6 +106,7 @@ class DifferentialPFR(ReactorModel):
     ) -> np.ndarray:
         dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
         dydt[self.gas_mask] = 0.0
+        print(_)
         return dydt
 
     def jacobian(
@@ -201,6 +202,7 @@ class DifferentialPFR(ReactorModel):
         rtol: float,
         atol: float,
         sstol: float,
+        tfin: float,
     ) -> dict:
         """
         Integrate the ODE system until steady-state conditions are reached.
@@ -224,17 +226,24 @@ class DifferentialPFR(ReactorModel):
             The integration is stopped when the sum of the absolute values of the derivatives is below
             the tolerance parameter `sstol`.
         """
+
+        TFIN = tfin if tfin else 1e6
+
         if solver == "Julia":
             results = {}
-            results["y"] = self.integrate_jl(y0, rtol=rtol, atol=atol, sstol=sstol)
-            results["status"] = 1
-        else:
+            try:
+                results["y"] = self.integrate_jl(y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN)
+                results["status"] = 1
+            except Exception as e:
+                print(f"Error: {e}")
+                results["status"] = 0
+        else:            
             self.sum_ddt = []
             self.sstol = sstol
             time0 = time()
-            ode_events = [self.steady_state, self.gas_change_event]
+            ode_events = [self.steady_state, self.gas_change_event] if sstol else [self.gas_change_event]
             results = solve_ivp(self.ode,
-                                (0, 1e8),  
+                                (0, TFIN),  
                                 y0,
                                 method="BDF",
                                 events=ode_events,
@@ -302,6 +311,9 @@ class DifferentialPFR(ReactorModel):
         """
         Yield of reactant i towards product j.
         By definition, yield is 0 due to infinitesimal volume of the reactor.
+
+        Note:
+            the method is called yyield to avoid conflicts with the yield keyword in Python.
         """
         X = self.conversion(reactant_idx)
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
@@ -311,7 +323,8 @@ class DifferentialPFR(ReactorModel):
                      y0: np.ndarray, 
                      rtol: float, 
                      atol: float,
-                     sstol: float) -> np.ndarray:
+                     sstol: float, 
+                     tfin: float) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver.
         """
@@ -328,6 +341,7 @@ class DifferentialPFR(ReactorModel):
         Main.rtol = rtol
         Main.sstol = sstol
         Main.J_sparsity = self.jac_sparsity
+        Main.tfin = tfin
         Main.eval("""
         using DifferentialEquations
         using SciPyDiffEq
@@ -338,13 +352,14 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
+            println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
         f = ODEFunction(ode_pfr!)            
-                  """)
+        """)
         Main.eval("""
-        prob = ODEProblem(f, y0, (0.0, 1e8), p)
+        prob = ODEProblem(f, y0, (0, 1e6), p)
         """)
         # Commented part for event handling (still not implemented for scipy stuff)
         # Main.eval("""
@@ -352,19 +367,17 @@ class DifferentialPFR(ReactorModel):
         #     du = similar(u)
         #     ode_pfr!(du, u, integrator.p, t)
         #     sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-        #     println(t,"    ", sum_abs_du)
         #     return sum_abs_du <= sstol
         # end
 
         # function affect!(integrator)
-        #     println(t,"    ", sum_abs_du)
+        #     println("STEADY-STATE CONDITIONS REACHED!")
         #     terminate!(integrator)
         # end   
         # cb = DiscreteCallback(condition, affect!)     
-        # """)
+        # """)  
         Main.eval(""" 
-        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol) 
+        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol)
         """)
         Main.eval("sol = Array(sol[end])")
-        solution = Main.sol
-        return solution
+        return Main.sol

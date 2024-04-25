@@ -6,8 +6,10 @@ from rdkit import Chem
 from numba import njit, cuda
 import math
 from networkx.algorithms import shortest_path
+from sklearn.linear_model import LinearRegression
 
 from care import ElementaryReaction, Intermediate
+from care.constants import R
 
 
 def iupac_to_inchikey(iupac_name: str) -> str:
@@ -76,14 +78,14 @@ def gen_graph(inters: dict[str, Intermediate],
             for inter in reaction.components[0]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                        graph.add_node(inter.code, category="intermediate", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
                     graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
                 else:
                     graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
             for inter in reaction.components[1]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
+                        graph.add_node(inter.code, category="intermediate", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
                     graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
                 else:
                     graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
@@ -213,3 +215,27 @@ def get_all_paths(g: nx.Graph, source:str):
             products_dict[formula] = path
             print(f"Found path leading from {source} to {formula}")
     return products_dict
+
+
+def calc_eapp(t, r, gas_mask):
+    """
+    Evaluates the apparent activation energy for all the species whose formation rate is higher than zero.
+    Args:
+        temperature_vector(ndarray): Array containing the studied temperature range in Kelvin
+        reaction_rate_vector(ndarray): Array containing the reaction rate at different temperatures
+    Returns:
+        Apparent reaction energy in kJ/mol at the specified temperature.
+    """
+    x = 1 / t
+    eapp = np.zeros(len(gas_mask))
+    for i , inter in enumerate(gas_mask):
+        Eapp = - (R / 1000.0)
+        if inter and np.all(r[:, i] > 0):
+            lm = LinearRegression()      
+            reg = lm.fit(x.reshape(-1, 1), np.log(r[:, i]).reshape(-1, 1))
+            Eapp *= reg.coef_[0, 0]  # kJ/mol
+            eapp[i] = Eapp
+        else:
+            eapp[i] = None          
+    return eapp
+

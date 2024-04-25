@@ -52,7 +52,7 @@ class Hydroxide(Intermediate):
     
 class Water(Intermediate):
     """
-    Water species (H2O)  
+    Water solvent species (H2O)
     """
     def __init__(self):
         super().__init__(code="H2O(aq)", molecule=Atoms('H2O', positions=[(0, 0, 0), (0.96, 0, 0), (0.48, 0.83, 0)]), phase='solv')
