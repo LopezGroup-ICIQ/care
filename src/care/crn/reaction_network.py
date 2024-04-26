@@ -1054,8 +1054,8 @@ class ReactionNetwork:
                     gas_mask = np.append(gas_mask, True)
                     num_inerts += 1
                     inerts.append(key)
-                    inters.append(key)
-                    inters_formula.append(key) 
+                    # inters.append(key)
+                    # inters_formula.append(key) 
             for key in sorted_dict_keys:
                 for i, inter in enumerate(inters_formula):
                     if inter == key and gas_mask[i] == True:
@@ -1111,7 +1111,7 @@ class ReactionNetwork:
                 reactor_plus = DifferentialPFR(v, kf_plus, kr_plus, gas_mask, inters, P, T + DELTA)
                 reactor_minus = DifferentialPFR(v, kf_minus, kr_minus, gas_mask, inters, P, T - DELTA)
             print(reactor)         
-            RTOL, ATOL, SSTOL = 1e-12, 1e-32, ss_tol
+            RTOL, ATOL, SSTOL = 1e-8, 1e-20, ss_tol
             RTOL_MIN, ATOL_MIN = 1e-16, 1e-40
             count_atol_increase = 0
             status = None
@@ -1214,7 +1214,7 @@ class ReactionNetwork:
                 t_vec = np.array([T - DELTA, T, T + DELTA])
                 r_vec = np.array([r_minus, r, r_plus])
                 results['eapp'] = calc_eapp(t_vec, r_vec, gas_mask)
-                for i, inter in enumerate(gas_mask):
+                for i, inter in enumerate(gas_mask[:-1]):
                     if inter:
                         print(f"{inters_formula[i]}: {results['eapp'][i]}")
             print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(RTOL, ATOL, SSTOL))

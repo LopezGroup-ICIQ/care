@@ -227,8 +227,8 @@ def calc_eapp(t, r, gas_mask):
         Apparent reaction energy in kJ/mol at the specified temperature.
     """
     x = 1 / t
-    eapp = np.zeros(len(gas_mask))
-    for i , inter in enumerate(gas_mask):
+    eapp = np.zeros(len(gas_mask[:-1]))
+    for i , inter in enumerate(gas_mask[:-1]):
         Eapp = - (R / 1000.0)
         if inter and np.all(r[:, i] > 0):
             lm = LinearRegression()      

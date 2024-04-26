@@ -359,25 +359,25 @@ class DifferentialPFR(ReactorModel):
         f = ODEFunction(ode_pfr!)            
         """)
         Main.eval("""
-        prob = ODEProblem(f, y0, (0, 1e6), p)
+        prob = ODEProblem(f, y0, (0, tfin), p)
         """)
         # Commented part for event handling (still not implemented for scipy stuff)
-        # Main.eval("""
-        # function condition(u, t, integrator)
-        #     du = similar(u)
-        #     ode_pfr!(du, u, integrator.p, t)
-        #     sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-        #     return sum_abs_du <= sstol
-        # end
+        Main.eval("""
+        function condition(u, t, integrator)
+            du = similar(u)
+            ode_pfr!(du, u, integrator.p, t)
+            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
+            return sum_abs_du <= sstol
+        end
 
-        # function affect!(integrator)
-        #     println("STEADY-STATE CONDITIONS REACHED!")
-        #     terminate!(integrator)
-        # end   
-        # cb = DiscreteCallback(condition, affect!)     
-        # """)  
+        function affect!(integrator)
+            println("STEADY-STATE CONDITIONS REACHED!")
+            terminate!(integrator)
+        end   
+        cb = DiscreteCallback(condition, affect!)     
+        """)  
         Main.eval(""" 
-        sol = solve(prob, SciPyDiffEq.BDF(), abstol=atol, reltol=rtol)
+        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
         """)
         Main.eval("sol = Array(sol[end])")
         return Main.sol
