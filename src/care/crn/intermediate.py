@@ -1,8 +1,9 @@
 from typing import Union
 from io import StringIO
+import numpy as np
 
 from ase import Atom, Atoms
-from ase.io import write
+from ase.io import read, write
 from networkx import Graph, cycle_basis
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -111,6 +112,8 @@ class Intermediate:
             txt = self.code + "({}*)".format(self.formula)
         elif self.phase == "solv":
             txt = self.code + "({}(aq))".format(self.formula)
+        elif self.phase == "electro":
+            txt = self.code + "({}(electro))".format(self.formula)
         else:
             txt = self.code + "({}(g))".format(self.formula)
         return txt
@@ -296,30 +299,46 @@ class Intermediate:
         rdkit_molecule = Chem.AddHs(
             rdkit_molecule
         )  # Add hydrogens if not already added
-        AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
 
-        # Get the number of atoms in the molecule
-        num_atoms = rdkit_molecule.GetNumAtoms()
+        num_C = sum([1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"])
+        num_O = sum([1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"])
+        num_conformers = 50 * num_C + 10 * num_O
 
-        # Initialize lists to store positions and symbols
-        positions = []
-        symbols = []
+        # If the molecule has more than 1 atom, generate multiple conformers and optimize them
+        if rdkit_molecule.GetNumAtoms() > 2:
+            AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers)
+            confs = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule)
+            conf_energies = [item[1] for item in confs]
+            lowest_conf = int(np.argmin(conf_energies))
+            xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule,confId=lowest_conf)
+            
+            # Generating the ASE atoms object from the XYZ coordinates string
+            ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
+        else:
+            AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
 
-        # Extract atomic positions and symbols
-        for atom_idx in range(num_atoms):
-            atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
-            atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
-            positions.append(atom_position)
-            symbols.append(atom_symbol)
+            # Get the number of atoms in the molecule
+            num_atoms = rdkit_molecule.GetNumAtoms()
 
-        # Create an ASE Atoms object
-        ase_atoms = Atoms(
-            [
-                Atom(symbol=symbol, position=position)
-                for symbol, position in zip(symbols, positions)
-            ]
-        )
-        # Setting pbc to True
+            # Initialize lists to store positions and symbols
+            positions = []
+            symbols = []
+
+            # Extract atomic positions and symbols
+            for atom_idx in range(num_atoms):
+                atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
+                atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
+                positions.append(atom_position)
+                symbols.append(atom_symbol)
+
+            # Create an ASE Atoms object
+            ase_atoms = Atoms(
+                [
+                    Atom(symbol=symbol, position=position)
+                    for symbol, position in zip(symbols, positions)
+                ]
+            )
+
         ase_atoms.set_pbc(True)
 
         return ase_atoms

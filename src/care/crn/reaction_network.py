@@ -421,7 +421,7 @@ class ReactionNetwork:
         graph.remove_node("*")        
         return graph
     
-    def set_electro(self, pH: float) -> None:
+    def set_electro(self) -> None:
         """
         Adjust the elementary reactions of the CRN according to the 
         computational hydrogen electrode (CHE) formalism.
@@ -436,50 +436,41 @@ class ReactionNetwork:
         None
         """
 
-        h2o_gas = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'H2O' and intermediate.phase == 'gas'][0]
         oh_code = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'HO'][0].code
+        h_ads = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'H' and intermediate.phase == 'ads'][0]
         surface_inter = Intermediate(code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
-        for reaction in self.reactions:
-            if reaction.r_type in ("C-H", "H-O"):
+        self.add_reactions([ElementaryReaction(
+            components=[[Proton(), Electron(), surface_inter], [h_ads]],
+            r_type='PCET'
+        )])
 
+        for reaction in self.reactions:
+            # if reaction.r_type in ("C-H", "H-O"):
+            if reaction.r_type == "H-O":
                 reactants = [inter for inter in reaction.reactants]
                 products = [inter for inter in reaction.products]
 
                 new_reactants, new_products = [], []
                 for reactant in reactants:
-                    if reactant.is_surface:
-                        if pH <= 7:
-                            continue
-                        else:
-                            new_reactants.append(Hydroxide())
-                    elif reactant.formula == 'H':
-                        if pH <= 7:
-                            new_reactants.append(Proton())
-                            new_reactants.append(Electron())
-                        else:
-                            new_reactants.append(Water())
-                            new_reactants.append(Electron())
+                    if reactant.formula == 'H':
+                        new_reactants.append(Proton())
+                        new_reactants.append(Electron())
                     else:
                         if not reactant.is_surface:
                             new_reactants.append(reactant)
                 for product in products:
-                    if product.is_surface:
-                        if pH <= 7:
-                            continue
-                        else:
-                            new_reactants.append(Hydroxide())
-                    elif product.formula == 'H':
-                        if pH <= 7:
-                            new_products.append(Proton())
-                            new_products.append(Electron())
-                        else:
-                            new_products.append(Water())
-                            new_products.append(Electron())
+                    if product.formula == 'H':
+                        new_products.append(Proton())
+                        new_products.append(Electron())
                     else:
                         if not product.is_surface:
                             new_products.append(product)
-                
+
+                # self.add_reactions([ElementaryReaction(
+                #     components=[new_reactants, new_products],
+                #     r_type='PCET',
+                # )])
                 reaction.components = [new_reactants, new_products]
                 reaction.reactants = new_reactants
                 reaction.products = new_products
@@ -497,43 +488,35 @@ class ReactionNetwork:
                             for reactant in reaction.reactants:
                                 if reactant.is_surface:
                                     new_reactants.append(Electron())
-                                    if pH <= 7:
-                                        new_reactants.append(Proton())
-                                    else:
-                                        new_reactants.append(Water())
+                                    new_reactants.append(Proton())
+
                                 elif reactant.formula == 'HO':
-                                    if pH <= 7:
-                                        new_reactants.append(h2o_gas)
-                                        new_reactants.append(surface_inter)
-                                    else:
-                                        new_reactants.append(h2o_gas)
-                                        new_reactants.append(Hydroxide())
+                                    new_reactants.append(Water())
                                 else:
                                     new_reactants.append(reactant)
                             for product in reaction.products:
                                 if product.is_surface:
                                     new_products.append(Electron())
-                                    if pH <= 7:
-                                        new_products.append(Proton())
-                                    else:
-                                        new_products.append(Water())
+                                    new_products.append(Proton())
+
                                 elif product.formula == 'HO':
-                                    if pH <= 7:
-                                        new_products.append(h2o_gas)
-                                    else:
-                                        new_products.append(h2o_gas)
-                                        new_products.append(Hydroxide()) 
+                                    new_products.append(Water())
+
                                     if len(reaction.products) == 1:
                                         new_products.append(surface_inter)
                                 else:
                                     new_products.append(product)
 
-                            reaction.components = [new_reactants, new_products]
-                            reaction.reactants = new_reactants
-                            reaction.products = new_products
-                            reaction.r_type = "PCET"
-                            reaction.stoic = reaction.solve_stoichiometry()
-                            reaction.code = reaction.__repr__()
+                            self.add_reactions([ElementaryReaction(
+                                components=[new_reactants, new_products],
+                                r_type='PCET'
+                            )])
+                            # reaction.components = [new_reactants, new_products]
+                            # reaction.reactants = new_reactants
+                            # reaction.products = new_products
+                            # reaction.r_type = "PCET"
+                            # reaction.stoic = reaction.solve_stoichiometry()
+                            # reaction.code = reaction.__repr__()
             else:
                 pass
 
@@ -874,12 +857,8 @@ class ReactionNetwork:
             MKM_GRAPH = deepcopy(self.graph) 
             
             if self.type == "electrochemical":
-                if PH <= 7:
-                    ELECTRO_SPECIES = [Proton().code, Electron().code]
-                    ELECTRO_INTERS = [Proton(), Electron()]
-                else:
-                    ELECTRO_SPECIES = [Water().code, Hydroxide().code, Electron().code]
-                    ELECTRO_INTERS = [Water(), Hydroxide(), Electron()]
+                ELECTRO_SPECIES = [Proton().code, Electron().code, Water().code]
+                ELECTRO_INTERS = [Proton(), Electron(), Water()]
             else:
                 ELECTRO_SPECIES, ELECTRO_INTERS = [], []
 

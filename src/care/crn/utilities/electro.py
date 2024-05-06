@@ -61,7 +61,7 @@ class Water(Intermediate):
         self.mass = 2.991e-26  # kg
         self.electrons = 0
         self.charge = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self.formula = 'H2O(aq)'
+        self.formula = 'H2O'
 
     def __str__(self) -> str:
         return "Water(H2O)"
