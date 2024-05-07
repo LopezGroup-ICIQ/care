@@ -467,16 +467,17 @@ class ReactionNetwork:
                         if not product.is_surface:
                             new_products.append(product)
 
-                # self.add_reactions([ElementaryReaction(
-                #     components=[new_reactants, new_products],
-                #     r_type='PCET',
-                # )])
-                reaction.components = [new_reactants, new_products]
-                reaction.reactants = new_reactants
-                reaction.products = new_products
-                reaction.r_type = "PCET"
-                reaction.stoic = reaction.solve_stoichiometry()
-                reaction.code = reaction.__repr__()
+                self.add_reactions([ElementaryReaction(
+                    components=[new_reactants, new_products],
+                    r_type='PCET',
+                )])
+
+                # reaction.components = [new_reactants, new_products]
+                # reaction.reactants = new_reactants
+                # reaction.products = new_products
+                # reaction.r_type = "PCET"
+                # reaction.stoic = reaction.solve_stoichiometry()
+                # reaction.code = reaction.__repr__()
 
             elif reaction.r_type in ("C-O", "O-O"):
                 for component_set in reaction.components:

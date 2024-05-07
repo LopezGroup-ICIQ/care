@@ -151,8 +151,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                             y.scale * self.model.y_scale_params["std"]
                         ).item()  # eV
                         counter += 1
-                # Getting only the top 3 most stable configurations
-                ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:3])
+                # Getting only the top 10 most stable configurations
+                ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
                 intermediate.ads_configs = ads_config_dict
         return intermediate
 
@@ -202,8 +202,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         config["s"]
                         for config in self.intermediates[H2O_gas.code].ads_configs.values()
                     ] 
-                    e_min_config = min(energy_list)
-                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    # e_min_config = min(energy_list)
+                    # s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = np.mean(energy_list)
+                    s_min_config = np.mean(s_list)
                     mu_is += (
                         abs(reaction.stoic[reactant.code])
                         * e_min_config
@@ -222,8 +224,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         config["s"]
                         for config in self.intermediates[H2_gas.code].ads_configs.values()
                     ] 
-                    e_min_config = min(energy_list)
-                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    # e_min_config = min(energy_list)
+                    # s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = np.mean(energy_list)
+                    s_min_config = np.mean(s_list)
                     mu_is += (
                         abs(reaction.stoic[reactant.code])
                         * e_min_config
@@ -264,8 +268,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         config["s"]
                         for config in self.intermediates[H2O_gas.code].ads_configs.values()
                     ]  
-                    e_min_config = min(energy_list)
-                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    # e_min_config = min(energy_list)
+                    # s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = np.mean(energy_list)
+                    s_min_config = np.mean(s_list)
                     mu_fs += (
                         abs(reaction.stoic[product.code])
                         * e_min_config
@@ -284,8 +290,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         config["s"]
                         for config in self.intermediates[H2_gas.code].ads_configs.values()
                     ]  
-                    e_min_config = min(energy_list)
-                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    # e_min_config = min(energy_list)
+                    # s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = np.mean(energy_list)
+                    s_min_config = np.mean(s_list)
                     mu_fs += (
                         abs(reaction.stoic[product.code])
                         * e_min_config
@@ -303,8 +311,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                         config["s"]
                         for config in self.intermediates[product.code].ads_configs.values()
                     ]                    
-                    e_min_config = min(energy_list)
-                    s_min_config = s_list[energy_list.index(e_min_config)]
+                    # e_min_config = min(energy_list)
+                    # s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = np.mean(energy_list)
+                    s_min_config = np.mean(s_list)
                     mu_fs += (
                         abs(reaction.stoic[product.code])
                         * e_min_config
@@ -316,11 +326,25 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             reaction.e_is = mu_is, var_is**0.5
             reaction.e_fs = mu_fs, var_fs**0.5
             components = list(chain.from_iterable(reaction.components))
+            stoic_CO2 = None
             for component in components:
                 if isinstance(component, Electron):
                     stoic_electro = reaction.stoic[component.code]
+                
+                # If there is CO2* or OCCO* in the reaction, get its stoichiometric coefficient
+                if component.code == "CURLTUGMZLYLDI-UHFFFAOYSA-N*" or component.code == "FONOSWYYBCBQGN-UHFFFAOYSA-N*":
+                    stoic_CO2 = reaction.stoic[component.code]
+                else:
+                    if stoic_CO2 or stoic_CO2 != None:
+                        continue
+                    else:
+                        stoic_CO2 = None
 
-            reaction.e_rxn = mu_fs - mu_is - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH), (var_fs + var_is) ** 0.5
+            if stoic_electro:
+                if stoic_CO2:
+                    reaction.e_rxn = mu_fs - mu_is - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH) + stoic_CO2 * self.U, (var_fs + var_is) ** 0.5
+                else:
+                    reaction.e_rxn = mu_fs - mu_is - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH), (var_fs + var_is) ** 0.5
             
         else:
             for reactant in reaction.reactants:
@@ -336,6 +360,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 ]
                 e_min_config = min(energy_list)
                 s_min_config = s_list[energy_list.index(e_min_config)]
+                # e_min_config = np.mean(energy_list)
+                # s_min_config = np.mean(s_list)
                 mu_is += (
                     abs(reaction.stoic[reactant.code])
                     * e_min_config
@@ -357,6 +383,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 ]
                 e_min_config = min(energy_list)
                 s_min_config = s_list[energy_list.index(e_min_config)]
+                # e_min_config = np.mean(energy_list)
+                # s_min_config = np.mean(s_list)
                 mu_fs += (
                     abs(reaction.stoic[product.code])
                     * e_min_config
@@ -367,7 +395,19 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 )
             reaction.e_is = mu_is, var_is**0.5
             reaction.e_fs = mu_fs, var_fs**0.5
-            reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
+            components = list(chain.from_iterable(reaction.components))
+            stoic_CO2 = None
+            for component in components:
+                if component.code == "CURLTUGMZLYLDI-UHFFFAOYSA-N*" or component.code == "FONOSWYYBCBQGN-UHFFFAOYSA-N*":
+                    stoic_CO2 = reaction.stoic[component.code]
+                    break
+                else:
+                    stoic_CO2 = None
+            
+            if stoic_CO2:
+                reaction.e_rxn = mu_fs - mu_is + stoic_CO2 * self.U, (var_fs + var_is) ** 0.5
+            else:
+                reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, 
                               reaction: ElementaryReaction) -> None:
