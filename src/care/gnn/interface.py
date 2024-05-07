@@ -395,17 +395,20 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 )
             reaction.e_is = mu_is, var_is**0.5
             reaction.e_fs = mu_fs, var_fs**0.5
-            components = list(chain.from_iterable(reaction.components))
-            stoic_CO2 = None
-            for component in components:
-                if component.code == "CURLTUGMZLYLDI-UHFFFAOYSA-N*" or component.code == "FONOSWYYBCBQGN-UHFFFAOYSA-N*":
-                    stoic_CO2 = reaction.stoic[component.code]
-                    break
+            if self.U != None:
+                components = list(chain.from_iterable(reaction.components))
+                stoic_CO2 = None
+                for component in components:
+                    if component.code == "CURLTUGMZLYLDI-UHFFFAOYSA-N*" or component.code == "FONOSWYYBCBQGN-UHFFFAOYSA-N*":
+                        stoic_CO2 = reaction.stoic[component.code]
+                        break
+                    else:
+                        stoic_CO2 = None
+                
+                if stoic_CO2:
+                    reaction.e_rxn = mu_fs - mu_is + stoic_CO2 * self.U, (var_fs + var_is) ** 0.5
                 else:
-                    stoic_CO2 = None
-            
-            if stoic_CO2:
-                reaction.e_rxn = mu_fs - mu_is + stoic_CO2 * self.U, (var_fs + var_is) ** 0.5
+                    reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
             else:
                 reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
 

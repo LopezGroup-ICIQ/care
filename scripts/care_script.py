@@ -99,8 +99,6 @@ def main():
                               ncc=ncc, 
                               noc=noc, 
                               type=crn_type)
-        print(crn)
-
         if electrochem:
             crn.set_electro()
         print(crn)
@@ -114,6 +112,7 @@ def main():
 
         # 2.1.1. Intermediate energy estimation
         print(" Energy estimation of the intermediates...")
+
         intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -134,7 +133,6 @@ def main():
         # Create empty folder to store temp results
         tmp_folder = tempfile.mkdtemp()
         _, tmp_file = tempfile.mkstemp(suffix='.pkl', dir=tmp_folder)
-
 
         with Progress() as progress:
             task = progress.add_task(
@@ -198,21 +196,13 @@ def main():
 
     # 4. Running MKM
     if config['mkm']['run']:
-        mkm_uq = config['mkm']['uq']
-        thermo = config['mkm']['thermo']
-        if mkm_uq:
-            uq_samples = config['mkm']['uq_samples']
-        else:
-            uq_samples = 0
-
-        oc = {'T': T, 'P': P, 'U': U, 'pH': PH}
-
         print("\nRunning the microkinetic simulation...") 
         target_prods = ['CO', 'H2O', 'CH4O', 'CH4', 'CO2', 'C2H4', 'C2H6', 'C2H6O', 'C3H8', 'C3H6', 'C3H8O', 'H2']
-        results = crn.run_microkinetic(config['initial_conditions'],
-                                       oc,
-                                       uq=mkm_uq,
-                                       thermo=thermo,
+        results = crn.run_microkinetic(iv=config['initial_conditions'],
+                                       oc={'T': T, 'P': P, 'U': U, 'pH': PH},
+                                       uq=config['mkm']['uq'],
+                                       nruns= config['mkm']['uq_samples'],
+                                       thermo=config['mkm']['thermo'],
                                        solver=config['mkm']['solver'], 
                                        barrier_threshold=config['mkm'].get('barrier_threshold'), 
                                        ss_tol=config['mkm']['ss_tol'],

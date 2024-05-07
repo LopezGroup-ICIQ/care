@@ -352,7 +352,7 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            println(t,"    ", sum(abs.(du)))
+            # println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
