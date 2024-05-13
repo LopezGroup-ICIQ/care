@@ -181,9 +181,10 @@ def main():
                               reactions=reactions, 
                               surface=surface, 
                               ncc=ncc, 
-                              noc=noc, 
+                              noc=noc,
+                              oc={'T': T, 'P': P, 'U': U, 'pH': PH},
                               type=crn_type)
-
+        
         print("\nSaving the CRN...")
         with open(f"{output_dir}/crn.pkl", "wb") as f:
             dump(crn, f)
@@ -197,7 +198,6 @@ def main():
     # 4. Running MKM
     if config['mkm']['run']:
         print("\nRunning the microkinetic simulation...") 
-        target_prods = ['CO', 'H2O', 'CH4O', 'CH4', 'CO2', 'C2H4', 'C2H6', 'C2H6O', 'C3H8', 'C3H6', 'C3H8O', 'H2']
         results = crn.run_microkinetic(iv=config['initial_conditions'],
                                        oc={'T': T, 'P': P, 'U': U, 'pH': PH},
                                        uq=config['mkm']['uq'],
@@ -207,8 +207,8 @@ def main():
                                        barrier_threshold=config['mkm'].get('barrier_threshold'), 
                                        ss_tol=config['mkm']['ss_tol'],
                                        tfin=config['mkm']['tfin'], 
-                                       eapp=config['mkm']['eapp'],
-                                       target_products=target_prods)
+                                       eapp=config['mkm']['eapp'],)
+        
         print("\nSaving the microkinetic simulation...")
 
         with open(f"{output_dir}/mkm.pkl", "wb") as f:
