@@ -14,8 +14,8 @@ from torch_geometric.data import Data
 from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption.adsorbate_placement import ads_placement
 from care.constants import METAL_STRUCT_DICT, INTER_ELEMS, K_B
-from care.crn.utilities.electro import Proton, Electron, Hydroxide, Water
-from care.crn.utilities.species import atoms_to_graph
+from care.crn.utils.electro import Proton, Electron, Hydroxide, Water
+from care.crn.utils.species import atoms_to_graph
 from care.gnn import load_model
 from care.gnn.graph import atoms_to_data
 from care.gnn.graph_filters import extract_adsorbate

@@ -12,12 +12,11 @@ import time
 import sys
 sys.path.append('../src')
 
-from ase import Atoms
 from ase.db import connect
 
 from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, Surface, ReactionNetwork, Intermediate
 from care.constants import LOGO, METAL_STRUCT_DICT
-from care.crn.utilities.chemspace import gen_chemical_space
+from care.crn.utils.chemspace import gen_chemical_space
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 
@@ -57,13 +56,12 @@ def main():
     # Loading parameters
     ncc = config['chemspace']['ncc']
     noc = config['chemspace']['noc']   
-
     cyclic = config['chemspace']['cyclic']  
     additional_rxns = config['chemspace']['additional']
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
 
-    # Loading surface from database
+    # Load surface from database
     metal_db = connect(os.path.abspath(DB_PATH))
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     surface_ase = metal_db.get_atoms(

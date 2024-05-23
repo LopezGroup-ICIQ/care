@@ -16,7 +16,7 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import rdMolDescriptors
 
 from care import ElementaryReaction, Intermediate
-from care.crn.utilities.species import (add_oxygens, gen_alkanes, gen_epoxides,
+from care.crn.utils.species import (add_oxygens, gen_alkanes, gen_epoxides,
                                         gen_ethers)
 
 warnings.filterwarnings("ignore")
@@ -504,7 +504,7 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
 
 def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
     """
-    Check for two molecules if there are potential hydrogen rearrangements.
+    Check if two molecules have potential hydrogen rearrangements.
 
     Parameters
     ----------
@@ -679,23 +679,22 @@ def gen_rearrangement_reactions(
     intermediates: dict[str, Intermediate]
 ) -> list[ElementaryReaction]:
     """
-    Generate the 1,2-rearrangement reactions involving hydrogens of the reaction network as ElementaryReaction instances.
+    Generate the (1,2)-H shift rearrangement reactions.
 
     Parameters
     ----------
     intermediates : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, and each value is the corresponding Intermediate instance.
+        Dictionary containing the Intermediate instances of the chemical space of the reaction network.
+        Each key is the InChIKey of the molecule, and values are the corresponding Intermediate instance.
 
     Returns
     -------
-    rearrangement_rxns : list[ElementaryReaction]
-        List of all the rearrangement reactions of the reaction network as ElementaryReaction instances.
+    list[ElementaryReaction]
+        List of the rearrangement reactions of the reaction network.
     """
 
     ads_inters = [inter for inter in intermediates.values() if inter.phase == "ads"]
 
-    # Group intermediates by chemical formula
     formula_groups = group_by_formula(ads_inters)
 
     # Dictionary to store pairs for each subgroup
@@ -743,16 +742,13 @@ def gen_rearrangement_reactions(
                     processed_items += 1
                     progress.update(task, advance=1)
 
-    # Combine the results from all chunks
-    rearrangement_rxns = [rxn for sublist in result_async.get() for rxn in sublist]
-
-    return rearrangement_rxns
+    return [rxn for sublist in result_async.get() for rxn in sublist]
 
 
 def gen_chemical_space(
     ncc: int, noc: int, cyclic: bool, additional_rxns: bool) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    Generate the entire chemical space for the given boundaries (ncc and noc) of the CRN.
+    Generate the CRN chemical space for the given boundaries (ncc and noc).
 
     Parameters
     ----------

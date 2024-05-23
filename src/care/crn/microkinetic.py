@@ -71,7 +71,7 @@ def gen_graph(inters: dict[str, Intermediate],
                 reaction.code,
                 category="reaction",
                 r_type=r_type,
-                r=reaction.r_type,
+                rr=reaction.r_type,
                 idx=idx
             )
 

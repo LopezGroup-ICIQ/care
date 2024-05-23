@@ -16,7 +16,7 @@ from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
 from care.constants import CORDERO, METALS, ADSORBATE_ELEMS
-from care.crn.utilities.species import atoms_to_graph
+from care.crn.utils.species import atoms_to_graph
 from care.gnn.graph_filters import (C_filter, H_filter, fragment_filter)
 
 

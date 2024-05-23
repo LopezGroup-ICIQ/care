@@ -176,7 +176,10 @@ class DifferentialPFR(ReactorModel):
         print(f"Time: {t}    Sum_ddt: {sum_ddt}    Gas_ddt: {abssum_ddt_gas}    Gas_sum: {Py_gas}")
         self.time.append(t)
         self.sum_ddt.append(sum_ddt)
-        return 0 if sum_ddt <= self.sstol else 1
+        if sum_ddt <= self.sstol:
+            print("STEADY-STATE CONDITIONS REACHED!")
+            return 0
+        return 1
 
     steady_state.terminal = True
     steady_state.direction = 0
@@ -324,7 +327,8 @@ class DifferentialPFR(ReactorModel):
                      rtol: float, 
                      atol: float,
                      sstol: float, 
-                     tfin: float) -> np.ndarray:
+                     tfin: float, 
+                     gpu: bool=False) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver.
         """
@@ -342,9 +346,20 @@ class DifferentialPFR(ReactorModel):
         Main.sstol = sstol
         Main.J_sparsity = self.jac_sparsity
         Main.tfin = tfin
+        Main.gpu = gpu
         Main.eval("""
         using DifferentialEquations
-        using SciPyDiffEq
+        # GPU section
+        if gpu
+            using CUDA, DiffEqGPU            
+            y0 = CuArray{Float64}(y0)
+            v = CuArray{Int8}(v)
+            vf = CuArray{Int8}(vf)
+            vb = CuArray{Int8}(vb)
+            kd = CuArray{Float64}(kd)
+            kr = CuArray{Float64}(kr)
+            gas_mask = CuArray{Bool}(gas_mask)
+        end
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         """)
         Main.eval("""
@@ -352,7 +367,7 @@ class DifferentialPFR(ReactorModel):
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
-            # println(t,"    ", sum(abs.(du)))
+            println(t,"    ", sum(abs.(du)))
         end
         """)
         Main.eval("""
@@ -361,7 +376,6 @@ class DifferentialPFR(ReactorModel):
         Main.eval("""
         prob = ODEProblem(f, y0, (0, tfin), p)
         """)
-        # Commented part for event handling (still not implemented for scipy stuff)
         Main.eval("""
         function condition(u, t, integrator)
             du = similar(u)

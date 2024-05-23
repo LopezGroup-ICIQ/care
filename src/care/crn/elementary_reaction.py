@@ -7,7 +7,7 @@ from torch_geometric.data import Data
 
 from care import Intermediate
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
-from care.crn.utilities.electro import Electron, Proton, Hydroxide, Water
+from care.crn.utils.electro import Electron, Proton, Hydroxide, Water
 
 class ElementaryReaction:
     """Class for representing elementary reactions.
@@ -185,6 +185,9 @@ class ElementaryReaction:
 
     def __getitem__(self, key):
         pass
+
+    def __iter__(self):
+        return iter(list(self.reactants) + list(self.products))
 
     def __add__(self, other) -> "ElementaryReaction":
         """

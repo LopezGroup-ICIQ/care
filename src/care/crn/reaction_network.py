@@ -1,11 +1,8 @@
-import re
-
-from shutil import rmtree
 from typing import Union
+from collections import defaultdict
 from copy import deepcopy
 
 import networkx as nx
-import networkx.algorithms.isomorphism as iso
 import numpy as np
 import pandas as pd
 from ase import Atoms
@@ -13,16 +10,15 @@ from ase.visualize import view
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, H
-from care.crn.utilities.electro import Electron, Proton, Hydroxide, Water
+from care.crn.utils.electro import Electron, Proton, Water
 from care.crn.reactors import DifferentialPFR
-from care.crn.visualize import visualize_reaction, write_dotgraph_undir
-from care.crn.microkinetic import max_flux, gen_graph, calc_eapp
+from care.crn.visualize import visualize_reaction
+from care.crn.microkinetic import gen_graph, calc_eapp
 
 
 class ReactionNetwork:
     """
-    Reaction network class for representing a network of surface reactions
-    starting from the Intermediate and ElementaryReaction objects.
+    Base class for surface reaction networks.
 
     Attributes:
         intermediates (dict of obj:`Intermediate`): Dictionary containing the
@@ -119,6 +115,7 @@ class ReactionNetwork:
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: {}\n".format(self.ncc)
         string += "Network Oxygen cutoff: {}\n".format(self.noc)
+        string += "Type: {}\n".format(self.type)
         return string
 
     def __repr__(self):
@@ -297,15 +294,20 @@ class ReactionNetwork:
         )
         print(f"Number of reactions before: {num_rxns_0}, after: {len(self.reactions)}")
 
-    def add_reactions(self, rxn_lst: list[ElementaryReaction]) -> None:
+    def add_reactions(self, rxns: Union[list[ElementaryReaction], ElementaryReaction]) -> None:
         """
         Add elementary reactions to the network.
 
         Args:
-            rxn_lst (list of obj:`ElementaryReaction`): List containing the
-                elementary reactions.
+            rxns (list of obj:`ElementaryReaction` or obj:`ElementaryReaction`): List
+                containing the elementary reactions that will be added to the network.
         """
-        self.reactions += rxn_lst
+        if isinstance(rxns, list):
+            self.reactions += rxns
+        elif isinstance(rxns, ElementaryReaction):
+            self.reactions.append(rxns)
+        else:
+            raise TypeError("rxns must be a list of ElementaryReaction or ElementaryReaction")
 
     def del_reactions(self, rxn_lst: list[str]) -> None:
         """
@@ -399,7 +401,7 @@ class ReactionNetwork:
                 reaction.code,
                 category="reaction",
                 r_type=r_type,
-                r=reaction.r_type,
+                rr=reaction.r_type,
                 idx=idx,
             )
 
@@ -421,105 +423,77 @@ class ReactionNetwork:
         graph.remove_node("*")        
         return graph
     
-    def set_electro(self) -> None:
+    def set_electro(self, 
+                    substitute: bool=False) -> None:
         """
-        Adjust the elementary reactions of the CRN according to the 
+        Add elementary reactions according to the 
         computational hydrogen electrode (CHE) formalism.
-
-        Parameters:
-        ----------
-        pH: float
-            pH of the system.
-
-        Returns:
-        -------
-        None
         """
 
         oh_code = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'HO'][0].code
         h_ads = [intermediate for intermediate in self.intermediates.values() if intermediate.formula == 'H' and intermediate.phase == 'ads'][0]
-        surface_inter = Intermediate(code='*', molecule=Atoms(), phase='surf', is_surface=True)
+        active_site = Intermediate(code='*', molecule=Atoms(), phase='surf', is_surface=True)
 
         self.add_reactions([ElementaryReaction(
-            components=[[Proton(), Electron(), surface_inter], [h_ads]],
+            components=[[Proton(), Electron(), active_site], [h_ads]],
             r_type='PCET'
-        )])
+        )])  # H+ + e- + * -> H*
 
-        for reaction in self.reactions:
-            # if reaction.r_type in ("C-H", "H-O"):
-            if reaction.r_type == "H-O":
-                reactants = [inter for inter in reaction.reactants]
-                products = [inter for inter in reaction.products]
+        idxs_to_remove = []
 
-                new_reactants, new_products = [], []
-                for reactant in reactants:
+        for idx, rxn in enumerate(self.reactions):
+            new_reactants, new_products = [], []
+            if rxn.r_type in ('H-O', 'C-H'):                
+                for reactant in rxn.reactants:
                     if reactant.formula == 'H':
-                        new_reactants.append(Proton())
-                        new_reactants.append(Electron())
+                        new_reactants.extend([Proton(), Electron()])
                     else:
                         if not reactant.is_surface:
                             new_reactants.append(reactant)
-                for product in products:
+                for product in rxn.products:
                     if product.formula == 'H':
-                        new_products.append(Proton())
-                        new_products.append(Electron())
+                        new_products.extend([Proton(), Electron()])
                     else:
                         if not product.is_surface:
                             new_products.append(product)
 
-                self.add_reactions([ElementaryReaction(
+                self.add_reactions(ElementaryReaction(
                     components=[new_reactants, new_products],
-                    r_type='PCET',
-                )])
+                    r_type='PCET'))
+                if substitute:
+                    idxs_to_remove.append(idx)                
 
-                # reaction.components = [new_reactants, new_products]
-                # reaction.reactants = new_reactants
-                # reaction.products = new_products
-                # reaction.r_type = "PCET"
-                # reaction.stoic = reaction.solve_stoichiometry()
-                # reaction.code = reaction.__repr__()
-
-            elif reaction.r_type in ("C-O", "O-O"):
-                for component_set in reaction.components:
-                    if oh_code in [component.code for component in component_set]:
-                        if len(reaction.products) == 1:
-                                continue
+            elif rxn.r_type in ("C-O", "O-O"):
+                if oh_code in [inter.code for inter in rxn]:             
+                    for reactant in rxn.reactants:
+                        if reactant.is_surface:
+                            new_reactants.extend([Electron(), Proton()])
+                        elif reactant.formula == 'HO':
+                            new_reactants.append(Water())
                         else:
-                            new_reactants, new_products = [], []
-                            for reactant in reaction.reactants:
-                                if reactant.is_surface:
-                                    new_reactants.append(Electron())
-                                    new_reactants.append(Proton())
+                            new_reactants.append(reactant)
+                    for product in rxn.products:
+                        if product.is_surface:
+                            new_products.extend([Electron(), Proton()])
+                        elif product.formula == 'HO':
+                            new_products.append(Water())
+                        else:
+                            new_products.append(product)
 
-                                elif reactant.formula == 'HO':
-                                    new_reactants.append(Water())
-                                else:
-                                    new_reactants.append(reactant)
-                            for product in reaction.products:
-                                if product.is_surface:
-                                    new_products.append(Electron())
-                                    new_products.append(Proton())
-
-                                elif product.formula == 'HO':
-                                    new_products.append(Water())
-
-                                    if len(reaction.products) == 1:
-                                        new_products.append(surface_inter)
-                                else:
-                                    new_products.append(product)
-
-                            self.add_reactions([ElementaryReaction(
-                                components=[new_reactants, new_products],
-                                r_type='PCET'
-                            )])
-                            # reaction.components = [new_reactants, new_products]
-                            # reaction.reactants = new_reactants
-                            # reaction.products = new_products
-                            # reaction.r_type = "PCET"
-                            # reaction.stoic = reaction.solve_stoichiometry()
-                            # reaction.code = reaction.__repr__()
+                    self.add_reactions(ElementaryReaction(
+                        components=[new_reactants, new_products],
+                        r_type='PCET'
+                    ))
+                    if substitute:
+                        idxs_to_remove.append(idx)
+                else:
+                    continue
             else:
                 pass
+
+        if substitute:
+            for idx in idxs_to_remove:
+                self.reactions.pop(idx)
 
     def search_reaction(
         self,
@@ -775,7 +749,6 @@ class ReactionNetwork:
                 of reactions in which they are involved, sorted in descending
                 order.
         """
-        from collections import defaultdict
         hubs = defaultdict(int)
         for reaction in self.reactions:
             for inter_code in reaction.stoic.keys():
@@ -1184,7 +1157,7 @@ class ReactionNetwork:
                             if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
                             else "surface_reaction"
                         )
-                        g.add_node(reaction.code, category="reaction", r_type=r_type, r = reaction.r_type, idx=i,
+                        g.add_node(reaction.code, category="reaction", r_type=r_type, rr = reaction.r_type, idx=i,
                                     rate = abs(results["net_rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
                     else:
                         g.nodes[reaction.code]["rate"] = results["net_rate"][i]

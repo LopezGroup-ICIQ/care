@@ -9,7 +9,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
-from care.crn.utilities.species import (atoms_to_graph,
+from care.crn.utils.species import (atoms_to_graph,
                                         get_voronoi_neighbourlist, 
                                         get_fragment_energy)
 
