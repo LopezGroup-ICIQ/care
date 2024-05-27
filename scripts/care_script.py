@@ -85,21 +85,20 @@ def main():
     # 0. Check if the CRN already exists
     if (not os.path.exists(crn_path)) or (config['chemspace']['regen'] == True):
 
-        # 1. Generate the chemical space (chemical spieces and reactions)
+        # 1. Generate CRN blueprint
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
         
         intermediates, reactions = gen_chemical_space(
-            ncc, noc, cyclic, additional_rxns)
+            ncc, noc, cyclic, additional_rxns, electrochem)
         crn = ReactionNetwork(intermediates=intermediates, 
                               reactions=reactions, 
                               surface=surface, 
                               ncc=ncc, 
                               noc=noc, 
                               type=crn_type)
-        if electrochem:
-            crn.set_electro()
         print(crn)
+        quit()
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 2. Evaluation of the chemical space
