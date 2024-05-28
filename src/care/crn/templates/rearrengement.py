@@ -1,3 +1,7 @@
+"""Module containing functions to generate (1,2)-H shift
+rearrangement reactions."""
+
+
 from collections import defaultdict
 from itertools import combinations
 import multiprocessing as mp
@@ -18,8 +22,8 @@ def gen_rearrangement_reactions(
     Parameters
     ----------
     intermediates : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of the chemical space of the reaction network.
-        Each key is the InChIKey of the molecule, and values are the corresponding Intermediate instance.
+        Dictionary containing the intermediates of the reaction network.
+        Each key is the InChIKey of the molecule, and values are the corresponding Intermediate instances.
 
     Returns
     -------
@@ -207,7 +211,7 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
         True if the molecules are the same constitutional isomers, False otherwise
     """
 
-    # Saturating the molecules
+    # Saturate the molecules
     mol1_smiles = re.sub(r"[H]([0-9]){0,1}", "", mol1_smiles)
     mol2_smiles = re.sub(r"[H]([0-9]){0,1}", "", mol2_smiles)
     mol1_smiles = mol1_smiles.replace("[", "").replace("]", "")
@@ -216,7 +220,6 @@ def are_same_isomer(mol1_smiles: str, mol2_smiles: str) -> bool:
     mol1_sat = Chem.MolFromSmiles(mol1_smiles)
     mol2_sat = Chem.MolFromSmiles(mol2_smiles)
 
-    # Check if molecular formulas are the same
     formula1 = rdMolDescriptors.CalcMolFormula(mol1_sat)
     formula2 = rdMolDescriptors.CalcMolFormula(mol2_sat)
 

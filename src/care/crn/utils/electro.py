@@ -1,3 +1,5 @@
+"""Module containing charged species and solvent for electrocatalysis simulations."""
+
 from care import Intermediate
 from ase import Atoms
 
@@ -65,3 +67,19 @@ class Water(Intermediate):
 
     def __str__(self) -> str:
         return "Water(H2O)"
+    
+class Cation(Intermediate):
+    """
+    Cation species (e.g. K+, Na+, Li+)
+    """
+    def __init__(self, metal: str, charge: int):
+        super().__init__(code=f"{metal}+", molecule=Atoms(metal, positions=[(0, 0, 0)]), phase='solv')
+        self.is_surface = False
+        self.closed_shell = False
+        self.mass = 1.6726219e-27  # kg
+        self.electrons = 0
+        self.charge = charge  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self.formula = f"{metal}" + "+" * charge
+
+    def __str__(self) -> str:
+        return f"{self.code}({self.formula})"

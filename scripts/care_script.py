@@ -16,12 +16,11 @@ from ase.db import connect
 
 from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, Surface, ReactionNetwork, Intermediate
 from care.constants import LOGO, METAL_STRUCT_DICT
-from care.crn.utils.chemspace import gen_chemical_space
+from care.crn.utils.blueprint import gen_blueprint
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 
 lock = mp.Lock()
-
 
 def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progress_queue, f_path):
     """
@@ -58,10 +57,12 @@ def main():
     noc = config['chemspace']['noc']   
     cyclic = config['chemspace']['cyclic']  
     additional_rxns = config['chemspace']['additional']
-    metal = config['surface']['metal']
-    hkl = config['surface']['hkl']
+    electrochem = config['chemspace']['electro']
+    crn_type = "electrochemical" if electrochem else "thermal"
 
     # Load surface from database
+    metal = config['surface']['metal']
+    hkl = config['surface']['hkl']
     metal_db = connect(os.path.abspath(DB_PATH))
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     surface_ase = metal_db.get_atoms(
@@ -69,8 +70,6 @@ def main():
     surface = Surface(surface_ase, hkl)
 
     # Electrochemical parameters
-    electrochem = config['chemspace']['electro']
-    crn_type = "electrochemical" if electrochem else "thermal"
     PH = config['operating_conditions']['pH'] if electrochem else None
     U = config['operating_conditions']['U'] if electrochem else None
     T = config['operating_conditions']['temperature'] 
@@ -87,23 +86,21 @@ def main():
 
         # 1. Generate CRN blueprint
         print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} Chemical Space  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
         
-        intermediates, reactions = gen_chemical_space(
+        intermediates, reactions = gen_blueprint(
             ncc, noc, cyclic, additional_rxns, electrochem)
         crn = ReactionNetwork(intermediates=intermediates, 
-                              reactions=reactions, 
-                              surface=surface, 
+                              reactions=reactions,  
                               ncc=ncc, 
                               noc=noc, 
                               type=crn_type)
         print(crn)
-        quit()
-        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Chemical Space generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 2. Evaluation of the chemical space
         print(
-            f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} Chemical Space on {metal}({hkl}) ━━━━━━━━━━━┓\n")
+            f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
         # 2.1. Adsorbate placement and energy estimation
 

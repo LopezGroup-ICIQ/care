@@ -149,6 +149,8 @@ ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16}
 
 INTER_ELEMS = ["C", "H", "O", "*", "q"]
 
+BOND_TYPES = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
+
 INTER_PHASES = ["gas", "ads", "surf", "solv", "electro"]
 
 COORD_DICT = {

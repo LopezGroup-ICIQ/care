@@ -1,7 +1,9 @@
+"""Module containing functions to generate adsorption reactions."""
+
 import multiprocessing as mp
 
 from ase import Atoms
-import numpy as np
+from numpy import array_split
 from rich.progress import Progress
 
 from care import ElementaryReaction, Intermediate
@@ -33,14 +35,11 @@ def gen_adsorption_reactions(
         Atoms(), code="*", is_surface=True, phase="surf"
     )
 
-    # Retrieving the intermediates that are in gas phase
     gas_intermediates = [
         inter for inter in intermediates.values() if inter.phase == "gas"
     ]
 
-    # Splitting the intermediates into chunks
-    inter_chunks = np.array_split(gas_intermediates, num_processes)
-
+    inter_chunks = array_split(gas_intermediates, num_processes)
 
     manager_ads_rxn = mp.Manager()
     progress_queue_rxn = manager_ads_rxn.Queue()
@@ -83,7 +82,7 @@ def gen_adsorption_reactions(
     return adsorption_steps
 
 
-def format_description(description, width=45):
+def format_description(description: str, width: int=45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 
@@ -106,12 +105,12 @@ def process_ads_react_chunk(
     adsorption_steps : list[ElementaryReaction]
         List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
     """
-    adsorption_steps = []
+    adsorptions = []
     for inter in inter_chunk:
         ads_inter = Intermediate.from_molecule(
             inter.molecule, code=inter.code[:-1] + "*", phase="ads"
         )
-        adsorption_steps.append(
+        adsorptions.append(
             ElementaryReaction(
                 components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
                 r_type="adsorption",
@@ -119,4 +118,4 @@ def process_ads_react_chunk(
         )
 
     progress_queue.put(1)
-    return adsorption_steps
+    return adsorptions
