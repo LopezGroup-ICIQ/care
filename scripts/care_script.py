@@ -46,6 +46,7 @@ def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progres
 
 def main():
     total_time = time.time()
+    
     # Load configuration file
     with open("template.toml", "r") as f:
         config = toml.load(f)
@@ -87,24 +88,18 @@ def main():
         # 1. Generate CRN blueprint
         print(
             f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n")
+                
+        intermediates, reactions = gen_blueprint(ncc, noc, cyclic, additional_rxns, electrochem)
         
-        intermediates, reactions = gen_blueprint(
-            ncc, noc, cyclic, additional_rxns, electrochem)
-        crn = ReactionNetwork(intermediates=intermediates, 
-                              reactions=reactions,  
-                              ncc=ncc, 
-                              noc=noc, 
-                              type=crn_type)
-        print(crn)
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
-        # 2. Evaluation of the chemical space
+        # 2. Evaluation of the intermediates in the CRN
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
         # 2.1. Adsorbate placement and energy estimation
 
-        # 2.1.1. Intermediate energy estimation
+        # 2.1.1. Intermediate evaluator
         print(" Energy estimation of the intermediates...")
 
         intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
@@ -149,7 +144,7 @@ def main():
                 except EOFError:
                     break
 
-        # 2.1.2. Reaction energy estimation
+        # 2.1.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
         rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
 

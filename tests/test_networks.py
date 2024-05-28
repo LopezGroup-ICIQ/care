@@ -5,13 +5,11 @@ import sys
 sys.path.append('../src/')
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
-from care.crn.utils.chemspace import gen_chemical_space
+from care.crn.utils.blueprint import gen_blueprint
 from care.constants import INTER_ELEMS
 
-inters, steps = gen_chemical_space(3, 1, True)
-net = ReactionNetwork()
-net.add_intermediates(inters)
-net.add_reactions(steps)
+inters, steps = gen_blueprint(3, 2, False, True, True)
+net = ReactionNetwork(inters, steps, type='electrochemical')
 
 class TestElementaryReaction(unittest.TestCase):
 
