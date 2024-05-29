@@ -61,14 +61,8 @@ def main():
     electrochem = config['chemspace']['electro']
     crn_type = "electrochemical" if electrochem else "thermal"
 
-    # Load surface from database
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
-    metal_db = connect(os.path.abspath(DB_PATH))
-    metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
-    surface_ase = metal_db.get_atoms(
-        calc_type="surface", metal=metal, facet=metal_structure)
-    surface = Surface(surface_ase, hkl)
 
     # Electrochemical parameters
     PH = config['operating_conditions']['pH'] if electrochem else None
@@ -101,16 +95,22 @@ def main():
 
         # 2.1.1. Intermediate evaluator
         print(" Energy estimation of the intermediates...")
+        
+        # Load the surface        
+        metal_db = connect(os.path.abspath(DB_PATH))
+        metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
+        surface_ase = metal_db.get_atoms(
+        calc_type="surface", metal=metal, facet=metal_structure)
+        surface = Surface(surface_ase, hkl)
 
         intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
-
         manager = mp.Manager()
         progress_queue = manager.Queue()
-
         num_cpu = mp.cpu_count()
+        
         if len(intermediates) < 10000:
             chunk_size = 1
             tasks = [[intermediate] for intermediate in intermediates.values()]
@@ -119,7 +119,7 @@ def main():
             tasks = [list(intermediates.values())[i:i + chunk_size]
                      for i in range(0, len(intermediates), chunk_size)]
 
-        # Create empty folder to store temp results
+        # Create empty folder to store tmp results
         tmp_folder = tempfile.mkdtemp()
         _, tmp_file = tempfile.mkstemp(suffix='.pkl', dir=tmp_folder)
 

@@ -4,6 +4,7 @@ Chemical Space (CS) of the CRN."""
 from itertools import product
 
 from rich.progress import Progress
+from rdkit.Chem import MolToSmiles, MolFromSmiles
 from rdkit import Chem
 
 def format_description(description, width=45):
@@ -12,6 +13,8 @@ def format_description(description, width=45):
 
 def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
     """Generate Chemical Space of the CRN.
+    Chemical Space is the set of fully saturated hydrocarbons, ethers, epoxides, and alcohols species 
+    up to a given number of carbon and oxygen atoms.
 
     Args:
         ncc (int): Network Carbon Cutoff, maximum number of C atoms in the intermediates
@@ -121,13 +124,13 @@ def canonicalize_smiles(smiles_list: list[str], rmv_quatr_C: bool) -> list[str]:
     """
     canonical_smiles_set = set()
     for smiles in smiles_list:
-        mol = Chem.MolFromSmiles(smiles)
+        mol = MolFromSmiles(smiles)
         if mol is not None:
             # If the molecule contains a quaternary carbon, do not add it to the list
             if rmv_quatr_C:
                 if any(atom.GetDegree() == 4 for atom in mol.GetAtoms()):
                     continue
-            canonical_smiles = Chem.MolToSmiles(mol, isomericSmiles=False)
+            canonical_smiles = MolToSmiles(mol, isomericSmiles=False)
             canonical_smiles_set.add(canonical_smiles)
     return list(canonical_smiles_set)
 
@@ -152,7 +155,7 @@ def gen_alkanes(ncc: int) -> tuple[list[str], list[Chem.Mol]]:
     for i in range(1, ncc + 1):
         all_alkanes += generate_alkanes_recursive(i)
     unique_alkanes = canonicalize_smiles(all_alkanes, rmv_quatr_C=False)
-    mol_alkanes = [Chem.MolFromSmiles(smiles) for smiles in unique_alkanes]
+    mol_alkanes = [MolFromSmiles(smiles) for smiles in unique_alkanes]
     return unique_alkanes, mol_alkanes
 
 
@@ -195,12 +198,12 @@ def gen_epoxides(mol_alkanes: list, noc: int) -> list[str]:
                 c_pair[1].GetIdx(), oxygen_idx, order=Chem.rdchem.BondType.SINGLE
             )
             tmp_mol.UpdatePropertyCache()
-            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+            smiles = MolToSmiles(tmp_mol, canonical=True)
             epoxides.append(smiles)
     smiles_epoxides = list(set(epoxides))
 
     # Generating mol objects
-    mol_epoxides = [Chem.MolFromSmiles(smiles) for smiles in epoxides]
+    mol_epoxides = [MolFromSmiles(smiles) for smiles in epoxides]
     return smiles_epoxides, mol_epoxides
 
 
@@ -243,10 +246,10 @@ def gen_ethers(mol_alkanes: list, noc: int) -> tuple[list[str], list[Chem.Mol]]:
             # Delete the bond between the two carbon atoms
             tmp_mol.RemoveBond(c_pair[0].GetIdx(), c_pair[1].GetIdx())
             tmp_mol.UpdatePropertyCache()
-            smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+            smiles = MolToSmiles(tmp_mol, canonical=True)
             ethers.append(smiles)
     unique_ethers = list(set(ethers))
-    mol_ethers = [Chem.MolFromSmiles(smiles) for smiles in unique_ethers]
+    mol_ethers = [MolFromSmiles(smiles) for smiles in unique_ethers]
     return unique_ethers, mol_ethers
 
 
@@ -298,7 +301,7 @@ def add_oxygens(mol: Chem.Mol, noc: int) -> set[str]:
                 )
 
         tmp_mol.UpdatePropertyCache()
-        smiles = Chem.MolToSmiles(tmp_mol, canonical=True)
+        smiles = MolToSmiles(tmp_mol, canonical=True)
         unique_molecules.add(smiles)
 
     return unique_molecules

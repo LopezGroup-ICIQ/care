@@ -3,7 +3,7 @@ import multiprocessing as mp
 from ase import Atoms
 from rich.progress import Progress
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors, MolFromSmiles
+from rdkit.Chem import rdMolDescriptors, MolFromSmiles, MolToSmiles
 from rdkit.Chem.inchi import MolToInchiKey
 
 from care import ElementaryReaction, Intermediate
@@ -19,9 +19,13 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
         List of the SMILES strings of the molecules in the chemical space.
 
     Returns:
-        
+    --------
+    inters : dict[str, Intermediate]
+        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
+        Each key is the InChIKey of a molecule, and each value is the corresponding Intermediate instance.
+    rxns : list[ElementaryReaction]
+        List of the dissociation reactions of the reaction network as ElementaryReaction instances.        
     """
-    inters, rxns = {}, []
 
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()
     
@@ -48,22 +52,19 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
         for smiles in list(set(frag_list + chemical_space))
     ]
 
-    # Generating a dictionary where keys:InChIKeys and values: Chem.Mol molecule
-    rdkit_inters_dict = {}
-    for mol in all_mol_list:
-        # Generating the InChIKey for the molecule
-        inchikey = MolToInchiKey(mol)
-        rdkit_inters_dict[inchikey] = mol
+        
 
     # Generate the Intermediate objects
-    inters = gen_intermediates_dict(rdkit_inters_dict)
+    rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}
+    inters = gen_intermediates_dict(rdkit_inters)
     active_site = Intermediate.from_molecule(
         Atoms(), code="*", is_surface=True, phase="surf"
-    )
+    )  # dummy object for the active site
 
     with Progress() as progress:
         task_desc = format_description("[green]Processing ElementaryReactions...")
         task = progress.add_task(task_desc, total=len(unique_reactions))
+        rxns = []
 
         for reaction in unique_reactions:
             reactant = inters[
@@ -86,7 +87,7 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
             )
             progress.update(task, advance=1)
     
-    return inters, list(set(rxns))
+    return inters, rxns
 
 
 def format_description(description, width=45):
@@ -122,7 +123,7 @@ def is_desired_bond(bond: Chem.rdchem.Bond, z1: int, z2: int) -> bool:
     )
 
 
-def get_chemical_formula(smiles: str) -> str:
+def smiles2formula(smiles: str) -> str:
     """
     Get the chemical formula of a molecule
 
@@ -137,7 +138,7 @@ def get_chemical_formula(smiles: str) -> str:
         The chemical formula of the molecule
     """
 
-    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    mol = MolFromSmiles(smiles, sanitize=False)
     return rdMolDescriptors.CalcMolFormula(mol)
 
 
@@ -204,10 +205,10 @@ def process_molecule(
         processed fragments dictionary
     """
 
-    molecule = Chem.MolFromSmiles(smiles)
+    molecule = MolFromSmiles(smiles)
     molecule_with_H = Chem.AddHs(molecule)
 
-    original_smiles = Chem.MolToSmiles(
+    original_smiles = MolToSmiles(
         molecule_with_H, isomericSmiles=True, allHsExplicit=True
     )
     if original_smiles not in processed_fragments:
@@ -253,9 +254,9 @@ def break_bonds(
         and all the processed fragments are added to the processed fragments dictionary
     """
 
-    current_smiles = Chem.MolToSmiles(molecule,
-                                      isomericSmiles=True,
-                                      allHsExplicit=True)
+    current_smiles = MolToSmiles(molecule,
+                                 isomericSmiles=True,
+                                 allHsExplicit=True)
 
     if current_smiles in processed_molecules:
         return 0
@@ -272,7 +273,7 @@ def break_bonds(
                 frags = Chem.GetMolFrags(mol_copy, asMols=True, sanitizeFrags=False)
                 frag_smiles_list = []
                 for frag in frags:
-                    frag_smiles = Chem.MolToSmiles(
+                    frag_smiles = MolToSmiles(
                         frag, isomericSmiles=True, allHsExplicit=True
                     )
                     frag_smiles_list.append(frag_smiles)
@@ -281,7 +282,7 @@ def break_bonds(
                         processed_fragments[original_smiles].append(frag_smiles)
 
                     # Recursive call with the fragment as the new molecule
-                    frag_mol = Chem.MolFromSmiles(frag_smiles, sanitize=False)
+                    frag_mol = MolFromSmiles(frag_smiles, sanitize=False)
                     break_bonds(
                         frag_mol,
                         processed_fragments,
@@ -300,22 +301,18 @@ def break_bonds(
                         # Modify the fragment smiles list to have [H] instead of [HH]
                         frag_smiles_list[1] = "[H]"
 
-                reaction_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
+                rxn_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
 
                 # Check if the reaction tuple is unique
-                if reaction_tuple not in unique_reactions:
-                    r_type_atoms = sorted(
+                if rxn_tuple not in unique_reactions:
+                    bbtype = sorted(
                         [
                             Chem.Atom(Z_atom1).GetSymbol(),
                             Chem.Atom(Z_atom2).GetSymbol(),
                         ]
                     )
-
-                    r_type = f"{r_type_atoms[0]}-{r_type_atoms[1]}"
-
-                    # Extending the reaction tuple with the bond type
-                    reaction_type_tuple = (reaction_tuple[0], reaction_tuple[1], r_type)
-                    unique_reactions.add(reaction_type_tuple)
+                    
+                    unique_reactions.add((rxn_tuple[0], rxn_tuple[1], f"{bbtype[0]}-{bbtype[1]}"))
                     total_bond_counter += 1
 
         processed_molecules.add(current_smiles)
