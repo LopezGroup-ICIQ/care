@@ -91,15 +91,15 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # 2.1 Intermediate evaluator
-        print(" Energy estimation of the intermediates...")
-        
-        # Load the surface        
+        # Load catalyst surface        
         metal_db = connect(os.path.abspath(DB_PATH))
         metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
         surface_ase = metal_db.get_atoms(
         calc_type="surface", metal=metal, facet=metal_structure)
         surface = Surface(surface_ase, hkl)
+        
+        # 2.1 Intermediate evaluator
+        print(" Energy estimation of the intermediates...")        
 
         inter_evaluator = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
 

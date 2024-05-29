@@ -18,10 +18,6 @@ from torch_geometric.data import Data
 from care.constants import CORDERO, METALS, ADSORBATE_ELEMS
 from care.crn.utils.species import atoms_to_graph
 from care.gnn.graph_filters import (C_filter, H_filter, fragment_filter)
-from care.gnn.node_featurizers import (adsorbate_node_featurizer,
-                                           get_atom_valence, get_gcn,
-                                           get_magnetization,
-                                           get_radical_atoms)
 
 
 def get_voronoi_neighbourlist(atoms: Atoms, 
@@ -240,6 +236,7 @@ def atoms_to_data(
     Returns:
         graph (Data): PyG Data object.
     """
+    from care.gnn.node_featurizers import get_gcn
 
     if not isinstance(structure, Atoms):
         raise TypeError("Structure type must be ase.Atoms")
@@ -282,15 +279,15 @@ def atoms_to_data(
         raise ValueError("{}: Fragmented adsorbate.".format(formula))
 
     # NODE FEATURIZATION
-    if graph_params["features"]["adsorbate"]:
-        graph = adsorbate_node_featurizer(graph, ADSORBATE_ELEMS)
-    if graph_params["features"]["radical"]:
-        graph = get_radical_atoms(graph, ADSORBATE_ELEMS)
-    if graph_params["features"]["valence"]:
-        graph = get_atom_valence(graph, ADSORBATE_ELEMS)
+    # if graph_params["features"]["adsorbate"]:
+    #     graph = adsorbate_node_featurizer(graph, ADSORBATE_ELEMS)
+    # if graph_params["features"]["radical"]:
+    #     graph = get_radical_atoms(graph, ADSORBATE_ELEMS)
+    # if graph_params["features"]["valence"]:
+    #     graph = get_atom_valence(graph, ADSORBATE_ELEMS)
     if graph_params["features"]["gcn"]:
         graph = get_gcn(graph, structure, ADSORBATE_ELEMS, surf_atoms)
-    if graph_params["features"]["magnetization"]:
-        graph = get_magnetization(graph)
+    # if graph_params["features"]["magnetization"]:
+    #     graph = get_magnetization(graph)
 
     return graph
