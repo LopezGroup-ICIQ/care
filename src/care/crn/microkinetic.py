@@ -3,7 +3,7 @@
 import networkx as nx
 import numpy as np
 from rdkit import Chem
-from numba import njit, cuda
+from numba import njit
 import math
 from networkx.algorithms import shortest_path
 from sklearn.linear_model import LinearRegression

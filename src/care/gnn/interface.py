@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 
 from ase import Atoms
@@ -12,10 +11,9 @@ from torch_geometric.data import Data
 
 
 from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.adsorption.adsorbate_placement import ads_placement
-from care.constants import METAL_STRUCT_DICT, INTER_ELEMS, K_B
-from care.crn.utils.electro import Proton, Electron, Hydroxide, Water
-from care.crn.utils.species import atoms_to_graph
+from care.adsorption.adsorbate_placement import place_adsorbate
+from care import METAL_STRUCT_DICT, INTER_ELEMS, K_B
+from care.crn.utils.electro import Proton, Electron, Water
 from care.gnn import load_model
 from care.gnn.graph import atoms_to_data
 from care.gnn.graph_filters import extract_adsorbate
@@ -25,17 +23,28 @@ from care.gnn.graph_tools import pyg_to_nx
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(self,
                  model_path: str,
-                 surface: Surface = None,
+                 surface: Surface,
                  dft_db_path: Optional[str] = None):
+        """Interface for GAME-Net-UQ for intermediates.
+
+        Args:
+            model_path (str): Path to the GNN model. The path must contain 
+                (i) GNN.pth with model params, (ii) input.txt with model hyperparameters,
+                (iii) one_hot_encoder_elements.pth with one-hot encoder for elements, 
+                (iv) performance.txt with model performance metrics.      
+            surface (Surface, optional): Surface of interest.
+            dft_db_path (Optional[str], optional): Path to ASE database for retrieving
+                DFT data. Defaults to None.
+        """
 
         self.path = model_path
         self.model = load_model(model_path)
         self.device = "cuda" if cuda.is_available() else "cpu"
         self.model.to(self.device)
-        self.surface = surface if surface else None
+        self.surface = surface
         self.dft_db = connect(dft_db_path) if dft_db_path else None
 
-    def retrieve_from_db(self, intermediate: Intermediate, mol_type: str) -> bool:
+    def retrieve_from_db(self, intermediate: Intermediate) -> bool:
         """
         Check if the intermediate is in the DFT database and in affirmative case, update the intermediate
         with the most stable configuration.
@@ -44,8 +53,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         ----------
         intermediate : Intermediate
             The intermediate to evaluate.
-        mol_type : str
-            The type of molecule to look for in the database. "int" for adsorbates, "gas" for gas-phase molecules.
 
         Returns
         -------
@@ -53,10 +60,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             True if the intermediate is in the database, False otherwise.
         """
 
-        inchikey = intermediate.code[:-1]  # remove the phase
-        metal = self.surface.metal if mol_type == "int" else "N/A"
-        hkl = self.surface.facet if mol_type == "int" else "N/A"
-        metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if mol_type == "int" else "N/A"
+        inchikey = intermediate.code[:-1]  # del phase-identifier
+        phase = intermediate.phase
+        metal = self.surface.metal if phase == "ads" else "N/A"
+        hkl = self.surface.facet if phase == "ads" else "N/A"
+        metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if phase == "ads" else "N/A"
 
         stable_conf, max = [], np.inf
         for row in self.dft_db.select(f'calc_type=int,metal={metal},facet={metal_struct},inchikey={inchikey}'):
@@ -99,61 +107,62 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         -------
         None
             Updates the Intermediate object with the estimated energy.
+            Multiple adsorption configurations are stored in the ads_configs attribute.
         """
-
-        if intermediate.phase == "gas":
-            if self.dft_db:
-                in_db = self.retrieve_from_db(intermediate, "gas")
-
-            if (not in_db) or (not self.dft_db):
-                config = intermediate.molecule
-                with no_grad():
-                    pyg = atoms_to_data(config, self.model.graph_params)
-                    y = self.model(pyg)
-                    intermediate.ads_configs = {
-                        "gas": {
-                            "ase": config,
-                            "pyg": pyg,
-                            "mu": (
-                                y.mean * self.model.y_scale_params["std"]
-                                + self.model.y_scale_params["mean"]
-                            ).item(),  # eV
-                            "s": (
-                                y.scale * self.model.y_scale_params["std"]
-                            ).item(),  # eV
-                        }
-                    }
-        elif intermediate.phase == 'surf':
+        phase = intermediate.phase
+        
+        if phase == 'surf':
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
-        else:
+        elif phase in ("gas", "ads"):
             if self.dft_db:
-                in_db = self.retrieve_from_db(intermediate, "int")
+                in_db = self.retrieve_from_db(intermediate)
 
             if (not in_db) or (not self.dft_db):
-                config_list = ads_placement(intermediate, self.surface)
-
-                counter, ads_config_dict = 0, {}
-                for config in config_list:
+                if phase == 'gas':
+                    config = intermediate.molecule
                     with no_grad():
-                        ads_config_dict[f"{counter}"] = {}
-                        ads_config_dict[f"{counter}"]["ase"] = config
-                        ads_config_dict[f"{counter}"]["pyg"] = (
-                            atoms_to_data(config, self.model.graph_params)
-                        )
-                        y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
-                        ads_config_dict[f"{counter}"]["mu"] = (
-                            y.mean * self.model.y_scale_params["std"]
-                            + self.model.y_scale_params["mean"]
-                        ).item() # eV
-                        ads_config_dict[f"{counter}"]["s"] = (
-                            y.scale * self.model.y_scale_params["std"]
-                        ).item()  # eV
-                        counter += 1
-                # Getting only the top 10 most stable configurations
-                ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
-                intermediate.ads_configs = ads_config_dict
+                        pyg = atoms_to_data(config, self.model.graph_params)
+                        y = self.model(pyg)
+                        intermediate.ads_configs = {
+                            "gas": {
+                                "ase": config,
+                                "pyg": pyg,
+                                "mu": (
+                                    y.mean * self.model.y_scale_params["std"]
+                                    + self.model.y_scale_params["mean"]
+                                ).item(),  # eV
+                                "s": (
+                                    y.scale * self.model.y_scale_params["std"]
+                                ).item(),  # eV
+                            }
+                        }
+                else:
+                    config_list = place_adsorbate(intermediate, self.surface)
+                    counter, ads_config_dict = 0, {}
+                    for config in config_list:
+                        with no_grad():
+                            ads_config_dict[f"{counter}"] = {}
+                            ads_config_dict[f"{counter}"]["ase"] = config
+                            ads_config_dict[f"{counter}"]["pyg"] = (
+                                atoms_to_data(config, self.model.graph_params)
+                            )
+                            y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
+                            ads_config_dict[f"{counter}"]["mu"] = (
+                                y.mean * self.model.y_scale_params["std"]
+                                + self.model.y_scale_params["mean"]
+                            ).item()  # eV
+                            ads_config_dict[f"{counter}"]["s"] = (
+                                y.scale * self.model.y_scale_params["std"]
+                            ).item()  # eV
+                            counter += 1
+                    # Getting only the top 10 most stable configurations
+                    ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
+                    intermediate.ads_configs = ads_config_dict
+        else:
+            raise ValueError("Phase not supported.")
+        
         return intermediate
 
 

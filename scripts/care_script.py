@@ -87,13 +87,11 @@ def main():
         
         print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
-        # 2. Evaluation of the intermediates in the CRN
+        # 2. Evaluation of the adsorbed intermediates in the CRN
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # 2.1. Adsorbate placement and energy estimation
-
-        # 2.1.1. Intermediate evaluator
+        # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")
         
         # Load the surface        
@@ -103,7 +101,7 @@ def main():
         calc_type="surface", metal=metal, facet=metal_structure)
         surface = Surface(surface_ase, hkl)
 
-        intermediate_model = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
+        inter_evaluator = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
@@ -130,7 +128,7 @@ def main():
 
             with mp.Pool(num_cpu) as pool:
                 pool.starmap(evaluate_intermediate, [
-                            (task, intermediate_model, progress_queue, tmp_file) for task in tasks])
+                            (task, inter_evaluator, progress_queue, tmp_file) for task in tasks])
                 
                 while not progress_queue.empty():
                     progress.update(task, advance=progress_queue.get(), description=f" [green]Processing {processed_items}/{len(tasks)}...")
@@ -144,9 +142,9 @@ def main():
                 except EOFError:
                     break
 
-        # 2.1.2. Reaction evaluator
+        # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
-        rxn_model = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
+        rxn_evaluator = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
 
         eval_reactions = []
         with Progress() as progress:
@@ -154,7 +152,7 @@ def main():
                 " [green]Processing...", total=len(reactions))
             processed_items = 0
             for reaction in reactions:
-                eval_rxn = rxn_model.eval(reaction)
+                eval_rxn = rxn_evaluator.eval(reaction)
                 eval_reactions.append(eval_rxn)
                 processed_items += 1
                 progress.update(

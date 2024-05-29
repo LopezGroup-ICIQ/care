@@ -50,9 +50,7 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
     all_mol_list = [
         MolFromSmiles(smiles)
         for smiles in list(set(frag_list + chemical_space))
-    ]
-
-        
+    ]       
 
     # Generate the Intermediate objects
     rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}

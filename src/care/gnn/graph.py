@@ -18,6 +18,10 @@ from torch_geometric.data import Data
 from care.constants import CORDERO, METALS, ADSORBATE_ELEMS
 from care.crn.utils.species import atoms_to_graph
 from care.gnn.graph_filters import (C_filter, H_filter, fragment_filter)
+from care.gnn.node_featurizers import (adsorbate_node_featurizer,
+                                           get_atom_valence, get_gcn,
+                                           get_magnetization,
+                                           get_radical_atoms)
 
 
 def get_voronoi_neighbourlist(atoms: Atoms, 
@@ -200,7 +204,12 @@ def atoms_to_pyg(atoms: Atoms,
     if all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
         nx, surface_neighbors, bb_idxs = atoms_to_graph(atoms), None, None
     else:
-        nx, surface_neighbors, bb_idxs = atoms_to_nx(atoms, voronoi_tol, scaling_factor, second_order, adsorbate_elems, calc_type)
+        nx, surface_neighbors, bb_idxs = atoms_to_nx(atoms, 
+                                                     voronoi_tol, 
+                                                     scaling_factor, 
+                                                     second_order, 
+                                                     adsorbate_elems, 
+                                                     calc_type)
     elem_list = list(get_node_attributes(nx, "elem").values())
     elem_array = np.array(elem_list).reshape(-1, 1)
     elem_enc = one_hot_encoder.transform(elem_array).toarray()
@@ -219,22 +228,18 @@ def atoms_to_data(
     structure: Atoms, graph_params: dict[str, Union[float, int, bool]]
 ) -> Data:
     """
-    Convert ASE atoms object to PyG Data object based on the graph parameters.
-    In CARE, this function is used only for intermediate species, no transition states.
+    Convert ASE Atoms object to PyG Data graph based on the input parameters.
+    In CARE, this function is used only for intermediate species, not for transition states.
     The implementation is similar to the one in the ASE to PyG converter class, but it is not a class method and
     is used for inference. Target values are not included in the Data object.
 
     Args:
-        structure (Atoms): ASE atoms object or file to POSCAR/CONTCAR file.
+        structure (Atoms): ASE atoms object.
         graph_params (dict): Dictionary containing the information for the graph generation in the format:
                             {"tolerance": float, "scaling_factor": float, "metal_hops": int, "second_order_nn": bool}
     Returns:
         graph (Data): PyG Data object.
     """
-    from care.gnn.node_featurizers import (adsorbate_node_featurizer,
-                                           get_atom_valence, get_gcn,
-                                           get_magnetization,
-                                           get_radical_atoms)
 
     if not isinstance(structure, Atoms):
         raise TypeError("Structure type must be ase.Atoms")

@@ -1,4 +1,4 @@
-# Functions to place the adsorbate on the surface
+"""Module containing functions for adsorption placement on a surface."""
 
 from typing import Any
 
@@ -6,11 +6,10 @@ import networkx as nx
 from ase import Atoms
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
-import random
 
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
-from care.constants import BOND_ORDER
+from care import BOND_ORDER
 
 
 def connectivity_analysis(graph: nx.Graph) -> list[int]:
@@ -192,11 +191,11 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
     return new_slab
 
 
-def ads_placement(
+def place_adsorbate(
     intermediate: Intermediate, surface: Surface
 ) -> tuple[str, list[Atoms]]:
     """
-    Generate a set of adsorption structures for a given intermediate and surface.
+    Generate a set of adsorption structures for a given intermediate/surface pair.
 
     Parameters
     ----------
