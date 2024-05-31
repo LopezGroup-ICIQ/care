@@ -1,8 +1,10 @@
 from collections import defaultdict
+import os
 
 import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
 from ase import Atoms
+from ase.db import connect
 
 from care.constants import METAL_STRUCT_DICT
 
@@ -91,3 +93,15 @@ class Surface:
         sas = sas.get_unique_sites()
         sas = [site for site in sas if site["position"][2] > 0.65 * self.slab_height]
         return sas
+    
+
+def load_surface(metal: str, hkl: str, db_path: str) -> Surface:
+    """
+    Load a surface from the database.
+    """
+    metal_db = connect(os.path.abspath(db_path))
+    metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
+    surface_ase = metal_db.get_atoms(
+        calc_type="surface", metal=metal, facet=metal_structure)
+    surface = Surface(surface_ase, hkl)
+    return surface

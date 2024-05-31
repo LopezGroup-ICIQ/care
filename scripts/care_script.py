@@ -64,12 +64,6 @@ def main():
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
 
-    # Electrochemical parameters
-    PH = config['operating_conditions']['pH'] if electrochem else None
-    U = config['operating_conditions']['U'] if electrochem else None
-    T = config['operating_conditions']['temperature'] 
-    P = config['operating_conditions']['pressure'] 
-
     # Output directory
     output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     os.makedirs(output_dir, exist_ok=True)
@@ -144,6 +138,12 @@ def main():
 
         # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
+        
+        # Electrochemical parameters
+        PH = config['operating_conditions']['pH'] if electrochem else None
+        U = config['operating_conditions']['U'] if electrochem else None
+        T = config['operating_conditions']['temperature'] 
+        P = config['operating_conditions']['pressure'] 
         rxn_evaluator = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
 
         eval_reactions = []

@@ -1,5 +1,5 @@
 [chemspace]
-ncc = 1 # Network Carbon Cutoff (int)
+ncc = 2 # Network Carbon Cutoff (int)
 noc = 2  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
 regen = false #Force the re-generatation of the existing CRN (bool)
 additional = true #Include 1.2-H shifts (bool)
@@ -12,7 +12,7 @@ hkl = "0001"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "
 
 
 [mkm]
-run = true # Run microkinetic simulation (bool)
+run = false # Run microkinetic simulation (bool)
 solver = "Julia" # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
 barrier_threshold = 0.0 # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
 uq = false  # Uncertainty quantification (bool)
