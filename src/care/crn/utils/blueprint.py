@@ -1,10 +1,8 @@
 import time
 import warnings
-from rich.progress import Progress
 
 from prettytable import PrettyTable
 from rdkit import RDLogger
-from rdkit.Chem import rdMolDescriptors
 
 from care import ElementaryReaction, Intermediate
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
@@ -56,18 +54,14 @@ def gen_blueprint(
     table = PrettyTable()
     table.field_names = ["Category", "Number of Items", "Time (s)"]
     
-    noc = noc if noc >= 0 else ncc * 2 + 2
-    if noc > ncc * 2 + 2:
-        raise ValueError("The number of oxygen atoms must be smaller or equal than 2 * ncc + 2.")
-    
-    # Generate the chemical space
+    # Generate the chemical space (CS)
     t0cs = time.time()
     chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic)
     ncs = len(chemical_space)
     tcs = time.time() - t0cs
     table.add_row(["Saturated molecules", ncs, f"{tcs:.2f}"])
     
-    # Dissociation reactions
+    # Extend CS with dissociation reactions
     t0ecs = time.time()
     bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space)
     nfrags = len(bb_inters) - len(chemical_space)
@@ -98,7 +92,7 @@ def gen_blueprint(
         trxn += t3
         table.add_row(["Rearrangement reactions", nrearrsteps, f"{t3:.2f}"])
         
-    # Proton-coupled electron transfer reactions        
+    # Proton-coupled electron transfer (PCET) reactions        
     if electro:
         t04 = time.time()
         pcets = pcet.gen_pcet_reactions(intermediates, reactions)

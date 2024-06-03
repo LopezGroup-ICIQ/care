@@ -13,7 +13,7 @@ def format_description(description, width=45):
 
 def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
     """Generate Chemical Space of the CRN.
-    Chemical Space is the set of fully saturated hydrocarbons, ethers, epoxides, and alcohols species 
+    Chemical Space is the set of fully saturated hydrocarbons, ethers, epoxides, and alcohol species 
     up to a given number of carbon and oxygen atoms.
 
     Args:
@@ -24,6 +24,11 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
     Returns:
         list[str]: SMILES representation of the chemical space.
     """
+
+    noc = noc if noc >= 0 else ncc * 2 + 2
+    if noc > ncc * 2 + 2:
+        raise ValueError("The number of oxygen atoms must be smaller or equal than 2 * ncc + 2.")
+    
     with Progress() as progress:
         task_desc = format_description("[green]Generating Chemical Space...")
         task = progress.add_task(task_desc, total=6)

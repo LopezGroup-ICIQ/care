@@ -1,3 +1,4 @@
+import argparse
 import os
 import toml
 import multiprocessing as mp
@@ -24,7 +25,8 @@ lock = mp.Lock()
 
 def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progress_queue, f_path):
     """
-    Evaluates an intermediate.
+    Evaluates a chunk of intermediates and saves the results to a file.
+    For memory efficiency, the results are saved in a file instead of a list.
 
     Args:
         intermediate (Intermediate): The intermediate.
@@ -39,16 +41,28 @@ def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progres
 
     with lock:
         with open(f_path, 'ab') as file:
-            # write text to data
             pkl_str = dumps(eval_inter)
             file.write(pkl_str)
 
 
 def main():
+    """
+    Parse .toml configuration file and run the CARE pipeline.
+    """
+
+    PARSER = argparse.ArgumentParser(
+        description="CARE main script to generate and evaluate a CRN.")
+    PARSER.add_argument("-i", "--input", type=str, dest="input",
+                        help="Path to the .toml configuration file.")
+    PARSER.add_argument("-o", "--output", type=str, dest="output",
+                        help="Path to the output directory.")
+    ARGS = PARSER.parse_args()
+
+
     total_time = time.time()
     
-    # Load configuration file
-    with open("template.toml", "r") as f:
+    # Load .toml configuration file
+    with open(ARGS.input, "r") as f:
         config = toml.load(f)
 
     print(f"{LOGO}\n")
@@ -65,9 +79,12 @@ def main():
     hkl = config['surface']['hkl']
 
     # Output directory
-    output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
+    OUTPUT_DIR = ARGS.output 
+    if OUTPUT_DIR is None:
+        output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
+    else:
+        output_dir = OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
-
     crn_path = f"{output_dir}/crn.pkl"
 
     # 0. Check if the CRN already exists
