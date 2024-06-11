@@ -387,6 +387,9 @@ class ElementaryReaction:
                 self.reverse()
             else:
                 pass
+        elif self.r_type == "PCET":
+            if Proton() not in self.products:
+                self.reverse()
         else:
             size_reactants, size_products = [], []
             for reactant in self.reactants:
