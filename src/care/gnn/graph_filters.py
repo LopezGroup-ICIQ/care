@@ -6,7 +6,7 @@ These filters are applied before the inclusion of the graphs in the HetGraphData
 import torch
 from ase import Atoms
 from networkx import cycle_basis, is_connected
-from torch import tensor, where
+from torch import tensor
 from torch_geometric.data import Data
 from torch_geometric.utils import to_networkx
 

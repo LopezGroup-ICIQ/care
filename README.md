@@ -14,7 +14,7 @@
  
  #
 
-CARE (*Catalysis Automatic Reaction Evaluator*) is a package for automatic construction of chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. Prediction of activation and reaction energies is performed with GAME-Net UQ, a graph neural network with uncertainty quantification (UQ).
+CARE (*Catalysis Automatic Reaction Evaluator*) is a package for generating and manipulating chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. CARE is powered with GAME-Net UQ, a graph neural network with uncertainty quantification (UQ) targeting both intermediates and transition states energy.
 
 ## Installation
 
@@ -35,32 +35,15 @@ This will automatically set up and activate the conda environment.
 
 ## How to use it
 
-The current way to generate CRNs in CARE requires three steps:
-
-1) **Template generation**: Given a Network Carbon Cutoff `ncc` and Network Oxygen Cutoff `noc`:
+The current way to generate CRNs in CARE requires setting up a .toml configuration file and running the following command:
 
 ```bash
 cd scripts
-python netgen.py -ncc 1 -noc 3
+python care_script.py -i INPUT.toml -o OUTDIR
 ```
 
-This will generate a directory `C1O3` containing `intermediates.pkl` and `reactions.pkl`, defining the CRN template general for all available surfaces.
-
-2) **Adsorbate placement**: Given a metal `m` and a specific surface orientation `hkl`, adsorb the intermediates on the surface:
-
-```bash
-python adsorb.py -i C1O3 -m Ru -hkl 0001
-```
-
-A subdirectory `C1O3/Ru0001` is then created, containing all the adsorbed intermediates. This step represents currently the bottleneck of the code, as it could take a long time depending on the size of the CRN, defined by `ncc` and `noc`.
-
-3) **Energy evaluation**: Evaluate the activation barrier for all bond breaking/forming reactions and the reaction energy for all elementary steps:
-
-```bash
-python evaluate.py -i C1O3/Ru0001
-```
-
-Once finished, `C1O3/Ru0001/crn.pkl` is created, containing the whole CRN with energy included.
+This will generate a directory `OUTDIR` containing `crn.pkl` containing the constructed reaction network.
+Details about setting up the configuration file are found in ``.
 
 ## How to access the CRN
 

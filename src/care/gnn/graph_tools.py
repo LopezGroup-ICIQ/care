@@ -1,4 +1,5 @@
 """Functions for graphs handling and visualization purposes."""
+
 from typing import Union
 
 import matplotlib.pyplot as plt

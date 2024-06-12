@@ -1,16 +1,14 @@
 """Module containing the classes used for training and wrapping the GNN model."""
 
-
 import os.path as osp
 from os import listdir
 
-import numpy as np
 import torch
 from torch_geometric.data import Data
 
 from care.gnn.functions import (get_graph_conversion_params,
                                 get_mean_std_from_model)
-from care.gnn.graph_tools import extract_adsorbate
+from care.gnn.graph_filters import extract_adsorbate
 
 
 class PreTrainedModel:

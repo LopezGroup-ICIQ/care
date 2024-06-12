@@ -5,7 +5,6 @@ from time import time
 
 from care.crn.reactors.reactor import ReactorModel
 from care.crn.microkinetic import net_rate
-import matplotlib.pyplot as plt
 
 class DifferentialPFR(ReactorModel):
     def __init__(self,  

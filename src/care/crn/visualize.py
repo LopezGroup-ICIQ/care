@@ -5,12 +5,9 @@ from os import makedirs
 from os.path import abspath
 
 import networkx as nx
-import numpy as np
 from pydot import Subgraph
 from energydiagram import ED
-from matplotlib import cm
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
-from matplotlib.patches import BoxStyle, Rectangle
 import matplotlib.pyplot as plt
 from ase.io import write
 
