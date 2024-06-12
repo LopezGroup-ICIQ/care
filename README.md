@@ -64,7 +64,7 @@ crn.visualize_reaction(0)
 
 ## License
 
-The code is released under a [MIT]() license.
+The code is released under the [MIT]() license.
 
 ## References
 
