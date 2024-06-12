@@ -1,10 +1,7 @@
 # deps from conda channels
 
-conda env create -f ENV.yml
+conda env create -f environment.yml
 conda activate CARE
-
-echo `which python`
-echo `which python3`
 
 # deps from github
 
@@ -15,8 +12,9 @@ pip install git+https://github.com/giacomomarchioro/PyEnergyDiagrams
 pip install flake8 pytest
 
 # Install Julia and related dependencies
+curl -fsSL https://install.julialang.org | sh
 
-# TODO
+julia install_jl_deps.jl
 
 # end
 
