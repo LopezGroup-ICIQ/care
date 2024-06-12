@@ -1,24 +1,25 @@
-#!/bin/bash
+# deps from conda channels
 
+conda env create -f ENV.yml
+conda activate CARE
 
-# Create the conda environment from environment.yml
-conda env create -n care
+echo `which python`
+echo `which python3`
 
-# Activate the newly created environment
-conda init bash
-conda activate care
+# deps from github
 
-# Install any additional pip packages if needed
-# pip install acat  
-# pip install pubchempy
-# pip install rdkit
-pip install flake8
-pip install pytest
-# pip install pydot
 pip install git+https://github.com/giacomomarchioro/PyEnergyDiagrams
 
-pip install -e .
+# test
 
-# Notify the user that the environment setup is complete
-echo "Conda environment 'care' is set up and activated."
+pip install flake8 pytest
+
+# Install Julia and related dependencies
+
+# TODO
+
+# end
+
+echo "Conda environment 'CARE' is set up and activated."
+
 
