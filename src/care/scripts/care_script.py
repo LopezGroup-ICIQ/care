@@ -10,8 +10,8 @@ import cpuinfo
 import psutil
 import tempfile
 import time
-import sys
-sys.path.append('../src')
+# import sys
+# sys.path.append('../src')
 
 from ase.db import connect
 
@@ -22,6 +22,9 @@ from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 
 
 lock = mp.Lock()
+
+class MissingInputError(Exception):
+    pass
 
 def evaluate_intermediate(chunk_intermediate: list[Intermediate], model, progress_queue, f_path):
     """
@@ -57,6 +60,10 @@ def main():
     PARSER.add_argument("-o", "--output", type=str, dest="output",
                         help="Path to the output directory.")
     ARGS = PARSER.parse_args()
+
+    print(ARGS)
+    if not ARGS.input:
+        raise MissingInputError("An input TOML file is required to run this program.")
 
 
     total_time = time.time()
@@ -234,5 +241,5 @@ def main():
     print(f"\n{table2}")
 
 
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    main()

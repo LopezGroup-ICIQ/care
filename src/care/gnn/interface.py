@@ -14,7 +14,7 @@ from care import Intermediate, ElementaryReaction, Surface, IntermediateEnergyEs
 from care.adsorption.placement import place_adsorbate
 from care import METAL_STRUCT_DICT, INTER_ELEMS, K_B
 from care.crn.utils.electro import Proton, Electron, Water
-from care.gnn import load_model
+from care.gnn.functions import load_model
 from care.gnn.graph import atoms_to_data
 from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
@@ -115,53 +115,54 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
-        elif phase in ("gas", "ads"):
-            if self.dft_db:
-                in_db = self.retrieve_from_db(intermediate)
+        #elif phase in ("gas", "ads"):
+           # if self.dft_db:
+           #     in_db = self.retrieve_from_db(intermediate)
+            
 
-            if (not in_db) or (not self.dft_db):
-                if phase == 'gas':
-                    config = intermediate.molecule
-                    with no_grad():
-                        pyg = atoms_to_data(config, self.model.graph_params)
-                        y = self.model(pyg)
-                        intermediate.ads_configs = {
-                            "gas": {
-                                "ase": config,
-                                "pyg": pyg,
-                                "mu": (
-                                    y.mean * self.model.y_scale_params["std"]
-                                    + self.model.y_scale_params["mean"]
-                                ).item(),  # eV
-                                "s": (
-                                    y.scale * self.model.y_scale_params["std"]
-                                ).item(),  # eV
-                            }
-                        }
-                else:
-                    config_list = place_adsorbate(intermediate, self.surface)
-                    counter, ads_config_dict = 0, {}
-                    for config in config_list:
-                        with no_grad():
-                            ads_config_dict[f"{counter}"] = {}
-                            ads_config_dict[f"{counter}"]["ase"] = config
-                            ads_config_dict[f"{counter}"]["pyg"] = (
-                                atoms_to_data(config, self.model.graph_params)
-                            )
-                            y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
-                            ads_config_dict[f"{counter}"]["mu"] = (
-                                y.mean * self.model.y_scale_params["std"]
-                                + self.model.y_scale_params["mean"]
-                            ).item()  # eV
-                            ads_config_dict[f"{counter}"]["s"] = (
-                                y.scale * self.model.y_scale_params["std"]
-                            ).item()  # eV
-                            counter += 1
-                    # Getting only the top 10 most stable configurations
-                    ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
-                    intermediate.ads_configs = ads_config_dict
+            #if (not in_db) or (not self.dft_db):
+        elif phase == 'gas':
+            config = intermediate.molecule
+            with no_grad():
+                pyg = atoms_to_data(config, self.model.graph_params)
+                y = self.model(pyg)
+                intermediate.ads_configs = {
+                    "gas": {
+                        "ase": config,
+                        "pyg": pyg,
+                        "mu": (
+                            y.mean * self.model.y_scale_params["std"]
+                            + self.model.y_scale_params["mean"]
+                        ).item(),  # eV
+                        "s": (
+                            y.scale * self.model.y_scale_params["std"]
+                        ).item(),  # eV
+                    }
+                }
         else:
-            raise ValueError("Phase not supported.")
+            config_list = place_adsorbate(intermediate, self.surface)
+            counter, ads_config_dict = 0, {}
+            for config in config_list:
+                with no_grad():
+                    ads_config_dict[f"{counter}"] = {}
+                    ads_config_dict[f"{counter}"]["ase"] = config
+                    ads_config_dict[f"{counter}"]["pyg"] = (
+                        atoms_to_data(config, self.model.graph_params)
+                    )
+                    y = self.model(ads_config_dict[f"{counter}"]["pyg"].to(self.device))
+                    ads_config_dict[f"{counter}"]["mu"] = (
+                        y.mean * self.model.y_scale_params["std"]
+                        + self.model.y_scale_params["mean"]
+                    ).item()  # eV
+                    ads_config_dict[f"{counter}"]["s"] = (
+                        y.scale * self.model.y_scale_params["std"]
+                    ).item()  # eV
+                    counter += 1
+            # Getting only the top 10 most stable configurations
+            ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
+            intermediate.ads_configs = ads_config_dict
+       # else:
+       #     raise ValueError("Phase not supported.")
         
         return intermediate
 
