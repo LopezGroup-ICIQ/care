@@ -4,17 +4,17 @@
 [![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
 
 
-# CARE: Catalysis Automatic Reaction Evaluator
+# CARE: Catalysis Automated Reaction Evaluator
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./output.gif" width="60%" height="60%" />
+     <img src="./CARE_github.png" width="60%" height="60%" />
     </p>
 </div>
  
  #
 
-CARE (*Catalysis Automatic Reaction Evaluator*) is a package for generating and manipulating chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. CARE is powered with GAME-Net UQ, a graph neural network with uncertainty quantification (UQ) targeting both intermediates and transition states energy.
+CARE (*Catalysis Automated Reaction Evaluator*) is a package for generating and manipulating chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
 
 ## Installation
 
