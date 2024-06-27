@@ -8,7 +8,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./CARE_github.png" width="60%" height="60%" />
+     <img src="./CARE_github.png" width="80%" height="80%" />
     </p>
 </div>
  
