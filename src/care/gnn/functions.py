@@ -3,7 +3,7 @@
 from torch import load
 from torch.nn import Module
 
-from care.gnn import GameNetUQ
+from care.gnn.nets import GameNetUQ
 
 
 def get_mean_std_from_model(path: str) -> tuple[float]:
