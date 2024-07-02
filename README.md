@@ -14,7 +14,7 @@
  
  #
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a package for generating and manipulating chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) for catalysis on transition metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
 
 ## Installation (in progress)
 
@@ -31,7 +31,17 @@ cd care
 ./create_env.sh 
 ```
 
-This will automatically set up and activate the conda environment.
+3. Install [Julia](https://julialang.org/) to run microkinetic simulations:
+
+```bash
+curl -fsSL https://install.julialang.org | sh
+```
+
+4. Install the required Julia dependencies creating the Julia environment provided by `Project.toml`
+
+```bash
+TODO
+```
 
 ## Usage
 
