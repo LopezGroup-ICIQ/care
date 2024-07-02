@@ -1,0 +1,31 @@
+[chemspace]
+ncc = 6 # Network Carbon Cutoff (int)
+noc = 1  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
+regen = true  # Force the re-generatation of the existing CRN (bool)
+additional = false  # Include 1.2-H shifts (bool)
+electro = false # electrochemical process, readjusts the reaction expressions accordingly (bool)
+cyclic = false
+
+[surface]
+metal = "Co"  # metal catalyst (str)
+hkl = "0001"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+
+
+[mkm]
+run = false # Run microkinetic simulation (bool)
+solver = "Python"  # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
+#barrier_threshold = 1.0  # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
+uq = false  # Uncertainty quantification (bool)
+uq_samples = 100  # Number of samples to get for the UQ (int)
+thermo = false  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool) 
+ss_tol = 1e-16 # define stopping criteria for the kinetic simulation, if the sum of the absolute derivatives are lower than this value, integration is stopped.
+main_reactant = "CO2"  # must be present in the initial_conditions keys, used to get the main species fluxes
+
+
+[operating_conditions] # only for mkm
+temperature = 298  #temperature in Kelvin (float)
+pressure = 101325  # total pressure in Pascal (float)
+
+
+[initial_conditions] # molar fractions of the species of the gas mixture the reactor is exposed to, total sum must be 1! (only for mkm)
+CO2 = 1.0
