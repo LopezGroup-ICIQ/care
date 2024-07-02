@@ -1,6 +1,6 @@
 import argparse
 import os
-import toml
+import tomllib
 import multiprocessing as mp
 from pickle import dump, load, dumps
 import resource
@@ -10,8 +10,6 @@ import cpuinfo
 import psutil
 import tempfile
 import time
-# import sys
-# sys.path.append('../src')
 
 from ase.db import connect
 
@@ -69,8 +67,8 @@ def main():
     total_time = time.time()
     
     # Load .toml configuration file
-    with open(ARGS.input, "r") as f:
-        config = toml.load(f)
+    with open(ARGS.input, "rb") as f:
+        config = tomllib.load(f)
 
     print(f"{LOGO}\n")
 
@@ -241,5 +239,5 @@ def main():
     print(f"\n{table2}")
 
 
-#if __name__ == "__main__":
-#    main()
+if __name__ == "__main__":
+   main()

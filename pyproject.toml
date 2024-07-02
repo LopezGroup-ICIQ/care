@@ -23,7 +23,6 @@ dependencies = [
   "torch_geometric==2.4.0",
   "numba",
   "energydiagram @ git+https://github.com/giacomomarchioro/PyEnergyDiagrams",
-  "toml",
   "rich",
   "py-cpuinfo",
 ]
