@@ -551,6 +551,8 @@ class ReactionNetwork:
         Returns:
             obj:`ED` with the energy diagram of the reaction.
         """
+        if self.reactions[idx].e_rxn is None or self.reactions[idx].e_act is None:
+            raise ValueError("Reaction energetic properties are not estimated")
         return visualize_reaction(self.reactions[idx], show_uncertainty)
 
 

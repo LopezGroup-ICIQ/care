@@ -1,4 +1,4 @@
-"""Module containing functions to generate adsorption reactions."""
+"""Adsorption/Desorption template"""
 
 import multiprocessing as mp
 

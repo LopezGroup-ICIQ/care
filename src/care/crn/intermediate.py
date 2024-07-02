@@ -374,6 +374,7 @@ class Intermediate:
 
     def ref_energy(self):
         """
-        Get the reference energy of the intermediate.
+        Get the reference energy of the intermediate 
+        in gas phase.
         """
         return get_fragment_energy(self.molecule)

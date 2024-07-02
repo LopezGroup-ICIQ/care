@@ -1,5 +1,4 @@
-"""Module containing functions to generate (1,2)-H shift
-rearrangement reactions."""
+""" (1,2)-H shift rearrangement reaction template."""
 
 
 from collections import defaultdict

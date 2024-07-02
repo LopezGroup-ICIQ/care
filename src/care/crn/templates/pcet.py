@@ -1,6 +1,5 @@
-"""Module containing functions to generate proton-coupled 
-electron transfer (PCET) reactions, according to the Computational
-Hydrogen Electrode (CHE) reference."""
+"""Proton-coupled electron transfer (PCET) reaction template, implemented 
+according to the Computational Hydrogen Electrode (CHE) reference."""
 
 from ase import Atoms
 from rich.progress import Progress

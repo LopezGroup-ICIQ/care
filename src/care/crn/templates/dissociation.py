@@ -1,3 +1,5 @@
+"""Bond-breaking template"""
+
 import multiprocessing as mp
 
 from ase import Atoms
@@ -11,20 +13,20 @@ from care.constants import BOND_TYPES
 
 def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    Generate all dissociation reactions of the chemical space.
+    Generate all potential dissociation reactions given an initial set of molecules.
     
     Parameters
     ----------
     chemical_space : list[str]
-        List of the SMILES strings of the molecules in the chemical space.
+        List of the SMILES of the molecules in the chemical space.
 
     Returns:
     --------
     inters : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, and each value is the corresponding Intermediate instance.
+        Dictionary with Intermediate instances produced by the bond-breaking template.
+            Key: InChIKey of the gas molecule plus '*' or 'g' defining if its phase (adsorbed or gas-phase).
     rxns : list[ElementaryReaction]
-        List of the dissociation reactions of the reaction network as ElementaryReaction instances.        
+        List of the dissociation reactions of the reaction network as ElementaryReaction instances.     
     """
 
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()

@@ -41,10 +41,9 @@ class ReactionEnergyEstimator(ABC):
     @abstractmethod
     def eval(self, reaction: ElementaryReaction) -> None:
         """
-        Estimate the energy of a state.
+        Estimate the energy reaction properties.
 
         Args:
-            inter (Intermediate): The intermediate.
-            surf (Surface, optional): The surface. Defaults to None.
+            reaction (ElementaryReaction): The reaction.
         """
         pass

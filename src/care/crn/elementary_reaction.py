@@ -380,7 +380,9 @@ class ElementaryReaction:
         Set the elementary reaction in the bond-breaking direction, e.g.:
         CH4 + * -> CH3 + H*
         If is not in the bond-breaking direction, reverse it
-        Adsorption steps are reversed to desorption steps, while desorption steps are preserved
+        Adsorption steps are reversed to desorption steps, while desorption steps are preserved.
+
+        Note: PCET electron transfer steps do not have an intrinsic bond-breaking direction.
         """
         if self.r_type in ("adsorption", "desorption"):
             if self.r_type == "adsorption":
@@ -449,12 +451,11 @@ class ElementaryReaction:
                     else:
                         new_reactants.append(Hydroxide())
                 elif reactant.formula == 'H':
+                    new_reactants.append(Electron())
                     if pH <= 7:
-                        new_reactants.append(Proton())
-                        new_reactants.append(Electron())
+                        new_reactants.append(Proton())                        
                     else:
                         new_reactants.append(Water())
-                        new_reactants.append(Electron())
                 else:
                     if not reactant.is_surface:
                         new_reactants.append(reactant)
@@ -465,12 +466,11 @@ class ElementaryReaction:
                     else:
                         new_reactants.append(Hydroxide())
                 elif product.formula == 'H':
+                    new_products.append(Electron())
                     if pH <= 7:
-                        new_products.append(Proton())
-                        new_products.append(Electron())
+                        new_products.append(Proton())                        
                     else:
                         new_products.append(Water())
-                        new_products.append(Electron())
                 else:
                     if not product.is_surface:
                         new_products.append(product)
@@ -537,10 +537,11 @@ class ElementaryReaction:
                               uq: bool = False, 
                               thermo: bool = False) -> tuple:
         """
-        Evaluate the kinetic constants of the reactions in the network.
+        Evaluate the kinetic constants of the reactions in the network
+        with transition state theory and Hertz-Knudsen equation.
 
         Args:
-            t (float, optional): Temperature in Kelvin. Defaults to None.
+            t (float): Temperature in Kelvin.
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
