@@ -26,7 +26,7 @@ dependencies = [
   "rich",
   "py-cpuinfo",
 ]
-requires-python = ">=3.9"
+requires-python = "==3.11.*"
 authors = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
   {name = "Oliver Loveday", email = "oloveday@iciq.es"}
