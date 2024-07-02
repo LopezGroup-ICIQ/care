@@ -16,7 +16,7 @@
 
 CARE (*Catalysis Automated Reaction Evaluator*) is a package for generating and manipulating chemical reaction networks (CRNs) for heterogeneous catalysis on metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
 
-## Installation
+## Installation (in progress)
 
 1. Clone the repo typing in the command prompt:
 
@@ -33,7 +33,7 @@ cd care
 
 This will automatically set up and activate the conda environment.
 
-## How to use it
+## Usage
 
 The current way to generate CRNs in CARE requires setting up a .toml configuration file and running the following command:
 
@@ -66,6 +66,8 @@ crn.visualize_reaction(0)
 
 The code is released under the [MIT](./LICENSE) license.
 
-## References
+## Reference
 
-ChemRxiv: 
+- **A Foundational Model for Reaction Networks on Metal Surfaces**  
+  Authors: S. Morandi, O. Loveday, T. Renningholtz, S. Pablo-García, R. A. Vargas Hernáńdez, R. R. Seemakurthi, P. Sanz Berman, R. García-Muelas, A. Aspuru-Guzik, and N. López  
+  DOI: [10.26434/chemrxiv-2024-bfv3d](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
