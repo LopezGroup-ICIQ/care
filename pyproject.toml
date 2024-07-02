@@ -31,12 +31,14 @@ requires-python = ">=3.9"
 authors = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
   {name = "Oliver Loveday", email = "oloveday@iciq.es"}
+  {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
 maintainers = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
   {name = "Oliver Loveday", email = "oloveday@iciq.es"}
+  {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
-description = "Chemical Reaction Network generator for heterogenous catalysis"
+description = "Chemical Reaction Network generator for heterogenous catalysis on transition metal surfaces"
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]
