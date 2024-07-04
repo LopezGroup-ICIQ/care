@@ -1,7 +1,7 @@
 [chemspace]
 ncc = 2 # Network Carbon Cutoff (int)
-noc = 2  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
-regen = false #Force the re-generatation of the existing CRN (bool)
+noc = 1  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
+regen = true #Force the re-generatation of the existing CRN (bool)
 additional = true #Include 1.2-H shifts (bool)
 electro = false #ochemical process, readjusts the reaction expressions accordingly (bool)
 cyclic = false

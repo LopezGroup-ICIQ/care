@@ -40,9 +40,13 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         self.path = model_path
         self.model = load_model(model_path)
         self.device = "cuda" if cuda.is_available() else "cpu"
+        self.num_params = 560000  #TODO: Retrieve it from model
         self.model.to(self.device)
         self.surface = surface
         self.dft_db = connect(dft_db_path) if dft_db_path else None
+
+    def __repr__(self) -> str:
+        return f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"        
 
     def retrieve_from_db(self, intermediate: Intermediate) -> bool:
         """
@@ -59,7 +63,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         bool
             True if the intermediate is in the database, False otherwise.
         """
-
+        if self.dft_db is None:
+            return False
+        
         inchikey = intermediate.code[:-1]  # del phase-identifier
         phase = intermediate.phase
         metal = self.surface.metal if phase == "ads" else "N/A"
@@ -90,6 +96,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             intermediate.ads_configs = {f"dft": {"ase": stable_conf[-1][0], "pyg": atoms_to_data(
                 stable_conf[-1][0], self.model.graph_params), "mu": stable_conf[-1][1], "s": 0}}
             return True
+        
         return False    
 
     def eval(self,
@@ -115,13 +122,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
-        #elif phase in ("gas", "ads"):
-           # if self.dft_db:
-           #     in_db = self.retrieve_from_db(intermediate)
-            
-
-            #if (not in_db) or (not self.dft_db):
         elif phase == 'gas':
+            if self.retrieve_from_db(intermediate):
+                return intermediate
             config = intermediate.molecule
             with no_grad():
                 pyg = atoms_to_data(config, self.model.graph_params)
@@ -139,7 +142,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ).item(),  # eV
                     }
                 }
-        else:
+        elif phase == 'ads':
+            if self.retrieve_from_db(intermediate):
+                return intermediate            
             config_list = place_adsorbate(intermediate, self.surface)
             counter, ads_config_dict = 0, {}
             for config in config_list:
@@ -158,11 +163,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         y.scale * self.model.y_scale_params["std"]
                     ).item()  # eV
                     counter += 1
-            # Getting only the top 10 most stable configurations
+            # Getting the top 10 most stable configurations
             ads_config_dict = dict(sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10])
             intermediate.ads_configs = ads_config_dict
-       # else:
-       #     raise ValueError("Phase not supported.")
+        else:
+            raise ValueError("Phase not supported by the current estimator.")
         
         return intermediate
 
@@ -183,10 +188,14 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.model = load_model(model_path)
         self.device = "cuda" if cuda.is_available() else "cpu"
         self.model.to(self.device)
+        self.num_params = 560000
         self.intermediates = intermediates
         self.pH = pH
         self.U = U
         self.T = T
+
+    def __repr__(self) -> str:
+        return f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"
 
     def calc_reaction_energy(
         self, 

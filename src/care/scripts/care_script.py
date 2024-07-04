@@ -59,10 +59,8 @@ def main():
                         help="Path to the output directory.")
     ARGS = PARSER.parse_args()
 
-    print(ARGS)
     if not ARGS.input:
         raise MissingInputError("An input TOML file is required to run this program.")
-
 
     total_time = time.time()
     
@@ -107,7 +105,7 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # Load catalyst surface        
+        # Load surface        
         metal_db = connect(os.path.abspath(DB_PATH))
         metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
         surface_ase = metal_db.get_atoms(
@@ -116,8 +114,10 @@ def main():
         
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")        
-
         inter_evaluator = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
+        print(' Intermediates energy calculator: ', inter_evaluator)
+        print(' DFT database: ', 'N/A' if inter_evaluator.dft_db == None else DFT_DB_PATH)
+
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
@@ -158,6 +158,14 @@ def main():
                 except EOFError:
                     break
 
+        # Check how many species were available in the DFT database
+        counter = 0
+        for inter in intermediates.values():
+            if 'dft' in inter.ads_configs.keys():
+                counter += 1
+        
+        print(f"\n {counter}/{len(intermediates)} ({round(counter/len(intermediates)*100,1)}%) intermediates available in the DFT database.")
+
         # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
         
@@ -167,6 +175,7 @@ def main():
         T = config['operating_conditions']['temperature'] 
         P = config['operating_conditions']['pressure'] 
         rxn_evaluator = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
+        print(' Reaction property calculator: ', rxn_evaluator)
 
         eval_reactions = []
         with Progress() as progress:
