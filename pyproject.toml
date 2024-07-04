@@ -29,12 +29,12 @@ dependencies = [
 requires-python = "==3.11.*"
 authors = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
-  {name = "Oliver Loveday", email = "oloveday@iciq.es"}
+  {name = "Oliver Loveday", email = "oloveday@iciq.es"},
   {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
 maintainers = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
-  {name = "Oliver Loveday", email = "oloveday@iciq.es"}
+  {name = "Oliver Loveday", email = "oloveday@iciq.es"},
   {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
 description = "Chemical Reaction Network generator for heterogenous catalysis on transition metal surfaces"
