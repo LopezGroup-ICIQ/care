@@ -105,7 +105,7 @@ def main():
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # Load surface        
+        # Load surface
         metal_db = connect(os.path.abspath(DB_PATH))
         metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
         surface_ase = metal_db.get_atoms(

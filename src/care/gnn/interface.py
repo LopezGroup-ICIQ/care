@@ -43,7 +43,10 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         self.num_params = 560000  #TODO: Retrieve it from model
         self.model.to(self.device)
         self.surface = surface
-        self.dft_db = connect(dft_db_path) if dft_db_path else None
+        try:
+            self.dft_db = connect(dft_db_path) 
+        except Exception:
+             self.dft_db = None 
 
     def __repr__(self) -> str:
         return f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"        
