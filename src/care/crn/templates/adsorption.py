@@ -8,6 +8,7 @@ from rich.progress import Progress
 
 from care import ElementaryReaction, Intermediate
 
+
 def gen_adsorption_reactions(
     intermediates: dict[str, Intermediate], num_processes=mp.cpu_count()
 ) -> list[ElementaryReaction]:
@@ -58,9 +59,11 @@ def gen_adsorption_reactions(
                     progress_queue_rxn.get()
                     processed_items += 1
                     progress.update(task, advance=1)
-    
+
     # Combine the results from all chunks
-    adsorption_steps = list(set([rxn for sublist in result_async.get() for rxn in sublist]))
+    adsorption_steps = list(
+        set([rxn for sublist in result_async.get() for rxn in sublist])
+    )
 
     # Dissociative adsorptions (H2 and O2)
     for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
@@ -82,7 +85,7 @@ def gen_adsorption_reactions(
     return adsorption_steps
 
 
-def format_description(description: str, width: int=45):
+def format_description(description: str, width: int = 45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 

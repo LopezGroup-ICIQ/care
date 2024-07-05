@@ -9,6 +9,7 @@ from care import Intermediate
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
 from care.crn.utils.electro import Electron, Proton, Hydroxide, Water
 
+
 class ElementaryReaction:
     """Class for representing elementary reactions.
 
@@ -40,9 +41,11 @@ class ElementaryReaction:
             self.components = (
                 [
                     Intermediate(
-                        code="*"
-                        if comp.GetNumAtoms() == 0
-                        else Chem.inchi.MolToInchiKey(comp),
+                        code=(
+                            "*"
+                            if comp.GetNumAtoms() == 0
+                            else Chem.inchi.MolToInchiKey(comp)
+                        ),
                         molecule=comp,
                         phase="surf" if comp.GetNumAtoms() == 0 else "ads",
                         is_surface=True if comp.GetNumAtoms() == 0 else False,
@@ -51,9 +54,11 @@ class ElementaryReaction:
                 ],
                 [
                     Intermediate(
-                        code="*"
-                        if comp.GetNumAtoms() == 0
-                        else Chem.inchi.MolToInchiKey(comp),
+                        code=(
+                            "*"
+                            if comp.GetNumAtoms() == 0
+                            else Chem.inchi.MolToInchiKey(comp)
+                        ),
                         molecule=comp,
                         phase="surf" if comp.GetNumAtoms() == 0 else "ads",
                         is_surface=True if comp.GetNumAtoms() == 0 else False,
@@ -111,10 +116,9 @@ class ElementaryReaction:
             self.adsorbate_mass = adsorbate.mass
         else:
             self.adsorbate_mass = None
-    
+
     def __lt__(self, other):
         return self.code < other.code
-
 
     def __repr__(self) -> str:
         out_str = ""
@@ -122,24 +126,18 @@ class ElementaryReaction:
         lhs, rhs = [], []
         for inter in self.components[0]:
             if inter.phase == "surf":
-                out_str = (
-                    "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
-                )
+                out_str = "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
             else:
                 out_str = (
-                    "[{}]".format(str(abs(self.stoic[inter.code])))
-                    + inter.__str__()
+                    "[{}]".format(str(abs(self.stoic[inter.code]))) + inter.__str__()
                 )
             lhs.append(out_str)
         for inter in self.components[1]:
             if inter.phase == "surf":
-                out_str = (
-                    "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
-                )
+                out_str = "[{}]".format(str(abs(self.stoic[inter.code]))) + "*"
             else:
                 out_str = (
-                    "[{}]".format(str(abs(self.stoic[inter.code])))
-                    + inter.__str__()
+                    "[{}]".format(str(abs(self.stoic[inter.code]))) + inter.__str__()
                 )
             rhs.append(out_str)
         # sort alphabetically
@@ -171,7 +169,7 @@ class ElementaryReaction:
             comp_str = " + ".join(inters_str)
             comps_str.append(comp_str)
         return " <-> ".join(comps_str)
-    
+
     def __str__(self) -> str:
         return self.__repr__()
 
@@ -265,7 +263,6 @@ class ElementaryReaction:
     def bader_energy(self, other):
         self._bader_energy = other
 
-    
     @property
     def components(self):
         return self._components
@@ -359,7 +356,7 @@ class ElementaryReaction:
                         self.e_act = 0, self.e_rxn[1]
                     if self.e_act[0] < self.e_rxn[0]:
                         self.e_act = self.e_rxn[0], self.e_rxn[1]
-                        
+
                 else:
                     self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
             else:
@@ -369,9 +366,7 @@ class ElementaryReaction:
                 )
                 if self.e_act[0] < 0:
                     self.e_act = 0, self.e_rxn[1]
-                if (
-                    self.e_act[0] < self.e_rxn[0]
-                ):  # Barrier lower than self energy
+                if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
                     self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
@@ -405,20 +400,24 @@ class ElementaryReaction:
             else:
                 pass
 
-
     def bb(self):
         """Set reaction to bond-breaking direction."""
         self.bb_order()
-        
 
     def bf(self):
-        """        
+        """
         Set reaction to bond-forming direction.
         """
         self.bb_order()
         self.reverse()
 
-    def electro_rxn(self, pH: float, h2o_gas: Intermediate, oh_code: str, surface_inter: Intermediate):
+    def electro_rxn(
+        self,
+        pH: float,
+        h2o_gas: Intermediate,
+        oh_code: str,
+        surface_inter: Intermediate,
+    ):
         """
         Adjust the elementary reaction to electrochemical nomenclature.
 
@@ -450,10 +449,10 @@ class ElementaryReaction:
                         continue
                     else:
                         new_reactants.append(Hydroxide())
-                elif reactant.formula == 'H':
+                elif reactant.formula == "H":
                     new_reactants.append(Electron())
                     if pH <= 7:
-                        new_reactants.append(Proton())                        
+                        new_reactants.append(Proton())
                     else:
                         new_reactants.append(Water())
                 else:
@@ -465,16 +464,16 @@ class ElementaryReaction:
                         continue
                     else:
                         new_reactants.append(Hydroxide())
-                elif product.formula == 'H':
+                elif product.formula == "H":
                     new_products.append(Electron())
                     if pH <= 7:
-                        new_products.append(Proton())                        
+                        new_products.append(Proton())
                     else:
                         new_products.append(Water())
                 else:
                     if not product.is_surface:
                         new_products.append(product)
-            
+
             self.components = [new_reactants, new_products]
             self.reactants = new_reactants
             self.products = new_products
@@ -486,7 +485,7 @@ class ElementaryReaction:
             for component_set in self.components:
                 if oh_code in [component.code for component in component_set]:
                     if len(self.products) == 1:
-                            continue
+                        continue
                     else:
                         new_reactants, new_products = [], []
                         for reactant in self.reactants:
@@ -496,7 +495,7 @@ class ElementaryReaction:
                                     new_reactants.append(Proton())
                                 else:
                                     new_reactants.append(Water())
-                            elif reactant.formula == 'HO':
+                            elif reactant.formula == "HO":
                                 if pH <= 7:
                                     new_reactants.append(h2o_gas)
                                     new_reactants.append(surface_inter)
@@ -512,12 +511,12 @@ class ElementaryReaction:
                                     new_products.append(Proton())
                                 else:
                                     new_products.append(Water())
-                            elif product.formula == 'HO':
+                            elif product.formula == "HO":
                                 if pH <= 7:
                                     new_products.append(h2o_gas)
                                 else:
                                     new_products.append(h2o_gas)
-                                    new_products.append(Hydroxide()) 
+                                    new_products.append(Hydroxide())
                                 if len(self.products) == 1:
                                     new_products.append(surface_inter)
                             else:
@@ -532,10 +531,9 @@ class ElementaryReaction:
         else:
             pass
 
-    def get_kinetic_constants(self, 
-                              t: float, 
-                              uq: bool = False, 
-                              thermo: bool = False) -> tuple:
+    def get_kinetic_constants(
+        self, t: float, uq: bool = False, thermo: bool = False
+    ) -> tuple:
         """
         Evaluate the kinetic constants of the reactions in the network
         with transition state theory and Hertz-Knudsen equation.
@@ -545,7 +543,7 @@ class ElementaryReaction:
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
-            thermo (bool, optional): If True, the activation barriers will be 
+            thermo (bool, optional): If True, the activation barriers will be
                 neglected and only the thermodynamic path is considered. Defaults
                 to False.
         """
@@ -564,12 +562,10 @@ class ElementaryReaction:
                 e_act = self.e_act[0]
                 e_rxn = self.e_rxn[0]
         k_eq = np.exp(-e_rxn / t / K_B)
-        if self.r_type == "adsorption":  
+        if self.r_type == "adsorption":
             k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
-        else: 
+        else:
             k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
         k_rev = k_dir / k_eq
 
         return k_dir, k_rev
-
-

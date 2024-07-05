@@ -47,17 +47,19 @@ class ReactionNetwork:
         self.ncc = ncc
         self.noc = noc
         self.excluded = None
-        self.num_closed_shell_mols = len([
-            inter
-            for inter in self.intermediates.values()
-            if inter.closed_shell and inter.phase == "gas"
-        ])
+        self.num_closed_shell_mols = len(
+            [
+                inter
+                for inter in self.intermediates.values()
+                if inter.closed_shell and inter.phase == "gas"
+            ]
+        )
         self.num_intermediates = len(self.intermediates)
         self.num_reactions = len(self.reactions)
         if type not in ("thermal", "electrochemical"):
             raise ValueError("type must be either 'thermal' or 'electrochemical'")
         self.type = type
-        
+
         if oc is not None:
             if all([key in OC_KEYS for key in oc.keys()]):
                 self.oc = oc
@@ -69,7 +71,7 @@ class ReactionNetwork:
     @property
     def temperature(self):
         return self.oc["T"]
-    
+
     @temperature.setter
     def temperature(self, other: float):
         self.oc["T"] = other
@@ -77,7 +79,7 @@ class ReactionNetwork:
     @property
     def pressure(self):
         return self.oc["P"]
-    
+
     @pressure.setter
     def pressure(self, other: float):
         self.oc["P"] = other
@@ -85,7 +87,7 @@ class ReactionNetwork:
     @property
     def overpotential(self):
         return self.oc["U"]
-    
+
     @overpotential.setter
     def overpotential(self, other: float):
         self.oc["U"] = other
@@ -93,7 +95,7 @@ class ReactionNetwork:
     @property
     def pH(self):
         return self.oc["pH"]
-    
+
     @pH.setter
     def pH(self, other: float):
         self.oc["pH"] = other
@@ -110,7 +112,7 @@ class ReactionNetwork:
         string = "ReactionNetwork({} surface species, {} gas molecules, {} elementary reactions)\n".format(
             len(self.intermediates) - self.num_closed_shell_mols,
             self.num_closed_shell_mols,
-            len(self.reactions)
+            len(self.reactions),
         )
         string += "Surface: {}\n".format(self.surface)
         string += "Network Carbon cutoff: {}\n".format(self.ncc)
@@ -294,7 +296,9 @@ class ReactionNetwork:
         )
         print(f"Number of reactions before: {num_rxns_0}, after: {len(self.reactions)}")
 
-    def add_reactions(self, rxns: Union[list[ElementaryReaction], ElementaryReaction]) -> None:
+    def add_reactions(
+        self, rxns: Union[list[ElementaryReaction], ElementaryReaction]
+    ) -> None:
         """
         Add elementary reactions to the network.
 
@@ -307,11 +311,13 @@ class ReactionNetwork:
         elif isinstance(rxns, ElementaryReaction):
             self.reactions.append(rxns)
         else:
-            raise TypeError("rxns must be a list of ElementaryReaction or ElementaryReaction")
+            raise TypeError(
+                "rxns must be a list of ElementaryReaction or ElementaryReaction"
+            )
 
     def del_reactions(self, rxn_lst: list[str]) -> None:
         """
-        Delete elementary reactions and consequently the intermediates 
+        Delete elementary reactions and consequently the intermediates
         that are not participating in any reaction.
 
         Args:
@@ -360,10 +366,10 @@ class ReactionNetwork:
             Species nodes can only be linked to reaction nodes and vice versa.
 
         Notes:
-            The returned graph is correctly directed at the elementary reaction level, 
+            The returned graph is correctly directed at the elementary reaction level,
             i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
             are linked to the reaction node in the same way (both entering or exiting).
-            However, at the global level, the graph is ill-defined and further processing 
+            However, at the global level, the graph is ill-defined and further processing
             (kinetic modeling) is needed to obtain a correct representation of the network.
         """
         graph = nx.DiGraph()
@@ -394,7 +400,8 @@ class ReactionNetwork:
         for idx, reaction in enumerate(self.reactions):
             r_type = (
                 reaction.r_type
-                if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
+                if reaction.r_type
+                in ("adsorption", "desorption", "eley_rideal", "PCET")
                 else "surface_reaction"
             )
             graph.add_node(
@@ -408,19 +415,55 @@ class ReactionNetwork:
             for inter in reaction.components[0]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
+                        graph.add_node(
+                            inter.code,
+                            category="electro",
+                            phase=inter.phase,
+                            formula=inter.formula,
+                            nC=inter["C"],
+                            nH=inter["H"],
+                            nO=inter["O"],
+                        )
+                    graph.add_edge(
+                        inter.code,
+                        reaction.code,
+                        dir="in",
+                        v=reaction.stoic[inter.code],
+                    )
                 else:
-                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
+                    graph.add_edge(
+                        inter.code,
+                        reaction.code,
+                        dir="in",
+                        v=reaction.stoic[inter.code],
+                    )
             for inter in reaction.components[1]:
                 if inter.phase in ("solv", "electro"):
                     if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="electro", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
+                        graph.add_node(
+                            inter.code,
+                            category="electro",
+                            phase=inter.phase,
+                            formula=inter.formula,
+                            nC=inter["C"],
+                            nH=inter["H"],
+                            nO=inter["O"],
+                        )
+                    graph.add_edge(
+                        reaction.code,
+                        inter.code,
+                        dir="out",
+                        v=reaction.stoic[inter.code],
+                    )
                 else:
-                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
+                    graph.add_edge(
+                        reaction.code,
+                        inter.code,
+                        dir="out",
+                        v=reaction.stoic[inter.code],
+                    )
 
-        graph.remove_node("*")        
+        graph.remove_node("*")
         return graph
 
     def search_reaction(
@@ -555,7 +598,6 @@ class ReactionNetwork:
             raise ValueError("Reaction energetic properties are not estimated")
         return visualize_reaction(self.reactions[idx], show_uncertainty)
 
-
     def get_num_global_reactions(
         self, reactants: list[str], products: list[str]
     ) -> int:
@@ -611,11 +653,8 @@ class ReactionNetwork:
         """
         Return the stoichiometric matrix of the network.
         """
-        v = np.zeros(
-            (len(self.intermediates) + 1, len(self.reactions)), dtype=np.int8
-        )
-        sorted_intermediates = sorted(
-            self.intermediates.keys())
+        v = np.zeros((len(self.intermediates) + 1, len(self.reactions)), dtype=np.int8)
+        sorted_intermediates = sorted(self.intermediates.keys())
         for i, inter in enumerate(sorted_intermediates):
             for j, reaction in enumerate(self.reactions):
                 if inter in reaction.stoic.keys():
@@ -623,11 +662,9 @@ class ReactionNetwork:
                 v[-1, j] = reaction.stoic["*"] if "*" in reaction.stoic.keys() else 0
         return v
 
-
-    def get_kinetic_constants(self, 
-                              t: float = None, 
-                              uq: bool = False, 
-                              thermo: bool = False) -> None:
+    def get_kinetic_constants(
+        self, t: float = None, uq: bool = False, thermo: bool = False
+    ) -> None:
         """
         Evaluate the kinetic constants of the reactions in the network.
 
@@ -636,7 +673,7 @@ class ReactionNetwork:
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
-            thermo (bool, optional): If True, the activation barriers will be 
+            thermo (bool, optional): If True, the activation barriers will be
                 neglected and only the thermodynamic path is considered. Defaults
                 to False.
         """
@@ -664,13 +701,15 @@ class ReactionNetwork:
                     e_act = reaction.e_act[0]
                     e_rxn = reaction.e_rxn[0]
             reaction.k_eq = np.exp(-e_rxn / t / K_B)
-            if reaction.r_type == "adsorption":  
-                reaction.k_dir = 1e-18 / (2 * np.pi * reaction.adsorbate_mass * K_BU * t) ** 0.5
-            else: 
+            if reaction.r_type == "adsorption":
+                reaction.k_dir = (
+                    1e-18 / (2 * np.pi * reaction.adsorbate_mass * K_BU * t) ** 0.5
+                )
+            else:
                 reaction.k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
             reaction.k_rev = reaction.k_dir / reaction.k_eq
 
-    def get_hubs(self, n:int = None) -> dict[str, int]:
+    def get_hubs(self, n: int = None) -> dict[str, int]:
         """
         Get hubs of the network.
 
@@ -688,460 +727,666 @@ class ReactionNetwork:
         if n is not None:
             return dict(list(hubs.items())[:n])
         else:
-            return hubs    
+            return hubs
 
     def run_microkinetic(
-            self,
-            iv: dict[str, float],
-            oc: dict[str, float],
-            uq: bool = False,
-            nruns: int = 100,
-            thermo: bool = False,
-            solver: str = "Julia",
-            barrier_threshold: float = None, 
-            ss_tol: float = 1e-10, 
-            tfin: float = 1e6,
-            target_products: list[str] = None,
-            eapp: bool = False,
-        ) -> dict:
-            """
-            Run microkinetic simulation.
+        self,
+        iv: dict[str, float],
+        oc: dict[str, float],
+        uq: bool = False,
+        nruns: int = 100,
+        thermo: bool = False,
+        solver: str = "Julia",
+        barrier_threshold: float = None,
+        ss_tol: float = 1e-10,
+        tfin: float = 1e6,
+        target_products: list[str] = None,
+        eapp: bool = False,
+    ) -> dict:
+        """
+        Run microkinetic simulation.
 
-            Args:
-                iv (dict): Initial values of the molar fractions of the gas phase
-                    intermediates. Surface is assumed to be empty. Keys are the
-                    chemical formulas of the intermediates and values are the
-                    molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}), 
-                    where the sum of the values must be 1.0.
-                temperature (float, optional): Temperature in Kelvin. Defaults to None.
-                pressure (float, optional): Pressure in bar. Defaults to None.
-                uq (bool, optional): If True, the uncertainty of the activation
-                    energy and the reaction energy will be considered. Defaults to
-                    False.
-                uq_samples (int, optional): Number of samples for the uncertainty
-                    quantification. Defaults to 100.
-                thermo (bool, optional): If True, the activation barriers will be
-                    neglected and only the thermodynamic path is considered. Defaults
-                    to False.
-                solver (str, optional): Solver to be used. Defaults to "Julia".
-                barrier_threshold (float, optional): Threshold for the activation
-                    energy of the reactions. If a reaction has an activation energy
-                    below this threshold, it will be filtered out. Defaults to None.
+        Args:
+            iv (dict): Initial values of the molar fractions of the gas phase
+                intermediates. Surface is assumed to be empty. Keys are the
+                chemical formulas of the intermediates and values are the
+                molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}),
+                where the sum of the values must be 1.0.
+            temperature (float, optional): Temperature in Kelvin. Defaults to None.
+            pressure (float, optional): Pressure in bar. Defaults to None.
+            uq (bool, optional): If True, the uncertainty of the activation
+                energy and the reaction energy will be considered. Defaults to
+                False.
+            uq_samples (int, optional): Number of samples for the uncertainty
+                quantification. Defaults to 100.
+            thermo (bool, optional): If True, the activation barriers will be
+                neglected and only the thermodynamic path is considered. Defaults
+                to False.
+            solver (str, optional): Solver to be used. Defaults to "Julia".
+            barrier_threshold (float, optional): Threshold for the activation
+                energy of the reactions. If a reaction has an activation energy
+                below this threshold, it will be filtered out. Defaults to None.
 
-            Returns:
-                dict containing the results of the simulation.
-            """
-            if sum(iv.values()) != 1.0:
-                raise ValueError("Sum of molar fractions is not 1.0")
-            if oc['T'] is None:
-                if self.temperature is None:
-                    raise ValueError("temperature not specified")
-                else:
-                    T = oc['T']
+        Returns:
+            dict containing the results of the simulation.
+        """
+        if sum(iv.values()) != 1.0:
+            raise ValueError("Sum of molar fractions is not 1.0")
+        if oc["T"] is None:
+            if self.temperature is None:
+                raise ValueError("temperature not specified")
             else:
-                T = oc['T']
+                T = oc["T"]
+        else:
+            T = oc["T"]
 
-            if oc['P'] is None:
-                if self.pressure is None:
-                    raise ValueError("pressure not specified")
-                else:
-                    P = oc['P']
-            else:   
-                P = oc['P']
-
-            if self.type == "electrochemical":
-                if oc['U'] is None:
-                    raise ValueError("potential not specified")
-                else:
-                    U = oc['U']
-                if oc['pH'] is None:
-                    raise ValueError("pH not specified")
-                else:
-                    PH = oc['pH']            
-
-            MKM_GRAPH = deepcopy(self.graph) 
-            
-            if self.type == "electrochemical":
-                ELECTRO_SPECIES = [Proton().code, Electron().code, Water().code]
-                ELECTRO_INTERS = [Proton(), Electron(), Water()]
+        if oc["P"] is None:
+            if self.pressure is None:
+                raise ValueError("pressure not specified")
             else:
-                ELECTRO_SPECIES, ELECTRO_INTERS = [], []
+                P = oc["P"]
+        else:
+            P = oc["P"]
 
-            if target_products is not None:
-                count_removed_inters = 0
-                count_removed_reactions = 0
-                undesired_closed_shell = []
-                reactants_products = list(iv.keys()) + target_products
-                for inter in self.intermediates.values():
-                    if inter.closed_shell and inter.formula not in reactants_products:
-                        undesired_closed_shell.append(inter.code)
-                        count_removed_inters += 1
-                MKM_GRAPH.remove_nodes_from(undesired_closed_shell)
-                rm_condition = 0
-                while rm_condition == 0:
-                    inter_to_remove, rxns_to_remove = [], []
-                    for node in MKM_GRAPH.nodes:
-                        if MKM_GRAPH.nodes[node]['category'] == 'reaction':
-                            idx = MKM_GRAPH.nodes[node]['idx']
-                            if MKM_GRAPH.degree(node) <= 1:
-                                rxns_to_remove.append(node)
-                                count_removed_reactions += 1
-                            else:
-                                in_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.in_edges(node)]
-                                reactants = [reactant for reactant in self.reactions[idx].reactants if reactant.phase != 'surf']
-                                products = [product for product in self.reactions[idx].products if product.phase != 'surf']
-                                out_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.out_edges(node)]
-                                if len(in_list) != len(reactants) or len(out_list) != len(products):
-                                    rxns_to_remove.append(node)
-                                    count_removed_reactions += 1                           
-                                
+        if self.type == "electrochemical":
+            if oc["U"] is None:
+                raise ValueError("potential not specified")
+            else:
+                U = oc["U"]
+            if oc["pH"] is None:
+                raise ValueError("pH not specified")
+            else:
+                PH = oc["pH"]
 
-                        if MKM_GRAPH.nodes[node]['category'] == 'intermediate':
-                            if MKM_GRAPH.degree(node) == 0:
-                                inter_to_remove.append(node)
-                                count_removed_inters += 1
-                            if MKM_GRAPH.degree(node) == 1 and MKM_GRAPH.nodes[node]['phase'] == 'ads':
-                                inter_to_remove.append(node)
-                                count_removed_inters += 1
+        MKM_GRAPH = deepcopy(self.graph)
 
-                    if len(inter_to_remove) == 0 and len(rxns_to_remove) == 0:
-                        rm_condition = 1
-                    else:
-                        MKM_GRAPH.remove_nodes_from(list(set(inter_to_remove)))
-                        MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))                
+        if self.type == "electrochemical":
+            ELECTRO_SPECIES = [Proton().code, Electron().code, Water().code]
+            ELECTRO_INTERS = [Proton(), Electron(), Water()]
+        else:
+            ELECTRO_SPECIES, ELECTRO_INTERS = [], []
 
-                print("Filtered {} species and {} reactions (target products filter)".format(count_removed_inters, count_removed_reactions)) 
-
-            if barrier_threshold > 0.0:
-                count_removed_inters, count_removed_reactions = 0, 0
-                rxns_to_remove = []
-                condition = lambda x, y: x >= barrier_threshold and y >= barrier_threshold
-                for node in MKM_GRAPH.nodes():
-                    if MKM_GRAPH.nodes[node]['category'] == 'reaction':
-                        rxn = self.reactions[MKM_GRAPH.nodes[node]['idx']]
-                        if condition(rxn.e_act[0], rxn.e_act[0] - rxn.e_rxn[0]):
+        if target_products is not None:
+            count_removed_inters = 0
+            count_removed_reactions = 0
+            undesired_closed_shell = []
+            reactants_products = list(iv.keys()) + target_products
+            for inter in self.intermediates.values():
+                if inter.closed_shell and inter.formula not in reactants_products:
+                    undesired_closed_shell.append(inter.code)
+                    count_removed_inters += 1
+            MKM_GRAPH.remove_nodes_from(undesired_closed_shell)
+            rm_condition = 0
+            while rm_condition == 0:
+                inter_to_remove, rxns_to_remove = [], []
+                for node in MKM_GRAPH.nodes:
+                    if MKM_GRAPH.nodes[node]["category"] == "reaction":
+                        idx = MKM_GRAPH.nodes[node]["idx"]
+                        if MKM_GRAPH.degree(node) <= 1:
                             rxns_to_remove.append(node)
-                            print(f"Removing {node} from the network")
-                            count_removed_reactions += 1     
-                print("Found {} reactions with Eact > {:.1f} eV".format(count_removed_reactions, barrier_threshold))                       
-                MKM_GRAPH.remove_nodes_from(rxns_to_remove)
-                rm_condition, n = 0, 0
-                while rm_condition == 0:
-                    n += 1
-                    inter_to_remove, rxns_to_remove = [], []
-                    for node in MKM_GRAPH.nodes:
-                        if MKM_GRAPH.nodes[node]['category'] == 'reaction':
-                            if MKM_GRAPH.degree(node) <= 1:
-                                print(f"{n}) Removing {node} from the network (0/1 edge)")
+                            count_removed_reactions += 1
+                        else:
+                            in_list = [
+                                MKM_GRAPH.edges[edge]["dir"]
+                                for edge in MKM_GRAPH.in_edges(node)
+                            ]
+                            reactants = [
+                                reactant
+                                for reactant in self.reactions[idx].reactants
+                                if reactant.phase != "surf"
+                            ]
+                            products = [
+                                product
+                                for product in self.reactions[idx].products
+                                if product.phase != "surf"
+                            ]
+                            out_list = [
+                                MKM_GRAPH.edges[edge]["dir"]
+                                for edge in MKM_GRAPH.out_edges(node)
+                            ]
+                            if len(in_list) != len(reactants) or len(out_list) != len(
+                                products
+                            ):
                                 rxns_to_remove.append(node)
                                 count_removed_reactions += 1
-                            else:
-                                in_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.in_edges(node)]
-                                out_list = [MKM_GRAPH.edges[edge]['dir'] for edge in MKM_GRAPH.out_edges(node)]
-                                if in_list == [] or out_list == []:
-                                    print(f"{n}) Removing {node} from the network (edges in same direction)")
-                                    rxns_to_remove.append(node)
-                                    count_removed_reactions += 1
-                        if MKM_GRAPH.nodes[node]['category'] == 'intermediate':
-                            if MKM_GRAPH.degree(node) == 0:
-                                print(f"{n}) Removing {node} from the network (isolated)")
-                                inter_to_remove.append(node)
-                                count_removed_inters += 1
-                            if MKM_GRAPH.degree(node) == 1 and MKM_GRAPH.nodes[node]['phase'] == 'ads':
-                                print(f"{n}) Removing {node} from the network (adsorbed participating in 1 reaction)")
-                                inter_to_remove.append(node)
-                                count_removed_inters += 1
-                    if len(inter_to_remove + rxns_to_remove) == 0:
-                        rm_condition = 1
-                    else:
-                        MKM_GRAPH.remove_nodes_from(list(set(inter_to_remove)))
-                        MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))                
 
-                print("Filtered {} reactions and {} species (Eact > {:.1f} eV)".format(count_removed_reactions, count_removed_inters, barrier_threshold)) 
+                    if MKM_GRAPH.nodes[node]["category"] == "intermediate":
+                        if MKM_GRAPH.degree(node) == 0:
+                            inter_to_remove.append(node)
+                            count_removed_inters += 1
+                        if (
+                            MKM_GRAPH.degree(node) == 1
+                            and MKM_GRAPH.nodes[node]["phase"] == "ads"
+                        ):
+                            inter_to_remove.append(node)
+                            count_removed_inters += 1
 
-            RXN_IDXS = [MKM_GRAPH.nodes[node]['idx'] for node in MKM_GRAPH.nodes if MKM_GRAPH.nodes[node]['category'] == 'reaction']
-            INTERS_CODE = [node for node in MKM_GRAPH.nodes if MKM_GRAPH.nodes[node]['category'] == 'intermediate']
-            MKM_RXNS = [self.reactions[i] for i in RXN_IDXS]
-            MKM_INTERS = {inter: self.intermediates[inter] for inter in INTERS_CODE}
+                if len(inter_to_remove) == 0 and len(rxns_to_remove) == 0:
+                    rm_condition = 1
+                else:
+                    MKM_GRAPH.remove_nodes_from(list(set(inter_to_remove)))
+                    MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
 
-            # CHECK that no intermediate is missing in the reactions
-            for step in MKM_RXNS:
-                for inter in step.reactants:
-                    if inter.code not in MKM_INTERS.keys() and inter.code not in ("*", 'e-', 'H+', 'OH-', 'H2O(aq)'):
-                        print(f'Reaction {step.code} includes reactant {inter.code} which is not in the network')
-                for inter in step.products:
-                    if inter.code not in MKM_INTERS.keys() and inter.code not in ("*", 'e-', 'H+', 'OH-', 'H2O(aq)'):
-                        print(f'Reaction {step.code} includes product {inter.code} which is not in the network')
-
-            # BUILD THE MICROKINETIC MODEL                    
-            inters = sorted(
-                MKM_INTERS.keys(), key=lambda x: MKM_INTERS[x].code)  # order of y vector defined here!
-            inters_formula = [MKM_INTERS[x].formula for x in inters]
-            gas_mask = np.array(
-                [MKM_INTERS[inter].phase == "gas" for inter in inters], dtype=bool
+            print(
+                "Filtered {} species and {} reactions (target products filter)".format(
+                    count_removed_inters, count_removed_reactions
+                )
             )
-            MKM_INTERS["*"] = Intermediate("*", molecule=Atoms(), is_surface=True, phase="surf")
-            inters.append("*")
-            inters_formula.append("*")
-            gas_mask = np.append(gas_mask, False)
 
-            inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]
-            for reaction in MKM_RXNS:
-                if reaction.r_type in ("adsorption", "desorption"):
-                    formula_reactants = [inter.formula for inter in reaction.components[0] if inter.code != "*"]
-                    formula_products = [inter.formula for inter in reaction.components[1] if inter.code != "*"]
-                    rxn_formulas = formula_reactants + formula_products
-                    if any(inlet_molecule in rxn_formulas for inlet_molecule in inlet_molecules):
-                        if reaction.r_type == "adsorption":
-                            continue
+        if barrier_threshold > 0.0:
+            count_removed_inters, count_removed_reactions = 0, 0
+            rxns_to_remove = []
+            condition = lambda x, y: x >= barrier_threshold and y >= barrier_threshold
+            for node in MKM_GRAPH.nodes():
+                if MKM_GRAPH.nodes[node]["category"] == "reaction":
+                    rxn = self.reactions[MKM_GRAPH.nodes[node]["idx"]]
+                    if condition(rxn.e_act[0], rxn.e_act[0] - rxn.e_rxn[0]):
+                        rxns_to_remove.append(node)
+                        print(f"Removing {node} from the network")
+                        count_removed_reactions += 1
+            print(
+                "Found {} reactions with Eact > {:.1f} eV".format(
+                    count_removed_reactions, barrier_threshold
+                )
+            )
+            MKM_GRAPH.remove_nodes_from(rxns_to_remove)
+            rm_condition, n = 0, 0
+            while rm_condition == 0:
+                n += 1
+                inter_to_remove, rxns_to_remove = [], []
+                for node in MKM_GRAPH.nodes:
+                    if MKM_GRAPH.nodes[node]["category"] == "reaction":
+                        if MKM_GRAPH.degree(node) <= 1:
+                            print(f"{n}) Removing {node} from the network (0/1 edge)")
+                            rxns_to_remove.append(node)
+                            count_removed_reactions += 1
                         else:
-                            reaction.reverse()
-                    else:
-                        if reaction.r_type == "adsorption":
-                            reaction.reverse()
-                elif reaction.r_type == "PCET":
-                    if U < 0:
-                        if Electron() not in reaction.reactants:
-                            reaction.reverse()
-                    else:
-                        if Electron() in reaction.reactants:
-                            reaction.reverse()
+                            in_list = [
+                                MKM_GRAPH.edges[edge]["dir"]
+                                for edge in MKM_GRAPH.in_edges(node)
+                            ]
+                            out_list = [
+                                MKM_GRAPH.edges[edge]["dir"]
+                                for edge in MKM_GRAPH.out_edges(node)
+                            ]
+                            if in_list == [] or out_list == []:
+                                print(
+                                    f"{n}) Removing {node} from the network (edges in same direction)"
+                                )
+                                rxns_to_remove.append(node)
+                                count_removed_reactions += 1
+                    if MKM_GRAPH.nodes[node]["category"] == "intermediate":
+                        if MKM_GRAPH.degree(node) == 0:
+                            print(f"{n}) Removing {node} from the network (isolated)")
+                            inter_to_remove.append(node)
+                            count_removed_inters += 1
+                        if (
+                            MKM_GRAPH.degree(node) == 1
+                            and MKM_GRAPH.nodes[node]["phase"] == "ads"
+                        ):
+                            print(
+                                f"{n}) Removing {node} from the network (adsorbed participating in 1 reaction)"
+                            )
+                            inter_to_remove.append(node)
+                            count_removed_inters += 1
+                if len(inter_to_remove + rxns_to_remove) == 0:
+                    rm_condition = 1
                 else:
-                    if any([inter.closed_shell and inter.formula not in inlet_molecules for inter in reaction.components[0]]):
-                        reaction.reverse()
-                    
-                    if any([inter.closed_shell and inter.formula in inlet_molecules for inter in reaction.components[1]]):
-                        reaction.reverse()
-            
-            # Generating new graph with reversed reactions
-            MKM_GRAPH = gen_graph(MKM_INTERS, MKM_RXNS)
+                    MKM_GRAPH.remove_nodes_from(list(set(inter_to_remove)))
+                    MKM_GRAPH.remove_nodes_from(list(set(rxns_to_remove)))
 
-            v = np.zeros(
-                (len(MKM_INTERS), len(MKM_RXNS)), dtype=np.int8
-            )    
-            
+            print(
+                "Filtered {} reactions and {} species (Eact > {:.1f} eV)".format(
+                    count_removed_reactions, count_removed_inters, barrier_threshold
+                )
+            )
+
+        RXN_IDXS = [
+            MKM_GRAPH.nodes[node]["idx"]
+            for node in MKM_GRAPH.nodes
+            if MKM_GRAPH.nodes[node]["category"] == "reaction"
+        ]
+        INTERS_CODE = [
+            node
+            for node in MKM_GRAPH.nodes
+            if MKM_GRAPH.nodes[node]["category"] == "intermediate"
+        ]
+        MKM_RXNS = [self.reactions[i] for i in RXN_IDXS]
+        MKM_INTERS = {inter: self.intermediates[inter] for inter in INTERS_CODE}
+
+        # CHECK that no intermediate is missing in the reactions
+        for step in MKM_RXNS:
+            for inter in step.reactants:
+                if inter.code not in MKM_INTERS.keys() and inter.code not in (
+                    "*",
+                    "e-",
+                    "H+",
+                    "OH-",
+                    "H2O(aq)",
+                ):
+                    print(
+                        f"Reaction {step.code} includes reactant {inter.code} which is not in the network"
+                    )
+            for inter in step.products:
+                if inter.code not in MKM_INTERS.keys() and inter.code not in (
+                    "*",
+                    "e-",
+                    "H+",
+                    "OH-",
+                    "H2O(aq)",
+                ):
+                    print(
+                        f"Reaction {step.code} includes product {inter.code} which is not in the network"
+                    )
+
+        # BUILD THE MICROKINETIC MODEL
+        inters = sorted(
+            MKM_INTERS.keys(), key=lambda x: MKM_INTERS[x].code
+        )  # order of y vector defined here!
+        inters_formula = [MKM_INTERS[x].formula for x in inters]
+        gas_mask = np.array(
+            [MKM_INTERS[inter].phase == "gas" for inter in inters], dtype=bool
+        )
+        MKM_INTERS["*"] = Intermediate(
+            "*", molecule=Atoms(), is_surface=True, phase="surf"
+        )
+        inters.append("*")
+        inters_formula.append("*")
+        gas_mask = np.append(gas_mask, False)
+
+        inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]
+        for reaction in MKM_RXNS:
+            if reaction.r_type in ("adsorption", "desorption"):
+                formula_reactants = [
+                    inter.formula
+                    for inter in reaction.components[0]
+                    if inter.code != "*"
+                ]
+                formula_products = [
+                    inter.formula
+                    for inter in reaction.components[1]
+                    if inter.code != "*"
+                ]
+                rxn_formulas = formula_reactants + formula_products
+                if any(
+                    inlet_molecule in rxn_formulas for inlet_molecule in inlet_molecules
+                ):
+                    if reaction.r_type == "adsorption":
+                        continue
+                    else:
+                        reaction.reverse()
+                else:
+                    if reaction.r_type == "adsorption":
+                        reaction.reverse()
+            elif reaction.r_type == "PCET":
+                if U < 0:
+                    if Electron() not in reaction.reactants:
+                        reaction.reverse()
+                else:
+                    if Electron() in reaction.reactants:
+                        reaction.reverse()
+            else:
+                if any(
+                    [
+                        inter.closed_shell and inter.formula not in inlet_molecules
+                        for inter in reaction.components[0]
+                    ]
+                ):
+                    reaction.reverse()
+
+                if any(
+                    [
+                        inter.closed_shell and inter.formula in inlet_molecules
+                        for inter in reaction.components[1]
+                    ]
+                ):
+                    reaction.reverse()
+
+        # Generating new graph with reversed reactions
+        MKM_GRAPH = gen_graph(MKM_INTERS, MKM_RXNS)
+
+        v = np.zeros((len(MKM_INTERS), len(MKM_RXNS)), dtype=np.int8)
+
+        for i, reaction in enumerate(MKM_RXNS):
+            for inter, stoic in reaction.stoic.items():
+                if inter not in ELECTRO_SPECIES:
+                    v[inters.index(inter), i] = stoic
+
+        y0 = np.zeros(len(inters), dtype=np.float64)
+        y0[-1] = 1.0  # Initial condition: empty surface
+        num_inerts = 0
+        inerts = []
+        sorted_dict_keys = sorted(iv.keys())
+        for key in sorted_dict_keys:
+            if key not in inters_formula:  # inert
+                v = np.vstack(
+                    (v, np.zeros(len(MKM_RXNS), dtype=np.int8)), dtype=np.int8
+                )
+                y0 = np.append(y0, P * iv[key])
+                gas_mask = np.append(gas_mask, True)
+                num_inerts += 1
+                inerts.append(key)
+                # inters.append(key)
+                # inters_formula.append(key)
+        for key in sorted_dict_keys:
+            for i, inter in enumerate(inters_formula):
+                if inter == key and gas_mask[i] == True:
+                    y0[i] = P * iv[key]
+                    break
+
+        for i, inter in enumerate(inters):
+            if gas_mask[i]:
+                if not any(v[i, :]):
+                    raise ValueError(
+                        f"Gas species {inter} does not participate in any reaction"
+                    )
+            else:
+                if np.sum(np.abs(v[i, :])) < 2:
+                    raise ValueError(
+                        f"Surface species {inter} does not participate in at least two reactions"
+                    )
+
+        dfv = pd.DataFrame(
+            v,
+            index=inters_formula + inerts,
+            columns=["R{}".format(i + 1) for i, _ in enumerate(MKM_RXNS)],
+        )
+        dfv.columns = pd.MultiIndex.from_tuples(
+            [(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)]
+        )
+        dfv.to_csv("stoichiometric_matrix.csv")
+
+        if not uq:
+            kf, kr = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(
+                len(MKM_RXNS), dtype=np.float64
+            )
             for i, reaction in enumerate(MKM_RXNS):
-                for inter, stoic in reaction.stoic.items():
-                    if inter not in ELECTRO_SPECIES:
-                        v[inters.index(inter), i] = stoic
-
-                
-            y0 = np.zeros(len(inters), dtype=np.float64)
-            y0[-1] = 1.0   # Initial condition: empty surface
-            num_inerts = 0
-            inerts = []
-            sorted_dict_keys = sorted(iv.keys())
-            for key in sorted_dict_keys:
-                if key not in inters_formula:  # inert
-                    v = np.vstack((v, np.zeros(len(MKM_RXNS), dtype=np.int8)), dtype=np.int8)
-                    y0 = np.append(y0, P * iv[key])
-                    gas_mask = np.append(gas_mask, True)
-                    num_inerts += 1
-                    inerts.append(key)
-                    # inters.append(key)
-                    # inters_formula.append(key) 
-            for key in sorted_dict_keys:
-                for i, inter in enumerate(inters_formula):
-                    if inter == key and gas_mask[i] == True:
-                        y0[i] = P * iv[key]
-                        break
-
-            for i, inter in enumerate(inters):
-                if gas_mask[i]:
-                    if not any(v[i, :]):
-                        raise ValueError(f"Gas species {inter} does not participate in any reaction")
-                else:
-                    if np.sum(np.abs(v[i, :])) < 2:
-                        raise ValueError(f"Surface species {inter} does not participate in at least two reactions")
-                    
-            dfv = pd.DataFrame(v, index=inters_formula + inerts, columns=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
-            dfv.columns = pd.MultiIndex.from_tuples([(col, MKM_RXNS[i].r_type) for i, col in enumerate(dfv.columns)])
-            dfv.to_csv("stoichiometric_matrix.csv")
-
-            if not uq:
-                kf, kr = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(len(MKM_RXNS), dtype=np.float64)
+                kf[i], kr[i] = reaction.get_kinetic_constants(T, uq, thermo)
+            dfk = pd.DataFrame(
+                {"k_dir": kf, "k_rev": kr},
+                index=["R{}".format(i + 1) for i, _ in enumerate(MKM_RXNS)],
+            )
+            dfk.to_csv("kinetic_constants.csv")
+        else:
+            NRUNS = nruns
+            kf, kr = np.zeros((len(MKM_RXNS), NRUNS), dtype=np.float64), np.zeros(
+                (len(MKM_RXNS), NRUNS), dtype=np.float64
+            )
+            for run in range(NRUNS):
                 for i, reaction in enumerate(MKM_RXNS):
-                    kf[i], kr[i] = reaction.get_kinetic_constants(T, uq, thermo)
-                dfk = pd.DataFrame({"k_dir": kf, "k_rev": kr}, index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
-                dfk.to_csv("kinetic_constants.csv")
+                    kf[i, run], kr[i, run] = reaction.get_kinetic_constants(
+                        T, uq, thermo
+                    )
+            # dataframe with all constants
+            dfk = pd.DataFrame(
+                {"k_dir": kf.flatten(), "k_rev": kr.flatten()},
+                index=pd.MultiIndex.from_product(
+                    [
+                        ["R{}".format(i + 1) for i, _ in enumerate(MKM_RXNS)],
+                        range(NRUNS),
+                    ]
+                ),
+            )
+            dfk.to_csv("kinetic_constants.csv")
+
+        if eapp:
+            DELTA = 1  # temperature delta to get apparent activation energy
+            kf_plus, kr_plus = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(
+                len(MKM_RXNS), dtype=np.float64
+            )
+            kf_minus, kr_minus = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(
+                len(MKM_RXNS), dtype=np.float64
+            )
+            for i, reaction in enumerate(MKM_RXNS):
+                kf_plus[i], kr_plus[i] = reaction.get_kinetic_constants(
+                    T + DELTA, uq, thermo
+                )
+                kf_minus[i], kr_minus[i] = reaction.get_kinetic_constants(
+                    T - DELTA, uq, thermo
+                )
+
+        dfgm = pd.DataFrame(
+            gas_mask, index=inters_formula + inerts, columns=["gas_mask"]
+        )
+        dfgm.to_csv("gas_mask.csv")
+
+        ktot = np.concatenate((kf, kr))
+        kmax, kmin = np.max(ktot), np.min(ktot)
+        print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
+        print("Shape of stoichiometric matrix: {}".format(v.shape))
+        print("Number of values in stoichiometry matrix: {}".format(v.size))
+
+        reactants_mask = gas_mask.copy()
+        products_mask = gas_mask.copy()
+        for i, inter in enumerate(inters):
+            if MKM_INTERS[inter].formula in iv.keys():
+                products_mask[i] = False
             else:
-                NRUNS = nruns
-                kf, kr = np.zeros((len(MKM_RXNS), NRUNS), dtype=np.float64), np.zeros((len(MKM_RXNS), NRUNS), dtype=np.float64)
-                for run in range(NRUNS):
-                    for i, reaction in enumerate(MKM_RXNS):
-                        kf[i, run], kr[i, run] = reaction.get_kinetic_constants(T, uq, thermo)
-                # dataframe with all constants
-                dfk = pd.DataFrame({"k_dir": kf.flatten(), "k_rev": kr.flatten()}, index=pd.MultiIndex.from_product([["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)], range(NRUNS)]))
-                dfk.to_csv("kinetic_constants.csv")
+                reactants_mask[i] = False
 
-            if eapp:
-                DELTA = 1 # temperature delta to get apparent activation energy
-                kf_plus, kr_plus = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(len(MKM_RXNS), dtype=np.float64)
-                kf_minus, kr_minus = np.zeros(len(MKM_RXNS), dtype=np.float64), np.zeros(len(MKM_RXNS), dtype=np.float64)
-                for i, reaction in enumerate(MKM_RXNS):
-                    kf_plus[i], kr_plus[i] = reaction.get_kinetic_constants(T + DELTA, uq, thermo)
-                    kf_minus[i], kr_minus[i] = reaction.get_kinetic_constants(T - DELTA, uq, thermo)
+        reactor = DifferentialPFR(v, kf, kr, gas_mask, inters, P, T)
+        print(reactor)
 
-            
-            dfgm = pd.DataFrame(gas_mask, index=inters_formula + inerts, columns=["gas_mask"])
-            dfgm.to_csv("gas_mask.csv")
+        if eapp:
+            reactor_plus = DifferentialPFR(
+                v, kf_plus, kr_plus, gas_mask, inters, P, T + DELTA
+            )
+            reactor_minus = DifferentialPFR(
+                v, kf_minus, kr_minus, gas_mask, inters, P, T - DELTA
+            )
 
-            ktot = np.concatenate((kf, kr))
-            kmax, kmin = np.max(ktot), np.min(ktot)
-            print("Ratio between max and min k_dir: {:.2e}".format(kmax / kmin))
-            print("Shape of stoichiometric matrix: {}".format(v.shape))
-            print("Number of values in stoichiometry matrix: {}".format(v.size))
+        RTOL, ATOL, SSTOL = 1e-8, 1e-20, ss_tol
+        RTOL_MIN, ATOL_MIN = 1e-16, 1e-40
+        count_atol_increase = 0
+        status = None
 
-            reactants_mask = gas_mask.copy()
-            products_mask  = gas_mask.copy()
-            for i, inter in enumerate(inters):
-                if MKM_INTERS[inter].formula in iv.keys():
-                    products_mask[i] = False
-                else:
-                    reactants_mask[i] = False
-
-            reactor = DifferentialPFR(v, kf, kr, gas_mask, inters, P, T)
-            print(reactor)     
-
-            if eapp:
-                reactor_plus = DifferentialPFR(v, kf_plus, kr_plus, gas_mask, inters, P, T + DELTA)
-                reactor_minus = DifferentialPFR(v, kf_minus, kr_minus, gas_mask, inters, P, T - DELTA)
-                
-            RTOL, ATOL, SSTOL = 1e-8, 1e-20, ss_tol
-            RTOL_MIN, ATOL_MIN = 1e-16, 1e-40
-            count_atol_increase = 0
-            status = None
-
-            if uq:
-                results_uq = []
-                for run in range(NRUNS):
-                    print(f"Run {run+1}/{NRUNS}")
-                    reactor.kd = kf[:, run]
-                    reactor.kr = kr[:, run]
-                    results_uq.append(reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin))
-                results = {}
-                results['runs'] = results_uq
-                # define all as mean values and std as std of the runs
-                results['y'] = np.mean([results['runs'][i]['y'] for i in range(NRUNS)], axis=0)
-                results['y_std'] = np.std([results['runs'][i]['y'] for i in range(NRUNS)], axis=0)
-                results['forward_rate'] = np.mean([results['runs'][i]['forward_rate'] for i in range(NRUNS)], axis=0)
-                results['forward_rate_std'] = np.std([results['runs'][i]['forward_rate'] for i in range(NRUNS)], axis=0)
-                results['backward_rate'] = np.mean([results['runs'][i]['backward_rate'] for i in range(NRUNS)], axis=0)
-                results['backward_rate_std'] = np.std([results['runs'][i]['backward_rate'] for i in range(NRUNS)], axis=0)
-                results['net_rate'] = np.mean([results['runs'][i]['net_rate'] for i in range(NRUNS)], axis=0)
-                results['net_rate_std'] = np.std([results['runs'][i]['net_rate'] for i in range(NRUNS)], axis=0)
-                results['consumption_rate'] = np.mean([results['runs'][i]['consumption_rate'] for i in range(NRUNS)], axis=0)
-                results['consumption_rate_std'] = np.std([results['runs'][i]['consumption_rate'] for i in range(NRUNS)], axis=0)
-                results['total_consumption_rate'] = np.mean([results['runs'][i]['total_consumption_rate'] for i in range(NRUNS)], axis=0)
-                results['total_consumption_rate_std'] = np.std([results['runs'][i]['total_consumption_rate'] for i in range(NRUNS)], axis=0)
-                results["inters"] = inters
-                results["gas_mask"] = gas_mask
-                results['y0'] = y0
-            else:
-                while status not in (0, 1):  
-                    results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
-                    if eapp:
-                        results_plus = reactor_plus.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
-                        results_minus = reactor_minus.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
-                    status = results["status"]
-                        
-                    if status not in (0, 1):
-                        ATOL /= 10
-                        count_atol_increase += 1
-                        if count_atol_increase % 2 == 0: 
-                            RTOL /= 10
-                            print('Decreasing rtol to {} to reach steady state...'.format(RTOL))
-                        print('Decreasing atol to {} to reach steady state...'.format(ATOL))
-                    
-                    if ATOL < ATOL_MIN or RTOL < RTOL_MIN:
-                        print("Failed to reach steady state")
-                        return None  
-
-                df_rates = pd.DataFrame({"type": [reaction.r_type for reaction in MKM_RXNS], 
-                                        "k_dir": kf, 
-                                        "k_rev": kr, 
-                                        "forward_rate": results['forward_rate'], 
-                                        "reverse_rate": results['backward_rate'], 
-                                        "net_rate": results['net_rate']}, 
-                                        index=["R{}".format(i+1) for i, _ in enumerate(MKM_RXNS)])
-                df_rates.to_csv("rates.csv")
-                            
-                g = deepcopy(MKM_GRAPH)
-                MKM_RXNS_COPY = deepcopy(MKM_RXNS)
-                g.remove_edges_from(list(g.edges))
-
-                for i, inter in enumerate(inters):
-                    if MKM_INTERS[inter].phase == "gas":
-                        g.nodes[inter]["molar_fraction"] = results["y"][i] / P
-                    elif MKM_INTERS[inter].phase == "ads":
-                        g.nodes[inter]["coverage"] = results["y"][i]
-                    else:
-                        g.nodes[inter]["coverage"] = results["y"][i]
-                        
-                for i, reaction in enumerate(MKM_RXNS_COPY):
-                    if results["net_rate"][i] < 0:
-                        g.remove_node(reaction.code)
-                        reaction.reverse()  # IN-PLACE OPERATION
-                        r_type = (
-                            reaction.r_type
-                            if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
-                            else "surface_reaction"
-                        )
-                        g.add_node(reaction.code, category="reaction", r_type=r_type, rr = reaction.r_type, idx=i,
-                                    rate = abs(results["net_rate"][i]), e_act = reaction.e_act[0], e_rxn = reaction.e_rxn[0])
-                    else:
-                        g.nodes[reaction.code]["rate"] = results["net_rate"][i]
-                        g.nodes[reaction.code]["e_act"] = reaction.e_act[0]
-                        g.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
-
-                for i, inter in enumerate(inters):
-                    for j, reaction in enumerate(MKM_RXNS_COPY):
-                        if inter in reaction.stoic.keys():
-                            if results["consumption_rate"][i, j] < 0:  # Reaction j consumes inter i (sign(v) != sign(r))
-                                g.add_edge(inter, 
-                                            reaction.code, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=max(0, reaction.e_act[0], reaction.e_rxn[0]), 
-                                            v=reaction.stoic[inter])
-                            else:  # Reaction j produces inter i (sign(v) == sign(r))
-                                g.add_edge(reaction.code, 
-                                            inter, 
-                                            rate=abs(results["consumption_rate"][i, j]), 
-                                            delta=-(reaction.e_act[0] - reaction.e_rxn[0]),  
-                                            v=reaction.stoic[inter])
-                
-                # Add electrochemical species (e-, H+, OH-, H2O(aq))
-                for inter in ELECTRO_INTERS:
-                    g.add_node(inter.code, category="intermediate", phase='electro', nC=inter['C'], nH=inter['H'], nO=inter['O'])
-                for j, reaction in enumerate(MKM_RXNS_COPY):
-                    if reaction.r_type == "PCET":
-                        for i, inter in enumerate(ELECTRO_SPECIES):
-                            if inter in reaction.stoic.keys():
-                                if reaction.stoic[inter] < 0:
-                                    g.add_edge(inter, reaction.code, rate=0, delta=0, v=reaction.stoic[inter])
-                                else:
-                                    g.add_edge(reaction.code, inter, rate=0, delta=0, v=reaction.stoic[inter])
-                g.remove_node("*")                    
-                
-                results["run_graph"] = g
-                results["inters"] = inters
-                results["gas_mask"] = gas_mask
-                results['y0'] = y0
-                # Saving the tolerance values used
-                results["rtol"] = RTOL
-                results["atol"] = ATOL
-                results["sstol"] = SSTOL
-                results["k_ratio"] = kmax / kmin
+        if uq:
+            results_uq = []
+            for run in range(NRUNS):
+                print(f"Run {run+1}/{NRUNS}")
+                reactor.kd = kf[:, run]
+                reactor.kr = kr[:, run]
+                results_uq.append(
+                    reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
+                )
+            results = {}
+            results["runs"] = results_uq
+            # define all as mean values and std as std of the runs
+            results["y"] = np.mean(
+                [results["runs"][i]["y"] for i in range(NRUNS)], axis=0
+            )
+            results["y_std"] = np.std(
+                [results["runs"][i]["y"] for i in range(NRUNS)], axis=0
+            )
+            results["forward_rate"] = np.mean(
+                [results["runs"][i]["forward_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["forward_rate_std"] = np.std(
+                [results["runs"][i]["forward_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["backward_rate"] = np.mean(
+                [results["runs"][i]["backward_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["backward_rate_std"] = np.std(
+                [results["runs"][i]["backward_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["net_rate"] = np.mean(
+                [results["runs"][i]["net_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["net_rate_std"] = np.std(
+                [results["runs"][i]["net_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["consumption_rate"] = np.mean(
+                [results["runs"][i]["consumption_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["consumption_rate_std"] = np.std(
+                [results["runs"][i]["consumption_rate"] for i in range(NRUNS)], axis=0
+            )
+            results["total_consumption_rate"] = np.mean(
+                [results["runs"][i]["total_consumption_rate"] for i in range(NRUNS)],
+                axis=0,
+            )
+            results["total_consumption_rate_std"] = np.std(
+                [results["runs"][i]["total_consumption_rate"] for i in range(NRUNS)],
+                axis=0,
+            )
+            results["inters"] = inters
+            results["gas_mask"] = gas_mask
+            results["y0"] = y0
+        else:
+            while status not in (0, 1):
+                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
                 if eapp:
-                    r_minus = results_minus['total_consumption_rate']
-                    r_plus = results_plus['total_consumption_rate']
-                    r = results['total_consumption_rate']
-                    t_vec = np.array([T - DELTA, T, T + DELTA])
-                    r_vec = np.array([r_minus, r, r_plus])
-                    results['eapp'] = calc_eapp(t_vec, r_vec, gas_mask)
-                    for i, inter in enumerate(gas_mask[:-1]):
-                        if inter:
-                            print(f"{inters_formula[i]}: {results['eapp'][i]}")
-                print('Steady state reached (rtol = {}, atol = {}, sstol = {})'.format(RTOL, ATOL, SSTOL))
-            return results
+                    results_plus = reactor_plus.integrate(
+                        y0, solver, RTOL, ATOL, SSTOL, tfin
+                    )
+                    results_minus = reactor_minus.integrate(
+                        y0, solver, RTOL, ATOL, SSTOL, tfin
+                    )
+                status = results["status"]
 
+                if status not in (0, 1):
+                    ATOL /= 10
+                    count_atol_increase += 1
+                    if count_atol_increase % 2 == 0:
+                        RTOL /= 10
+                        print(
+                            "Decreasing rtol to {} to reach steady state...".format(
+                                RTOL
+                            )
+                        )
+                    print("Decreasing atol to {} to reach steady state...".format(ATOL))
+
+                if ATOL < ATOL_MIN or RTOL < RTOL_MIN:
+                    print("Failed to reach steady state")
+                    return None
+
+            df_rates = pd.DataFrame(
+                {
+                    "type": [reaction.r_type for reaction in MKM_RXNS],
+                    "k_dir": kf,
+                    "k_rev": kr,
+                    "forward_rate": results["forward_rate"],
+                    "reverse_rate": results["backward_rate"],
+                    "net_rate": results["net_rate"],
+                },
+                index=["R{}".format(i + 1) for i, _ in enumerate(MKM_RXNS)],
+            )
+            df_rates.to_csv("rates.csv")
+
+            g = deepcopy(MKM_GRAPH)
+            MKM_RXNS_COPY = deepcopy(MKM_RXNS)
+            g.remove_edges_from(list(g.edges))
+
+            for i, inter in enumerate(inters):
+                if MKM_INTERS[inter].phase == "gas":
+                    g.nodes[inter]["molar_fraction"] = results["y"][i] / P
+                elif MKM_INTERS[inter].phase == "ads":
+                    g.nodes[inter]["coverage"] = results["y"][i]
+                else:
+                    g.nodes[inter]["coverage"] = results["y"][i]
+
+            for i, reaction in enumerate(MKM_RXNS_COPY):
+                if results["net_rate"][i] < 0:
+                    g.remove_node(reaction.code)
+                    reaction.reverse()  # IN-PLACE OPERATION
+                    r_type = (
+                        reaction.r_type
+                        if reaction.r_type
+                        in ("adsorption", "desorption", "eley_rideal", "PCET")
+                        else "surface_reaction"
+                    )
+                    g.add_node(
+                        reaction.code,
+                        category="reaction",
+                        r_type=r_type,
+                        rr=reaction.r_type,
+                        idx=i,
+                        rate=abs(results["net_rate"][i]),
+                        e_act=reaction.e_act[0],
+                        e_rxn=reaction.e_rxn[0],
+                    )
+                else:
+                    g.nodes[reaction.code]["rate"] = results["net_rate"][i]
+                    g.nodes[reaction.code]["e_act"] = reaction.e_act[0]
+                    g.nodes[reaction.code]["e_rxn"] = reaction.e_rxn[0]
+
+            for i, inter in enumerate(inters):
+                for j, reaction in enumerate(MKM_RXNS_COPY):
+                    if inter in reaction.stoic.keys():
+                        if (
+                            results["consumption_rate"][i, j] < 0
+                        ):  # Reaction j consumes inter i (sign(v) != sign(r))
+                            g.add_edge(
+                                inter,
+                                reaction.code,
+                                rate=abs(results["consumption_rate"][i, j]),
+                                delta=max(0, reaction.e_act[0], reaction.e_rxn[0]),
+                                v=reaction.stoic[inter],
+                            )
+                        else:  # Reaction j produces inter i (sign(v) == sign(r))
+                            g.add_edge(
+                                reaction.code,
+                                inter,
+                                rate=abs(results["consumption_rate"][i, j]),
+                                delta=-(reaction.e_act[0] - reaction.e_rxn[0]),
+                                v=reaction.stoic[inter],
+                            )
+
+            # Add electrochemical species (e-, H+, OH-, H2O(aq))
+            for inter in ELECTRO_INTERS:
+                g.add_node(
+                    inter.code,
+                    category="intermediate",
+                    phase="electro",
+                    nC=inter["C"],
+                    nH=inter["H"],
+                    nO=inter["O"],
+                )
+            for j, reaction in enumerate(MKM_RXNS_COPY):
+                if reaction.r_type == "PCET":
+                    for i, inter in enumerate(ELECTRO_SPECIES):
+                        if inter in reaction.stoic.keys():
+                            if reaction.stoic[inter] < 0:
+                                g.add_edge(
+                                    inter,
+                                    reaction.code,
+                                    rate=0,
+                                    delta=0,
+                                    v=reaction.stoic[inter],
+                                )
+                            else:
+                                g.add_edge(
+                                    reaction.code,
+                                    inter,
+                                    rate=0,
+                                    delta=0,
+                                    v=reaction.stoic[inter],
+                                )
+            g.remove_node("*")
+
+            results["run_graph"] = g
+            results["inters"] = inters
+            results["gas_mask"] = gas_mask
+            results["y0"] = y0
+            # Saving the tolerance values used
+            results["rtol"] = RTOL
+            results["atol"] = ATOL
+            results["sstol"] = SSTOL
+            results["k_ratio"] = kmax / kmin
+            if eapp:
+                r_minus = results_minus["total_consumption_rate"]
+                r_plus = results_plus["total_consumption_rate"]
+                r = results["total_consumption_rate"]
+                t_vec = np.array([T - DELTA, T, T + DELTA])
+                r_vec = np.array([r_minus, r, r_plus])
+                results["eapp"] = calc_eapp(t_vec, r_vec, gas_mask)
+                for i, inter in enumerate(gas_mask[:-1]):
+                    if inter:
+                        print(f"{inters_formula[i]}: {results['eapp'][i]}")
+            print(
+                "Steady state reached (rtol = {}, atol = {}, sstol = {})".format(
+                    RTOL, ATOL, SSTOL
+                )
+            )
+        return results

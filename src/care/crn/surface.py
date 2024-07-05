@@ -27,28 +27,28 @@ class Surface:
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
-    
+
     @property
     def num_layers(self) -> int:
         z = {atom.index: atom.position[2] for atom in self.slab}
         layers_z = list(set(z.values()))
         return len(layers_z)
-    
+
     @property
     def slab_height(self) -> float:
         z_atoms = self.slab.get_positions()[:, 2]
         return max(z_atoms)
-    
+
     @property
     def slab_diag(self) -> float:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(a + b)
-    
+
     @property
     def shortest_side(self) -> float:
         a, b, _ = self.slab.get_cell()
         return min(np.linalg.norm(a), np.linalg.norm(b))
-    
+
     @property
     def area(self) -> float:
         """
@@ -56,7 +56,7 @@ class Surface:
         """
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(np.cross(a, b))
-    
+
     @property
     def active_sites(self) -> list[dict]:
         surf = self.crystal_structure + self.facet
@@ -68,20 +68,18 @@ class Surface:
         tol_dict["Os"] = 0.75
         tol_dict["Ru"] = 0.75
         tol_dict["Zn"] = 1.25
-        if self.facet == "10m11" or (self.crystal_structure == "bcp" and self.facet in ("111", "100")):
+        if self.facet == "10m11" or (
+            self.crystal_structure == "bcp" and self.facet in ("111", "100")
+        ):
             tol = 2.0
             sas = SlabAdsorptionSites(
-                self.slab,
-                surface=surf,
-                tol=tol,
-                label_sites=True)
+                self.slab, surface=surf, tol=tol, label_sites=True
+            )
         elif self.crystal_structure == "fcc" and self.facet == "110":
             tol = 1.5
             sas = SlabAdsorptionSites(
-                self.slab,
-                surface=surf,
-                tol=tol,
-                label_sites=True)
+                self.slab, surface=surf, tol=tol, label_sites=True
+            )
         else:
             sas = SlabAdsorptionSites(
                 self.slab,
@@ -93,7 +91,7 @@ class Surface:
         sas = sas.get_unique_sites()
         sas = [site for site in sas if site["position"][2] > 0.65 * self.slab_height]
         return sas
-    
+
 
 def load_surface(metal: str, hkl: str, db_path: str) -> Surface:
     """
@@ -102,6 +100,7 @@ def load_surface(metal: str, hkl: str, db_path: str) -> Surface:
     metal_db = connect(os.path.abspath(db_path))
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     surface_ase = metal_db.get_atoms(
-        calc_type="surface", metal=metal, facet=metal_structure)
+        calc_type="surface", metal=metal, facet=metal_structure
+    )
     surface = Surface(surface_ase, hkl)
     return surface

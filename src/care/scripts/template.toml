@@ -1,33 +1,33 @@
 [chemspace]
-ncc = 2 # Network Carbon Cutoff (int)
-noc = 1  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
-regen = true #Force the re-generatation of the existing CRN (bool)
-additional = true #Include 1.2-H shifts (bool)
-electro = false #ochemical process, readjusts the reaction expressions accordingly (bool)
+ncc = 1           # Network Carbon Cutoff (int)
+noc = 2           # Network Oxygen Cutoff (int, if <0, maximum O saturation)
+regen = true      #Force the re-generatation of the existing CRN (bool)
+additional = false #Include 1.2-H shifts (bool)
+electro = false   #ochemical process, readjusts the reaction expressions accordingly (bool)
 cyclic = false
 
 [surface]
 metal = "Ru" # metal catalyst (str)
-hkl = "0001"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
 
 [mkm]
-run = false # Run microkinetic simulation (bool)
-solver = "Julia" # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
+run = false             # Run microkinetic simulation (bool)
+solver = "Julia"        # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
 barrier_threshold = 0.0 # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
-uq = false  # Uncertainty quantification (bool)
-uq_samples = 100  # Number of samples to get for the UQ (int)
-thermo = true  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool) 
-ss_tol = 1e-10 # define stopping criteria for the kinetic simulation, if the sum of the absolute derivatives are lower than this value, integration is stopped.
-main_reactant = "CO2"  # must be present in the initial_conditions keys, used to get the main species fluxes
-tfin = 1e7  # Final integration time in s (float)
-eapp = true  # Wether estimating the apparent activation energy for all the products of the kinetic simulation
+uq = false              # Uncertainty quantification (bool)
+uq_samples = 100        # Number of samples to get for the UQ (int)
+thermo = true           # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool) 
+ss_tol = 1e-10          # define stopping criteria for the kinetic simulation, if the sum of the absolute derivatives are lower than this value, integration is stopped.
+main_reactant = "CO2"   # must be present in the initial_conditions keys, used to get the main species fluxes
+tfin = 1e7              # Final integration time in s (float)
+eapp = true             # Wether estimating the apparent activation energy for all the products of the kinetic simulation
 
 [operating_conditions]
 temperature = 473 # Temperature in Kelvin (float)
-pressure = 1e4  # Total pressure in Pascal (float)
-pH = 8 #pH, used only when electro is true (float between 1 and 14)
-U = 1.5 # applied potential in Volt, used only when electro is true (float)
+pressure = 1e4    # Total pressure in Pascal (float)
+pH = 8            #pH, used only when electro is true (float between 1 and 14)
+U = 1.5           # applied potential in Volt, used only when electro is true (float)
 
 
 [initial_conditions] # molar fractions of the species of the gas mixture the reactor is exposed to, total sum must be 1!

@@ -6,15 +6,18 @@ from time import time
 from care.crn.reactors.reactor import ReactorModel
 from care.crn.microkinetic import net_rate
 
+
 class DifferentialPFR(ReactorModel):
-    def __init__(self,  
-                 v: np.ndarray, 
-                 kd: np.ndarray,
-                 kr: np.ndarray, 
-                 gas_mask: np.ndarray, 
-                 inters: list[str], 
-                 pressure: float,
-                 temperature: float):
+    def __init__(
+        self,
+        v: np.ndarray,
+        kd: np.ndarray,
+        kr: np.ndarray,
+        gas_mask: np.ndarray,
+        inters: list[str],
+        pressure: float,
+        temperature: float,
+    ):
         """
         Differential Plug-Flow Reactor (PFR)
         Main assumptions of the reactor model:
@@ -52,20 +55,20 @@ class DifferentialPFR(ReactorModel):
         self.kr = kr  # Reverse kinetic constants
 
         self.gas_mask = gas_mask
-        self.inters = inters    
+        self.inters = inters
 
         self.P = pressure  # Pressure of the reactor
-        self.T = temperature # Temperature of the reactor
+        self.T = temperature  # Temperature of the reactor
 
-        self.sstol = None # Tolerance for steady-state conditions
+        self.sstol = None  # Tolerance for steady-state conditions
         self.sum_ddt, self.time = [], []
 
     def __str__(self) -> str:
-        y =  f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species\n"
+        y = f"Differential Plug-Flow Reactor (PFR) with {self.nr} elementary reactions and {self.nc} species\n"
         y += f"Pressure: {self.P} Pa, Temperature: {self.T} K\n"
 
         return y
-    
+
     def forward_rate(self, y: np.ndarray) -> np.ndarray:
         """
         Returns the forward reaction rate for each elementary reaction.
@@ -75,7 +78,7 @@ class DifferentialPFR(ReactorModel):
             (ndarray): forward reaction rate of the elementary reactions [1/s].
         """
         return self.kd * np.prod(y**self.v_forward_dense, axis=1)
-    
+
     def backward_rate(self, y: np.ndarray) -> np.ndarray:
         """
         Returns the backward reaction rate for each elementary reaction.
@@ -103,7 +106,9 @@ class DifferentialPFR(ReactorModel):
         _: float,
         y: np.ndarray,
     ) -> np.ndarray:
-        dydt = self.v_sparse.dot(net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense))
+        dydt = self.v_sparse.dot(
+            net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense)
+        )
         dydt[self.gas_mask] = 0.0
         print(_)
         return dydt
@@ -143,8 +148,8 @@ class DifferentialPFR(ReactorModel):
         J = self.v_dense @ (Jg - Jh)
         J[self.gas_mask, :] = 0
         return J
-    
-    @property    
+
+    @property
     def jac_sparsity(self) -> np.ndarray:
         """
         Matrix defining where the jacobian is non-zero.
@@ -157,12 +162,11 @@ class DifferentialPFR(ReactorModel):
             for s in range(self.nc):
                 if self.v_forward_dense.T[s, r] != 0:
                     Jg[r, s] = 10
-                if self.v_backward_dense.T[s, r] != 0:                    
+                if self.v_backward_dense.T[s, r] != 0:
                     Jh[r, s] = 17
         J = self.v_dense @ (Jg - Jh)
         J[self.gas_mask, :] = 0
         return J
-
 
     def steady_state(
         self,
@@ -172,7 +176,9 @@ class DifferentialPFR(ReactorModel):
         sum_ddt = np.sum(abs(self.ode(t, y)))
         abssum_ddt_gas = np.sum(abs(self.ode(t, y)[self.gas_mask]))
         Py_gas = np.sum(y[self.gas_mask])
-        print(f"Time: {t}    Sum_ddt: {sum_ddt}    Gas_ddt: {abssum_ddt_gas}    Gas_sum: {Py_gas}")
+        print(
+            f"Time: {t}    Sum_ddt: {sum_ddt}    Gas_ddt: {abssum_ddt_gas}    Gas_sum: {Py_gas}"
+        )
         self.time.append(t)
         self.sum_ddt.append(sum_ddt)
         if sum_ddt <= self.sstol:
@@ -193,7 +199,7 @@ class DifferentialPFR(ReactorModel):
         """
         Py_gas = np.sum(y[self.gas_mask])
         return 0 if Py_gas != self.P else 1
-    
+
     gas_change_event.terminal = False
     gas_change_event.direction = 0
 
@@ -234,56 +240,61 @@ class DifferentialPFR(ReactorModel):
         if solver == "Julia":
             results = {}
             try:
-                results["y"] = self.integrate_jl(y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN)
+                results["y"] = self.integrate_jl(
+                    y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                )
                 results["status"] = 1
             except Exception as e:
                 print(f"Error: {e}")
                 results["status"] = 0
-        else:            
+        else:
             self.sum_ddt = []
             self.sstol = sstol
             time0 = time()
-            ode_events = [self.steady_state, self.gas_change_event] if sstol else [self.gas_change_event]
-            results = solve_ivp(self.ode,
-                                (0, TFIN),  
-                                y0,
-                                method="BDF",
-                                events=ode_events,
-                                jac=None,
-                                atol=atol,
-                                rtol=rtol, 
-                                jac_sparsity=None)
+            ode_events = (
+                [self.steady_state, self.gas_change_event]
+                if sstol
+                else [self.gas_change_event]
+            )
+            results = solve_ivp(
+                self.ode,
+                (0, TFIN),
+                y0,
+                method="BDF",
+                events=ode_events,
+                jac=None,
+                atol=atol,
+                rtol=rtol,
+                jac_sparsity=None,
+            )
             results["time"] = time() - time0
-            
+
             print(f"Integration time: {results['time']:.2f}s")
 
             results["y"] = results["y"][:, -1]
-            results['time_ss'] = self.time
-            results['sum_ddt'] = self.sum_ddt
+            results["time_ss"] = self.time
+            results["sum_ddt"] = self.sum_ddt
         results["forward_rate"] = self.forward_rate(results["y"])
         results["backward_rate"] = self.backward_rate(results["y"])
         results["net_rate"] = self.net_rate(results["y"])
         consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
         for i in range(self.v_dense.shape[0]):
             for j in range(self.v_dense.shape[1]):
-                    consumption_rate[i, j] = self.v_dense[i, j] * results["net_rate"][j]
+                consumption_rate[i, j] = self.v_dense[i, j] * results["net_rate"][j]
         results["consumption_rate"] = consumption_rate
         results["total_consumption_rate"] = np.sum(consumption_rate, axis=1)
-        return results        
+        return results
 
-    def conversion(self, 
-                   reactant_idx: int, 
-                   y: np.ndarray) -> float:
+    def conversion(self, reactant_idx: int, y: np.ndarray) -> float:
         """
         Conversion of the reactant i.
         By definition, conversion is 0 due to infinitesimal volume of the reactor.
         """
         return 1 - y[reactant_idx, -1] / y[reactant_idx, 0]
 
-    def selectivity(self, 
-                    target_idx: int, 
-                    product_idxs: list[int], 
-                    consumption_rate: np.ndarray) -> float:
+    def selectivity(
+        self, target_idx: int, product_idxs: list[int], consumption_rate: np.ndarray
+    ) -> float:
         """
         Selectivity towards a target product.
         As conversion is zero, the selectivity is computed as the ratio between the
@@ -300,16 +311,16 @@ class DifferentialPFR(ReactorModel):
         r_tot = np.sum(consumption_rate[product_idxs, :])
         return r_target / r_tot
 
-    def reaction_rate(self, 
-                      product_idx: int, 
-                      consumption_rate: np.ndarray) -> float:
+    def reaction_rate(self, product_idx: int, consumption_rate: np.ndarray) -> float:
         return np.sum(consumption_rate[product_idx, :])
 
-    def yyield(self, 
-               reactant_idx: int, 
-               target_idx: int,
-               product_idxs: list[int], 
-               consumption_rate:np.ndarray) -> float:
+    def yyield(
+        self,
+        reactant_idx: int,
+        target_idx: int,
+        product_idxs: list[int],
+        consumption_rate: np.ndarray,
+    ) -> float:
         """
         Yield of reactant i towards product j.
         By definition, yield is 0 due to infinitesimal volume of the reactor.
@@ -320,20 +331,24 @@ class DifferentialPFR(ReactorModel):
         X = self.conversion(reactant_idx)
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
-    
-    def integrate_jl(self, 
-                     y0: np.ndarray, 
-                     rtol: float, 
-                     atol: float,
-                     sstol: float, 
-                     tfin: float, 
-                     gpu: bool=False) -> np.ndarray:
+
+    def integrate_jl(
+        self,
+        y0: np.ndarray,
+        rtol: float,
+        atol: float,
+        sstol: float,
+        tfin: float,
+        gpu: bool = False,
+    ) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver.
         """
         from julia.api import Julia
+
         jl = Julia()
         from julia import Main
+
         Main.y0 = y0
         Main.v = self.v_dense
         Main.vf = self.v_forward_dense
@@ -346,7 +361,8 @@ class DifferentialPFR(ReactorModel):
         Main.J_sparsity = self.jac_sparsity
         Main.tfin = tfin
         Main.gpu = gpu
-        Main.eval("""
+        Main.eval(
+            """
         using DifferentialEquations
         # GPU section
         if gpu
@@ -360,22 +376,30 @@ class DifferentialPFR(ReactorModel):
             gas_mask = CuArray{Bool}(gas_mask)
         end
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
-        """)
-        Main.eval("""
+        """
+        )
+        Main.eval(
+            """
         function ode_pfr!(du, u, p, t)
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
             println(t,"    ", sum(abs.(du)))
         end
-        """)
-        Main.eval("""
+        """
+        )
+        Main.eval(
+            """
         f = ODEFunction(ode_pfr!)            
-        """)
-        Main.eval("""
+        """
+        )
+        Main.eval(
+            """
         prob = ODEProblem(f, y0, (0, tfin), p)
-        """)
-        Main.eval("""
+        """
+        )
+        Main.eval(
+            """
         function condition(u, t, integrator)
             du = similar(u)
             ode_pfr!(du, u, integrator.p, t)
@@ -388,9 +412,12 @@ class DifferentialPFR(ReactorModel):
             terminate!(integrator)
         end   
         cb = DiscreteCallback(condition, affect!)     
-        """)  
-        Main.eval(""" 
+        """
+        )
+        Main.eval(
+            """ 
         sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
-        """)
+        """
+        )
         Main.eval("sol = Array(sol[end])")
         return Main.sol

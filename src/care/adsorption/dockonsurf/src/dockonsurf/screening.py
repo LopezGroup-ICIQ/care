@@ -136,8 +136,9 @@ def compute_norm_vect(atoms, idxs, cell):
     @return: numpy.ndarray of the coordinates of the vector locally
     perpendicular to the surface.
     """
-    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import \
-        coordination_numbers as coord_nums
+    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import (
+        coordination_numbers as coord_nums,
+    )
 
     if isinstance(idxs, list):
         atm_vect = [
@@ -723,8 +724,9 @@ def ads_internal(
     """
     from copy import deepcopy
 
-    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import \
-        internal_rotate
+    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import (
+        internal_rotate,
+    )
 
     slab_ads_list = []
     # Rotation over bond angle
@@ -816,32 +818,36 @@ def adsorb_confs(conf_list, surf, inp_vars):
         surf.set_cell(inp_vars["pbc_cell"])
 
     surf_ads_list = []
-    sites_coords = np.array([get_atom_coords(surf, site) for site in sites], dtype=np.float32)
-    
+    sites_coords = np.array(
+        [get_atom_coords(surf, site) for site in sites], dtype=np.float32
+    )
+
     # Finding the center between the site_coords
     if len(sites_coords) > 1:
         active_site_coords = [np.mean(sites_coords, axis=0)]
     else:
         active_site_coords = sites_coords
-    
+
     if coll_coeff is not False:
         surf_cutoffs = natural_cutoffs(surf, mult=coll_coeff)
         surf_nghbs = len(neighbor_list("i", surf, surf_cutoffs))
     else:
         surf_nghbs = 0
-    
+
     for i, conf in enumerate(conf_list):
-        molec_ctr_coords = np.array([get_atom_coords(conf, ctr) for ctr in molec_ctrs], dtype=np.float32)
-        
+        molec_ctr_coords = np.array(
+            [get_atom_coords(conf, ctr) for ctr in molec_ctrs], dtype=np.float32
+        )
+
         if len(molec_ctrs) > 1:
             center_molec = [np.mean(molec_ctr_coords, axis=0, dtype=np.float32)]
         else:
             center_molec = molec_ctr_coords
-        
+
         if inp_vars["pbc_cell"] is not False:
             conf.set_pbc(True)
             conf.set_cell(inp_vars["pbc_cell"])
-        
+
         for s, site in enumerate(active_site_coords):
             if isinstance(inp_norm_vect, str) and inp_norm_vect == "auto":
                 norm_vect = compute_norm_vect(surf, sites[s], inp_vars["pbc_cell"])

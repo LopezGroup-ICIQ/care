@@ -2,6 +2,7 @@
 ReactionNetworkSimplifier class implementation.
 Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
 """
+
 import networkx as nx
 
 from care import Intermediate, ReactionNetwork

@@ -6,8 +6,7 @@ from os import listdir
 import torch
 from torch_geometric.data import Data
 
-from care.gnn.functions import (get_graph_conversion_params,
-                                get_mean_std_from_model)
+from care.gnn.functions import get_graph_conversion_params, get_mean_std_from_model
 from care.gnn.graph_filters import extract_adsorbate
 
 

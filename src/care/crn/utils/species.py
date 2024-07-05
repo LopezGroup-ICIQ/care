@@ -183,6 +183,7 @@ def rdkit_to_graph(mol: Chem.Mol) -> nx.Graph:
 
     return nx_graph
 
+
 def get_fragment_energy(atoms: Atoms) -> float:
     """
     Calculate fragment energy from closed shell structures.

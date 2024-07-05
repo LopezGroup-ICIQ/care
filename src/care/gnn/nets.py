@@ -1,4 +1,5 @@
 """Module containing the Graph Neural Network classes."""
+
 import math
 from typing import Optional
 

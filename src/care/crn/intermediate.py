@@ -9,9 +9,11 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
-from care.crn.utils.species import (atoms_to_graph,
-                                        get_voronoi_neighbourlist, 
-                                        get_fragment_energy)
+from care.crn.utils.species import (
+    atoms_to_graph,
+    get_voronoi_neighbourlist,
+    get_fragment_energy,
+)
 
 
 class Intermediate:
@@ -105,7 +107,6 @@ class Intermediate:
         if isinstance(other, Intermediate):
             return self.code == other.code
         raise NotImplementedError
-    
 
     def __repr__(self):
         if self.phase in ("surf", "ads"):
@@ -118,7 +119,7 @@ class Intermediate:
             txt = self.code + "({}(g))".format(self.formula)
         return txt
 
-    def __str__(self):   
+    def __str__(self):
         return self.__repr__()
 
     @classmethod
@@ -300,8 +301,12 @@ class Intermediate:
             rdkit_molecule
         )  # Add hydrogens if not already added
 
-        num_C = sum([1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"])
-        num_O = sum([1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"])
+        num_C = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"]
+        )
+        num_O = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"]
+        )
         num_conformers = 50 * num_C + 10 * num_O
 
         # If the molecule has more than 1 atom, generate multiple conformers and optimize them
@@ -310,8 +315,8 @@ class Intermediate:
             confs = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule)
             conf_energies = [item[1] for item in confs]
             lowest_conf = int(np.argmin(conf_energies))
-            xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule,confId=lowest_conf)
-            
+            xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule, confId=lowest_conf)
+
             # Generating the ASE atoms object from the XYZ coordinates string
             ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
         else:
@@ -351,7 +356,7 @@ class Intermediate:
         curr_mol = self.molecule.copy()
         curr_mol.set_cell([10, 10, 10])
 
-        write(buffer, curr_mol, format='proteindatabank')
+        write(buffer, curr_mol, format="proteindatabank")
 
         buffer.seek(0)
 
@@ -374,7 +379,7 @@ class Intermediate:
 
     def ref_energy(self):
         """
-        Get the reference energy of the intermediate 
+        Get the reference energy of the intermediate
         in gas phase.
         """
         return get_fragment_energy(self.molecule)

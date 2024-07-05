@@ -5,9 +5,8 @@ from ase.db import connect
 from care import Surface
 from care.constants import METAL_STRUCT_DICT
 
-def load_surface(db_path: str, 
-                 metal: str, 
-                 hkl: str) -> Surface:
+
+def load_surface(db_path: str, metal: str, hkl: str) -> Surface:
     """
     Load surface from ASE database.
 
@@ -25,7 +24,8 @@ def load_surface(db_path: str,
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     try:
         surface_ase = metal_db.get_atoms(
-            calc_type="surface", metal=metal, facet=metal_structure)
+            calc_type="surface", metal=metal, facet=metal_structure
+        )
     except:
         raise ValueError(f"Surface {metal_structure} not found in the database.")
 

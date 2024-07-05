@@ -17,79 +17,104 @@ def iupac_to_inchikey(iupac_name: str) -> str:
         return Chem.inchi.MolToInchiKey(mol)
     else:
         return "Invalid IUPAC name"
-    
 
-def gen_graph(inters: dict[str, Intermediate], 
-              rxns: list[ElementaryReaction]) -> nx.DiGraph:
-        """
-        Generate a network graph representation.
 
-        Returns:
-            graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
-            Species nodes can only be linked to reaction nodes and vice versa.
+def gen_graph(
+    inters: dict[str, Intermediate], rxns: list[ElementaryReaction]
+) -> nx.DiGraph:
+    """
+    Generate a network graph representation.
 
-        Notes:
-            The returned graph is correctly directed at the elementary reaction level, 
-            i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
-            are linked to the reaction node in the same way (both entering or exiting).
-            However, at the global level, the graph is ill-defined and further processing 
-            (kinetic modeling) is needed to obtain a correct representation of the network.
-        """
-        graph = nx.DiGraph()
+    Returns:
+        graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
+        Species nodes can only be linked to reaction nodes and vice versa.
 
-        for inter in inters.values():
-            graph.add_node(
-                inter.code,
-                category="intermediate",
-                phase=inter.phase,
-                formula=inter.formula,
-                nC=inter["C"],
-                nH=inter["H"],
-                nO=inter["O"],
-                closed_shell=inter.closed_shell,
-            )
+    Notes:
+        The returned graph is correctly directed at the elementary reaction level,
+        i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
+        are linked to the reaction node in the same way (both entering or exiting).
+        However, at the global level, the graph is ill-defined and further processing
+        (kinetic modeling) is needed to obtain a correct representation of the network.
+    """
+    graph = nx.DiGraph()
 
+    for inter in inters.values():
         graph.add_node(
-            "*",
+            inter.code,
             category="intermediate",
-            phase="surf",
-            formula="*",
-            nC=0,
-            nH=0,
-            nO=0,
-            closed_shell=False,
+            phase=inter.phase,
+            formula=inter.formula,
+            nC=inter["C"],
+            nH=inter["H"],
+            nO=inter["O"],
+            closed_shell=inter.closed_shell,
         )
 
-        for idx, reaction in enumerate(rxns):
-            r_type = (
-                reaction.r_type
-                if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
-                else "surface_reaction"
-            )
-            graph.add_node(
-                reaction.code,
-                category="reaction",
-                r_type=r_type,
-                rr=reaction.r_type,
-                idx=idx
-            )
+    graph.add_node(
+        "*",
+        category="intermediate",
+        phase="surf",
+        formula="*",
+        nC=0,
+        nH=0,
+        nO=0,
+        closed_shell=False,
+    )
 
-            for inter in reaction.components[0]:
-                if inter.phase in ("solv", "electro"):
-                    if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="intermediate", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
-                else:
-                    graph.add_edge(inter.code, reaction.code, dir='in', v=reaction.stoic[inter.code])
-            for inter in reaction.components[1]:
-                if inter.phase in ("solv", "electro"):
-                    if not graph.has_node(inter.code):
-                        graph.add_node(inter.code, category="intermediate", phase=inter.phase, formula=inter.formula, nC=inter["C"], nH=inter["H"], nO=inter["O"])
-                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
-                else:
-                    graph.add_edge(reaction.code, inter.code, dir='out', v=reaction.stoic[inter.code])
+    for idx, reaction in enumerate(rxns):
+        r_type = (
+            reaction.r_type
+            if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
+            else "surface_reaction"
+        )
+        graph.add_node(
+            reaction.code,
+            category="reaction",
+            r_type=r_type,
+            rr=reaction.r_type,
+            idx=idx,
+        )
 
-        return graph       
+        for inter in reaction.components[0]:
+            if inter.phase in ("solv", "electro"):
+                if not graph.has_node(inter.code):
+                    graph.add_node(
+                        inter.code,
+                        category="intermediate",
+                        phase=inter.phase,
+                        formula=inter.formula,
+                        nC=inter["C"],
+                        nH=inter["H"],
+                        nO=inter["O"],
+                    )
+                graph.add_edge(
+                    inter.code, reaction.code, dir="in", v=reaction.stoic[inter.code]
+                )
+            else:
+                graph.add_edge(
+                    inter.code, reaction.code, dir="in", v=reaction.stoic[inter.code]
+                )
+        for inter in reaction.components[1]:
+            if inter.phase in ("solv", "electro"):
+                if not graph.has_node(inter.code):
+                    graph.add_node(
+                        inter.code,
+                        category="intermediate",
+                        phase=inter.phase,
+                        formula=inter.formula,
+                        nC=inter["C"],
+                        nH=inter["H"],
+                        nO=inter["O"],
+                    )
+                graph.add_edge(
+                    reaction.code, inter.code, dir="out", v=reaction.stoic[inter.code]
+                )
+            else:
+                graph.add_edge(
+                    reaction.code, inter.code, dir="out", v=reaction.stoic[inter.code]
+                )
+
+    return graph
 
 
 def max_flux(graph: nx.DiGraph, source: str) -> list:
@@ -132,7 +157,11 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
         #     for u, v, data in graph.edges(current_node, data=True)
         #     if u == current_node and v not in visited_nodes
         # ]
-        int_out_edges = [edge for edge in graph.out_edges(current_node, data=True) if edge[1] not in visited_nodes]
+        int_out_edges = [
+            edge
+            for edge in graph.out_edges(current_node, data=True)
+            if edge[1] not in visited_nodes
+        ]
         if not int_out_edges:
             path_edges = []
             print("No sink found", int_out_edges)
@@ -150,7 +179,11 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
         #     if u == rxn_node and graph.nodes[v]["nC"] != 0 and v not in visited_nodes
         # ]
 
-        rxn_out_edges = [edge for edge in graph.out_edges(rxn_node, data=True) if graph.nodes[edge[1]]["nC"] != 0 and edge[1] not in visited_nodes]
+        rxn_out_edges = [
+            edge
+            for edge in graph.out_edges(rxn_node, data=True)
+            if graph.nodes[edge[1]]["nC"] != 0 and edge[1] not in visited_nodes
+        ]
 
         try:
             max_edge = max(rxn_out_edges, key=lambda edge: edge[2]["rate"])
@@ -165,12 +198,19 @@ def max_flux(graph: nx.DiGraph, source: str) -> list:
             graph.nodes[int_node]["category"] == "intermediate"
             and graph.nodes[int_node]["phase"] == "gas"
         ):
-            print("Found fastest path ({} steps) leading from {}(g) to {}(g)".format(int(len(path_edges)/2), graph.nodes[source_node]["formula"], graph.nodes[int_node]["formula"]))
+            print(
+                "Found fastest path ({} steps) leading from {}(g) to {}(g)".format(
+                    int(len(path_edges) / 2),
+                    graph.nodes[source_node]["formula"],
+                    graph.nodes[int_node]["formula"],
+                )
+            )
             break
 
         current_node = int_node
 
     return path_edges
+
 
 @njit
 def net_rate(y, kd, kr, sf, sb):
@@ -178,13 +218,16 @@ def net_rate(y, kd, kr, sf, sb):
     for i in range(kd.shape[0]):  # Assuming kd and kr have the same shape
         forward_product = 1.0
         backward_product = 1.0
-        for j in range(sf.shape[1]):  # Assuming sf and sb have the same shape [reactions, species]
+        for j in range(
+            sf.shape[1]
+        ):  # Assuming sf and sb have the same shape [reactions, species]
             forward_product *= y[j] ** sf[i, j]
             backward_product *= y[j] ** sb[i, j]
         rates[i] = kd[i] * forward_product - kr[i] * backward_product
     return rates
 
-def get_all_paths(g: nx.Graph, source:str):
+
+def get_all_paths(g: nx.Graph, source: str):
     if len(source) == 27:
         source = g.nodes[source + "g"]["formula"]
 
@@ -197,16 +240,22 @@ def get_all_paths(g: nx.Graph, source:str):
         ):
             source_node = node
             break
-    else:        
+    else:
         return []  # If no source node is found
-    
-    gas_products = [n for n in g.nodes if g.nodes[n]['category'] == 'intermediate' and g.nodes[n]['phase'] == 'gas' and g.nodes[n]['molar_fraction'] == 0]
+
+    gas_products = [
+        n
+        for n in g.nodes
+        if g.nodes[n]["category"] == "intermediate"
+        and g.nodes[n]["phase"] == "gas"
+        and g.nodes[n]["molar_fraction"] == 0
+    ]
     products_dict = {}
     for product in gas_products:
-        formula = g.nodes[product]['formula']
+        formula = g.nodes[product]["formula"]
         print(f"Searching for paths leading from {source} to {formula}")
         try:
-            path = shortest_path(g, source_node, product, weight='weight')
+            path = shortest_path(g, source_node, product, weight="weight")
         except nx.NetworkXNoPath:
             print(f"No path found leading from {source} to {formula}")
             path = None
@@ -227,14 +276,13 @@ def calc_eapp(t, r, gas_mask):
     """
     x = 1 / t
     eapp = np.zeros(len(gas_mask[:-1]))
-    for i , inter in enumerate(gas_mask[:-1]):
-        Eapp = - (R / 1000.0)
+    for i, inter in enumerate(gas_mask[:-1]):
+        Eapp = -(R / 1000.0)
         if inter and np.all(r[:, i] > 0):
-            lm = LinearRegression()      
+            lm = LinearRegression()
             reg = lm.fit(x.reshape(-1, 1), np.log(r[:, i]).reshape(-1, 1))
             Eapp *= reg.coef_[0, 0]  # kJ/mol
             eapp[i] = Eapp
         else:
-            eapp[i] = None          
+            eapp[i] = None
     return eapp
-

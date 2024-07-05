@@ -1,5 +1,6 @@
 from care import Intermediate
 
+
 def is_alkane(inter: Intermediate) -> bool:
     """
     Check if the reactant is an alkane.
@@ -13,12 +14,13 @@ def is_alkane(inter: Intermediate) -> bool:
     if not inter.closed_shell:
         return False
     else:
-        if inter['O'] > 0:
+        if inter["O"] > 0:
             return False
         else:
-            nC, nH = inter['C'], inter['H']
+            nC, nH = inter["C"], inter["H"]
             return nH == 2 * nC + 2
-        
+
+
 def is_alkene(inter: Intermediate) -> bool:
     """
     Check if the reactant is an alkene.
@@ -32,12 +34,13 @@ def is_alkene(inter: Intermediate) -> bool:
     if not inter.closed_shell:
         return False
     else:
-        if inter['O'] > 0:
+        if inter["O"] > 0:
             return False
         else:
-            nC, nH = inter['C'], inter['H']
+            nC, nH = inter["C"], inter["H"]
             return nH == 2 * nC
-        
+
+
 def is_alkyne(inter: Intermediate) -> bool:
     """
     Check if the reactant is an alkyne.
@@ -51,12 +54,13 @@ def is_alkyne(inter: Intermediate) -> bool:
     if not inter.closed_shell:
         return False
     else:
-        if inter['O'] > 0:
+        if inter["O"] > 0:
             return False
         else:
-            nC, nH = inter['C'], inter['H']
+            nC, nH = inter["C"], inter["H"]
             return nH == 2 * nC - 2
-        
+
+
 def is_alcohol(inter: Intermediate) -> bool:
     """
     Check if the reactant is an alcohol.
@@ -70,11 +74,8 @@ def is_alcohol(inter: Intermediate) -> bool:
     if not inter.closed_shell:
         return False
     else:
-        if inter['O'] != 1:
+        if inter["O"] != 1:
             return False
         else:
-            nC, nH = inter['C'], inter['H']
+            nC, nH = inter["C"], inter["H"]
             return nH == 2 * nC + 2
-        
-
-    
