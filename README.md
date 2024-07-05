@@ -37,7 +37,7 @@ conda activate care_env
 
 ```bash
 cd care
-python3 -m pip install . # Add '-e' before '.' to install care in development mode 
+python3 -m pip install . 
 ```
 
 3. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
@@ -54,14 +54,14 @@ TODO
 
 ## Usage
 
-The current way to generate CRNs in CARE requires setting up a .toml configuration file and running the code with:
+The current way to generate chemical reaction networks in CARE requires setting up a .toml configuration file and running the code:
 
 ```bash
 care_run -i input.toml -o output_name
 ```
 
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
-Details about setting up the configuration file are found in ``.
+Examples of input .toml files can be found in `src/care/scripts/example_c1o2.toml` and `src/care/scripts/example_c2o4.toml`.
 
 Further details will be uploaded soon.
 
@@ -81,6 +81,10 @@ To visualize a specific elementary step:
 ```python
 crn.visualize_reaction(0)
 ```
+
+## Notes
+
+The DFT database in ASE format used to retrieve available CRN intermediates will be uploaded soon in Zenodo. 
 
 ## License
 
