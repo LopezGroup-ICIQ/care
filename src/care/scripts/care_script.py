@@ -11,13 +11,11 @@ import psutil
 import tempfile
 import time
 
-from ase.db import connect
-
-from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, Surface, ReactionNetwork, Intermediate
-from care.constants import LOGO, METAL_STRUCT_DICT
+from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, ReactionNetwork, Intermediate
+from care.constants import LOGO
 from care.crn.utils.blueprint import gen_blueprint
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
-
+from care.utils import load_surface
 
 lock = mp.Lock()
 
@@ -52,7 +50,7 @@ def main():
     """
 
     PARSER = argparse.ArgumentParser(
-        description="CARE main script to generate and evaluate a CRN.")
+        description="CARE main script to generate and evaluate chemical reaction networks.")
     PARSER.add_argument("-i", "--input", type=str, dest="input",
                         help="Path to the .toml configuration file.")
     PARSER.add_argument("-o", "--output", type=str, dest="output",
@@ -81,6 +79,11 @@ def main():
     metal = config['surface']['metal']
     hkl = config['surface']['hkl']
 
+    PH = config['operating_conditions']['pH'] if electrochem else None
+    U = config['operating_conditions']['U'] if electrochem else None
+    T = config['operating_conditions']['temperature'] 
+    P = config['operating_conditions']['pressure'] 
+
     # Output directory
     OUTPUT_DIR = ARGS.output 
     if OUTPUT_DIR is None:
@@ -99,31 +102,27 @@ def main():
                 
         intermediates, reactions = gen_blueprint(ncc, noc, cyclic, additional_rxns, electrochem)
         
-        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+        print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
 
         # 2. Evaluation of the adsorbed intermediates in the CRN
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n")
 
-        # Load surface        
-        metal_db = connect(os.path.abspath(DB_PATH))
-        metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
-        surface_ase = metal_db.get_atoms(
-        calc_type="surface", metal=metal, facet=metal_structure)
-        surface = Surface(surface_ase, hkl)
+        # Load surface from ase db
+        surface = load_surface(DB_PATH, metal, hkl)
         
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")        
         inter_evaluator = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
         print(' Intermediates energy calculator: ', inter_evaluator)
-        print(' DFT database: ', 'N/A' if inter_evaluator.dft_db == None else DFT_DB_PATH)
 
+        if inter_evaluator.db != None:
+            print(' DFT database: ', DFT_DB_PATH)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
         manager = mp.Manager()
         progress_queue = manager.Queue()
-        num_cpu = mp.cpu_count()
         
         if len(intermediates) < 10000:
             chunk_size = 1
@@ -142,7 +141,7 @@ def main():
                 " [green]Processing...", total=len(tasks))
             processed_items = 0
 
-            with mp.Pool(num_cpu) as pool:
+            with mp.Pool(mp.cpu_count()) as pool:
                 pool.starmap(evaluate_intermediate, [
                             (task, inter_evaluator, progress_queue, tmp_file) for task in tasks])
                 
@@ -159,21 +158,16 @@ def main():
                     break
 
         # Check how many species were available in the DFT database
-        counter = 0
-        for inter in intermediates.values():
-            if 'dft' in inter.ads_configs.keys():
-                counter += 1
-        
-        print(f"\n {counter}/{len(intermediates)} ({round(counter/len(intermediates)*100,1)}%) intermediates available in the DFT database.")
+        if inter_evaluator.db != None:            
+            counter = 0
+            for inter in intermediates.values():
+                if 'dft' in inter.ads_configs.keys():
+                    counter += 1        
+            print(f"\n {counter}/{len(intermediates)} ({round(counter/len(intermediates)*100,1)}%) intermediates available in the DFT database.")
 
         # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
         
-        # Electrochemical parameters
-        PH = config['operating_conditions']['pH'] if electrochem else None
-        U = config['operating_conditions']['U'] if electrochem else None
-        T = config['operating_conditions']['temperature'] 
-        P = config['operating_conditions']['pressure'] 
         rxn_evaluator = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
         print(' Reaction property calculator: ', rxn_evaluator)
 

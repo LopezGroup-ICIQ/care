@@ -16,22 +16,31 @@
 
 CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) for catalysis on transition metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
 
-## Installation (in progress)
+## Installation
 
-1. Clone the repo typing in the command prompt:
+We recommend creating an environment with Conda to install the package. 
+
+1. Clone the repo:
 
 ```bash
 git clone git@github.com:LopezGroup-ICIQ/care.git
 ```
 
-2. Enter the repo and run the bash script `create_env.sh`
+2. Create a conda environment with Python 3.11 and activate it:
+
+```bash
+conda create -n care_env python=3.11
+conda activate care_env
+```
+
+3. Enter the repo and install the package with pip:
 
 ```bash
 cd care
-./create_env.sh 
+python3 -m pip install . # Add '-e' before '.' to install care in development mode 
 ```
 
-3. Install [Julia](https://julialang.org/) to run microkinetic simulations:
+3. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
@@ -45,15 +54,16 @@ TODO
 
 ## Usage
 
-The current way to generate CRNs in CARE requires setting up a .toml configuration file and running the following command:
+The current way to generate CRNs in CARE requires setting up a .toml configuration file and running the code with:
 
 ```bash
-cd scripts
-python care_script.py -i INPUT.toml -o OUTDIR
+care_run -i input.toml -o output_name
 ```
 
-This will generate a directory `OUTDIR` containing `crn.pkl` containing the constructed reaction network.
+This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
 Details about setting up the configuration file are found in ``.
+
+Further details will be uploaded soon.
 
 ## How to access the CRN
 

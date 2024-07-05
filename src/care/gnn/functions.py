@@ -50,7 +50,7 @@ def get_graph_conversion_params(path: str) -> tuple:
 
 def load_model(path: str) -> Module:
     """
-    Load GAME-Net UQ model.
+    Load GAME-Net-UQ model.
     """
     one_hot_encoder_elements = load(path + "/one_hot_encoder_elements.pth")
     with open(path + "/input.txt", "r") as f:

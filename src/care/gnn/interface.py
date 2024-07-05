@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from ase import Atoms
@@ -39,11 +40,16 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
         self.path = model_path
         self.model = load_model(model_path)
-        self.device = "cuda" if cuda.is_available() else "cpu"
-        self.num_params = 560000  #TODO: Retrieve it from model
+        # self.device = "cuda" if cuda.is_available() else "cpu"  # TODO: combine CUDA and multiprocessing
+        self.device = 'cpu'
+        self.num_params = sum(p.numel() for p in self.model.parameters())
         self.model.to(self.device)
         self.surface = surface
-        self.dft_db = connect(dft_db_path) if dft_db_path else None
+
+        if dft_db_path is not None and os.path.exists(dft_db_path):
+            self.db = connect(dft_db_path)
+        else:
+            self.db = None
 
     def __repr__(self) -> str:
         return f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"        
@@ -63,7 +69,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         bool
             True if the intermediate is in the database, False otherwise.
         """
-        if self.dft_db is None:
+        if self.db is None:
             return False
         
         inchikey = intermediate.code[:-1]  # del phase-identifier
@@ -73,7 +79,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if phase == "ads" else "N/A"
 
         stable_conf, max = [], np.inf
-        for row in self.dft_db.select(f'calc_type=int,metal={metal},facet={metal_struct},inchikey={inchikey}'):
+        for row in self.db.select(f'calc_type=int,metal={metal},facet={metal_struct},inchikey={inchikey}'):
             atoms_object = row.toatoms()
 
             if not atoms_object:
@@ -116,18 +122,18 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             Updates the Intermediate object with the estimated energy.
             Multiple adsorption configurations are stored in the ads_configs attribute.
         """
-        phase = intermediate.phase
         
-        if phase == 'surf':
+        if intermediate.phase == 'surf':  # active site
             intermediate.ads_configs = {
                 "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
             }
-        elif phase == 'gas':
-            if self.retrieve_from_db(intermediate):
+        elif intermediate.phase == 'gas':  # gas phase
+            if self.db is not None and self.retrieve_from_db(intermediate):
                 return intermediate
             config = intermediate.molecule
             with no_grad():
                 pyg = atoms_to_data(config, self.model.graph_params)
+                pyg = pyg.to(self.device)
                 y = self.model(pyg)
                 intermediate.ads_configs = {
                     "gas": {
@@ -142,8 +148,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ).item(),  # eV
                     }
                 }
-        elif phase == 'ads':
-            if self.retrieve_from_db(intermediate):
+        elif intermediate.phase == 'ads':  # adsorbed
+            if self.db is not None and self.retrieve_from_db(intermediate):
                 return intermediate            
             config_list = place_adsorbate(intermediate, self.surface)
             counter, ads_config_dict = 0, {}
@@ -187,8 +193,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.path = model_path
         self.model = load_model(model_path)
         self.device = "cuda" if cuda.is_available() else "cpu"
+        # self.device = 'cpu'
         self.model.to(self.device)
-        self.num_params = 560000
+        self.num_params = sum(p.numel() for p in self.model.parameters())
         self.intermediates = intermediates
         self.pH = pH
         self.U = U
