@@ -46,7 +46,7 @@ class ReactorModel(ABC):
         Integrates the ODE system until steady-state conditions are reached.
         """
         ...
-        
+
     @abstractmethod
     def conversion(self):
         """

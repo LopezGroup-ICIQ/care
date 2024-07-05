@@ -16,15 +16,13 @@ def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 
+
 def gen_blueprint(
-    ncc: int, 
-    noc: int, 
-    cyclic: bool, 
-    additional_rxns: bool, 
-    electro: bool) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool
+) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
-    Generate the CRN blueprint by applying 
-    reaction templates to the chemical space defined by 
+    Generate the CRN blueprint by applying
+    reaction templates to the chemical space defined by
     the input parameters.
 
     Parameters
@@ -50,17 +48,17 @@ def gen_blueprint(
         List of all the reactions of the reaction network as ElementaryReaction instances.
     """
     intermediates, reactions = {}, []
-    
+
     table = PrettyTable()
     table.field_names = ["Category", "Number of Items", "Time (s)"]
-    
+
     # Generate the chemical space (CS)
     t0cs = time.time()
     chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic)
     ncs = len(chemical_space)
     tcs = time.time() - t0cs
     table.add_row(["Saturated molecules", ncs, f"{tcs:.2f}"])
-    
+
     # Extend CS with dissociation reactions
     t0ecs = time.time()
     bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space)
@@ -70,9 +68,11 @@ def gen_blueprint(
     reactions.extend(bb_steps)
     tecs = time.time() - t0ecs
     trxn = tecs
-    table.add_row(["Fragments and unsaturated molecules", nfrags, f"{tecs:.2f}"], divider=True)
+    table.add_row(
+        ["Fragments and unsaturated molecules", nfrags, f"{tecs:.2f}"], divider=True
+    )
     table.add_row(["Dissociation reactions", nbbsteps, f""])
-    
+
     # Adsorption/Desorption reactions
     t02 = time.time()
     ads_steps = adsorption.gen_adsorption_reactions(intermediates)
@@ -81,7 +81,7 @@ def gen_blueprint(
     t2 = time.time() - t02
     trxn += t2
     table.add_row(["Adsorption reactions", nadssteps, f"{t2:.2f}"])
-    
+
     # (1,2)-H shift rearrangement reactions
     if additional_rxns:
         t03 = time.time()
@@ -91,8 +91,8 @@ def gen_blueprint(
         t3 = time.time() - t03
         trxn += t3
         table.add_row(["Rearrangement reactions", nrearrsteps, f"{t3:.2f}"])
-        
-    # Proton-coupled electron transfer (PCET) reactions        
+
+    # Proton-coupled electron transfer (PCET) reactions
     if electro:
         t04 = time.time()
         pcets = pcet.gen_pcet_reactions(intermediates, reactions)
@@ -102,10 +102,10 @@ def gen_blueprint(
         trxn += t4
         table.add_row(["PCET reactions", npcets, f"{t4:.2f}"])
 
-    table.add_row(["", "", ""], divider=True)        
+    table.add_row(["", "", ""], divider=True)
     table.add_row(["Total number of species", len(intermediates), f"{tcs+tecs:.2f}"])
     table.add_row(["Total number of reactions", len(reactions), f"{trxn:.2f}"])
 
     print(f"\n{table}")
-    
+
     return intermediates, reactions

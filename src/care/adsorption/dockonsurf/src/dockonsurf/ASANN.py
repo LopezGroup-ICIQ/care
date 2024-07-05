@@ -168,7 +168,7 @@
 # Library.
 
 """Python3 implementation of the ASANN algorithm (Anisotropically corrected
-Solid-Angle based Nearest-Neighbors) """
+Solid-Angle based Nearest-Neighbors)"""
 
 import math
 

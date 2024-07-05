@@ -5,6 +5,7 @@ from scipy.integrate import solve_ivp
 from care.crn.reactors.reactor import ReactorModel
 from care.constants import N_AV, R
 
+
 class DynamicCSTR(ReactorModel):
     def __init__(
         self,
@@ -16,7 +17,7 @@ class DynamicCSTR(ReactorModel):
         Q: float = 1e-6,
         m_cat: float = 1e-3,
         s_bet: float = 1e5,
-        a_site: float = 1e-19
+        a_site: float = 1e-19,
     ):
         """
         Dynamic Continuous Stirred Tank Reactor (CSTR)
@@ -86,7 +87,7 @@ class DynamicCSTR(ReactorModel):
         """
         mat = np.zeros_like(self.v_matrix)
         mat[self.v_matrix > 0] = self.v_matrix[self.v_matrix > 0]
-        return mat.T  
+        return mat.T
 
     def net_rate(self, y: np.ndarray, kd: np.ndarray, kr: np.ndarray) -> np.ndarray:
         """
@@ -99,29 +100,35 @@ class DynamicCSTR(ReactorModel):
         """
         return kd * np.prod(y**self.stoic_forward, axis=1) - kr * np.prod(
             y**self.stoic_backward, axis=1
-        )  
+        )
 
-    def ode(self, 
-            t: float,
-            y: np.ndarray, 
-            kd: np.ndarray, 
-            kr: np.ndarray, 
-            gas_mask: np.ndarray, 
-            sstol: float, 
-            y0: np.ndarray) -> np.ndarray:
+    def ode(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        kr: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+        y0: np.ndarray,
+    ) -> np.ndarray:
         dy = self.v_matrix @ self.net_rate(y, kd, kr)
-        dy[gas_mask] *= (R * self.temperature * self.s_bet * self.m_cat) / (N_AV * self.volume * self.a_site)
+        dy[gas_mask] *= (R * self.temperature * self.s_bet * self.m_cat) / (
+            N_AV * self.volume * self.a_site
+        )
         dy[gas_mask] += (y0[gas_mask] - y[gas_mask]) / self.tau
         return dy
 
-    def jacobian(self, 
-                 t: float,
-                 y: np.ndarray, 
-                 kd: np.ndarray, 
-                 kr: np.ndarray, 
-                 gas_mask: np.ndarray, 
-                 sstol: float, 
-                 y0: np.ndarray) -> np.ndarray:
+    def jacobian(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        kr: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+        y0: np.ndarray,
+    ) -> np.ndarray:
         # TODO Taken from Pymkm, readapt!
         J = np.zeros((len(y), len(y)))
         Jg = np.zeros((len(kd), len(y)))
@@ -154,17 +161,17 @@ class DynamicCSTR(ReactorModel):
         #     J[NC_sur + i, NC_sur + i] -= 1 / self.tau  # TODO: check this
         return J
 
-    def steady_state(self, 
-                     t: float,
-                     y: np.ndarray, 
-                     kd: np.ndarray, 
-                     kr: np.ndarray, 
-                     gas_mask: np.ndarray, 
-                     sstol: float, 
-                     y0: np.ndarray) -> float:
-        sum_ddt = np.sum(
-            abs(self.ode(t, y, kd, kr, gas_mask, sstol, y0))
-        )
+    def steady_state(
+        self,
+        t: float,
+        y: np.ndarray,
+        kd: np.ndarray,
+        kr: np.ndarray,
+        gas_mask: np.ndarray,
+        sstol: float,
+        y0: np.ndarray,
+    ) -> float:
+        sum_ddt = np.sum(abs(self.ode(t, y, kd, kr, gas_mask, sstol, y0)))
         print(t, sum_ddt)
         return 0 if sum_ddt <= sstol else sum_ddt
 
@@ -201,21 +208,24 @@ class DynamicCSTR(ReactorModel):
             The integration is stopped when the sum of the absolute values of the derivatives is below
             the tolerance parameter `sstol`.
         """
-        results = solve_ivp(self.ode,
-                            (0, 1e30),
-                            y0,
-                            method=method,
-                            events=self.steady_state,
-                            jac=None,  # self.jacobian to double check, to readapt
-                            args=ode_params + (sstol, y0),
-                            atol=atol,
-                            rtol=rtol)
-        results["rate"] = self.net_rate(results["y"][:, -1], ode_params[0],
-                                         ode_params[1])
+        results = solve_ivp(
+            self.ode,
+            (0, 1e30),
+            y0,
+            method=method,
+            events=self.steady_state,
+            jac=None,  # self.jacobian to double check, to readapt
+            args=ode_params + (sstol, y0),
+            atol=atol,
+            rtol=rtol,
+        )
+        results["rate"] = self.net_rate(
+            results["y"][:, -1], ode_params[0], ode_params[1]
+        )
         consumption_rate = np.zeros_like(self.v_matrix)
         for i in range(self.v_matrix.shape[0]):
             for j in range(self.v_matrix.shape[1]):
-                    consumption_rate[i, j] = self.v_matrix[i, j] * results["rate"][j]
+                consumption_rate[i, j] = self.v_matrix[i, j] * results["rate"][j]
         results["consumption_rate"] = consumption_rate
         performance = np.zeros((self.v_matrix.shape[0], 2))
         for i in range(self.v_matrix.shape[0]):
@@ -227,20 +237,21 @@ class DynamicCSTR(ReactorModel):
         results["performance"] = performance
         return results
 
-    def conversion(self, 
-                   reactant_index: int, 
-                   yin: np.ndarray, 
-                   yout: np.ndarray) -> float:
+    def conversion(
+        self, reactant_index: int, yin: np.ndarray, yout: np.ndarray
+    ) -> float:
         """
         Conversion of reactant i.
         """
-        return 1 - yout[reactant_index] / yin[reactant_index] if yin[reactant_index] > 0 else 0
+        return (
+            1 - yout[reactant_index] / yin[reactant_index]
+            if yin[reactant_index] > 0
+            else 0
+        )
 
-    def selectivity(self, 
-                    reactant_index: int, 
-                    product_index: int, 
-                    yin: np.ndarray, 
-                    yout: np.ndarray) -> float:
+    def selectivity(
+        self, reactant_index: int, product_index: int, yin: np.ndarray, yout: np.ndarray
+    ) -> float:
         """
         Selectivity of reactant i towards product j.
         """
@@ -251,11 +262,9 @@ class DynamicCSTR(ReactorModel):
         else:
             return (yout[p] - yin[p]) / (yin[r] - yout[r])
 
-    def yyield(self, 
-               reactant_index: int, 
-               product_index: int, 
-               yin: np.ndarray, 
-               yout: np.ndarray) -> float:
+    def yyield(
+        self, reactant_index: int, product_index: int, yin: np.ndarray, yout: np.ndarray
+    ) -> float:
         """
         Yield of reactant i towards product j.
         """
@@ -263,11 +272,12 @@ class DynamicCSTR(ReactorModel):
         S = self.selectivity(reactant_index, product_index, yin, yout)
         return X * S
 
-    def reaction_rate(self, 
-                      product_index: int, 
-                      yin: np.ndarray, 
-                      yout: np.ndarray) -> float:
+    def reaction_rate(
+        self, product_index: int, yin: np.ndarray, yout: np.ndarray
+    ) -> float:
         """
         Reaction rate of product i in mol/s.
         """
-        return self.Q * (yout[product_index] - yin[product_index]) / (R * self.temperature)
+        return (
+            self.Q * (yout[product_index] - yin[product_index]) / (R * self.temperature)
+        )

@@ -224,11 +224,11 @@ def place_adsorbate(
     total_config_list = []
 
     if len(intermediate.molecule) > 6:
-        
+
         # Getting all the indices of the all the active sites
         site_idx = [site["indices"] for site in surface.active_sites]
         site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
-        
+
         ads_height = 2.5
         config_list = []
         while config_list == []:
@@ -246,7 +246,7 @@ def place_adsorbate(
         return total_config_list
 
     elif 2 <= len(intermediate.molecule) <= 6:
-        
+
         ads_height = (
             2.2 if intermediate.molecule.get_chemical_formula() != "H2" else 1.8
         )

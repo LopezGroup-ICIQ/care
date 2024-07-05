@@ -33,10 +33,13 @@ def fragment_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
         return True
 
 
-def extract_adsorbate(graph: Data,
-                     adsorbate_elems: list[str]) -> bool:
+def extract_adsorbate(graph: Data, adsorbate_elems: list[str]) -> bool:
     """Extract adsorbate from the graph."""
-    adsorbate_nodes = [node_idx for node_idx in range(graph.num_nodes) if graph.elem[node_idx] in adsorbate_elems]
+    adsorbate_nodes = [
+        node_idx
+        for node_idx in range(graph.num_nodes)
+        if graph.elem[node_idx] in adsorbate_elems
+    ]
     return graph.subgraph(tensor(adsorbate_nodes))
 
 
@@ -130,11 +133,10 @@ def C_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
     return True
 
 
-def adsorption_filter(graph: Data,  
-                      adsorbate_elems: list[str]) -> bool:
+def adsorption_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
     """
     Check presence of metal atoms in the adsorption graphs.
-    sufficiency condition: if there is at least one atom different from C, H, O, N, S, 
+    sufficiency condition: if there is at least one atom different from C, H, O, N, S,
     then the graph is considered as an adsorption graph.
     Args:
         graph(torch_geometric.data.Data): Graph object representation
@@ -144,31 +146,36 @@ def adsorption_filter(graph: Data,
         (bool): True = Metal catalyst present in the adsorption graph
                 False = No metal catalyst in the adsorption graph
     """
-    if graph.metal == 'N/A' and graph.facet == 'N/A':
+    if graph.metal == "N/A" and graph.facet == "N/A":
         return True
     else:
         return False if all([elem in adsorbate_elems for elem in graph.elem]) else True
 
 
-def ase_adsorption_filter(atoms: Atoms,
-                          adsorbate_elems: list[str]) -> bool:
+def ase_adsorption_filter(atoms: Atoms, adsorbate_elems: list[str]) -> bool:
     """
     Check that the adsorbate has not been incorporated in the bulk.
 
     Args:
         graph (Data): Input adsorption/molecular graph.
         adsorbate_elems (list[str]): List of atomic elements in the molecule
-    
+
     Returns:
         (bool): True = Adsorbate is not incorporated in the bulk
                 False = Adsorbate is incorporated in the bulk
     """
     if all([atom.symbol in adsorbate_elems for atom in atoms]):
         return True
-    min_adsorbate_z = min([atom.position[2] for atom in atoms if atom.symbol in adsorbate_elems])
-    max_surface_z = max([atom.position[2] for atom in atoms if atom.symbol not in adsorbate_elems])
+    min_adsorbate_z = min(
+        [atom.position[2] for atom in atoms if atom.symbol in adsorbate_elems]
+    )
+    max_surface_z = max(
+        [atom.position[2] for atom in atoms if atom.symbol not in adsorbate_elems]
+    )
     if min_adsorbate_z < 0.8 * max_surface_z:
-        print(f"{atoms.get_chemical_formula(mode='metal')}: Adsorbate incorporated in the bulk.")
+        print(
+            f"{atoms.get_chemical_formula(mode='metal')}: Adsorbate incorporated in the bulk."
+        )
         return False
     else:
         return True

@@ -11,10 +11,13 @@ from rdkit.Chem.inchi import MolToInchiKey
 from care import ElementaryReaction, Intermediate
 from care.constants import BOND_TYPES
 
-def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+
+def gen_dissociation_reactions(
+    chemical_space: list[str],
+) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate all potential dissociation reactions given an initial set of molecules.
-    
+
     Parameters
     ----------
     chemical_space : list[str]
@@ -26,11 +29,11 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
         Dictionary with Intermediate instances produced by the bond-breaking template.
             Key: InChIKey of the gas molecule plus '*' or 'g' defining if its phase (adsorbed or gas-phase).
     rxns : list[ElementaryReaction]
-        List of the dissociation reactions of the reaction network as ElementaryReaction instances.     
+        List of the dissociation reactions of the reaction network as ElementaryReaction instances.
     """
 
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()
-    
+
     with Progress() as progress:
         task_desc = format_description("[green]Generating extended Chemical Space...")
         task = progress.add_task(task_desc, total=len(chemical_space))
@@ -50,9 +53,8 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
 
     frag_list = list(set(frag_list))
     all_mol_list = [
-        MolFromSmiles(smiles)
-        for smiles in list(set(frag_list + chemical_space))
-    ]       
+        MolFromSmiles(smiles) for smiles in list(set(frag_list + chemical_space))
+    ]
 
     # Generate the Intermediate objects
     rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}
@@ -67,17 +69,11 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
         rxns = []
 
         for reaction in unique_reactions:
-            reactant = inters[
-                MolToInchiKey(MolFromSmiles(reaction[0])) + "*"
-            ]
-            product1 = inters[
-                MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"
-            ]
+            reactant = inters[MolToInchiKey(MolFromSmiles(reaction[0])) + "*"]
+            product1 = inters[MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"]
 
             if len(reaction[1]) == 2:
-                product2 = inters[
-                    MolToInchiKey(MolFromSmiles(reaction[1][1])) + "*"
-                ]
+                product2 = inters[MolToInchiKey(MolFromSmiles(reaction[1][1])) + "*"]
                 reaction_components = [[active_site, reactant], [product1, product2]]
             else:
                 reaction_components = [[reactant], [product1]]
@@ -86,7 +82,7 @@ def gen_dissociation_reactions(chemical_space: list[str]) -> tuple[dict[str, Int
                 ElementaryReaction(components=reaction_components, r_type=reaction[2])
             )
             progress.update(task, advance=1)
-    
+
     return inters, rxns
 
 
@@ -187,7 +183,7 @@ def process_molecule(
     processed_molecules: set[str],
 ) -> None:
     """
-    Process a molecule by breaking all the bonds 
+    Process a molecule by breaking all the bonds
     of the desired type recursively.
 
     Parameters
@@ -201,7 +197,7 @@ def process_molecule(
     -------
     None
         All the reactions are added to the unique reactions set
-        , and all the processed fragments are added to the 
+        , and all the processed fragments are added to the
         processed fragments dictionary
     """
 
@@ -221,8 +217,8 @@ def process_molecule(
         unique_reactions,
         processed_molecules,
     )
-    
-    
+
+
 def break_bonds(
     molecule: Chem.rdchem.Mol,
     processed_fragments: dict[str, list[list[str]]],
@@ -233,7 +229,7 @@ def break_bonds(
     """
     Recursively break bonds in a molecule and filter unique reactions
     and fragments.
-    The function is recursive, and will break all the bonds of the 
+    The function is recursive, and will break all the bonds of the
     desired types in the molecule, and then break all the bonds in the fragments, etc.
 
     Parameters
@@ -250,13 +246,11 @@ def break_bonds(
     Returns
     -------
     None
-        All the reactions are added to the unique reactions set, 
+        All the reactions are added to the unique reactions set,
         and all the processed fragments are added to the processed fragments dictionary
     """
 
-    current_smiles = MolToSmiles(molecule,
-                                 isomericSmiles=True,
-                                 allHsExplicit=True)
+    current_smiles = MolToSmiles(molecule, isomericSmiles=True, allHsExplicit=True)
 
     if current_smiles in processed_molecules:
         return 0
@@ -311,15 +305,17 @@ def break_bonds(
                             Chem.Atom(Z_atom2).GetSymbol(),
                         ]
                     )
-                    
-                    unique_reactions.add((rxn_tuple[0], rxn_tuple[1], f"{bbtype[0]}-{bbtype[1]}"))
+
+                    unique_reactions.add(
+                        (rxn_tuple[0], rxn_tuple[1], f"{bbtype[0]}-{bbtype[1]}")
+                    )
                     total_bond_counter += 1
 
         processed_molecules.add(current_smiles)
-        
-        
+
+
 def gen_intermediates_dict(
-    inter_dict: dict[str, Chem.rdchem.Mol]
+    inter_dict: dict[str, Chem.rdchem.Mol],
 ) -> dict[str, Intermediate]:
     """
     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
@@ -327,24 +323,24 @@ def gen_intermediates_dict(
     Parameters
     ----------
     inter_dict : dict[str, Chem.rdchem.Mol]
-        Dictionary containing the Chem.rdchem.Mol instances 
+        Dictionary containing the Chem.rdchem.Mol instances
         of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, 
+        Each key is the InChIKey of a molecule,
         and each value is the corresponding Chem.rdchem.Mol instance.
 
     Returns
     -------
     intermediate_class_dict : dict[str, Intermediate]
-        Dictionary containing the Intermediate instances 
+        Dictionary containing the Intermediate instances
         of all the chemical species of the reaction network.
         Each key is the InChIKey of the molecule plus '*' or 'g'
-        defining if its adsorbed or in gas-phase, 
+        defining if its adsorbed or in gas-phase,
         and each value the Intermediate instance.
     """
 
     # Splitting the dictionary into chunks
     n_cores = mp.cpu_count()
-    keys = list(inter_dict.keys())        
+    keys = list(inter_dict.keys())
     chunk_size = 1 if len(keys) < n_cores else len(keys) // n_cores
     chunks = [
         dict(
@@ -372,7 +368,6 @@ def gen_intermediates_dict(
                     progress_queue_inter.get()
                     processed_items += 1
                     progress.update(task, advance=1)
-
 
     # Combine the results from all chunks
     combined_result = {}
@@ -405,7 +400,9 @@ def process_inter_objs_chunk(chunk, progress_queue) -> dict[str, Intermediate]:
 
         if inter_ads.closed_shell:  # closed-shell also appear in gas phase
             code = key + "g"
-            inter_dict_chunk[code] = Intermediate(code=code, molecule=value, phase="gas")
+            inter_dict_chunk[code] = Intermediate(
+                code=code, molecule=value, phase="gas"
+            )
     progress_queue.put(1)
 
     return inter_dict_chunk

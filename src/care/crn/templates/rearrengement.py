@@ -1,5 +1,4 @@
-""" (1,2)-H shift rearrangement reaction template."""
-
+"""(1,2)-H shift rearrangement reaction template."""
 
 from collections import defaultdict
 from itertools import combinations
@@ -12,8 +11,9 @@ from rich.progress import Progress
 
 from care import Intermediate, ElementaryReaction
 
+
 def gen_rearrangement_reactions(
-    intermediates: dict[str, Intermediate]
+    intermediates: dict[str, Intermediate],
 ) -> list[ElementaryReaction]:
     """
     Generate the (1,2)-H shift rearrangement reactions.
@@ -69,7 +69,9 @@ def gen_rearrangement_reactions(
     with mp.Pool(mp.cpu_count()) as pool:
         result_async = pool.starmap_async(process_subgroup, tasks)
         with Progress() as progress:
-            task_desc = format_description("[green]Generating rearrangement reactions...")
+            task_desc = format_description(
+                "[green]Generating rearrangement reactions..."
+            )
             task = progress.add_task(task_desc, total=len(tasks))
             processed_items = 0
 
@@ -187,6 +189,7 @@ def process_subgroup(subgroup_pairs_dict, progress_queue):
     progress_queue.put(1)
 
     return results
+
 
 def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""

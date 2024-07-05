@@ -1,4 +1,4 @@
-"""Module containing molecular templates for constructing the 
+"""Module containing molecular templates for constructing the
 Chemical Space (CS) of the CRN."""
 
 from itertools import product
@@ -7,13 +7,15 @@ from rich.progress import Progress
 from rdkit.Chem import MolToSmiles, MolFromSmiles
 from rdkit import Chem
 
+
 def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 
+
 def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
     """Generate Chemical Space of the CRN.
-    Chemical Space is the set of fully saturated hydrocarbons, ethers, epoxides, and alcohol species 
+    Chemical Space is the set of fully saturated hydrocarbons, ethers, epoxides, and alcohol species
     up to a given number of carbon and oxygen atoms.
 
     Args:
@@ -27,8 +29,10 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
 
     noc = noc if noc >= 0 else ncc * 2 + 2
     if noc > ncc * 2 + 2:
-        raise ValueError("The number of oxygen atoms must be smaller or equal than 2 * ncc + 2.")
-    
+        raise ValueError(
+            "The number of oxygen atoms must be smaller or equal than 2 * ncc + 2."
+        )
+
     with Progress() as progress:
         task_desc = format_description("[green]Generating Chemical Space...")
         task = progress.add_task(task_desc, total=6)
@@ -42,7 +46,11 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
         progress.update(task, advance=1)
 
         if noc > 0:
-            relev_species =  ["C(=O)=O", "O", "O=O", "[H][H]"] if noc == 1 else ["O", "O=O", "[H][H]"]
+            relev_species = (
+                ["C(=O)=O", "O", "O=O", "[H][H]"]
+                if noc == 1
+                else ["O", "O=O", "[H][H]"]
+            )
             # Step 2: Generate Ethers
             ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
             progress.update(task, advance=1)
@@ -57,7 +65,9 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
 
             # Step 4: Add Oxygens
             alkanes_oxy_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes]
-            ethers_epox_oxy_smiles = [add_oxygens(mol, noc-1) for mol in mol_ethers+mol_epox]
+            ethers_epox_oxy_smiles = [
+                add_oxygens(mol, noc - 1) for mol in mol_ethers + mol_epox
+            ]
             cho_smiles = alkanes_oxy_smiles + ethers_epox_oxy_smiles
             cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
             progress.update(task, advance=1)
@@ -70,7 +80,7 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool) -> list[str]:
             # Step 2: Finalize the Species List
             chemical_space = alkanes_smiles + relev_species
             progress.update(task, advance=1)
-            
+
     return chemical_space
 
 
@@ -277,7 +287,7 @@ def add_oxygens(mol: Chem.Mol, noc: int) -> set[str]:
 
     if noc == 0:
         return set()
-    
+
     unique_molecules = set()
 
     # Filter out carbon atoms with no free sites

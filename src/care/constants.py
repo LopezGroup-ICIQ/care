@@ -154,10 +154,10 @@ BOND_TYPES = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
 INTER_PHASES = ["gas", "ads", "surf", "solv", "electro"]
 
 COORD_DICT = {
-        "C": 3,
-        "H": 1,
-        "O": 3,
-    }
+    "C": 3,
+    "H": 1,
+    "O": 3,
+}
 
 METALS = [
     "Ag",
@@ -189,7 +189,7 @@ R_TYPES = [
     "adsorption",
     "pseudo",
     "rearrangement",
-    "PCET"
+    "PCET",
 ]
 
 OC_KEYS = ["T", "P", "U", "pH"]
