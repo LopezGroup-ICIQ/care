@@ -119,9 +119,6 @@ def main():
         if inter_evaluator.db != None:
             print(' DFT database: ', DFT_DB_PATH)
 
-        # if inter_evaluator.device == 'cuda':
-        #     mp.set_start_method('spawn', force=True)  # TODO: check if this is necessary
-
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
         manager = mp.Manager()
