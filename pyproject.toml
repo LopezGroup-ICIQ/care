@@ -18,7 +18,7 @@ dependencies = [
   "rdkit==2023.3.3",
   "scikit_learn==1.3.1",
   "scipy==1.12.0",
-  "setuptools==68.2.2",
+  "setuptools==70.0.0",
   "torch==2.1.0",
   "torch_geometric==2.4.0",
   "numba",
