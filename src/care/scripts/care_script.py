@@ -158,7 +158,7 @@ def main():
         num_cpu = mp.cpu_count()
 
         with Progress() as progress:
-            task = progress.add_task(" [green]Processing...", total=len(tasks))
+            task = progress.add_task(" [green]Processing...", total=None)
             processed_items = 0
 
             with mp.Pool(num_cpu) as pool:
