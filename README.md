@@ -3,7 +3,6 @@
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
 [![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
 
-
 # CARE: Catalysis Automated Reaction Evaluator
 
 <div style="display: flex; justify-content: center; align-items: center;">
@@ -11,14 +10,12 @@
      <img src="./CARE_github.png" width="90%" height="90%" />
     </p>
 </div>
- 
- #
 
 CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) for catalysis on transition metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
 
 ## Installation
 
-We recommend creating an environment with Conda to install the package. 
+We recommend creating an environment with Conda to install the package.
 
 1. Clone the repo:
 
@@ -39,15 +36,24 @@ conda activate care_env
 cd care
 python3 -m pip install . 
 ```
-NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.
 
-3. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
+*NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
+
+4. Install `pytorch` and `pytorch_geometric` through conda using the following command:
+
+```bash
+conda install pytorch cpuonly pyg -c pytorch -c pyg
+```
+
+*NOTE: MacOS users might need to install pytorch geometric using pip.*
+
+5. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
 ```
 
-4. Install the required Julia dependencies creating the Julia environment provided by `Project.toml`
+6. Install the required Julia dependencies creating the Julia environment provided by `Project.toml`
 
 ```bash
 TODO
@@ -85,7 +91,7 @@ crn.visualize_reaction(0)
 
 ## Notes
 
-The DFT database in ASE format used to retrieve available CRN intermediates will be uploaded soon in Zenodo. 
+The DFT database in ASE format used to retrieve available CRN intermediates will be uploaded soon in Zenodo.
 
 ## License
 
