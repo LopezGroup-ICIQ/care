@@ -39,6 +39,7 @@ conda activate care_env
 cd care
 python3 -m pip install . 
 ```
+NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.
 
 3. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
 
