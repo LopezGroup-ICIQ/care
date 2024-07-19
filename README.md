@@ -39,7 +39,7 @@ python3 -m pip install .
 
 *NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
 
-4. Install `pytorch` and `pytorch_geometric` through conda using the following command:
+4. Install `pytorch` and `pytorch_geometric` through conda. **Ensure that the libraries are obtained from the pytorch and pyg channels**, as shown here:
 
 ```bash
 conda install pytorch cpuonly pyg -c pytorch -c pyg
