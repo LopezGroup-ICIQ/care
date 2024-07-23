@@ -42,8 +42,7 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace }}
       run: |
-        source $CONDA/bin/activate care_test
         pip install pytest
-        echo "PYTHONPATH: $PYTHONPATH"
+        export PYTHONPATH=$PYTHONPATH:.
         pytest -v
 
