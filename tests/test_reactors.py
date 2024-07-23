@@ -6,7 +6,7 @@ import sys
 
 sys.path.append("../src/")
 
-from care.crn.reactors import DifferentialPFR, DynamicCSTR
+from care.crn.reactors import DifferentialPFR
 
 v_matrix = np.array(
     [
@@ -20,9 +20,9 @@ v_matrix = np.array(
     ]
 )
 kd, kr = np.ones(4), np.ones(4)
-pfr = DifferentialPFR(temperature=500, pressure=1e5, v_matrix=v_matrix)
-cstr = DynamicCSTR(temperature=500, pressure=1e5, v_matrix=v_matrix)
-
+gas_mask = np.array([1, 0, 1, 1])
+inters = ['a', 'b', 'c', 'd']
+pfr = DifferentialPFR(v_matrix, kd, kr, gas_mask, inters, temperature=500, pressure=1e5)
 
 class TestDifferentialPFR(unittest.TestCase):
 
@@ -30,29 +30,26 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         Check that the forward stoichiometric matrix is correctly implemented
         """
-        # self.assertTrue((pfr.stoic_forward >= 0))
-        # self.assertTrue((pfr.stoic_forward == np.array([[1, 0, 0, 0],
+        # self.assertTrue((pfr.v_forward_dense >= 0))
+        # self.assertTrue((pfr.v_forward_dense == np.array([[1, 0, 0, 0],
         #                                                 [0, 1, 0, 0],
         #                                                 [0, 0, 0, 0],
         #                                                 [0, 0, 1, 0],
         #                                                 [0, 0, 1, 0],
         #                                                 [0, 0, 0, 1],
         #                                                 [1, 1, 0, 0]]).T.all()))
-        self.assertEqual(pfr.stoic_forward_dense.shape, (4, 7))
+        self.assertEqual(pfr.v_forward_dense.shape, (4, 7))
 
     def test_stoic_backward(self):
         """
         Check that the backward stoichiometric matrix is correctly implemented
         """
-        # self.assertTrue((pfr.stoic_backward >= 0))
-        # self.assertTrue((pfr.stoic_backward == np.array([[0, 0, 0, 0],
+        # self.assertTrue((pfr.v_backward_dense >= 0))
+        # self.assertTrue((pfr.v_backward_dense == np.array([[0, 0, 0, 0],
         #                                                  [0, 0, 0, 0],
         #                                                  [0, 0, 0, 1],
         #                                                  [1, 0, 0, 0],
         #                                                  [0, 1, 0, 0],
         #                                                  [0, 0, 1, 1],
         #                                                  [0, 0, 0, 0]]).T.all()))
-        self.assertEqual(pfr.stoic_backward_dense.shape, (4, 7))
-
-
-class TestDynamicCSTR(unittest.TestCase): ...
+        self.assertEqual(pfr.v_backward_dense.shape, (4, 7))
