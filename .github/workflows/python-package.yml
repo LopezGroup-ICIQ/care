@@ -2,12 +2,13 @@ name: Python package
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   pull_request:
-    branches: ["main"]
+    branches: [ "main" ]
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -15,8 +16,7 @@ jobs:
         python-version: ["3.11"]
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
     - name: Set up Miniconda
       uses: conda-incubator/setup-miniconda@v2
@@ -27,42 +27,22 @@ jobs:
 
     - name: Install dependencies
       run: |
-        source ~/.bashrc
-        conda activate care_test
-        conda install -y pytorch cpuonly pyg -c pytorch -c pyg
+        conda install pytorch cpuonly pyg -c pytorch -c pyg
         pip install .
-
-    - name: Verify conda environment
-      run: |
-        source ~/.bashrc
-        conda activate care_test
-        conda info --envs
-
-    - name: Verify installed packages
-      run: |
-        source ~/.bashrc
-        conda activate care_test
-        conda list
-
-    - name: List directory contents
-      run: ls -R
 
     - name: Lint with flake8
       run: |
-        source ~/.bashrc
-        conda activate care_test
         pip install flake8
+        # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Test with pytest
       env:
         PYTHONPATH: ${{ github.workspace }}/src
       run: |
-        source ~/.bashrc
         conda activate care_test
         pip install pytest
-        echo "PYTHONPATH: $PYTHONPATH"
-        pytest -v
-
+        pytest
 

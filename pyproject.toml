@@ -56,8 +56,11 @@ package-dir = { "" = "src" }
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-v"
+addopts = [
+    "--import-mode=importlib",
+    "-v",
+]
 testpaths = [
     "tests",
 ]
-pyhtonpath = "./src"
+pyhtonpath = "src"
