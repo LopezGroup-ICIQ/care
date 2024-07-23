@@ -4,7 +4,7 @@ from ase import Atoms
 import numpy as np
 import sys
 
-sys.path.append("../src/")
+# sys.path.append("../src/")
 
 from care.crn.reactors import DifferentialPFR
 

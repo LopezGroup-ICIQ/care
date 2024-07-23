@@ -1,7 +1,7 @@
 import unittest
 import sys
 
-sys.path.append("../src/")
+# sys.path.append("../src/")
 
 from care import MODEL_PATH, DB_PATH
 from care.utils import load_surface

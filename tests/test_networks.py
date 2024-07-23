@@ -3,7 +3,7 @@ from random import randint
 from ase import Atoms
 import sys
 
-sys.path.append("../src/")
+# sys.path.append("../src/")
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
 from care.crn.utils.blueprint import gen_blueprint
