@@ -39,8 +39,6 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
     - name: Test with pytest
-      env:
-        PYTHONPATH: ${{ github.workspace }}/src
       run: |
-        conda run -n care_test pytest
+        pytest
 
