@@ -27,6 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda create -n care_test python=3.11
+        conda init 
         conda activate care_test
         python3 -m pip install .
         conda install pytorch cpuonly pyg -c pytorch -c pyg
