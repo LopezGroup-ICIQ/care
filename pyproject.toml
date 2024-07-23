@@ -60,3 +60,4 @@ addopts = "-v"
 testpaths = [
     "tests",
 ]
+pyhtonpath = "./src"
