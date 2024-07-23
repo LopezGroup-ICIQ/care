@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda install pytorch cpuonly pyg -c pytorch -c pyg
-        pip install -e .
+        pip install .
         pip install flake8 pytest
 
     - name: Lint with flake8
