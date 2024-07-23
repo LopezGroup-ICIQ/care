@@ -53,3 +53,10 @@ Repository = "https://github.com/LopezGroup-ICIQ/care"
 [tool.setuptools]
 include-package-data = true
 package-dir = { "" = "src" }
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-v"
+testpaths = [
+    "tests",
+]
