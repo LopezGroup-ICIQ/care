@@ -42,7 +42,6 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace }}/src
       run: |
-        conda activate care_test
         pip install pytest
         pytest
 
