@@ -11,7 +11,7 @@
     </p>
 </div>
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) for catalysis on transition metal surfaces. CARE is powered with GAME-Net-UQ, a graph neural network with uncertainty quantification (UQ) targeting the DFT energy of relaxed species and transition states.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) for catalysis on transition metal surfaces. CARE is powered with [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), a graph neural network with uncertainty quantification targeting the DFT energy of relaxed species and transition states.
 
 ## Installation
 
