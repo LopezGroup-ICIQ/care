@@ -28,8 +28,7 @@ jobs:
         pip install .
     - name: Install Julia and dependencies
       run: |
-        curl -fsSL https://install.julialang.org | sh
-        julia -v
+        curl -y -fsSL https://install.julialang.org | sh
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
