@@ -29,6 +29,8 @@ jobs:
     - name: Install Julia and dependencies
       run: |
         curl -y -fsSL https://install.julialang.org | sh
+        ./jl_deps.sh
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(); Pkg.status()'
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
