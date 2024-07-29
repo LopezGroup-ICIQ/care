@@ -18,7 +18,7 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
+    - name: Install care
       run: |
         conda create -n care_test python=3.11
         source $CONDA/etc/profile.d/conda.sh
@@ -26,6 +26,10 @@ jobs:
         conda install pytorch cpuonly pyg -c pytorch -c pyg
         conda install pytest flake8
         pip install .
+    - name: Install Julia and dependencies
+      run: |
+        curl -fsSL https://install.julialang.org | sh
+        julia -v
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
