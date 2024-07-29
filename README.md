@@ -53,11 +53,13 @@ conda install pytorch cpuonly pyg -c pytorch -c pyg
 curl -fsSL https://install.julialang.org | sh
 ```
 
-6. Install the required Julia dependencies creating the Julia environment provided by `Project.toml`
+6. Install the required Julia dependencies by running the following:
 
 ```bash
-TODO
+julia -e 'using Pkg; Pkg.activate("."); Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations");
 ```
+
+These packages allow to run microkinetic simulations with Julia calling it from Python.
 
 ## Usage
 
