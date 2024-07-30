@@ -47,7 +47,7 @@ conda install pytorch cpuonly pyg -c pytorch -c pyg
 
 *NOTE: MacOS users might need to install pytorch geometric using pip.*
 
-5. Install [Julia](https://julialang.org/) to run microkinetic simulations with it. This step is required if you want to perform microkinetic simulations with Julia. As alternative, simulations can run with the implemented Scipy solver.
+5. Install [Julia](https://julialang.org/). This step is required if you want to perform microkinetic simulations with Julia solvers. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
@@ -56,7 +56,8 @@ curl -fsSL https://install.julialang.org | sh
 6. Install the required Julia dependencies by running the following:
 
 ```bash
-julia -e 'using Pkg; Pkg.activate("."); Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations");
+python3 -m pip install julia
+julia -e 'using Pkg; Pkg.activate("."); Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations") Pkg.add("DiffEqGPU");
 ```
 
 These packages allow to run microkinetic simulations with Julia calling it from Python.
