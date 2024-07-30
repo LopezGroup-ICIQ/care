@@ -43,5 +43,5 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        pytest
+        python-jl -m pytest
 
