@@ -213,26 +213,22 @@ class DifferentialPFR(ReactorModel):
         tfin: float,
     ) -> dict:
         """
-        Integrate the ODE system until steady-state conditions are reached.
+        Integrate the ODE system up to steady-state.
 
         Args:
             y0(ndarray): Initial conditions for the ODE system.
-            ode_params(tuple): Parameters for the ODE system, containing kdirect, kreverse, gas_mask
+            solver(str): Solver to use for the integration. Options are 'Python' or 'Julia'.
             rtol(float): Relative tolerance for the integration.
             atol(float): Absolute tolerance for the integration.
-            ss_tol(float): Tolerance parameter for controlling automatic stop when
-                            steady-state conditions are reached by the solver. When the sum of the
-                            absolute values of the derivatives is below this value, the integration
-                            is stopped.
-            method(str): Integration method for the ODE system. Strongly recommended to use BDF or Radau
-                            for stiff systems.
+            sstol(float): Tolerance for steady-state conditions.
+            tfin(float): Final time for the integration.
 
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
 
         Notes:
-            The integration is stopped when the sum of the absolute values of the derivatives is below
-            the tolerance parameter `sstol`.
+            The integration is stopped when the sum of the absolute values of the derivatives reaches
+            the steady-state tolerance 'sstol'.
         """
 
         TFIN = tfin if tfin else 1e6
@@ -247,7 +243,7 @@ class DifferentialPFR(ReactorModel):
             except Exception as e:
                 print(f"Error: {e}")
                 results["status"] = 0
-        else:
+        elif solver == "Python":
             self.sum_ddt = []
             self.sstol = sstol
             time0 = time()
@@ -274,6 +270,8 @@ class DifferentialPFR(ReactorModel):
             results["y"] = results["y"][:, -1]
             results["time_ss"] = self.time
             results["sum_ddt"] = self.sum_ddt
+        else:
+            raise ValueError("Invalid solver. Choose between 'Python' or 'Julia'.")
         results["forward_rate"] = self.forward_rate(results["y"])
         results["backward_rate"] = self.backward_rate(results["y"])
         results["net_rate"] = self.net_rate(results["y"])
