@@ -52,12 +52,17 @@ conda install pytorch cpuonly pyg -c pytorch -c pyg
 ```bash
 curl -fsSL https://install.julialang.org | sh
 ```
+*NOTE: For some systems Julia may present some error while using sh. If that is the case, please install Julia by running instead the following command.*
+
+```bash
+curl -fsSL https://install.julialang.org | sh -s -- -y
+```
 
 6. Install the required Julia dependencies by running the following:
 
 ```bash
 python3 -m pip install julia
-julia -e 'using Pkg; Pkg.activate("."); Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations") Pkg.add("DiffEqGPU");
+julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU");'
 ```
 
 These packages allow to run microkinetic simulations with Julia calling it from Python.

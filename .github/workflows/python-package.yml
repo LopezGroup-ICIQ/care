@@ -30,7 +30,7 @@ jobs:
       run: |
         curl -y -fsSL https://install.julialang.org | sh
         python3 -m pip install julia
-        julia -e 'using Pkg; Pkg.activate("."); Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU")'
+        julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU");'
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
