@@ -380,6 +380,6 @@ class Intermediate:
     def ref_energy(self):
         """
         Get the reference energy of the intermediate
-        in gas phase.
+        in gas phase. Returned value is in electronVolt (eV).
         """
         return get_fragment_energy(self.molecule)
