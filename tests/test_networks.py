@@ -1,13 +1,11 @@
 import unittest
 from random import randint
 from ase import Atoms
-import sys
-
-# sys.path.append("../src/")
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
 from care.crn.utils.blueprint import gen_blueprint
 from care.constants import INTER_ELEMS
+
 
 inters, steps = gen_blueprint(3, 2, False, True, True)
 net = ReactionNetwork(inters, steps, type="electrochemical")

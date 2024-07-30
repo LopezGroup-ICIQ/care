@@ -4,6 +4,7 @@ import numpy as np
 
 from care.crn.reactors import DifferentialPFR
 
+
 # Test reaction network
 # R1) A(g) + * -> A*
 # R2) B(g) + * -> B*
@@ -82,7 +83,7 @@ class TestDifferentialPFR(unittest.TestCase):
         y = np.random.rand(7)
         dydt = pfr.ode(0, y)
         dydt_42 = pfr.ode(42, y)
-        self.assertTrue(np.array_equal(dydt_42, dydt))  # Check that ODE is autonomous
+        self.assertTrue(np.array_equal(dydt_42, dydt))  # ODE is autonomous
         self.assertEqual(dydt[0], 0.0)
         self.assertEqual(dydt[1], 0.0)
         self.assertEqual(dydt[2], 0.0)
