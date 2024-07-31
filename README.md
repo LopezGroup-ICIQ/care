@@ -78,7 +78,7 @@ care_run -i input.toml -o output_name
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
 Examples of input .toml files can be found in `src/care/scripts/example_c1o2.toml` and `src/care/scripts/example_c2o4.toml`.
 
-Further details will be uploaded soon.
+A step by step tutorial for generating and manipulating reaction networks is in progresso in ``notebooks/care_demo.ipynb``.
 
 ## How to access the CRN
 
