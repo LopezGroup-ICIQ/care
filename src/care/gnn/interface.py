@@ -519,7 +519,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             data.edge_index = data.edge_index[:, mask]
             data.edge_attr = data.edge_attr[mask]
             adsorbate = extract_adsorbate(data, ["C", "H", "O", "N", "S"])
-            nx_graph = pyg_to_nx(adsorbate, data.node_feats)
+            nx_graph = pyg_to_nx(adsorbate)
             if nx.is_isomorphic(
                 nx_bc, nx_graph, node_match=lambda x, y: x["elem"] == y["elem"]
             ):

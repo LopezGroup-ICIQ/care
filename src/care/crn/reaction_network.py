@@ -517,10 +517,10 @@ class ReactionNetwork:
                 matches.append(reaction)
         return matches
 
-    def search_inter_by_elements(self, element_dict):
+    def search_inter_by_elements(self, element_dict: dict[str, int]) -> tuple:
         """Given a dictionary with the elements as keys and the number of each
-        element as value, returns all the intermediates that contains these
-        elements. The dictionary must contain the elements C, H and O.
+        element as value, returns all the intermediates matching the provided
+        stoichiometry.
 
         Args:
             element_dict (dict): Dictionary with the symbol of the elements as
@@ -529,9 +529,12 @@ class ReactionNetwork:
         Returns:
             tuple of obj:`Intermediate` containing all the matching intermediates.
         """
+        for elem in ['C', 'H', 'O']:  # hardcoded as INTER_ELEMS contains also '*' and 'q' (to fix)
+            if elem not in element_dict.keys():
+                element_dict[elem] = 0
         matches = []
         for inter in self.intermediates.values():
-            elem_tmp = {element: inter[element] for element in INTER_ELEMS}
+            elem_tmp = {element: inter[element] for element in ['C', 'H', 'O']}
             if all(
                 [
                     elem_tmp[element] == element_dict[element]
