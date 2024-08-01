@@ -111,12 +111,6 @@ class ElementaryReaction:
         if self.r_type != "pseudo" and self.stoic is None:
             self.stoic = self.solve_stoichiometry()
 
-        if self.r_type in ("adsorption", "desorption"):
-            adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
-            self.adsorbate_mass = adsorbate.mass
-        else:
-            self.adsorbate_mass = None
-
     def __lt__(self, other):
         return self.code < other.code
 

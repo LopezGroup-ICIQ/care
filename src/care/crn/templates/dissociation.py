@@ -12,9 +12,66 @@ from care import ElementaryReaction, Intermediate
 from care.constants import BOND_TYPES
 
 
+class BondBreaking(ElementaryReaction):
+    """Class for bond-breaking reactions."""
+
+    def __init__(self, components, r_type):
+        print(components, r_type)
+        super().__init__(components=components, r_type=r_type)
+
+    def reverse(self):
+        self.__class__ = BondFormation
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = (
+                self.e_ts[0] - self.e_is[0],
+                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+            )
+            if self.e_act[0] < 0:
+                self.e_act = 0, self.e_rxn[1]
+            if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
+                self.e_act = self.e_rxn[0], self.e_rxn[1]
+        self.code = self.__repr__()
+
+
+class BondFormation(ElementaryReaction):
+    """Class for bond-formation reactions."""
+
+    def __init__(self, components, r_type):
+        super().__init__(components=components, r_type=r_type)
+
+    def reverse(self):
+        self.__class__ = BondBreaking
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = (
+                self.e_ts[0] - self.e_is[0],
+                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+            )
+            if self.e_act[0] < 0:
+                self.e_act = 0, self.e_rxn[1]
+            if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
+                self.e_act = self.e_rxn[0], self.e_rxn[1]
+        self.code = self.__repr__()
+
+
 def gen_dissociation_reactions(
     chemical_space: list[str],
-) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+) -> tuple[dict[str, Intermediate], list[BondBreaking]]:
     """
     Generate all potential dissociation reactions given an initial set of molecules.
 
@@ -79,7 +136,7 @@ def gen_dissociation_reactions(
                 reaction_components = [[reactant], [product1]]
 
             rxns.append(
-                ElementaryReaction(components=reaction_components, r_type=reaction[2])
+                BondBreaking(components=reaction_components, r_type=reaction[2])
             )
             progress.update(task, advance=1)
 

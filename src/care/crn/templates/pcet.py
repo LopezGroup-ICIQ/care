@@ -8,8 +8,35 @@ from care import ElementaryReaction, Intermediate
 from care.crn.utils.electro import Proton, Electron, Water
 
 
+class PCET(ElementaryReaction):
+    """Class for proton-coupled electron transfer reactions."""
+
+    def __init__(self, components, r_type):
+        super().__init__(components=components, r_type=r_type)
+
+    def reverse(self):
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = (
+                self.e_act[0] - self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
+            if self.e_act[0] < 0:
+                self.e_act = 0, self.e_rxn[1]
+            if self.e_act[0] < self.e_rxn[0]:
+                self.e_act = self.e_rxn[0], self.e_rxn[1]
+        self.code = self.__repr__()
+
+
 def gen_pcet_reactions(
-    intermediates: dict[str, Intermediate], reactions: list[ElementaryReaction]
+    intermediates: dict[str, Intermediate], reactions: list[PCET]
 ) -> None:
     """
     Generate the proton-coupled electron transfer reactions
@@ -44,7 +71,7 @@ def gen_pcet_reactions(
     )
 
     pcets.append(
-        ElementaryReaction(
+        PCET(
             components=[[Proton(), Electron(), active_site], [h_ads]], r_type=rtype
         )
     )  # H+ + e- + * -> H*
@@ -70,7 +97,7 @@ def gen_pcet_reactions(
                             new_products.append(product)
 
                 pcets.append(
-                    ElementaryReaction(
+                    PCET(
                         components=[new_reactants, new_products], r_type=rtype
                     )
                 )
@@ -92,7 +119,7 @@ def gen_pcet_reactions(
                             new_products.append(product)
 
                     pcets.append(
-                        ElementaryReaction(
+                        PCET(
                             components=[new_reactants, new_products], r_type="PCET"
                         )
                     )

@@ -12,9 +12,29 @@ from rich.progress import Progress
 from care import Intermediate, ElementaryReaction
 
 
+class Rearrangement(ElementaryReaction):
+    """Class for (1,2)-H shift rearrangement reactions."""
+
+    def __init__(self, components, r_type):
+        super().__init__(components=components, r_type=r_type)
+
+    def reverse(self):
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+        self.code = self.__repr__()
+
+
 def gen_rearrangement_reactions(
     intermediates: dict[str, Intermediate],
-) -> list[ElementaryReaction]:
+) -> list[Rearrangement]:
     """
     Generate the (1,2)-H shift rearrangement reactions.
 
@@ -26,7 +46,7 @@ def gen_rearrangement_reactions(
 
     Returns
     -------
-    list[ElementaryReaction]
+    list[Rearrangement]
         List of the rearrangement reactions of the reaction network.
     """
 
@@ -84,7 +104,7 @@ def gen_rearrangement_reactions(
     return [rxn for sublist in result_async.get() for rxn in sublist]
 
 
-def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryReaction:
+def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> Rearrangement:
     """
     Check if a pair of intermediates is a 1,2-rearrangement reaction.
 
@@ -95,7 +115,7 @@ def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryRe
 
     Returns
     -------
-    ElementaryReaction
+    Rearrengement
         An ElementaryReaction instance if the pair is a 1,2-rearrangement reaction, None otherwise.
     """
 
@@ -103,7 +123,7 @@ def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> ElementaryRe
     smiles1 = Chem.MolToSmiles(inter1.rdkit)
     smiles2 = Chem.MolToSmiles(inter2.rdkit)
     if is_hydrogen_rearranged(smiles1, smiles2):
-        return ElementaryReaction(
+        return Rearrangement(
             components=(frozenset([inter1]), frozenset([inter2])),
             r_type="rearrangement",
         )

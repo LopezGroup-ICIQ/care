@@ -9,9 +9,57 @@ from rich.progress import Progress
 from care import ElementaryReaction, Intermediate
 
 
+class Adsorption(ElementaryReaction):
+    """Class for adsorption reactions."""
+
+    def __init__(self, components, r_type):
+        super().__init__(components=components, r_type=r_type)
+        adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
+        self.adsorbate_mass = adsorbate.mass
+
+    def reverse(self):
+        self.__class__ = Desorption
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.r_type = "desorption"
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+        self.code = self.__repr__()
+
+
+class Desorption(ElementaryReaction):
+    """Class for desorption reactions."""
+
+    def __init__(self, components, r_type):
+        super().__init__(components=components, r_type=r_type)
+        adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
+        self.adsorbate_mass = adsorbate.mass
+
+    def reverse(self):
+        self.__class__ = Adsorption
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        self.r_type = "adsorption"
+        self.reactants, self.products = self.products, self.reactants
+        if self.e_rxn != None:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+        self.code = self.__repr__()
+
+
 def gen_adsorption_reactions(
     intermediates: dict[str, Intermediate], num_processes=mp.cpu_count()
-) -> list[ElementaryReaction]:
+) -> list[Adsorption]:
     """
     Generate adsorption/desorption reactions
     for the closed-shell species in the reaction network.
@@ -73,7 +121,7 @@ def gen_adsorption_reactions(
         else:  # O2
             ads_code = "QVGXLLKOCUKJST-UHFFFAOYSA-N*"
         adsorption_steps.append(
-            ElementaryReaction(
+            Adsorption(
                 components=(
                     frozenset([surf_inter, intermediates[gas_code]]),
                     frozenset([intermediates[ads_code]]),
@@ -92,9 +140,9 @@ def format_description(description: str, width: int = 45):
 
 def process_ads_react_chunk(
     inter_chunk: list[Intermediate], surf_inter: Intermediate, progress_queue
-) -> list[ElementaryReaction]:
+) -> list[Adsorption]:
     """
-    Processes a chunk of the intermediates to generate the adsorption reactions as ElementaryReaction instances.
+    Processes a chunk of the intermediates to generate the adsorption reactions as Adsorption instances.
 
     Parameters
     ----------
@@ -105,8 +153,8 @@ def process_ads_react_chunk(
 
     Returns
     -------
-    adsorption_steps : list[ElementaryReaction]
-        List of all the adsorption reactions of the reaction network as ElementaryReaction instances.
+    adsorption_steps : list[Adsorption]
+        List of all the adsorption reactions of the reaction network as Adsorption instances.
     """
     adsorptions = []
     for inter in inter_chunk:
@@ -114,7 +162,7 @@ def process_ads_react_chunk(
             inter.molecule, code=inter.code[:-1] + "*", phase="ads"
         )
         adsorptions.append(
-            ElementaryReaction(
+            Adsorption(
                 components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
                 r_type="adsorption",
             )
