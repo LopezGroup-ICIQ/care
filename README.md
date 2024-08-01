@@ -92,7 +92,6 @@ with open('./C1O4/Pd111/crn.pkl', 'rb') as pickle_file:
 `crn` is a `care.ReactionNetwork` object which provides rapid access to the intermediates (`care.Intermediate`), elementary reactions (`care.ElementaryReaction`), and its properties as activation barrier `care.ElementaryReaction.e_act` and reaction energy `care.ElementaryReaction.e_rxn`.
 
 Check the [notebook tutorial](./notebooks/care_demo.ipynb) for manipulating the generated reaction network.
-```
 
 ## Notes
 
