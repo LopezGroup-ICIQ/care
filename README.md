@@ -78,7 +78,7 @@ care_run -i input.toml -o output_name
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
 Examples of input .toml files can be found in `src/care/scripts/example_c1o2.toml` and `src/care/scripts/example_c2o4.toml`.
 
-A step by step tutorial for generating and manipulating reaction networks is in progresso in ``notebooks/care_demo.ipynb``.
+A step by step tutorial for generating and manipulating reaction networks is in progress in ``notebooks/care_demo.ipynb``.
 
 ## How to access the CRN
 
@@ -91,10 +91,7 @@ with open('./C1O4/Pd111/crn.pkl', 'rb') as pickle_file:
 
 `crn` is a `care.ReactionNetwork` object which provides rapid access to the intermediates (`care.Intermediate`), elementary reactions (`care.ElementaryReaction`), and its properties as activation barrier `care.ElementaryReaction.e_act` and reaction energy `care.ElementaryReaction.e_rxn`.
 
-To visualize a specific elementary step:
-
-```python
-crn.visualize_reaction(0)
+Check the [notebook tutorial](./notebooks/care_demo.ipynb) for manipulating the generated reaction network.
 ```
 
 ## Notes

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "care"
-version = "0.1.1"
+version = "1.0.0"
 dependencies = [
   "acat==1.6.8",
   "ase==3.22.1",
@@ -24,7 +24,7 @@ dependencies = [
   "rich",
   "py-cpuinfo",
 ]
-#requires-python = "==3.11.*"
+
 authors = [
   {name = "Santiago Morandi", email = "smorandi@iciq.es"},
   {name = "Oliver Loveday", email = "oloveday@iciq.es"},
