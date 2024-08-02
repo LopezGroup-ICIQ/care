@@ -7,7 +7,6 @@ from torch_geometric.data import Data
 
 from care import Intermediate
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
-from care.crn.utils.electro import Electron, Proton, Hydroxide, Water
 
 
 class ElementaryReaction:
@@ -130,10 +129,8 @@ class ElementaryReaction:
                 out_str = (
                     "[{}]".format(str(abs(self.stoic[inter.code]))) + inter.__str__()
                 )
-            rhs.append(out_str)
-        # sort alphabetically
-        lhs.sort()
-        rhs.sort()
+            rhs.append(out_str)        
+        lhs.sort(), rhs.sort()  # sort alphabetically
         return " + ".join(lhs) + " <-> " + " + ".join(rhs)
 
     @property
@@ -335,10 +332,6 @@ class ElementaryReaction:
         """
         Set the elementary reaction in the bond-breaking direction, e.g.:
         CH4 + * -> CH3 + H*
-        If is not in the bond-breaking direction, reverse it
-        Adsorption steps are reversed to desorption steps, while desorption steps are preserved.
-
-        Note: PCET electron transfer steps do not have an intrinsic bond-breaking direction.
         """
         pass
 
@@ -352,126 +345,6 @@ class ElementaryReaction:
         """
         self.bb_order()
         self.reverse()
-
-    def electro_rxn(
-        self,
-        pH: float,
-        h2o_gas: Intermediate,
-        oh_code: str,
-        surface_inter: Intermediate,
-    ):
-        """
-        Adjust the elementary reaction to electrochemical nomenclature.
-
-        Parameters:
-        ----------
-        pH: float
-            pH of the system.
-        h2o_gas: Intermediate
-            Water molecule in the gas phase.
-        oh_code: str
-            Code of the hydroxide intermediate.
-        surface_inter: Intermediate
-            Intermediate representing the surface.
-
-        Returns:
-        -------
-        None
-        """
-
-        if self.r_type in ("C-H", "H-O"):
-
-            reactants = [inter for inter in self.reactants]
-            products = [inter for inter in self.products]
-
-            new_reactants, new_products = [], []
-            for reactant in reactants:
-                if reactant.is_surface:
-                    if pH <= 7:
-                        continue
-                    else:
-                        new_reactants.append(Hydroxide())
-                elif reactant.formula == "H":
-                    new_reactants.append(Electron())
-                    if pH <= 7:
-                        new_reactants.append(Proton())
-                    else:
-                        new_reactants.append(Water())
-                else:
-                    if not reactant.is_surface:
-                        new_reactants.append(reactant)
-            for product in products:
-                if product.is_surface:
-                    if pH <= 7:
-                        continue
-                    else:
-                        new_reactants.append(Hydroxide())
-                elif product.formula == "H":
-                    new_products.append(Electron())
-                    if pH <= 7:
-                        new_products.append(Proton())
-                    else:
-                        new_products.append(Water())
-                else:
-                    if not product.is_surface:
-                        new_products.append(product)
-
-            self.components = [new_reactants, new_products]
-            self.reactants = new_reactants
-            self.products = new_products
-            self.r_type = "PCET"
-            self.stoic = self.solve_stoichiometry()
-            self.code = self.__repr__()
-
-        elif self.r_type in ("C-O", "O-O"):
-            for component_set in self.components:
-                if oh_code in [component.code for component in component_set]:
-                    if len(self.products) == 1:
-                        continue
-                    else:
-                        new_reactants, new_products = [], []
-                        for reactant in self.reactants:
-                            if reactant.is_surface:
-                                new_reactants.append(Electron())
-                                if pH <= 7:
-                                    new_reactants.append(Proton())
-                                else:
-                                    new_reactants.append(Water())
-                            elif reactant.formula == "HO":
-                                if pH <= 7:
-                                    new_reactants.append(h2o_gas)
-                                    new_reactants.append(surface_inter)
-                                else:
-                                    new_reactants.append(h2o_gas)
-                                    new_reactants.append(Hydroxide())
-                            else:
-                                new_reactants.append(reactant)
-                        for product in self.products:
-                            if product.is_surface:
-                                new_products.append(Electron())
-                                if pH <= 7:
-                                    new_products.append(Proton())
-                                else:
-                                    new_products.append(Water())
-                            elif product.formula == "HO":
-                                if pH <= 7:
-                                    new_products.append(h2o_gas)
-                                else:
-                                    new_products.append(h2o_gas)
-                                    new_products.append(Hydroxide())
-                                if len(self.products) == 1:
-                                    new_products.append(surface_inter)
-                            else:
-                                new_products.append(product)
-
-                        self.components = [new_reactants, new_products]
-                        self.reactants = new_reactants
-                        self.products = new_products
-                        self.r_type = "PCET"
-                        self.stoic = self.solve_stoichiometry()
-                        self.code = self.__repr__()
-        else:
-            pass
 
     def get_kinetic_constants(
         self, t: float, uq: bool = False, thermo: bool = False
