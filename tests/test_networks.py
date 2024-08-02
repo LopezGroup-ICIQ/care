@@ -3,6 +3,7 @@ from random import randint
 from ase import Atoms
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork
+from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.crn.utils.blueprint import gen_blueprint
 from care.constants import INTER_ELEMS
 
@@ -53,10 +54,11 @@ class TestElementaryReaction(unittest.TestCase):
         adsorption_steps = [
             step
             for step in steps
-            if step.r_type in ("adsorption", "desorption", "eley_rideal")
+            if step.r_type == 'adsorption'
         ]
         good = 0
         for step in adsorption_steps:
+            self.assertIsInstance(step, Adsorption)
             gas_phase = [
                 inter
                 for inter in list(step.reactants) + list(step.products)
@@ -73,6 +75,7 @@ class TestElementaryReaction(unittest.TestCase):
         rearrangement_steps = [step for step in steps if step.r_type == "rearrangement"]
         good = 0
         for step in rearrangement_steps:
+            self.assertIsInstance(step, Rearrangement)
             if len(step.reactants) == 1 and len(step.products) == 1:
                 good += 1
         self.assertEqual(good, len(rearrangement_steps))
@@ -140,16 +143,32 @@ class TestElementaryReaction(unittest.TestCase):
         """
         Check that reverse steps are correctly implemented
         """
-        step = steps[randint(0, len(steps) - 1)]
-        step.r_type = "C-C"
-        reactants, products = step.reactants, step.products
-        step.e_is, step.e_fs, step.e_ts = (10, 0.1), (9, 0.1), (10.5, 0.1)
-        step.e_rxn, step.e_act = (-1.0, 0.1), (1.5, 0.1)
-        step.reverse()
-        self.assertEqual(products, step.reactants)
-        self.assertEqual(reactants, step.products)
-        self.assertEqual(step.e_rxn[0], 1.0)
-        self.assertEqual(step.e_act[0], 1.5)
+        for step in steps:
+            step_class = step.__class__            
+            reactants, products = step.reactants, step.products
+            step.e_is, step.e_fs, step.e_ts = (10.0, 0.1), (9.0, 0.1), (11.0, 0.1)
+            step.e_rxn = step.e_fs[0] - step.e_is[0], (0.1**2 + 0.1**2) ** 0.5
+            step.e_act = step.e_ts[0] - step.e_is[0], (0.1**2 + 0.1**2) ** 0.5
+            e_rxn_mu_dir = step.e_rxn[0]
+            e_act_mu_dir = step.e_act[0]
+            step.reverse()
+            if step.__class__ == BondFormation:
+                self.assertEqual(step_class, BondBreaking)
+            if step.__class__ == BondBreaking:
+                self.assertEqual(step_class, BondFormation)
+            if step.__class__ == Adsorption:
+                self.assertEqual(step_class, Desorption)
+            if step.__class__ == Desorption:
+                self.assertEqual(step_class, Adsorption)
+            if step.__class__ == Rearrangement:
+                self.assertEqual(step_class, Rearrangement)
+            if step.__class__ == PCET:
+                self.assertEqual(step_class, PCET)
+            self.assertEqual(products, step.reactants)
+            self.assertEqual(reactants, step.products)
+            self.assertEqual(step.e_rxn[0], -e_rxn_mu_dir)
+            self.assertEqual(step.e_act[0], e_act_mu_dir - e_rxn_mu_dir)
+            # TODO: test of uncertainty propagation
 
 
 class TestIntermediate(unittest.TestCase):

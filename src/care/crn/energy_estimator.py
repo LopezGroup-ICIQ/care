@@ -31,7 +31,7 @@ class IntermediateEnergyEstimator(ABC):
 
 class ReactionEnergyEstimator(ABC):
     """
-    Base class for intermediate energy estimators.
+    Base class for reaction properties estimators.
     """
 
     @abstractmethod
@@ -41,7 +41,7 @@ class ReactionEnergyEstimator(ABC):
     @abstractmethod
     def eval(self, reaction: ElementaryReaction) -> None:
         """
-        Estimate the energy reaction properties.
+        Estimate reaction properties.
 
         Args:
             reaction (ElementaryReaction): The reaction.

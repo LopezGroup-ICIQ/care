@@ -25,6 +25,7 @@ from care.gnn.functions import load_model
 from care.gnn.graph import atoms_to_data
 from care.gnn.graph_filters import extract_adsorbate
 from care.gnn.graph_tools import pyg_to_nx
+from care.crn.templates import BondBreaking, BondFormation, Adsorption, Desorption, Rearrangement, PCET
 
 
 class GameNetUQInter(IntermediateEnergyEstimator):
@@ -418,27 +419,16 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Args:
             reaction (ElementaryReaction): Elementary reaction.
         """
-        if reaction.e_ts == None:
-            reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
-        if "-" not in reaction.r_type:
-            reaction.e_act = max(0, reaction.e_rxn[0]), reaction.e_rxn[1]
-            if reaction.r_type == "PCET":
-                if reaction.e_rxn[0] < 0:
-                    reaction.e_act = 0.0, 0.0
-                else:
-                    reaction.e_act = reaction.e_rxn[0], reaction.e_rxn[1]
-        else:
-            reaction.e_act = (
-                reaction.e_ts[0] - reaction.e_is[0],
-                (reaction.e_ts[1] ** 2 + reaction.e_is[1] ** 2) ** 0.5,
-            )
+        e_act_mu = reaction.e_ts[0] - reaction.e_is[0]
+        if e_act_mu == 0.0:  # barrierless exothermic
+            e_act_var = 0.0
+        elif e_act_mu == reaction.e_rxn[0]:  # barrierless endothermic
+            e_act_var = reaction.e_rxn[1]
+        else:  # with barrier
+            e_act_var = (reaction.e_ts[1] ** 2 + reaction.e_is[1] ** 2) ** 0.5
 
-            if reaction.e_act[0] < 0:
-                reaction.e_act = 0.0, 0.0
-            if (
-                reaction.e_act[0] < reaction.e_rxn[0]
-            ):  # Barrier lower than reaction energy
-                reaction.e_act = reaction.e_rxn[0], reaction.e_rxn[1]
+        reaction.e_act = e_act_mu, e_act_var
+
 
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
@@ -545,16 +535,18 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
         with no_grad():
             self.calc_reaction_energy(reaction)
-            if "-" in reaction.r_type:
+            if isinstance(reaction, BondBreaking):  # GNN evaluates TS from bond-breaking direction
                 try:
                     self.ts_graph(reaction)
-                    y = self.model(reaction.ts_graph.to(self.device))
-                    reaction.e_ts = (
-                        y.mean.item() * self.model.y_scale_params["std"]
-                        + self.model.y_scale_params["mean"],
-                        y.scale.item() * self.model.y_scale_params["std"],
-                    )
+                    y = self.model(reaction.ts_graph.to(self.device))  # scaled output
+                    y_ts = y.mean.item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale.item() * self.model.y_scale_params["std"]
+                    if y_ts[0] > reaction.e_is[0] and y_ts[0] > reaction.e_fs[0]:  # correct predicted TS between IS and FS
+                        reaction.e_ts = y_ts
+                    else: # wrong predicted TS between IS and FS, collapse to barrierless
+                        reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
                 except:
                     print("Error in transition state for {}.".format(reaction.code))
+            else:  # barrierless, e_ts collapses to the highest among e_is and e_ts
+                reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs 
             self.calc_reaction_barrier(reaction)
             return reaction

@@ -25,19 +25,15 @@ class BondBreaking(ElementaryReaction):
         for k, v in self.stoic.items():
             self.stoic[k] = -v
         self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn != None:
+        if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
             self.e_act = (
-                self.e_ts[0] - self.e_is[0],
-                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+                self.e_act[0] + self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-            if self.e_act[0] < 0:
-                self.e_act = 0, self.e_rxn[1]
-            if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
-                self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
 
@@ -53,19 +49,15 @@ class BondFormation(ElementaryReaction):
         for k, v in self.stoic.items():
             self.stoic[k] = -v
         self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn != None:
+        if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
             self.e_act = (
-                self.e_ts[0] - self.e_is[0],
-                (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
+                self.e_act[0] + self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-            if self.e_act[0] < 0:
-                self.e_act = 0, self.e_rxn[1]
-            if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
-                self.e_act = self.e_rxn[0], self.e_rxn[1]
         self.code = self.__repr__()
 
 

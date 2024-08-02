@@ -24,12 +24,15 @@ class Adsorption(ElementaryReaction):
             self.stoic[k] = -v
         self.r_type = "desorption"
         self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn != None:
+        if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
-            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+            self.e_act = (
+                self.e_act[0] + self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
         self.code = self.__repr__()
 
 
@@ -48,12 +51,15 @@ class Desorption(ElementaryReaction):
             self.stoic[k] = -v
         self.r_type = "adsorption"
         self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn != None:
+        if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
-            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+            self.e_act = (
+                self.e_act[0] + self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
         self.code = self.__repr__()
 
 

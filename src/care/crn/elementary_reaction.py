@@ -71,8 +71,6 @@ class ElementaryReaction:
         self.reactants = self.components[0]
         self.products = self.components[1]
 
-        self.alpha = 0.5
-
         # enthalpy attributes (mu, std)
         self.e_is: Optional[tuple[float, float]] = None  # initial state
         self.e_ts: Optional[tuple[float, float]] = None  # transition state
@@ -103,7 +101,6 @@ class ElementaryReaction:
         self.rate: Optional[float] = None
 
         self.ts_graph: Optional[Data] = None
-        self._bader_energy = None
         self.r_type: str = r_type
         if self.r_type not in self.r_types:
             raise ValueError(f"Invalid reaction type: {self.r_type}")
@@ -332,36 +329,17 @@ class ElementaryReaction:
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        if self.r_type in ("adsorption", "desorption"):
-            self.r_type = "desorption" if self.r_type == "adsorption" else "adsorption"
         self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn != None:
+        if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
-            if "-" not in self.r_type:
-                if self.r_type == "PCET":
-                    self.e_act = (
-                        self.e_act[0] - self.e_rxn[0],
-                        (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-                    )
-                    if self.e_act[0] < 0:
-                        self.e_act = 0, self.e_rxn[1]
-                    if self.e_act[0] < self.e_rxn[0]:
-                        self.e_act = self.e_rxn[0], self.e_rxn[1]
-
-                else:
-                    self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
-            else:
-                self.e_act = (
-                    self.e_ts[0] - self.e_is[0],
-                    (self.e_ts[1] ** 2 + self.e_is[1] ** 2) ** 0.5,
-                )
-                if self.e_act[0] < 0:
-                    self.e_act = 0, self.e_rxn[1]
-                if self.e_act[0] < self.e_rxn[0]:  # Barrier lower than self energy
-                    self.e_act = self.e_rxn[0], self.e_rxn[1]
+            self.e_act = (
+                self.e_act[0] + self.e_rxn[0], # should be minus but we are reversing the reaction and e_rxn is already the reverse, not the direct!
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
+            
         self.code = self.__repr__()
 
     def bb_order(self):

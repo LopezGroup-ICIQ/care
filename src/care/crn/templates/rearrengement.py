@@ -28,7 +28,10 @@ class Rearrangement(ElementaryReaction):
             self.e_is, self.e_fs = self.e_fs, self.e_is
 
         if self.e_act:
-            self.e_act = max(0, self.e_rxn[0]), self.e_rxn[1]
+            self.e_act = (
+                self.e_act[0] + self.e_rxn[0],
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
         self.code = self.__repr__()
 
 
