@@ -13,7 +13,7 @@ class PCET(ElementaryReaction):
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
-        self.alpha = 0.5
+        self.alpha = 0.5  # charge transfer coefficient
         self._bader_energy = None
 
     def reverse(self):
@@ -32,10 +32,30 @@ class PCET(ElementaryReaction):
             )
         self.code = self.__repr__()
 
+    @property
+    def bader_energy(self):
+        if self._bader_energy is None:
+            return self.energy
+        return self._bader_energy
+
+    @bader_energy.setter
+    def bader_energy(self, other):
+        self._bader_energy = other
+
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        
+        Note: PCET electron transfer steps do not have an intrinsic bond-breaking direction.
+        """        
+        if Proton() not in self.products:
+            self.reverse()
+
 
 def gen_pcet_reactions(
-    intermediates: dict[str, Intermediate], reactions: list[PCET]
-) -> None:
+    intermediates: dict[str, Intermediate], reactions: list[ElementaryReaction]
+) -> list[PCET]:
     """
     Generate the proton-coupled electron transfer reactions
     of the reaction network as ElementaryReaction instances.

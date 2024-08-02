@@ -34,6 +34,17 @@ class Rearrangement(ElementaryReaction):
             )
         self.code = self.__repr__()
 
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        If is not in the bond-breaking direction, reverse it
+        Adsorption steps are reversed to desorption steps, while desorption steps are preserved.
+
+        Note: Rearrangement reactions do not have an intrinsic bond-breaking direction.
+        """
+        pass
+
 
 def gen_rearrangement_reactions(
     intermediates: dict[str, Intermediate],

@@ -203,7 +203,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
 class GameNetUQRxn(ReactionEnergyEstimator):
     """
-    Base class for reaction energy estimators.
+    Interface for evaluating reaction properties using GAME-Net-UQ.
+
+    Properties evaluated are transition state energy, reaction energy, and activation energy in eV.
     """
 
     def __init__(

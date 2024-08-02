@@ -16,7 +16,6 @@ class BondBreaking(ElementaryReaction):
     """Class for bond-breaking reactions."""
 
     def __init__(self, components, r_type):
-        print(components, r_type)
         super().__init__(components=components, r_type=r_type)
 
     def reverse(self):
@@ -35,6 +34,13 @@ class BondBreaking(ElementaryReaction):
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
         self.code = self.__repr__()
+
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        """
+        pass
 
 
 class BondFormation(ElementaryReaction):
@@ -59,6 +65,13 @@ class BondFormation(ElementaryReaction):
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
         self.code = self.__repr__()
+
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        """
+        self.reverse()
 
 
 def gen_dissociation_reactions(

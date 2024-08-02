@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.visualize import view
 
 from care import ElementaryReaction, Intermediate, Surface
-from care.constants import INTER_ELEMS, K_B, K_BU, OC_KEYS, H
+from care.constants import K_B, K_BU, OC_KEYS, H
 from care.crn.utils.electro import Electron, Proton, Water
 from care.crn.reactors import DifferentialPFR
 from care.crn.visualize import visualize_reaction

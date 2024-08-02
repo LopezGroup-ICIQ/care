@@ -35,6 +35,13 @@ class Adsorption(ElementaryReaction):
             )
         self.code = self.__repr__()
 
+    def bb_order(self):
+        """
+        Set the reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        """
+        self.reverse()
+
 
 class Desorption(ElementaryReaction):
     """Class for desorption reactions."""
@@ -61,6 +68,13 @@ class Desorption(ElementaryReaction):
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
         self.code = self.__repr__()
+
+    def bb_order(self):
+        """
+        Set the reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        """
+        pass
 
 
 def gen_adsorption_reactions(

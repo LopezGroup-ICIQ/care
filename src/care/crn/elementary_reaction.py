@@ -245,16 +245,6 @@ class ElementaryReaction:
         return self.__mul__(other)
 
     @property
-    def bader_energy(self):
-        if self._bader_energy is None:
-            return self.energy
-        return self._bader_energy
-
-    @bader_energy.setter
-    def bader_energy(self, other):
-        self._bader_energy = other
-
-    @property
     def components(self):
         return self._components
 
@@ -323,7 +313,6 @@ class ElementaryReaction:
         """
         Reverse the elementary reaction in-place.
         Example: A + B <-> C + D becomes C + D <-> A + B
-        reaction energy and barrier are also reversed
         """
 
         self.components = self.components[::-1]
@@ -336,7 +325,7 @@ class ElementaryReaction:
 
         if self.e_act:
             self.e_act = (
-                self.e_act[0] + self.e_rxn[0], # should be minus but we are reversing the reaction and e_rxn is already the reverse, not the direct!
+                self.e_act[0] + self.e_rxn[0], # should be minus as e_rxn is already the reverse, not the direct!
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
             
@@ -351,26 +340,7 @@ class ElementaryReaction:
 
         Note: PCET electron transfer steps do not have an intrinsic bond-breaking direction.
         """
-        if self.r_type in ("adsorption", "desorption"):
-            if self.r_type == "adsorption":
-                self.reverse()
-            else:
-                pass
-        elif self.r_type == "PCET":
-            if Proton() not in self.products:
-                self.reverse()
-        else:
-            size_reactants, size_products = [], []
-            for reactant in self.reactants:
-                if not reactant.is_surface:
-                    size_reactants.append(len(reactant.molecule))
-            for product in self.products:
-                if not product.is_surface:
-                    size_products.append(len(product.molecule))
-            if max(size_reactants) < max(size_products):
-                self.reverse()
-            else:
-                pass
+        pass
 
     def bb(self):
         """Set reaction to bond-breaking direction."""
