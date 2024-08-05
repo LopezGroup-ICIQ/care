@@ -5,7 +5,7 @@ from rdkit import Chem
 from scipy.linalg import null_space
 from torch_geometric.data import Data
 
-from care import Intermediate
+from care.crn.intermediate import Intermediate
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
 
 
@@ -175,7 +175,7 @@ class ElementaryReaction:
     def __iter__(self):
         return iter(list(self.reactants) + list(self.products))
 
-    def __add__(self, other) -> "ElementaryReaction":
+    def __add__(self, other) -> "ReactionMechanism":
         """
         The result of adding two elementary reactions is a new elementary reaction with type 'pseudo'
         """
@@ -205,7 +205,7 @@ class ElementaryReaction:
                     products.append(specie)
                 else:
                     reactants.append(specie)
-            step = ElementaryReaction(components=[reactants, products], r_type="pseudo")
+            step = ReactionMechanism(components=[reactants, products], r_type="pseudo")
             step.stoic = stoic_dict
             if self.e_rxn is None or other.e_rxn is None:
                 step.e_rxn = None
@@ -218,13 +218,13 @@ class ElementaryReaction:
         else:
             raise TypeError("The object is not an ElementaryReaction")
 
-    def __mul__(self, other) -> "ElementaryReaction":
+    def __mul__(self, other) -> "ReactionMechanism":
         """
         The result of multiplying an elementary reaction by a scalar
         is a new elementary reaction with type 'pseudo'
         """
         if isinstance(other, float) or isinstance(other, int):
-            step = ElementaryReaction(
+            step = ReactionMechanism(
                 components=(self.reactants, self.products), r_type="pseudo"
             )
             step.stoic = {}
@@ -384,3 +384,45 @@ class ElementaryReaction:
         k_rev = k_dir / k_eq
 
         return k_dir, k_rev
+    
+
+class ReactionMechanism(ElementaryReaction):
+    """
+    Reaction mechanism class.
+
+    A reaction mechanism is defined here as a linear combination of elementary reactions: 
+    """
+
+    def __init__(self, components, r_type, r_dict=None):
+        """
+        Initialize a reaction mechanism object.
+
+        Args:
+            reactions (list): List of elementary reactions.
+        """
+        super().__init__(components=components, r_type=r_type)
+        self.r_dict = r_dict
+
+    # def get_rate_equation(self):
+    #     """
+    #     Get the rate equation of the reaction mechanism.
+
+    #     Returns:
+    #         str: Rate equation of the reaction mechanism.
+    #     """
+    #     rate_equation = ""
+    #     for reaction in self.reactions:
+    #         rate_equation += f"{reaction.get_rate_equation()} + "
+    #     return rate_equation[:-3]
+
+    # def get_rate_constant(self):
+    #     """
+    #     Get the rate constant of the reaction mechanism.
+
+    #     Returns:
+    #         float: Rate constant of the reaction mechanism.
+    #     """
+    #     rate_constant = 0
+    #     for reaction in self.reactions:
+    #         rate_constant += reaction.get_rate_constant()
+    #     return rate_constant

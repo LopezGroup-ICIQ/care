@@ -2,7 +2,7 @@ import unittest
 from random import randint
 from ase import Atoms
 
-from care import Intermediate, ElementaryReaction, ReactionNetwork
+from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMechanism
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.crn.utils.blueprint import gen_blueprint
 from care.constants import INTER_ELEMS
@@ -112,6 +112,7 @@ class TestElementaryReaction(unittest.TestCase):
                 ]
             )
             total += element_balance
+        self.assertIsInstance(addition_step, ReactionMechanism)
         self.assertEqual(total, 0)
         self.assertEqual(addition_step.e_rxn[0], -1.3)
         self.assertEqual(addition_step.e_rxn[1], (0.1**2 + 0.2**2) ** 0.5)
@@ -134,6 +135,7 @@ class TestElementaryReaction(unittest.TestCase):
                 ]
             )
             total += element_balance
+        self.assertIsInstance(mul_step, ReactionMechanism)
         self.assertEqual(total, 0)
         self.assertEqual(mul_step.e_rxn[0], step.e_rxn[0] * random_num)
         self.assertEqual(mul_step.e_rxn[1], abs(random_num) * step.e_rxn[1])
