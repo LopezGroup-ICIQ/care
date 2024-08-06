@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional, Union
 
 import numpy as np
@@ -223,23 +224,48 @@ class ElementaryReaction:
         The result of multiplying an elementary reaction by a scalar
         is a new elementary reaction with type 'pseudo'
         """
-        if isinstance(other, float) or isinstance(other, int):
-            step = ReactionMechanism(
-                components=(self.reactants, self.products), r_type="pseudo"
-            )
-            step.stoic = {}
-            for k, v in self.stoic.items():
-                step.stoic[k] = v * other
-            if self.e_rxn is None:
-                step.e_rxn = None
+        if isinstance(other, (float, int)):
+            if other > 0:
+                step = ReactionMechanism(
+                    components=(self.reactants, self.products), r_type="pseudo"
+                )
+                step.stoic = {}
+                for k, v in self.stoic.items():
+                    step.stoic[k] = v * other
+                if self.e_rxn is None:
+                    step.e_rxn = None
+                else:
+                    step.e_rxn = self.e_rxn[0] * other, abs(other) * self.e_rxn[1]
+                return step
             else:
-                step.e_rxn = self.e_rxn[0] * other, abs(other) * self.e_rxn[1]
-            return step
+                rev = deepcopy(self)
+                rev.reverse()
+                step = ReactionMechanism(
+                    components=(rev.reactants, rev.products), r_type="pseudo"
+                )
+                step.stoic = {}
+                for k, v in rev.stoic.items():
+                    step.stoic[k] = v * abs(other)
+                if rev.e_rxn is None:
+                    step.e_rxn = None
+                else:
+                    step.e_rxn = rev.e_rxn[0] * abs(other), abs(other) * rev.e_rxn[1]
+                return step
         else:
-            raise TypeError("The object is not an ElementaryReaction")
+            raise TypeError("other is not a scalar value")
 
     def __rmul__(self, other):
         return self.__mul__(other)
+    
+    def __sub__(self, other) -> "ReactionMechanism":
+        """
+        The result of subtracting one elementary reaction from another equals 
+        the sum of the first reaction and the reverse of the second reaction.
+        """
+        if isinstance(other, ElementaryReaction):
+            return self + (-1) * other
+        else:
+            raise TypeError("The object is not an ElementaryReaction")
 
     @property
     def components(self):
@@ -277,7 +303,7 @@ class ElementaryReaction:
         species = reactants + products
         stoic_dict = {
             specie.code: -1 if specie in reactants else 1 for specie in species
-        }  # guess (correct for most of the steps)
+        }  # initial guess (correct for most of the steps)
         matrix = np.zeros((len(species), len(INTER_ELEMS)), dtype=np.int8)
         for i, inter in enumerate(species):
             for j, element in enumerate(INTER_ELEMS):
@@ -363,34 +389,25 @@ class ElementaryReaction:
                 to False.
         """
         if thermo:
-            if uq:
-                e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1])
-                e_act = 0 if e_rxn < 0 else e_rxn
-            else:
-                e_rxn = self.e_rxn[0]
-                e_act = 0 if e_rxn < 0 else e_rxn
+            e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
+            e_act = max(0, e_rxn)
         else:
-            if uq:
-                e_act = np.random.normal(self.e_act[0], self.e_act[1])
-                e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1])
-            else:
-                e_act = self.e_act[0]
-                e_rxn = self.e_rxn[0]
+            e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
+            e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
         k_eq = np.exp(-e_rxn / t / K_B)
         if self.r_type == "adsorption":
             k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
         else:
             k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
-        k_rev = k_dir / k_eq
 
-        return k_dir, k_rev
+        return k_dir, k_dir / k_eq
     
 
 class ReactionMechanism(ElementaryReaction):
     """
     Reaction mechanism class.
 
-    A reaction mechanism is defined here as a linear combination of elementary reactions: 
+    A reaction mechanism is defined here as a linear combination of elementary reactions. 
     """
 
     def __init__(self, components, r_type, r_dict=None):
