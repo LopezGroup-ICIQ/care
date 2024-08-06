@@ -75,7 +75,7 @@ class BondFormation(ElementaryReaction):
 
 
 def gen_dissociation_reactions(
-    chemical_space: list[str],
+    chemical_space: list[str], ncpus: int = mp.cpu_count()
 ) -> tuple[dict[str, Intermediate], list[BondBreaking]]:
     """
     Generate all potential dissociation reactions given an initial set of molecules.
@@ -120,7 +120,7 @@ def gen_dissociation_reactions(
 
     # Generate the Intermediate objects
     rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}
-    inters = gen_intermediates_dict(rdkit_inters)
+    inters = gen_intermediates_dict(rdkit_inters, ncpus)
     active_site = Intermediate.from_molecule(
         Atoms(), code="*", is_surface=True, phase="surf"
     )  # dummy object for the active site
@@ -377,7 +377,7 @@ def break_bonds(
 
 
 def gen_intermediates_dict(
-    inter_dict: dict[str, Chem.rdchem.Mol],
+    inter_dict: dict[str, Chem.rdchem.Mol], ncpu: int=mp.cpu_count()
 ) -> dict[str, Intermediate]:
     """
     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
@@ -401,9 +401,8 @@ def gen_intermediates_dict(
     """
 
     # Splitting the dictionary into chunks
-    n_cores = mp.cpu_count()
     keys = list(inter_dict.keys())
-    chunk_size = 1 if len(keys) < n_cores else len(keys) // n_cores
+    chunk_size = 1 if len(keys) < ncpu else len(keys) // ncpu
     chunks = [
         dict(
             zip(
@@ -418,7 +417,7 @@ def gen_intermediates_dict(
     progress_queue_inter = manager_inter_obj.Queue()
 
     tasks = [(chunk, progress_queue_inter) for chunk in chunks]
-    with mp.Pool(mp.cpu_count()) as pool:
+    with mp.Pool(ncpu) as pool:
         result_async = pool.starmap_async(process_inter_objs_chunk, tasks)
         with Progress() as progress:
             task_desc = format_description("[green]Processing Intermediate objects...")

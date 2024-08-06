@@ -78,7 +78,7 @@ class Desorption(ElementaryReaction):
 
 
 def gen_adsorption_reactions(
-    intermediates: dict[str, Intermediate], num_processes=mp.cpu_count()
+    intermediates: dict[str, Intermediate], num_cpu: int=mp.cpu_count()
 ) -> list[Adsorption]:
     """
     Generate adsorption/desorption reactions
@@ -91,8 +91,8 @@ def gen_adsorption_reactions(
         Each key is the InChIKey of a molecule, and each value is the corresponding Intermediate instance.
     surf_inter : Intermediate
         The Intermediate instance of the surface.
-    num_processes : int
-        The number of processes to use for parallelization.
+    num_cpu : int
+        The number of CPU cores to use for the generation of the adsorption reactions.
 
     Returns
     -------
@@ -108,14 +108,14 @@ def gen_adsorption_reactions(
         inter for inter in intermediates.values() if inter.phase == "gas"
     ]
 
-    inter_chunks = array_split(gas_intermediates, num_processes)
+    inter_chunks = array_split(gas_intermediates, num_cpu)
 
     manager_ads_rxn = mp.Manager()
     progress_queue_rxn = manager_ads_rxn.Queue()
 
     tasks = [(chunk, surf_inter, progress_queue_rxn) for chunk in inter_chunks]
 
-    with mp.Pool(mp.cpu_count()) as pool:
+    with mp.Pool(num_cpu) as pool:
         result_async = pool.starmap_async(process_ads_react_chunk, tasks)
         with Progress() as progress:
             task_desc = format_description("[green]Generating adsorption reactions...")

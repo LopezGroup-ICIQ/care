@@ -47,7 +47,7 @@ class Rearrangement(ElementaryReaction):
 
 
 def gen_rearrangement_reactions(
-    intermediates: dict[str, Intermediate],
+    intermediates: dict[str, Intermediate], num_cpu: int = mp.cpu_count()
 ) -> list[Rearrangement]:
     """
     Generate the (1,2)-H shift rearrangement reactions.
@@ -57,6 +57,8 @@ def gen_rearrangement_reactions(
     intermediates : dict[str, Intermediate]
         Dictionary containing the intermediates of the reaction network.
         Each key is the InChIKey of the molecule, and values are the corresponding Intermediate instances.
+    num_cpu : int, optional
+        Number of CPU cores to use for the generation, by default mp.cpu_count()
 
     Returns
     -------
@@ -82,7 +84,7 @@ def gen_rearrangement_reactions(
 
     # Splitting the dictionary into chunks
     keys = list(subgroup_pairs_dict.keys())
-    chunk_size = len(keys) // mp.cpu_count()
+    chunk_size = len(keys) // num_cpu
     if chunk_size == 0:
         chunk_size = 1
     chunks = [
@@ -100,7 +102,7 @@ def gen_rearrangement_reactions(
 
     tasks = [(chunk, progress_queue_rxn) for chunk in chunks]
 
-    with mp.Pool(mp.cpu_count()) as pool:
+    with mp.Pool(num_cpu) as pool:
         result_async = pool.starmap_async(process_subgroup, tasks)
         with Progress() as progress:
             task_desc = format_description(

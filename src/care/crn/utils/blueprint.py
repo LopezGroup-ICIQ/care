@@ -1,5 +1,6 @@
 import time
 import warnings
+import multiprocessing as mp
 
 from prettytable import PrettyTable
 from rdkit import RDLogger
@@ -18,7 +19,7 @@ def format_description(description, width=45):
 
 
 def gen_blueprint(
-    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool
+    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool, num_cpu: int = mp.cpu_count()
 ) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the CRN blueprint by applying
@@ -38,6 +39,8 @@ def gen_blueprint(
         If True, additional reactions are generated (rearrangement reactions).
     electro : bool
         If True, proton-coupled electron transfer reactions are generated.
+    num_cpu : int, optional
+        Number of CPU cores to use for the CRN generation, by default mp.cpu_count()
 
     Returns
     -------
@@ -61,7 +64,7 @@ def gen_blueprint(
 
     # Extend CS with dissociation reactions
     t0ecs = time.time()
-    bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space)
+    bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space, num_cpu)
     nfrags = len(bb_inters) - len(chemical_space)
     nbbsteps = len(bb_steps)
     intermediates.update(bb_inters)
@@ -75,7 +78,7 @@ def gen_blueprint(
 
     # Adsorption/Desorption reactions
     t02 = time.time()
-    ads_steps = adsorption.gen_adsorption_reactions(intermediates)
+    ads_steps = adsorption.gen_adsorption_reactions(intermediates, num_cpu)
     nadssteps = len(ads_steps)
     reactions.extend(ads_steps)
     t2 = time.time() - t02
@@ -85,7 +88,7 @@ def gen_blueprint(
     # (1,2)-H shift rearrangement reactions
     if additional_rxns:
         t03 = time.time()
-        rearr_steps = rearrengement.gen_rearrangement_reactions(intermediates)
+        rearr_steps = rearrengement.gen_rearrangement_reactions(intermediates, num_cpu)
         nrearrsteps = len(rearr_steps)
         reactions.extend(rearr_steps)
         t3 = time.time() - t03

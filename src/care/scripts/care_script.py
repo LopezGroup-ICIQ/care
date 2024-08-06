@@ -66,6 +66,14 @@ def main():
     PARSER.add_argument(
         "-o", "--output", type=str, dest="output", help="Path to the output directory."
     )
+    PARSER.add_argument(
+        "-ncpu",
+        "--num_cpu",
+        type=int,
+        dest="num_cpu",
+        help="Number of CPU cores to use for the CRN generation.",
+        default=mp.cpu_count(),
+    )
     ARGS = PARSER.parse_args()
 
     if not ARGS.input:
@@ -112,7 +120,7 @@ def main():
         )
 
         intermediates, reactions = gen_blueprint(
-            ncc, noc, cyclic, additional_rxns, electrochem
+            ncc, noc, cyclic, additional_rxns, electrochem, ARGS.num_cpu
         )
 
         print(
@@ -145,7 +153,7 @@ def main():
             chunk_size = 1
             tasks = [[intermediate] for intermediate in intermediates.values()]
         else:
-            chunk_size = len(intermediates) // (mp.cpu_count() * 10)
+            chunk_size = len(intermediates) // (ARGS.num_cpu * 10)
             tasks = [
                 list(intermediates.values())[i : i + chunk_size]
                 for i in range(0, len(intermediates), chunk_size)
@@ -155,13 +163,11 @@ def main():
         tmp_folder = tempfile.mkdtemp()
         _, tmp_file = tempfile.mkstemp(suffix=".pkl", dir=tmp_folder)
 
-        num_cpu = mp.cpu_count()
-
         with Progress() as progress:
             task = progress.add_task(" [green]Processing...", total=None)
             processed_items = 0
 
-            with mp.Pool(num_cpu) as pool:
+            with mp.Pool(ARGS.num_cpu) as pool:
                 pool.starmap(
                     evaluate_intermediate,
                     [
