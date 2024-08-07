@@ -110,7 +110,7 @@ class DifferentialPFR(ReactorModel):
             net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense)
         )
         dydt[self.gas_mask] = 0.0
-        print(_)
+        # print(_)
         return dydt
 
     def jacobian(
@@ -364,7 +364,7 @@ class DifferentialPFR(ReactorModel):
         using DifferentialEquations
         # GPU section
         if gpu
-            using CUDA, DiffEqGPU            
+            using CUDA, DiffEqGPU
             y0 = CuArray{Float64}(y0)
             v = CuArray{Int8}(v)
             vf = CuArray{Int8}(vf)
@@ -388,7 +388,7 @@ class DifferentialPFR(ReactorModel):
         )
         Main.eval(
             """
-        f = ODEFunction(ode_pfr!)            
+        f = ODEFunction(ode_pfr!)
         """
         )
         Main.eval(
@@ -408,12 +408,12 @@ class DifferentialPFR(ReactorModel):
         function affect!(integrator)
             println("STEADY-STATE CONDITIONS REACHED!")
             terminate!(integrator)
-        end   
-        cb = DiscreteCallback(condition, affect!)     
+        end
+        cb = DiscreteCallback(condition, affect!)
         """
         )
         Main.eval(
-            """ 
+            """
         sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
         """
         )

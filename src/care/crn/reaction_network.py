@@ -755,23 +755,37 @@ class ReactionNetwork:
                 chemical formulas of the intermediates and values are the
                 molar fractions (e.g. {"CH4": 0.1, "H2O": 0.2, "N2": 0.7}),
                 where the sum of the values must be 1.0.
-            temperature (float, optional): Temperature in Kelvin. Defaults to None.
-            pressure (float, optional): Pressure in bar. Defaults to None.
+            oc (dict): Operating conditions of the simulation. Keys are "T"
+                (temperature in Kelvin), "P" (pressure in bar), "U" (potential
+                in V) and "pH" (pH of the solution).
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
             uq_samples (int, optional): Number of samples for the uncertainty
                 quantification. Defaults to 100.
             thermo (bool, optional): If True, the activation barriers will be
-                neglected and only the thermodynamic path is considered. Defaults
-                to False.
-            solver (str, optional): Solver to be used. Defaults to "Julia".
+                neglected and only the thermodynamic path is considered
+                (i.e. E_{TS}=max(E_{IS},E_{FS})). Defaults to False.
+            solver (str, optional): Solver to be used ("Python" or "Julia").
+                Defaults to "Julia".
             barrier_threshold (float, optional): Threshold for the activation
                 energy of the reactions. If a reaction has an activation energy
-                below this threshold, it will be filtered out. Defaults to None.
+                higher than the threshold in both directions, it will be filtered
+                out. Defaults to None.
+            ss_tol (float, optional): Tolerance for the steady state condition.
+                ODE Integration stops when the sum of the absolute values of the
+                derivatives of the surface coverages is less than ss_tol.
+                Defaults to 1e-10 [-].
+            tfin (float, optional): Final simulation time. Defaults to 1e6 [s].
+            target_products (list, optional): List of the target products. If
+                provided, the reaction network will be pruned to only include
+                the defined closed-shell products and the reactions leading to
+                them. Defaults to None.
+            eapp (bool, optional): If True, the apparent activation energy will
+                be calculated. Defaults to False.
 
         Returns:
-            dict containing the results of the simulation.
+            dict containing the results of the simulation at steady-state.
         """
         if sum(iv.values()) != 1.0:
             raise ValueError("Sum of molar fractions is not 1.0")
