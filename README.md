@@ -34,7 +34,7 @@ conda activate care_env
 
 ```bash
 cd care
-python3 -m pip install . 
+python3 -m pip install .
 ```
 
 *NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
@@ -58,10 +58,10 @@ curl -fsSL https://install.julialang.org | sh
 curl -fsSL https://install.julialang.org | sh -s -- -y
 ```
 
-6. Install the required Julia dependencies by running the following:
+6. Install JuliaCall to run Julia code from Python and the required Julia dependencies by running the following:
 
 ```bash
-python3 -m pip install julia
+python3 -m pip install juliacall
 julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU");'
 ```
 
@@ -103,6 +103,6 @@ The code is released under the [MIT](./LICENSE) license.
 
 ## Reference
 
-- **A Foundational Model for Reaction Networks on Metal Surfaces**  
-  Authors: S. Morandi, O. Loveday, T. Renningholtz, S. Pablo-García, R. A. Vargas Hernáńdez, R. R. Seemakurthi, P. Sanz Berman, R. García-Muelas, A. Aspuru-Guzik, and N. López  
+- **A Foundational Model for Reaction Networks on Metal Surfaces**
+  Authors: S. Morandi, O. Loveday, T. Renningholtz, S. Pablo-García, R. A. Vargas Hernáńdez, R. R. Seemakurthi, P. Sanz Berman, R. García-Muelas, A. Aspuru-Guzik, and N. López
   DOI: [10.26434/chemrxiv-2024-bfv3d](https://doi.org/10.26434/chemrxiv-2024-bfv3d)

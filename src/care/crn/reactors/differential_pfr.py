@@ -211,6 +211,7 @@ class DifferentialPFR(ReactorModel):
         atol: float,
         sstol: float,
         tfin: float,
+        gpu: bool = False,
     ) -> dict:
         """
         Integrate the ODE system up to steady-state.
@@ -222,6 +223,7 @@ class DifferentialPFR(ReactorModel):
             atol(float): Absolute tolerance for the integration.
             sstol(float): Tolerance for steady-state conditions.
             tfin(float): Final time for the integration.
+            gpu(bool): Flag to use GPU for the integration (only for Julia).
 
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
@@ -237,7 +239,7 @@ class DifferentialPFR(ReactorModel):
             results = {}
             try:
                 results["y"] = self.integrate_jl(
-                    y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                    y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN, gpu=gpu
                 )
                 results["status"] = 1
             except Exception as e:
@@ -342,29 +344,27 @@ class DifferentialPFR(ReactorModel):
         """
         Integrate the ODE system using the Julia-based solver.
         """
-        from julia.api import Julia
+        import juliacall
+        jl = juliacall.newmodule('mkm')
 
-        jl = Julia()
-        from julia import Main
-
-        Main.y0 = y0
-        Main.v = self.v_dense
-        Main.vf = self.v_forward_dense
-        Main.vb = self.v_backward_dense
-        Main.kd, Main.kr = self.kd, self.kr
-        Main.gas_mask = self.gas_mask
-        Main.atol = atol
-        Main.rtol = rtol
-        Main.sstol = sstol
-        Main.J_sparsity = self.jac_sparsity
-        Main.tfin = tfin
-        Main.gpu = gpu
-        Main.eval(
+        jl.y0 = y0
+        jl.v = self.v_dense
+        jl.vf = self.v_forward_dense
+        jl.vb = self.v_backward_dense
+        jl.kd, jl.kr = self.kd, self.kr
+        jl.gas_mask = self.gas_mask
+        jl.atol = atol
+        jl.rtol = rtol
+        jl.sstol = sstol
+        jl.J_sparsity = self.jac_sparsity
+        jl.tfin = tfin
+        jl.gpu = gpu
+        jl.seval(
             """
         using DifferentialEquations
-        # GPU section
         if gpu
-            using CUDA, DiffEqGPU
+            println("Trying to use GPU for the integration")
+            using CUDA # DiffEqGPU
             y0 = CuArray{Float64}(y0)
             v = CuArray{Int8}(v)
             vf = CuArray{Int8}(vf)
@@ -376,7 +376,7 @@ class DifferentialPFR(ReactorModel):
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
         """
         )
-        Main.eval(
+        jl.seval(
             """
         function ode_pfr!(du, u, p, t)
             net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
@@ -386,17 +386,17 @@ class DifferentialPFR(ReactorModel):
         end
         """
         )
-        Main.eval(
+        jl.seval(
             """
         f = ODEFunction(ode_pfr!)
         """
         )
-        Main.eval(
+        jl.seval(
             """
         prob = ODEProblem(f, y0, (0, tfin), p)
         """
         )
-        Main.eval(
+        jl.seval(
             """
         function condition(u, t, integrator)
             du = similar(u)
@@ -412,10 +412,14 @@ class DifferentialPFR(ReactorModel):
         cb = DiscreteCallback(condition, affect!)
         """
         )
-        Main.eval(
+        jl.seval(
             """
-        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
+        if gpu
+            sol = solve(prob, FBDF(), abstol=atol, reltol=rtol)
+        else
+            sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
+        end
         """
         )
-        Main.eval("sol = Array(sol[end])")
-        return Main.sol
+        jl.seval("sol = Array(sol[end])")
+        return jl.sol

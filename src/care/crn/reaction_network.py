@@ -745,6 +745,7 @@ class ReactionNetwork:
         tfin: float = 1e6,
         target_products: list[str] = None,
         eapp: bool = False,
+        gpu: bool = False,
     ) -> dict:
         """
         Run microkinetic simulation.
@@ -783,6 +784,8 @@ class ReactionNetwork:
                 them. Defaults to None.
             eapp (bool, optional): If True, the apparent activation energy will
                 be calculated. Defaults to False.
+            gpu (bool, optional): If True, the simulation will be run on the GPU
+                if available (only available for Julia). Defaults to False.
 
         Returns:
             dict containing the results of the simulation at steady-state.
@@ -1204,7 +1207,7 @@ class ReactionNetwork:
                 reactor.kd = kf[:, run]
                 reactor.kr = kr[:, run]
                 results_uq.append(
-                    reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
+                    reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin, gpu)
                 )
             results = {}
             results["runs"] = results_uq
@@ -1252,13 +1255,13 @@ class ReactionNetwork:
             results["y0"] = y0
         else:
             while status not in (0, 1):
-                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin)
+                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, tfin, gpu)
                 if eapp:
                     results_plus = reactor_plus.integrate(
-                        y0, solver, RTOL, ATOL, SSTOL, tfin
+                        y0, solver, RTOL, ATOL, SSTOL, tfin, gpu
                     )
                     results_minus = reactor_minus.integrate(
-                        y0, solver, RTOL, ATOL, SSTOL, tfin
+                        y0, solver, RTOL, ATOL, SSTOL, tfin, gpu
                     )
                 status = results["status"]
 

@@ -30,7 +30,7 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         curl -y -fsSL https://install.julialang.org | sh
-        pip install julia
+        pip install juliacall
         julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU");'
     - name: Lint with flake8
       run: |
@@ -46,5 +46,4 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install pytest
-        python-jl -m pytest
-
+        pytest
