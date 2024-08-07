@@ -12,7 +12,6 @@ import tempfile
 import time
 
 from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, ReactionNetwork, Intermediate
-from care.constants import LOGO
 from care.crn.utils.blueprint import gen_blueprint
 from care.gnn.interface import GameNetUQInter, GameNetUQRxn
 from care.utils import load_surface
@@ -84,6 +83,11 @@ def main():
     # Load .toml configuration file
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
+
+    current_dir = os.path.dirname(__file__)
+    logo_path = current_dir + "/../logo.txt"
+    with open(logo_path, "r") as file:
+        LOGO = file.read()
 
     print(f"{LOGO}\n")
 
