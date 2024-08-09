@@ -420,7 +420,7 @@ class DifferentialPFR(ReactorModel):
         jl.seval("sol = Array(sol[end])")
         return jl.sol
 
-    def integrate_jl_gpu_good(
+    def integrate_jl_gpu(
         self,
         y0: np.ndarray,
         rtol: float,
@@ -448,26 +448,26 @@ class DifferentialPFR(ReactorModel):
         jl.seval(
             """
         using CUDA
-        # using SparseArrays
-        CUDA.allowscalar(true)
+
+        using SparseArrays
+        # CUDA.allowscalar(true)
         y0 = CuArray{Float64}(y0)
-        # v = CuArray{Int8}(sparse(v))
-        # vf = CuArray{Int8}(sparse(vf))
-        # vb = CuArray{Int8}(sparse(vb))
-        v = CuArray{Int8}(v)
-        vf = CuArray{Int8}(vf)
-        vb = CuArray{Int8}(vb)
+        v = CuArray{Int8}(sparse(v))
+        vf = CuArray{Int8}(sparse(vf))
+        vb = CuArray{Int8}(sparse(vb))
+        vft = vf'
+        vbt = vb'
         kd = CuArray{Float64}(kd)
         kr = CuArray{Float64}(kr)
         gas_mask = CuArray{Bool}(gas_mask)
-        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
+        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vft = vft, vbt = vbt)
         using DifferentialEquations
         """
         )
         jl.seval(
             """
         function ode_pfr!(du, u, p, t)
-            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
+            net_rate = p.kd .* prod((u .^ p.vft)', dims=2) .- p.kr .* prod((u .^ p.vbt)', dims=2)
             du .= p.v * net_rate
             du[p.gas_mask] .= 0.0
             println(t,"    ", sum(abs.(du)))
@@ -502,66 +502,62 @@ class DifferentialPFR(ReactorModel):
         )
         jl.seval(
             """
-        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol)
-        CUDA.allowscalar(false)
+        # sol = solve(prob, Rosenbrock23(autodiff=false), abstol=atol, reltol=rtol, callback=cb)
+        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
+        # CUDA.allowscalar(false)
         """
         )
         jl.seval("sol = Array(sol[end])")
 
         return jl.sol
 
-    def integrate_jl_gpu(
-            self,
-            y0: np.ndarray,
-            rtol: float,
-            atol: float,
-            sstol: float,
-            tfin: float,
-        ) -> np.ndarray:
-            """
-            Integrate the ODE system using the Julia-based solver on GPU.
-            """
-            import juliacall
-            jl = juliacall.newmodule('mkm')
+    # def integrate_jl_gpu2(
+    #         self,
+    #         y0: np.ndarray,
+    #         rtol: float,
+    #         atol: float,
+    #         sstol: float,
+    #         tfin: float,
+    #     ) -> np.ndarray:
+    #         """
+    #         Integrate the ODE system using the Julia-based solver on GPU.
+    #         """
+    #         import juliacall
+    #         jl = juliacall.newmodule('mkm')
 
-            # jl.seval("using DifferentialEquations")
-            # jl.seval("using DiffEqGPU")
-            # jl.seval("using CUDA")
+    #         jl.seval("""
+    #         using DifferentialEquations, CUDA, LinearAlgebra
+    #         # u0 = cu(rand(1000))
+    #         u0 = CuArray{Float64}(rand(1000))
+    #         A = CuArray{Float64}(randn(1000, 1000))
+    #         f(du, u, p, t) = mul!(du, A, u)
+    #         prob = ODEProblem(f, u0, (0.0f0, 1.0f0)) # Float32 is better on GPUs!
+    #         # function solve_ode_on_gpu()
+    #         #     function f!(du, u, p, t)
+    #         #         du[1] = u[1]
+    #         #     end
 
-            # Define the Julia function to solve the ODE
-            jl.seval("""
-            using DifferentialEquations, CUDA, LinearAlgebra
-            # u0 = cu(rand(1000))
-            u0 = CuArray{Float64}(rand(1000))
-            A = CuArray{Float64}(randn(1000, 1000))
-            f(du, u, p, t) = mul!(du, A, u)
-            prob = ODEProblem(f, u0, (0.0f0, 1.0f0)) # Float32 is better on GPUs!
-            # function solve_ode_on_gpu()
-            #     function f!(du, u, p, t)
-            #         du[1] = u[1]
-            #     end
+    #         #     u0 = [1.0]
+    #         #     tspan = (0.0, 1.0)
+    #         #     u0_gpu = CUDA.fill(1.0, length(u0))
+    #         #     prob = ODEProblem(f!, u0_gpu, tspan)
 
-            #     u0 = [1.0]
-            #     tspan = (0.0, 1.0)
-            #     u0_gpu = CUDA.fill(1.0, length(u0))
-            #     prob = ODEProblem(f!, u0_gpu, tspan)
+    #         #     @show typeof(u0)
+    #         #     @show typeof(u0_gpu)
+    #         #     @show typeof(prob.u0)
 
-            #     @show typeof(u0)
-            #     @show typeof(u0_gpu)
-            #     @show typeof(prob.u0)
+    #         #     try
+    #         #         sol = solve(prob, FBDF(), abstol=1e-8, reltol=1e-6)
+    #         #         @show sol
+    #         #     catch e
+    #         #         @error "Error occurred" exception=(e, catch_backtrace())
+    #         #     end
+    #         # end
+    #         """)
 
-            #     try
-            #         sol = solve(prob, FBDF(), abstol=1e-8, reltol=1e-6)
-            #         @show sol
-            #     catch e
-            #         @error "Error occurred" exception=(e, catch_backtrace())
-            #     end
-            # end
-            """)
+    #         # # Call the function to solve the ODE
+    #         # jl.seval("solve_ode_on_gpu()")
+    #         jl.seval("sol=solve(prob, Tsit5())")
+    #         breakpoint()
 
-            # # Call the function to solve the ODE
-            # jl.seval("solve_ode_on_gpu()")
-            jl.seval("sol=solve(prob, Tsit5())")
-            breakpoint()
-
-            return jl.sol
+    #         return jl.sol

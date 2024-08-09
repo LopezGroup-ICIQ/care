@@ -1,5 +1,7 @@
 import pathlib as pl
 
+# import juliacall  # to avoid segfaults
+
 from care.constants import *
 from care.crn.surface import Surface
 from care.crn.intermediate import Intermediate
