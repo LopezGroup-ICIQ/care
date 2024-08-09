@@ -62,23 +62,23 @@ curl -fsSL https://install.julialang.org | sh -s -- -y
 
 ```bash
 python3 -m pip install juliacall
-julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.add("CUDA"); Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU");'
+julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
 ```
 
 These packages allow to run microkinetic simulations with Julia calling it from Python.
 
-## Usage
+## Usage and tutorials
 
-The current way to generate chemical reaction networks in CARE requires setting up a .toml configuration file and running the code:
+The current way to generate chemical reaction networks and running microkinetic simulations with CARE requires configuring a .toml configuration file and running the command:
 
 ```bash
 care_run -i input.toml -o output_name
 ```
 
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
-Examples of input .toml files can be found in `src/care/scripts/example_c1o2.toml` and `src/care/scripts/example_c2o4.toml`.
+Examples of input .toml files can be found in `src/care/scripts` and `src/care/examples` (input file for CRNs published in the ChemRxiv preprint).
 
-A step by step tutorial for generating and manipulating reaction networks is in progress in ``notebooks/care_demo.ipynb``.
+Tutorials explaining step-by-step the [CRN generation and manipulation](./notebooks/care_demo.ipynb), [property evaluator interface implementation](./notebooks/interface_demo.ipynb), and [microkinetic simulations](./notebooks/kinetics_demo.ipynb) are available in the ``notebooks`` directory.
 
 ## How to access the CRN
 
@@ -88,10 +88,6 @@ from pickle import load
 with open('./C1O4/Pd111/crn.pkl', 'rb') as pickle_file:
     crn = load(pickle_file)
 ```
-
-`crn` is a `care.ReactionNetwork` object which provides rapid access to the intermediates (`care.Intermediate`), elementary reactions (`care.ElementaryReaction`), and its properties as activation barrier `care.ElementaryReaction.e_act` and reaction energy `care.ElementaryReaction.e_rxn`.
-
-Check the [notebook tutorial](./notebooks/care_demo.ipynb) for manipulating the generated reaction network.
 
 ## Notes
 
