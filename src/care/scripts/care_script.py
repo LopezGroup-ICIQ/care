@@ -263,6 +263,7 @@ def main():
             ss_tol=config["mkm"]["ss_tol"],
             tfin=config["mkm"]["tfin"],
             eapp=config["mkm"]["eapp"],
+            gpu=config["mkm"]["gpu"],
         )
 
         print("\nSaving the microkinetic simulation...")

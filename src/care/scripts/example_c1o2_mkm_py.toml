@@ -12,8 +12,8 @@ hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "
 
 
 [mkm]
-run = false # Run microkinetic simulation (bool)
-solver = "Julia" # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
+run = true # Run microkinetic simulation (bool)
+solver = "Python" # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
 gpu = false
 barrier_threshold = 0.0 # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
 uq = false  # Uncertainty quantification (bool)

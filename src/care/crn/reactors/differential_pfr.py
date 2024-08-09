@@ -36,7 +36,6 @@ class DifferentialPFR(ReactorModel):
         self.v_dense = v
         # Get sparsity of the stoichiometric matrix
         self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100
-        print(f"Sparsity of the stoichiometric matrix: {self.sparsity:.2f}%")
         self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
         self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
         self.v_forward_dense = self.v_forward_dense.T
@@ -238,10 +237,24 @@ class DifferentialPFR(ReactorModel):
         if solver == "Julia":
             results = {}
             try:
-                results["y"] = self.integrate_jl(
-                    y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN, gpu=gpu
-                )
-                results["status"] = 1
+                if gpu:
+                    try:
+                        results["y"] = self.integrate_jl_gpu(
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                        )
+                        results["status"] = 1
+                    except Exception as e:
+                        print(f"Error: {e}")
+                        print("Switching from GPU to CPU...")
+                        results["y"] = self.integrate_jl_cpu(
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                        )
+                        results["status"] = 1
+                else:
+                    results["y"] = self.integrate_jl_cpu(
+                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                    )
+                    results["status"] = 1
             except Exception as e:
                 print(f"Error: {e}")
                 results["status"] = 0
@@ -332,17 +345,16 @@ class DifferentialPFR(ReactorModel):
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
 
-    def integrate_jl(
+    def integrate_jl_cpu(
         self,
         y0: np.ndarray,
         rtol: float,
         atol: float,
         sstol: float,
         tfin: float,
-        gpu: bool = False,
     ) -> np.ndarray:
         """
-        Integrate the ODE system using the Julia-based solver.
+        Integrate the ODE system using the Julia-based solver on CPU.
         """
         import juliacall
         jl = juliacall.newmodule('mkm')
@@ -358,22 +370,10 @@ class DifferentialPFR(ReactorModel):
         jl.sstol = sstol
         jl.J_sparsity = self.jac_sparsity
         jl.tfin = tfin
-        jl.gpu = gpu
         jl.seval(
             """
-        using DifferentialEquations
-        if gpu
-            println("Trying to use GPU for the integration")
-            using CUDA # DiffEqGPU
-            y0 = CuArray{Float64}(y0)
-            v = CuArray{Int8}(v)
-            vf = CuArray{Int8}(vf)
-            vb = CuArray{Int8}(vb)
-            kd = CuArray{Float64}(kd)
-            kr = CuArray{Float64}(kr)
-            gas_mask = CuArray{Bool}(gas_mask)
-        end
         p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
+        using DifferentialEquations
         """
         )
         jl.seval(
@@ -414,12 +414,154 @@ class DifferentialPFR(ReactorModel):
         )
         jl.seval(
             """
-        if gpu
-            sol = solve(prob, FBDF(), abstol=atol, reltol=rtol)
-        else
-            sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
-        end
+        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
         """
         )
         jl.seval("sol = Array(sol[end])")
         return jl.sol
+
+    def integrate_jl_gpu_good(
+        self,
+        y0: np.ndarray,
+        rtol: float,
+        atol: float,
+        sstol: float,
+        tfin: float,
+    ) -> np.ndarray:
+        """
+        Integrate the ODE system using the Julia-based solver on GPU.
+        """
+        import juliacall
+        jl = juliacall.newmodule('mkm')
+
+        jl.y0 = y0
+        jl.v = self.v_dense
+        jl.vf = self.v_forward_dense
+        jl.vb = self.v_backward_dense
+        jl.kd, jl.kr = self.kd, self.kr
+        jl.gas_mask = self.gas_mask
+        jl.atol = atol
+        jl.rtol = rtol
+        jl.sstol = sstol
+        jl.J_sparsity = self.jac_sparsity
+        jl.tfin = tfin
+        jl.seval(
+            """
+        using CUDA
+        # using SparseArrays
+        CUDA.allowscalar(true)
+        y0 = CuArray{Float64}(y0)
+        # v = CuArray{Int8}(sparse(v))
+        # vf = CuArray{Int8}(sparse(vf))
+        # vb = CuArray{Int8}(sparse(vb))
+        v = CuArray{Int8}(v)
+        vf = CuArray{Int8}(vf)
+        vb = CuArray{Int8}(vb)
+        kd = CuArray{Float64}(kd)
+        kr = CuArray{Float64}(kr)
+        gas_mask = CuArray{Bool}(gas_mask)
+        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
+        using DifferentialEquations
+        """
+        )
+        jl.seval(
+            """
+        function ode_pfr!(du, u, p, t)
+            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
+            du .= p.v * net_rate
+            du[p.gas_mask] .= 0.0
+            println(t,"    ", sum(abs.(du)))
+        end
+        """
+        )
+        jl.seval(
+            """
+        f = ODEFunction(ode_pfr!)
+        """
+        )
+        jl.seval(
+            """
+        prob = ODEProblem(f, y0, (0, tfin), p)
+        """
+        )
+        jl.seval(
+            """
+        function condition(u, t, integrator)
+            du = similar(u)
+            ode_pfr!(du, u, integrator.p, t)
+            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
+            return sum_abs_du <= sstol
+        end
+
+        function affect!(integrator)
+            println("STEADY-STATE CONDITIONS REACHED!")
+            terminate!(integrator)
+        end
+        cb = DiscreteCallback(condition, affect!)
+        """
+        )
+        jl.seval(
+            """
+        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol)
+        CUDA.allowscalar(false)
+        """
+        )
+        jl.seval("sol = Array(sol[end])")
+
+        return jl.sol
+
+    def integrate_jl_gpu(
+            self,
+            y0: np.ndarray,
+            rtol: float,
+            atol: float,
+            sstol: float,
+            tfin: float,
+        ) -> np.ndarray:
+            """
+            Integrate the ODE system using the Julia-based solver on GPU.
+            """
+            import juliacall
+            jl = juliacall.newmodule('mkm')
+
+            # jl.seval("using DifferentialEquations")
+            # jl.seval("using DiffEqGPU")
+            # jl.seval("using CUDA")
+
+            # Define the Julia function to solve the ODE
+            jl.seval("""
+            using DifferentialEquations, CUDA, LinearAlgebra
+            # u0 = cu(rand(1000))
+            u0 = CuArray{Float64}(rand(1000))
+            A = CuArray{Float64}(randn(1000, 1000))
+            f(du, u, p, t) = mul!(du, A, u)
+            prob = ODEProblem(f, u0, (0.0f0, 1.0f0)) # Float32 is better on GPUs!
+            # function solve_ode_on_gpu()
+            #     function f!(du, u, p, t)
+            #         du[1] = u[1]
+            #     end
+
+            #     u0 = [1.0]
+            #     tspan = (0.0, 1.0)
+            #     u0_gpu = CUDA.fill(1.0, length(u0))
+            #     prob = ODEProblem(f!, u0_gpu, tspan)
+
+            #     @show typeof(u0)
+            #     @show typeof(u0_gpu)
+            #     @show typeof(prob.u0)
+
+            #     try
+            #         sol = solve(prob, FBDF(), abstol=1e-8, reltol=1e-6)
+            #         @show sol
+            #     catch e
+            #         @error "Error occurred" exception=(e, catch_backtrace())
+            #     end
+            # end
+            """)
+
+            # # Call the function to solve the ODE
+            # jl.seval("solve_ode_on_gpu()")
+            jl.seval("sol=solve(prob, Tsit5())")
+            breakpoint()
+
+            return jl.sol
