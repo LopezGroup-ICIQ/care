@@ -47,7 +47,7 @@ class Rearrangement(ElementaryReaction):
 
 
 def gen_rearrangement_reactions(
-    intermediates: dict[str, Intermediate], num_cpu: int = mp.cpu_count()
+    intermediates: dict[str, Intermediate], num_cpu: int = mp.cpu_count(), show_progress: bool = False
 ) -> list[Rearrangement]:
     """
     Generate the (1,2)-H shift rearrangement reactions.
@@ -59,6 +59,8 @@ def gen_rearrangement_reactions(
         Each key is the InChIKey of the molecule, and values are the corresponding Intermediate instances.
     num_cpu : int, optional
         Number of CPU cores to use for the generation, by default mp.cpu_count()
+    show_progress : bool, optional
+        If True, a progress bar is shown for the generation, by default False
 
     Returns
     -------
@@ -102,20 +104,27 @@ def gen_rearrangement_reactions(
 
     tasks = [(chunk, progress_queue_rxn) for chunk in chunks]
 
-    with mp.Pool(num_cpu) as pool:
-        result_async = pool.starmap_async(process_subgroup, tasks)
-        with Progress() as progress:
-            task_desc = format_description(
-                "[green]Generating rearrangement reactions..."
-            )
-            task = progress.add_task(task_desc, total=len(tasks))
-            processed_items = 0
+    if show_progress:
+        with mp.Pool(num_cpu) as pool:
+            result_async = pool.starmap_async(process_subgroup, tasks)
+            with Progress() as progress:
+                task_desc = format_description(
+                    "[green]Generating rearrangement reactions..."
+                )
+                task = progress.add_task(task_desc, total=len(tasks))
+                processed_items = 0
 
+                while not result_async.ready():
+                    while not progress_queue_rxn.empty():
+                        progress_queue_rxn.get()
+                        processed_items += 1
+                        progress.update(task, advance=1)
+    else:
+        with mp.Pool(num_cpu) as pool:
+            result_async = pool.starmap_async(process_subgroup, tasks)
             while not result_async.ready():
                 while not progress_queue_rxn.empty():
                     progress_queue_rxn.get()
-                    processed_items += 1
-                    progress.update(task, advance=1)
 
     return [rxn for sublist in result_async.get() for rxn in sublist]
 

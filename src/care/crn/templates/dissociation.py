@@ -75,7 +75,7 @@ class BondFormation(ElementaryReaction):
 
 
 def gen_dissociation_reactions(
-    chemical_space: list[str], ncpus: int = mp.cpu_count()
+    chemical_space: list[str], ncpus: int = mp.cpu_count(), show_progress: bool = False
 ) -> tuple[dict[str, Intermediate], list[BondBreaking]]:
     """
     Generate all potential dissociation reactions given an initial set of molecules.
@@ -84,6 +84,12 @@ def gen_dissociation_reactions(
     ----------
     chemical_space : list[str]
         List of the SMILES of the molecules in the chemical space.
+    ncpus : int
+        Number of CPUs to use for the generation of the Intermediate objects.
+        Default is the number of CPUs available.
+    show_progress : bool
+        Whether to show the progress bar, useful when running the function in a script
+        or for huge chemical spaces. Default is False.
 
     Returns:
     --------
@@ -96,17 +102,23 @@ def gen_dissociation_reactions(
 
     processed_fragments, unique_reactions, processed_molecules = {}, set(), set()
 
-    with Progress() as progress:
-        task_desc = format_description("[green]Generating extended Chemical Space...")
-        task = progress.add_task(task_desc, total=len(chemical_space))
+    if show_progress:
+        with Progress() as progress:
+            task_desc = format_description("[green]Generating extended Chemical Space...")
+            task = progress.add_task(task_desc, total=len(chemical_space))
+            for smiles in chemical_space:
+                process_molecule(
+                    smiles,
+                    processed_fragments,
+                    unique_reactions,
+                    processed_molecules,
+                )
+                progress.update(task, advance=1)
+    else:
         for smiles in chemical_space:
             process_molecule(
-                smiles,
-                processed_fragments,
-                unique_reactions,
-                processed_molecules,
+                smiles, processed_fragments, unique_reactions, processed_molecules
             )
-            progress.update(task, advance=1)
 
     # Converting the dictionary to a list
     frag_list = []
@@ -120,16 +132,33 @@ def gen_dissociation_reactions(
 
     # Generate the Intermediate objects
     rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}
-    inters = gen_intermediates_dict(rdkit_inters, ncpus)
+    inters = gen_intermediates_dict(rdkit_inters, ncpus, show_progress)
     active_site = Intermediate.from_molecule(
         Atoms(), code="*", is_surface=True, phase="surf"
     )  # dummy object for the active site
 
-    with Progress() as progress:
-        task_desc = format_description("[green]Processing ElementaryReactions...")
-        task = progress.add_task(task_desc, total=len(unique_reactions))
-        rxns = []
+    rxns = []
 
+    if show_progress:
+        with Progress() as progress:
+            task_desc = format_description("[green]Processing ElementaryReactions...")
+            task = progress.add_task(task_desc, total=len(unique_reactions))
+
+            for reaction in unique_reactions:
+                reactant = inters[MolToInchiKey(MolFromSmiles(reaction[0])) + "*"]
+                product1 = inters[MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"]
+
+                if len(reaction[1]) == 2:
+                    product2 = inters[MolToInchiKey(MolFromSmiles(reaction[1][1])) + "*"]
+                    reaction_components = [[active_site, reactant], [product1, product2]]
+                else:
+                    reaction_components = [[reactant], [product1]]
+
+                rxns.append(
+                    BondBreaking(components=reaction_components, r_type=reaction[2])
+                )
+                progress.update(task, advance=1)
+    else:
         for reaction in unique_reactions:
             reactant = inters[MolToInchiKey(MolFromSmiles(reaction[0])) + "*"]
             product1 = inters[MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"]
@@ -143,7 +172,6 @@ def gen_dissociation_reactions(
             rxns.append(
                 BondBreaking(components=reaction_components, r_type=reaction[2])
             )
-            progress.update(task, advance=1)
 
     return inters, rxns
 
@@ -377,7 +405,9 @@ def break_bonds(
 
 
 def gen_intermediates_dict(
-    inter_dict: dict[str, Chem.rdchem.Mol], ncpu: int=mp.cpu_count()
+    inter_dict: dict[str, Chem.rdchem.Mol],
+    ncpu: int=mp.cpu_count(),
+    show_progress: bool=False
 ) -> dict[str, Intermediate]:
     """
     Generate the Intermediate objects for all the chemical species of the reaction network as a dictionary.
@@ -389,6 +419,12 @@ def gen_intermediates_dict(
         of all the chemical species of the reaction network.
         Each key is the InChIKey of a molecule,
         and each value is the corresponding Chem.rdchem.Mol instance.
+    ncpu : int
+        Number of CPUs to use for the generation of the Intermediate objects.
+        Default is the number of CPUs available.
+    show_progress : bool
+        Whether to show the progress bar, useful when running the function in a script
+        or for huge chemical spaces. Default is False.
 
     Returns
     -------
@@ -419,16 +455,19 @@ def gen_intermediates_dict(
     tasks = [(chunk, progress_queue_inter) for chunk in chunks]
     with mp.Pool(ncpu) as pool:
         result_async = pool.starmap_async(process_inter_objs_chunk, tasks)
-        with Progress() as progress:
-            task_desc = format_description("[green]Processing Intermediate objects...")
-            task = progress.add_task(task_desc, total=len(tasks))
-            processed_items = 0
+        if show_progress:
+            with Progress() as progress:
+                task_desc = format_description("[green]Processing Intermediate objects...")
+                task = progress.add_task(task_desc, total=len(tasks))
+                processed_items = 0
 
-            while not result_async.ready():
-                while not progress_queue_inter.empty():
-                    progress_queue_inter.get()
-                    processed_items += 1
-                    progress.update(task, advance=1)
+                while not result_async.ready():
+                    while not progress_queue_inter.empty():
+                        progress_queue_inter.get()
+                        processed_items += 1
+                        progress.update(task, advance=1)
+        else:
+            result_async.wait()
 
     # Combine the results from all chunks
     combined_result = {}

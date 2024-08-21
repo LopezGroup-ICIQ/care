@@ -19,7 +19,7 @@ def format_description(description, width=45):
 
 
 def gen_blueprint(
-    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool, num_cpu: int = mp.cpu_count()
+    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool, num_cpu: int = mp.cpu_count(), show_progress: bool = False
 ) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the CRN blueprint by applying
@@ -41,6 +41,8 @@ def gen_blueprint(
         If True, proton-coupled electron transfer reactions are generated.
     num_cpu : int, optional
         Number of CPU cores to use for the CRN generation, by default mp.cpu_count()
+    show_progress : bool, optional
+        If True, a progress bar is shown for each step of the blueprint generation, by default False
 
     Returns
     -------
@@ -57,14 +59,14 @@ def gen_blueprint(
 
     # Generate the chemical space (CS)
     t0cs = time.time()
-    chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic)
+    chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic, show_progress)
     ncs = len(chemical_space)
     tcs = time.time() - t0cs
     table.add_row(["Saturated molecules", ncs, f"{tcs:.2f}"])
 
     # Extend CS with dissociation reactions
     t0ecs = time.time()
-    bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space, num_cpu)
+    bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space, num_cpu, show_progress)
     nfrags = len(bb_inters) - len(chemical_space)
     nbbsteps = len(bb_steps)
     intermediates.update(bb_inters)
@@ -78,7 +80,7 @@ def gen_blueprint(
 
     # Adsorption/Desorption reactions
     t02 = time.time()
-    ads_steps = adsorption.gen_adsorption_reactions(intermediates, num_cpu)
+    ads_steps = adsorption.gen_adsorption_reactions(intermediates, num_cpu, show_progress)
     nadssteps = len(ads_steps)
     reactions.extend(ads_steps)
     t2 = time.time() - t02
@@ -88,7 +90,7 @@ def gen_blueprint(
     # (1,2)-H shift rearrangement reactions
     if additional_rxns:
         t03 = time.time()
-        rearr_steps = rearrengement.gen_rearrangement_reactions(intermediates, num_cpu)
+        rearr_steps = rearrengement.gen_rearrangement_reactions(intermediates, num_cpu, show_progress)
         nrearrsteps = len(rearr_steps)
         reactions.extend(rearr_steps)
         t3 = time.time() - t03
@@ -98,7 +100,7 @@ def gen_blueprint(
     # Proton-coupled electron transfer (PCET) reactions
     if electro:
         t04 = time.time()
-        pcets = pcet.gen_pcet_reactions(intermediates, reactions)
+        pcets = pcet.gen_pcet_reactions(intermediates, reactions, show_progress)
         npcets = len(pcets)
         reactions.extend(pcets)
         t4 = time.time() - t04

@@ -78,7 +78,7 @@ class Desorption(ElementaryReaction):
 
 
 def gen_adsorption_reactions(
-    intermediates: dict[str, Intermediate], num_cpu: int=mp.cpu_count()
+    intermediates: dict[str, Intermediate], num_cpu: int=mp.cpu_count(), show_progress: bool=False
 ) -> list[Adsorption]:
     """
     Generate adsorption/desorption reactions
@@ -93,6 +93,8 @@ def gen_adsorption_reactions(
         The Intermediate instance of the surface.
     num_cpu : int
         The number of CPU cores to use for the generation of the adsorption reactions.
+    show_progress : bool
+        If True, a progress bar is shown for this step of the blueprint generation.
 
     Returns
     -------
@@ -115,18 +117,25 @@ def gen_adsorption_reactions(
 
     tasks = [(chunk, surf_inter, progress_queue_rxn) for chunk in inter_chunks]
 
-    with mp.Pool(num_cpu) as pool:
-        result_async = pool.starmap_async(process_ads_react_chunk, tasks)
-        with Progress() as progress:
-            task_desc = format_description("[green]Generating adsorption reactions...")
-            task = progress.add_task(task_desc, total=len(tasks))
-            processed_items = 0
+    if show_progress:
+        with mp.Pool(num_cpu) as pool:
+            result_async = pool.starmap_async(process_ads_react_chunk, tasks)
+            with Progress() as progress:
+                task_desc = format_description("[green]Generating adsorption reactions...")
+                task = progress.add_task(task_desc, total=len(tasks))
+                processed_items = 0
 
+                while not result_async.ready():
+                    while not progress_queue_rxn.empty():
+                        progress_queue_rxn.get()
+                        processed_items += 1
+                        progress.update(task, advance=1)
+    else:
+        with mp.Pool(num_cpu) as pool:
+            result_async = pool.starmap_async(process_ads_react_chunk, tasks)
             while not result_async.ready():
                 while not progress_queue_rxn.empty():
                     progress_queue_rxn.get()
-                    processed_items += 1
-                    progress.update(task, advance=1)
 
     # Combine the results from all chunks
     adsorption_steps = list(

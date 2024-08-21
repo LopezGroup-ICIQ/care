@@ -124,7 +124,7 @@ def main():
         )
 
         intermediates, reactions = gen_blueprint(
-            ncc, noc, cyclic, additional_rxns, electrochem, ARGS.num_cpu
+            ncc, noc, cyclic, additional_rxns, electrochem, ARGS.num_cpu, True
         )
 
         print(
