@@ -1,3 +1,4 @@
 graft src/care/data
 include src/care/data/*.db
 graft src/care/gnn/dim192_5splits
+include src/care/logo.txt

@@ -15,7 +15,7 @@ CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and man
 
 ## Installation
 
-We recommend creating an environment with Conda to install the package.
+Installing CARE requires Conda ang Git locally installed. The following instructions are optimized to install CARE on Linux systems, while for macOS we noticed a lower performance in the CRN generation mainly due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
 
 1. Clone the repo:
 
@@ -47,7 +47,7 @@ conda install pytorch cpuonly pyg -c pytorch -c pyg
 
 *NOTE: MacOS users might need to install pytorch geometric using pip.*
 
-5. Install [Julia](https://julialang.org/). This step is required if you want to perform microkinetic simulations with Julia solvers. As alternative, simulations can run with the implemented Scipy solver.
+5. (optional) Install [Julia](https://julialang.org/) to perform microkinetic simulations with Julia solvers. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
@@ -58,34 +58,36 @@ curl -fsSL https://install.julialang.org | sh
 curl -fsSL https://install.julialang.org | sh -s -- -y
 ```
 
-6. Install JuliaCall to run Julia code from Python and the required Julia dependencies by running the following:
+6. (optional) Install JuliaCall to run Julia code from Python and the required Julia dependencies by running the following:
 
 ```bash
 python3 -m pip install juliacall
 julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
 ```
 
-These packages allow to run microkinetic simulations with Julia calling it from Python.
-
 ## Usage and tutorials
 
-The current way to generate chemical reaction networks and running microkinetic simulations with CARE requires configuring a .toml configuration file and running the command:
+The current way to generate chemical reaction networks and running microkinetic simulations with CARE requires configuring a .toml configuration file and running the `care_run` script:
 
 ```bash
+care_run -h  # documentation
 care_run -i input.toml -o output_name
 ```
 
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
-Examples of input .toml files can be found in `src/care/scripts` and `src/care/examples` (input file for CRNs published in the ChemRxiv preprint).
+Examples of input .toml files can be found in `src/care/scripts` and `src/care/examples`.
 
-Tutorials explaining step-by-step the [CRN generation and manipulation](./notebooks/care_demo.ipynb), [property evaluator interface implementation](./notebooks/interface_demo.ipynb), and [microkinetic simulations](./notebooks/kinetics_demo.ipynb) are available in the ``notebooks`` directory.
+We currently provide three tutorials, available in the ``notebooks`` directory:
+- [CRN generation and manipulation](./notebooks/care_demo.ipynb) <br/>
+- [Energy evaluator interface implementation](./notebooks/interface_demo.ipynb) <br/>
+- [Microkinetic simulations](./notebooks/kinetics_demo.ipynb)
 
 ## How to access the CRN
 
 ```python
 from pickle import load
 
-with open('./C1O4/Pd111/crn.pkl', 'rb') as pickle_file:
+with open('path_to_output_dir/crn.pkl', 'rb') as pickle_file:
     crn = load(pickle_file)
 ```
 
