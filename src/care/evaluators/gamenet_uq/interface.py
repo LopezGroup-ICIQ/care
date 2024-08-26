@@ -18,14 +18,15 @@ from care import (
     IntermediateEnergyEstimator,
     ReactionEnergyEstimator,
 )
-from care.adsorption.placement import place_adsorbate
-from care import METAL_STRUCT_DICT, INTER_ELEMS, K_B
+from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
+from care.constants import INTER_ELEMS, K_B
 from care.crn.utils.electro import Proton, Electron, Water
-from care.gnn.functions import load_model
-from care.gnn.graph import atoms_to_data
-from care.gnn.graph_filters import extract_adsorbate
-from care.gnn.graph_tools import pyg_to_nx
-from care.crn.templates import BondBreaking, BondFormation, Adsorption, Desorption, Rearrangement, PCET
+from care.evaluators.gamenet_uq.constants import METAL_STRUCT_DICT
+from care.evaluators.gamenet_uq.functions import load_model
+from care.evaluators.gamenet_uq.graph import atoms_to_data
+from care.evaluators.gamenet_uq.graph_filters import extract_adsorbate
+from care.evaluators.gamenet_uq.graph_tools import pyg_to_nx
+from care.crn.templates import BondBreaking
 
 
 class GameNetUQInter(IntermediateEnergyEstimator):

@@ -96,29 +96,6 @@ CORDERO = {
     "Zr": 1.75,
 }
 
-METAL_STRUCT_DICT = {
-    "Ag": "fcc",
-    "Au": "fcc",
-    "Cd": "hcp",
-    "Co": "hcp",
-    "Cu": "fcc",
-    "Fe": "bcc",
-    "Ir": "fcc",
-    "Ni": "fcc",
-    "Os": "hcp",
-    "Pd": "fcc",
-    "Pt": "fcc",
-    "Rh": "fcc",
-    "Ru": "hcp",
-    "Zn": "hcp",
-}
-
-FACET_DICT = {
-    "fcc": ["111", "110", "100"],
-    "hcp": ["0001", "10m10", "10m11"],
-    "bcc": ["111", "110", "100"],
-}
-
 BOND_ORDER = {"C": 4, "O": 2, "H": 1}
 
 ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16}
@@ -134,24 +111,6 @@ COORD_DICT = {
     "H": 1,
     "O": 3,
 }
-
-METALS = [
-    "Ag",
-    "Au",
-    "Cd",
-    "Co",
-    "Cu",
-    "Fe",
-    "Ir",
-    "Ni",
-    "Os",
-    "Pd",
-    "Pt",
-    "Rh",
-    "Ru",
-    "Zn",
-]
-ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
 
 R_TYPES = [
     "desorption",
