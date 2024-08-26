@@ -724,7 +724,7 @@ def ads_internal(
     """
     from copy import deepcopy
 
-    from care.adsorption.dockonsurf.src.dockonsurf.internal_rotate import (
+    from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.internal_rotate import (
         internal_rotate,
     )
 
