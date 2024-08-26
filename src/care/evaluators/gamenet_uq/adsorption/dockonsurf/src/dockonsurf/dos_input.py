@@ -107,7 +107,7 @@ from configparser import (
 
 import numpy as np
 
-from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
+from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
 
 logger = logging.getLogger("DockOnSurf")
 
@@ -1110,7 +1110,7 @@ def read_input(dos_inp):
     @return inp_vars: Dictionary with the values for every option in the input
     file.
     """
-    from care.adsorption.dockonsurf.src.dockonsurf.formats import adapt_format
+    from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.formats import adapt_format
 
     # Checks for errors in the Input file.
     err_msg = False

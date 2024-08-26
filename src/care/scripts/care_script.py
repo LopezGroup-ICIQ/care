@@ -11,13 +11,11 @@ import psutil
 import tempfile
 import time
 
-from care import MODEL_PATH, DB_PATH, DFT_DB_PATH, ReactionNetwork, Intermediate
+from care import ReactionNetwork, Intermediate
 from care.crn.utils.blueprint import gen_blueprint
-from care.gnn.interface import GameNetUQInter, GameNetUQRxn
-from care.utils import load_surface
+from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, load_surface, DFT_DB_PATH
 
 lock = mp.Lock()
-
 
 class MissingInputError(Exception):
     pass
@@ -131,17 +129,17 @@ def main():
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
         )
 
-        # 2. Evaluation of the adsorbed intermediates in the CRN
+        # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"
         )
 
         # Load surface from ase db
-        surface = load_surface(DB_PATH, metal, hkl)
+        surface = load_surface(metal, hkl)
 
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")
-        inter_evaluator = GameNetUQInter(MODEL_PATH, surface, DFT_DB_PATH)
+        inter_evaluator = GameNetUQInter(surface, DFT_DB_PATH)
         print(" Intermediates energy calculator: ", inter_evaluator)
 
         if inter_evaluator.db != None:
@@ -205,7 +203,7 @@ def main():
         # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
 
-        rxn_evaluator = GameNetUQRxn(MODEL_PATH, intermediates, T=T, U=U, pH=PH)
+        rxn_evaluator = GameNetUQRxn(intermediates, T=T, U=U, pH=PH)
         print(" Reaction property calculator: ", rxn_evaluator)
 
         eval_reactions = []

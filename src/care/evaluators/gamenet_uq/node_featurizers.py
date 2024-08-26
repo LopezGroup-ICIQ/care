@@ -9,7 +9,7 @@ from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
 from torch_geometric.data import Data
 
-from care.gnn.graph import get_voronoi_neighbourlist
+from care.evaluators.gamenet_uq.graph import get_voronoi_neighbourlist
 
 
 def get_magnetization(graph: Data):

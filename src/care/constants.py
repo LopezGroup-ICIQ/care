@@ -253,6 +253,23 @@ RGB_COLORS = {
     "Og": (0.99, 0.0, 0.06),
 }
 
+METAL_STRUCT_DICT = {
+    "Ag": "fcc",
+    "Au": "fcc",
+    "Cd": "hcp",
+    "Co": "hcp",
+    "Cu": "fcc",
+    "Fe": "bcc",
+    "Ir": "fcc",
+    "Ni": "fcc",
+    "Os": "hcp",
+    "Pd": "fcc",
+    "Pt": "fcc",
+    "Rh": "fcc",
+    "Ru": "hcp",
+    "Zn": "hcp",
+}
+
 R = 8.31439  # J/mol/K
 N_AV = 6.02283e23  # 1/mol
 K_BU = R / N_AV  # J/K

@@ -17,6 +17,23 @@ class IntermediateEnergyEstimator(ABC):
     def __init__(self):
         pass
 
+    @property
+    @abstractmethod
+    def adsorbate_domain(self) -> list[str]:
+        """
+        Define the adsorbate elements that the estimator can handle.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def surface_domain(self) -> list[str]:
+        """
+        Define the surface elements that the estimator can handle.
+        """
+        pass
+
+
     @abstractmethod
     def eval(self, inter: Intermediate, surf: Optional[Surface] = None) -> None:
         """
@@ -36,6 +53,22 @@ class ReactionEnergyEstimator(ABC):
 
     @abstractmethod
     def __init__(self):
+        pass
+
+    @property
+    @abstractmethod
+    def adsorbate_domain(self) -> list[str]:
+        """
+        Define the adsorbate elements that the estimator can handle.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def surface_domain(self) -> list[str]:
+        """
+        Define the surface elements that the estimator can handle.
+        """
         pass
 
     @abstractmethod

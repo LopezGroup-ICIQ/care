@@ -18,6 +18,7 @@ from care import (
     IntermediateEnergyEstimator,
     ReactionEnergyEstimator,
 )
+from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS
 from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
 from care.constants import INTER_ELEMS, K_B
 from care.crn.utils.electro import Proton, Electron, Water
@@ -31,22 +32,17 @@ from care.crn.templates import BondBreaking
 
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(
-        self, model_path: str, surface: Surface, dft_db_path: Optional[str] = None
+        self, surface: Surface, dft_db_path: Optional[str] = None
     ):
         """Interface for GAME-Net-UQ for intermediates.
 
         Args:
-            model_path (str): Path to the GNN model. The path must contain
-                (i) GNN.pth with model params, (ii) input.txt with model hyperparameters,
-                (iii) one_hot_encoder_elements.pth with one-hot encoder for elements,
-                (iv) performance.txt with model performance metrics.
             surface (Surface, optional): Surface of interest.
             dft_db_path (Optional[str], optional): Path to ASE database for retrieving
                 DFT data. Defaults to None.
         """
 
-        self.path = model_path
-        self.model = load_model(model_path)
+        self.model = load_model(MODEL_PATH)
         # self.device = "cuda" if cuda.is_available() else "cpu"  # TODO: combine CUDA and multiprocessing
         self.device = "cpu"
         self.num_params = sum(p.numel() for p in self.model.parameters())
@@ -57,6 +53,12 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             self.db = connect(dft_db_path)
         else:
             self.db = None
+
+    def adsorbate_domain(self):
+        return ADSORBATE_ELEMS
+
+    def surface_domain(self):
+        return METALS
 
     def __repr__(self) -> str:
         return (
@@ -211,14 +213,12 @@ class GameNetUQRxn(ReactionEnergyEstimator):
 
     def __init__(
         self,
-        model_path: str,
         intermediates: dict[str, Intermediate],
         T: float = None,
         pH: float = None,
         U: float = None,
     ):
-        self.path = model_path
-        self.model = load_model(model_path)
+        self.model = load_model(MODEL_PATH)
         self.device = "cuda" if cuda.is_available() else "cpu"
         # self.device = 'cpu'
         self.model.to(self.device)
@@ -227,6 +227,12 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.pH = pH
         self.U = U
         self.T = T
+
+    def adsorbate_domain(self):
+        return ADSORBATE_ELEMS
+
+    def surface_domain(self):
+        return METALS
 
     def __repr__(self) -> str:
         return (
@@ -550,6 +556,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 except:
                     print("Error in transition state for {}.".format(reaction.code))
             else:  # barrierless, e_ts collapses to the highest among e_is and e_ts
-                reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs 
+                reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
             self.calc_reaction_barrier(reaction)
             return reaction

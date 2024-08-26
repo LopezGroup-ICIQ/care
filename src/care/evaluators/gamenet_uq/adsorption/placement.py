@@ -7,7 +7,7 @@ from ase import Atoms
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
 
-import care.adsorption.dockonsurf.dockonsurf as dos
+import care.evaluators.gamenet_uq.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
 from care import BOND_ORDER
 

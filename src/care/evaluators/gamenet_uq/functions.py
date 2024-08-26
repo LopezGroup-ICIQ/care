@@ -74,7 +74,7 @@ def load_model(path: str) -> Module:
     return model
 
 
-def load_surface(db_path: str, metal: str, hkl: str) -> Surface:
+def load_surface(metal: str, hkl: str) -> Surface:
     """
     Load surface from ASE database.
 
@@ -88,13 +88,15 @@ def load_surface(db_path: str, metal: str, hkl: str) -> Surface:
         For hcp metals, the Miller index should be in the form "hkil", negative indices
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
-    metal_db = connect(os.path.abspath(db_path))
+    from care.evaluators.gamenet_uq import DB_PATH
+    metal_db = connect(os.path.abspath(DB_PATH))
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     try:
         surface_ase = metal_db.get_atoms(
             calc_type="surface", metal=metal, facet=metal_structure
         )
     except:
+        # Generate surface from scratch (possible with current implementation)
         raise ValueError(f"Surface {metal_structure} not found in the database.")
 
     return Surface(surface_ase, hkl)

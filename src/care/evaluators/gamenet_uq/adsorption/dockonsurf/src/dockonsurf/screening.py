@@ -77,7 +77,7 @@ def vect_avg(vects):
         length_vector).
     @return: vector average computed doing the element-wise mean.
     """
-    from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
+    from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
 
     err = (
         "vect_avg parameter vects must be a list-like, able to be converted" " np.array"
@@ -136,7 +136,7 @@ def compute_norm_vect(atoms, idxs, cell):
     @return: numpy.ndarray of the coordinates of the vector locally
     perpendicular to the surface.
     """
-    from care.adsorption.dockonsurf.src.dockonsurf.ASANN import (
+    from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.ASANN import (
         coordination_numbers as coord_nums,
     )
 
