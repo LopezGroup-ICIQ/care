@@ -1,14 +1,10 @@
 """This module contains functions used for loading a pre-trained GNN."""
 
+from ase.db import connect
 from torch import load
 from torch.nn import Module
 
 from care.evaluators.gamenet_uq.nets import GameNetUQ
-
-import os
-
-from ase.db import connect
-
 from care import Surface
 from care.evaluators.gamenet_uq import DB_PATH, METAL_STRUCT_DICT
 
@@ -87,14 +83,14 @@ def load_surface(metal: str, hkl: str) -> Surface:
         For hcp metals, the Miller index should be in the form "hkil", negative indices
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
-    metal_db = connect(os.path.abspath(DB_PATH))
+    metal_db = connect(DB_PATH)
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     try:
         surface_ase = metal_db.get_atoms(
             calc_type="surface", metal=metal, facet=metal_structure
         )
     except:
-        # Generate surface from scratch (possible with current implementation)
-        raise ValueError(f"Surface {metal_structure} not found in the database.")
+        # Generate surface from scratch (possible with current implementation!!!)
+        raise ValueError(f"{metal} surface {metal_structure} not found in the database.")
 
     return Surface(surface_ase, hkl)
