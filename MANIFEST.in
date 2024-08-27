@@ -1,3 +1,4 @@
-include src/evaluators/gamenet_uq/data/metal_surfaces.db
+graft src/evaluators/gamenet_uq/data
+include src/evaluators/gamenet_uq/data/*.db
 graft src/evaluators/gamenet_uq/dim192_5splits
 include src/care/logo.txt
