@@ -11,8 +11,7 @@ import psutil
 import tempfile
 import time
 
-from care import ReactionNetwork, Intermediate
-from care.crn.utils.blueprint import gen_blueprint
+from care import ReactionNetwork, Intermediate, gen_blueprint
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, load_surface, DFT_DB_PATH
 
 lock = mp.Lock()

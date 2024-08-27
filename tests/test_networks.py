@@ -2,9 +2,8 @@ import unittest
 from random import randint
 from ase import Atoms
 
-from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMechanism
+from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMechanism, gen_blueprint
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
-from care.crn.utils.blueprint import gen_blueprint
 from care.constants import INTER_ELEMS
 
 
@@ -146,7 +145,7 @@ class TestElementaryReaction(unittest.TestCase):
         Check that reverse steps are correctly implemented
         """
         for step in steps:
-            step_class = step.__class__            
+            step_class = step.__class__
             reactants, products = step.reactants, step.products
             step.e_is, step.e_fs, step.e_ts = (10.0, 0.1), (9.0, 0.1), (11.0, 0.1)
             step.e_rxn = step.e_fs[0] - step.e_is[0], (0.1**2 + 0.1**2) ** 0.5

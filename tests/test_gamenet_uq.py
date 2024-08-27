@@ -1,6 +1,6 @@
 import unittest
 
-from care.crn.utils.blueprint import gen_blueprint
+from care import gen_blueprint
 from care.evaluators.gamenet_uq import load_surface, GameNetUQInter, METALS, METAL_STRUCT_DICT, FACET_DICT
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)

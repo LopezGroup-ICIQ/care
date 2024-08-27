@@ -4,8 +4,8 @@ from ase.db import connect
 from torch import load
 from torch.nn import Module
 
-from care.evaluators.gamenet_uq.nets import GameNetUQ
 from care import Surface
+from care.evaluators.gamenet_uq.nets import GameNetUQ
 from care.evaluators.gamenet_uq import DB_PATH, METAL_STRUCT_DICT
 
 

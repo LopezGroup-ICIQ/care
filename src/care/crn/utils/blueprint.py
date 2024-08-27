@@ -66,7 +66,7 @@ def gen_blueprint(
 
     # Extend CS with dissociation reactions
     t0ecs = time.time()
-    bb_inters, bb_steps = dissociation.gen_dissociation_reactions(chemical_space, num_cpu, show_progress)
+    bb_inters, bb_steps = dissociation.dissociate(chemical_space, num_cpu, show_progress)
     nfrags = len(bb_inters) - len(chemical_space)
     nbbsteps = len(bb_steps)
     intermediates.update(bb_inters)

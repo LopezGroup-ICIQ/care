@@ -9,6 +9,8 @@ from care.evaluators.energy_estimator import (
     ReactionEnergyEstimator,
     IntermediateEnergyEstimator,
 )
+from care.crn.utils.blueprint import gen_blueprint
+from care.crn.templates.dissociation import dissociate
 
 __all__ = [
     "Intermediate",
@@ -18,5 +20,7 @@ __all__ = [
     "ReactionEnergyEstimator",
     "IntermediateEnergyEstimator",
     "ReactionMechanism",
+    "gen_blueprint",
+    "dissociate",
 ]
 __version__ = "1.0.0"

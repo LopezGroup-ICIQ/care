@@ -74,11 +74,11 @@ class BondFormation(ElementaryReaction):
         self.reverse()
 
 
-def gen_dissociation_reactions(
+def dissociate(
     chemical_space: list[str], ncpus: int = mp.cpu_count(), show_progress: bool = False
 ) -> tuple[dict[str, Intermediate], list[BondBreaking]]:
     """
-    Generate all potential dissociation reactions given an initial set of molecules.
+    Generate all potential dissociation reactions and fragments given an initial set of molecules.
 
     Parameters
     ----------
