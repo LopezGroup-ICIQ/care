@@ -10,7 +10,7 @@ import os
 from ase.db import connect
 
 from care import Surface
-from care.evaluators.gamenet_uq.constants import METAL_STRUCT_DICT
+from care.evaluators.gamenet_uq import DB_PATH, METAL_STRUCT_DICT
 
 
 def get_mean_std_from_model(path: str) -> tuple[float]:
@@ -79,7 +79,6 @@ def load_surface(metal: str, hkl: str) -> Surface:
     Load surface from ASE database.
 
     Args:
-        db_path (str): Path to the ASE database.
         metal (str): Metal symbol (e.g., "Ag")
         hkl (str): Miller index (e.g., "111", "0001")
 
@@ -88,7 +87,6 @@ def load_surface(metal: str, hkl: str) -> Surface:
         For hcp metals, the Miller index should be in the form "hkil", negative indices
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
-    from care.evaluators.gamenet_uq import DB_PATH
     metal_db = connect(os.path.abspath(DB_PATH))
     metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
     try:

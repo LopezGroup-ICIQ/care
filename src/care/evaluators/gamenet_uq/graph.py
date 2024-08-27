@@ -20,7 +20,7 @@ from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
 from care.constants import CORDERO
-from care.evaluators.gamenet_uq.constants import METALS, ADSORBATE_ELEMS
+from care.evaluators.gamenet_uq import METALS, ADSORBATE_ELEMS
 from care.crn.utils.species import atoms_to_graph
 from care.evaluators.gamenet_uq.graph_filters import C_filter, H_filter, fragment_filter
 
