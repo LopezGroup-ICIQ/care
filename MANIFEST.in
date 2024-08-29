@@ -1,4 +1,4 @@
-graft src/evaluators/gamenet_uq/data
-include src/evaluators/gamenet_uq/data/*.db
-graft src/evaluators/gamenet_uq/dim192_5splits
+graft src/care/evaluators/gamenet_uq/data
+include src/care/evaluators/gamenet_uq/data/*.db
+graft src/care/evaluators/gamenet_uq/dim192_5splits
 include src/care/logo.txt
