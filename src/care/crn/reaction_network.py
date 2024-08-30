@@ -544,32 +544,6 @@ class ReactionNetwork:
                 matches.append(inter)
         return tuple(matches)
 
-    def add_eley_rideal(self, gas_mol: str, ads_int1: str, ads_int2: str):
-        """
-        Add an Eley-Rideal reaction to the network.
-
-        A(g) + B* <-> C*
-
-        Args:
-            gas_mol (str): Code of the gas molecule.
-            ads_int (str): Code of the adsorbed intermediate.
-        """
-        # check that gas_mol is closed shell and in gas phase
-        if self.intermediates[gas_mol].phase != "gas":
-            raise ValueError("First argument must be gas phase")
-        if self.intermediates[ads_int1].phase != "ads":
-            raise ValueError("Second argument must be adsorbed")
-        if self.intermediates[ads_int2].phase != "ads":
-            raise ValueError("Third argument must be adsorbed")
-        reaction = ElementaryReaction(
-            components=[
-                [self.intermediates[ads_int2]],
-                [self.intermediates[gas_mol], self.intermediates[ads_int1]],
-            ],
-            r_type="eley_rideal",
-        )
-        self.add_reactions([reaction])
-
     def visualize_intermediate(self, inter_code: str):
         """Visualize the molecule of an intermediate.
 
