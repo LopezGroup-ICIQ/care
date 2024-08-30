@@ -4,7 +4,6 @@ from typing import Optional, Union
 import numpy as np
 from rdkit import Chem
 from scipy.linalg import null_space
-from torch_geometric.data import Data
 
 from care.crn.intermediate import Intermediate
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
@@ -99,8 +98,6 @@ class ElementaryReaction:
 
         # Reaction rate
         self.rate: Optional[float] = None
-
-        self.ts_graph: Optional[Data] = None
         self.r_type: str = r_type
         if self.r_type not in self.r_types:
             raise ValueError(f"Invalid reaction type: {self.r_type}")
@@ -130,7 +127,7 @@ class ElementaryReaction:
                 out_str = (
                     "[{}]".format(str(abs(self.stoic[inter.code]))) + inter.__str__()
                 )
-            rhs.append(out_str)        
+            rhs.append(out_str)
         lhs.sort(), rhs.sort()  # sort alphabetically
         return " + ".join(lhs) + " <-> " + " + ".join(rhs)
 
@@ -256,10 +253,10 @@ class ElementaryReaction:
 
     def __rmul__(self, other):
         return self.__mul__(other)
-    
+
     def __sub__(self, other) -> "ReactionMechanism":
         """
-        The result of subtracting one elementary reaction from another equals 
+        The result of subtracting one elementary reaction from another equals
         the sum of the first reaction and the reverse of the second reaction.
         """
         if isinstance(other, ElementaryReaction):
@@ -351,7 +348,7 @@ class ElementaryReaction:
                 self.e_act[0] + self.e_rxn[0], # should be minus as e_rxn is already the reverse, not the direct!
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-            
+
         self.code = self.__repr__()
 
     def bb_order(self):
@@ -401,13 +398,13 @@ class ElementaryReaction:
             k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
 
         return k_dir, k_dir / k_eq
-    
+
 
 class ReactionMechanism(ElementaryReaction):
     """
     Reaction mechanism class.
 
-    A reaction mechanism is defined here as a linear combination of elementary reactions. 
+    A reaction mechanism is defined here as a linear combination of elementary reactions.
     """
 
     def __init__(self, components, r_type, r_dict=None):

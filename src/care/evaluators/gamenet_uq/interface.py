@@ -530,7 +530,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 break
             else:
                 counter += 1
-        step.ts_graph = ts_graph
+        return ts_graph
 
     def eval(
         self,
@@ -546,8 +546,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             self.calc_reaction_energy(reaction)
             if isinstance(reaction, BondBreaking):  # GNN evaluates TS from bond-breaking direction
                 try:
-                    self.ts_graph(reaction)
-                    y = self.model(reaction.ts_graph.to(self.device))  # scaled output
+                    y = self.model(self.ts_graph(reaction).to(self.device))  # scaled output
                     y_ts = y.mean.item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale.item() * self.model.y_scale_params["std"]
                     if y_ts[0] > reaction.e_is[0] and y_ts[0] > reaction.e_fs[0]:  # correct predicted TS between IS and FS
                         reaction.e_ts = y_ts
