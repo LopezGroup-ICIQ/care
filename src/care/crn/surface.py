@@ -38,6 +38,10 @@ class Surface:
         return max(z_atoms)
 
     @property
+    def vacuum_height(self) -> float:
+        return self.slab.get_cell()[2,2] - self.slab_height
+
+    @property
     def slab_diag(self) -> float:
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(a + b)
