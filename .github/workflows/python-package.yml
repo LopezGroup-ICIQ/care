@@ -25,7 +25,8 @@ jobs:
         conda activate care_test
         conda install pytorch cpuonly pyg -c pytorch -c pyg
         pip install .
-        pip install fairchem-core mace-torch
+        pip install fairchem-core
+        pip install mace-torch
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
