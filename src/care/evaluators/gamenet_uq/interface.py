@@ -15,9 +15,8 @@ from care import (
     Intermediate,
     ElementaryReaction,
     Surface,
-    IntermediateEnergyEstimator,
-    ReactionEnergyEstimator,
 )
+from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS
 from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
 from care.constants import INTER_ELEMS, K_B
@@ -32,7 +31,7 @@ from care.crn.templates import BondBreaking
 
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(
-        self, surface: Surface, dft_db_path: Optional[str] = None
+        self, surface: Surface, dft_db_path: Optional[str] = None, **kwargs
     ):
         """Interface for GAME-Net-UQ for intermediates.
 
@@ -129,7 +128,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
     def eval(
         self,
-        intermediate: Intermediate,
+        intermediate: Intermediate, **kwargs
     ) -> None:
         """
         Estimate the energy of a state.
@@ -152,56 +151,55 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             }
         elif intermediate.phase == "gas":  # gas phase
             if self.db is not None and self.retrieve_from_db(intermediate):
-                return intermediate
-            config = intermediate.molecule
-            with no_grad():
-                pyg = atoms_to_data(config, self.model.graph_params)
-                pyg = pyg.to(self.device)
-                y = self.model(pyg)
-                intermediate.ads_configs = {
-                    "gas": {
-                        "ase": config,
-                        "pyg": pyg,
-                        "mu": (
-                            y.mean * self.model.y_scale_params["std"]
-                            + self.model.y_scale_params["mean"]
-                        ).item(),  # eV
-                        "s": (y.scale * self.model.y_scale_params["std"]).item(),  # eV
+                return
+            else:
+                config = intermediate.molecule
+                with no_grad():
+                    pyg = atoms_to_data(config, self.model.graph_params)
+                    pyg = pyg.to(self.device)
+                    y = self.model(pyg)
+                    intermediate.ads_configs = {
+                        "gas": {
+                            "ase": config,
+                            "pyg": pyg,
+                            "mu": (
+                                y.mean * self.model.y_scale_params["std"]
+                                + self.model.y_scale_params["mean"]
+                            ).item(),  # eV
+                            "s": (y.scale * self.model.y_scale_params["std"]).item(),  # eV
+                        }
                     }
-                }
 
         elif intermediate.phase == "ads":  # adsorbed
             if self.db and self.retrieve_from_db(intermediate):
-                return intermediate
+                return
+            else:
+                config_list = place_adsorbate(intermediate, self.surface)
+                counter, ads_config_dict = 0, {}
+                for config in config_list:
+                    with no_grad():
+                        ads_config_dict[f"{counter}"] = {}
+                        ads_config_dict[f"{counter}"]["ase"] = config
+                        ads_config_dict[f"{counter}"]["pyg"] = atoms_to_data(
+                            config, self.model.graph_params
+                        )
+                        y = self.model(ads_config_dict[f"{counter}"]["pyg"])
+                        ads_config_dict[f"{counter}"]["mu"] = (
+                            y.mean * self.model.y_scale_params["std"]
+                            + self.model.y_scale_params["mean"]
+                        ).item()  # eV
+                        ads_config_dict[f"{counter}"]["s"] = (
+                            y.scale * self.model.y_scale_params["std"]
+                        ).item()  # eV
+                        counter += 1
 
-            config_list = place_adsorbate(intermediate, self.surface)
-            counter, ads_config_dict = 0, {}
-            for config in config_list:
-                with no_grad():
-                    ads_config_dict[f"{counter}"] = {}
-                    ads_config_dict[f"{counter}"]["ase"] = config
-                    ads_config_dict[f"{counter}"]["pyg"] = atoms_to_data(
-                        config, self.model.graph_params
-                    )
-                    y = self.model(ads_config_dict[f"{counter}"]["pyg"])
-                    ads_config_dict[f"{counter}"]["mu"] = (
-                        y.mean * self.model.y_scale_params["std"]
-                        + self.model.y_scale_params["mean"]
-                    ).item()  # eV
-                    ads_config_dict[f"{counter}"]["s"] = (
-                        y.scale * self.model.y_scale_params["std"]
-                    ).item()  # eV
-                    counter += 1
-
-            # Getting the top 10 most stable configurations
-            ads_config_dict = dict(
-                sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10]
-            )
-            intermediate.ads_configs = ads_config_dict
+                # Getting the top 10 most stable configurations
+                ads_config_dict = dict(
+                    sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10]
+                )
+                intermediate.ads_configs = ads_config_dict
         else:
             raise ValueError("Phase not supported by the current estimator.")
-
-        return intermediate
 
 
 class GameNetUQRxn(ReactionEnergyEstimator):
@@ -217,10 +215,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         T: float = None,
         pH: float = None,
         U: float = None,
+        **kwargs
     ):
         self.model = load_model(MODEL_PATH)
         self.device = "cuda" if cuda.is_available() else "cpu"
-        # self.device = 'cpu'
         self.model.to(self.device)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.intermediates = intermediates
@@ -557,4 +555,3 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             else:  # barrierless, e_ts collapses to the highest among e_is and e_ts
                 reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
             self.calc_reaction_barrier(reaction)
-            return reaction

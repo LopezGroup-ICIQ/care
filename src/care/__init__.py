@@ -5,10 +5,6 @@ from care.crn.surface import Surface
 from care.crn.intermediate import Intermediate
 from care.crn.elementary_reaction import ElementaryReaction, ReactionMechanism
 from care.crn.reaction_network import ReactionNetwork
-from care.evaluators.energy_estimator import (
-    ReactionEnergyEstimator,
-    IntermediateEnergyEstimator,
-)
 from care.crn.utils.blueprint import gen_blueprint
 from care.crn.templates.dissociation import dissociate
 
@@ -17,8 +13,6 @@ __all__ = [
     "ElementaryReaction",
     "ReactionNetwork",
     "Surface",
-    "ReactionEnergyEstimator",
-    "IntermediateEnergyEstimator",
     "ReactionMechanism",
     "gen_blueprint",
     "dissociate",

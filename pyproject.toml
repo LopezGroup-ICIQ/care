@@ -49,6 +49,9 @@ Repository = "https://github.com/LopezGroup-ICIQ/care"
 
 [project.scripts]
 "care_run" = "care.scripts.care_script:main"
+"eval_crn" = "care.scripts.eval_crn:main"
+"gen_crn_blueprint" = "care.scripts.gen_crn_blueprint:main"
+"run_kinetic" = "care.scripts.run_kinetic:main"
 
 [tool.setuptools]
 include-package-data = true

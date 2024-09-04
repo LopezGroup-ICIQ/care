@@ -1,7 +1,8 @@
 import unittest
 
 from care import gen_blueprint
-from care.evaluators.gamenet_uq import load_surface, GameNetUQInter, METALS, METAL_STRUCT_DICT, FACET_DICT
+from care.evaluators import load_surface
+from care.evaluators.gamenet_uq import GameNetUQInter, METALS, METAL_STRUCT_DICT, FACET_DICT
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
 surface = load_surface("Pt", "111")
@@ -23,7 +24,5 @@ class TestEvaluator(unittest.TestCase):
 
     def test_serial_eval(self):
         for inter in intermediates.values():
-            if inter.phase == 'surf':
-                continue
             interface.eval(inter)
             assert len(inter.ads_configs) != 0

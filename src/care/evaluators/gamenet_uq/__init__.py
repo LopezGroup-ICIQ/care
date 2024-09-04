@@ -47,9 +47,7 @@ METALS = [
 ADSORBATE_ELEMS = ["C", "H", "O", "N", "S"]
 
 from care.evaluators.gamenet_uq.interface import GameNetUQInter, GameNetUQRxn
-from care.evaluators.gamenet_uq.functions import load_surface
 
 __all__ = [
     "GameNetUQInter",
-    "GameNetUQRxn",
-    "load_surface",]
+    "GameNetUQRxn"]

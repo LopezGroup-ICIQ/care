@@ -193,9 +193,9 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
 
 def place_adsorbate(
     intermediate: Intermediate, surface: Surface
-) -> tuple[str, list[Atoms]]:
+) -> list[Atoms]:
     """
-    Generate a set of adsorption structures for a given intermediate/surface pair.
+    Generate initial adsorption structures for a given intermediate/surface pair.
 
     Parameters
     ----------
@@ -206,17 +206,12 @@ def place_adsorbate(
 
     Returns
     -------
-    tuple(str, list[Atoms])
-        Tuple containing the code of the intermediate and its list of adsorption configurations.
+    total_config_list : list[Atoms]
+        List of Atoms objects with the initial adsorption structures.
     """
 
-    # Get the potential molecular centers for adsorption
     connect_sites_molec = connectivity_analysis(intermediate.graph)
-
-    # Check if molecule fits on reference metal slab. If not, increase the surface
     slab = adapt_surface(intermediate.molecule, surface)
-
-    # Generate input files for DockonSurf
     active_sites = {
         "{}".format(site["label"]): site["indices"] for site in surface.active_sites
     }
@@ -224,8 +219,6 @@ def place_adsorbate(
     total_config_list = []
 
     if len(intermediate.molecule) > 6:
-
-        # Getting all the indices of the all the active sites
         site_idx = [site["indices"] for site in surface.active_sites]
         site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
 
@@ -244,7 +237,6 @@ def place_adsorbate(
             ads_height += 0.2
             total_config_list.extend(config_list)
         return total_config_list
-
     elif 2 <= len(intermediate.molecule) <= 6:
 
         ads_height = (
@@ -267,13 +259,9 @@ def place_adsorbate(
                     total_config_list.extend(config_list)
 
         return total_config_list
-
-    # If the chemical species is a single atom, placing the atom on the surface
     else:
-        # for all sites, add the atom to the site
         for site in surface.active_sites:
             atoms = slab.copy()
-            # append unique atom in the defined position in active_sites
             atoms.append(intermediate.molecule[0])
             atoms.positions[-1] = site["position"]
             atoms.set_cell(surface.slab.get_cell())

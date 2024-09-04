@@ -12,7 +12,8 @@ import tempfile
 import time
 
 from care import ReactionNetwork, Intermediate, gen_blueprint
-from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, load_surface, DFT_DB_PATH
+from care.evaluators import load_surface
+from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, DFT_DB_PATH
 
 lock = mp.Lock()
 
@@ -34,7 +35,8 @@ def evaluate_intermediate(
 
     eval_inter = {}
     for intermediate in chunk_intermediate:
-        eval_inter[intermediate.code] = model.eval(intermediate)
+        model.eval(intermediate)
+        eval_inter[intermediate.code] = intermediate
 
     progress_queue.put(1)
 
@@ -205,13 +207,11 @@ def main():
         rxn_evaluator = GameNetUQRxn(intermediates, T=T, U=U, pH=PH)
         print(" Reaction property calculator: ", rxn_evaluator)
 
-        eval_reactions = []
         with Progress() as progress:
             task = progress.add_task(" [green]Processing...", total=len(reactions))
             processed_items = 0
             for reaction in reactions:
-                eval_rxn = rxn_evaluator.eval(reaction)
-                eval_reactions.append(eval_rxn)
+                rxn_evaluator.eval(reaction)
                 processed_items += 1
                 progress.update(
                     task,
@@ -219,7 +219,7 @@ def main():
                     description=f" [green]Processing {processed_items}/{len(reactions)}...",
                 )
 
-        reactions = sorted(eval_reactions)
+        reactions = sorted(reactions)
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
