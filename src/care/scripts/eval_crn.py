@@ -111,11 +111,6 @@ def main():
         LOGO = file.read()
         print(f"{LOGO}\n")
 
-    # Output file name
-    if ARGS.output is None:
-        ARGS.output = f"C{ARGS.ncc}O{ARGS.noc}_{metal}{hkl}_cyclic{ARGS.cyclic}_rearr{ARGS.rearr}_electro{ARGS.electro}_{name}"
-
-
     # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
     print(
         f"\n┏━━━━━━━━━━━━ Evaluating CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"

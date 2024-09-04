@@ -75,10 +75,6 @@ def main():
         LOGO = file.read()
         print(f"{LOGO}\n")
 
-    # Output file name
-    if ARGS.output is None:
-        ARGS.output = f"bpC{ARGS.ncc}O{ARGS.noc}_cyclic{ARGS.cyclic}_rearr{ARGS.rearr}_electro{ARGS.electro}"
-
 
     print(
         f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ARGS.ncc}O{ARGS.noc} CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
