@@ -1,0 +1,16 @@
+[surface]
+metal = "Pd" # metal catalyst (str)
+hkl = "111" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+
+[eval]
+model = "gamenetuq"  # model (available are oc20models, macemp0)
+
+[intermediate_args]
+model_name = "EquiformerV2-31M-S2EF-OC20-All+MD" # for models from OC20 only
+fmax = 0.05 # convergence criteria for relaxation
+max_steps = 2 # max iterations allowed during relaxation
+num_configs = 1 # number of screened configurations for each adsorbate/surface pair
+size = 'small' # MACE-MP-0 size
+dtype = 'float32' # MACE-MP-0
+
+[reaction_args]
