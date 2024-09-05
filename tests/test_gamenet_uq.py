@@ -6,7 +6,7 @@ from care.evaluators.gamenet_uq import GameNetUQInter, METALS, METAL_STRUCT_DICT
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
 surface = load_surface("Pt", "111")
-interface = GameNetUQInter(surface)
+interface = GameNetUQInter(surface, num_configs=2)
 
 class TestEvaluator(unittest.TestCase):
 
@@ -25,4 +25,4 @@ class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):
         for inter in intermediates.values():
             interface.eval(inter)
-            assert len(inter.ads_configs) != 0
+            assert len(inter.ads_configs) == 2

@@ -34,7 +34,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         self, 
         surface: Surface, 
         dft_db_path: Optional[str] = None,
-        num_configs: int = 5,
+        num_configs: int = 3,
         **kwargs
     ):
         """Interface for GAME-Net-UQ for intermediates.
@@ -180,7 +180,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             else:
                 adsorptions = place_adsorbate(intermediate, self.surface)
                 ads_config_dict = {}
-                for i in range(self.num_configs):
+                for i in range(len(adsorptions)):
+                    if i == self.num_configs:
+                        break
                     with no_grad():
                         ads_config_dict[f"{i}"] = {}
                         ads_config_dict[f"{i}"]["ase"] = adsorptions[i]
