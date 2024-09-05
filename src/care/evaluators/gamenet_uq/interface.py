@@ -31,7 +31,11 @@ from care.crn.templates import BondBreaking
 
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(
-        self, surface: Surface, dft_db_path: Optional[str] = None, **kwargs
+        self, 
+        surface: Surface, 
+        dft_db_path: Optional[str] = None,
+        num_configs: int = 5,
+        **kwargs
     ):
         """Interface for GAME-Net-UQ for intermediates.
 
@@ -42,11 +46,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         """
 
         self.model = load_model(MODEL_PATH)
-        # self.device = "cuda" if cuda.is_available() else "cpu"  # TODO: combine CUDA and multiprocessing
         self.device = "cpu"
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.model.to(self.device)
         self.surface = surface
+        self.num_configs = num_configs
 
         if dft_db_path is not None and os.path.exists(dft_db_path):
             self.db = connect(dft_db_path)
@@ -174,28 +178,26 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             if self.db and self.retrieve_from_db(intermediate):
                 return
             else:
-                config_list = place_adsorbate(intermediate, self.surface)
-                counter, ads_config_dict = 0, {}
-                for config in config_list:
+                adsorptions = place_adsorbate(intermediate, self.surface)
+                ads_config_dict = {}
+                for i in range(self.num_configs):
                     with no_grad():
-                        ads_config_dict[f"{counter}"] = {}
-                        ads_config_dict[f"{counter}"]["ase"] = config
-                        ads_config_dict[f"{counter}"]["pyg"] = atoms_to_data(
-                            config, self.model.graph_params
+                        ads_config_dict[f"{i}"] = {}
+                        ads_config_dict[f"{i}"]["ase"] = adsorptions[i]
+                        ads_config_dict[f"{i}"]["pyg"] = atoms_to_data(
+                            adsorptions[i], self.model.graph_params
                         )
-                        y = self.model(ads_config_dict[f"{counter}"]["pyg"])
-                        ads_config_dict[f"{counter}"]["mu"] = (
+                        y = self.model(ads_config_dict[f"{i}"]["pyg"])
+                        ads_config_dict[f"{i}"]["mu"] = (
                             y.mean * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
                         ).item()  # eV
-                        ads_config_dict[f"{counter}"]["s"] = (
+                        ads_config_dict[f"{i}"]["s"] = (
                             y.scale * self.model.y_scale_params["std"]
                         ).item()  # eV
-                        counter += 1
 
-                # Getting the top 10 most stable configurations
                 ads_config_dict = dict(
-                    sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])[:10]
+                    sorted(ads_config_dict.items(), key=lambda item: item[1]["mu"])
                 )
                 intermediate.ads_configs = ads_config_dict
         else:
@@ -453,12 +455,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             Data: graph with the broken bond labeled.
         """
 
-        if "-" not in step.r_type:
+        if not isinstance(step, BondBreaking):
             raise ValueError("Input reaction must be a bond-breaking reaction.")
         bond = tuple(step.r_type.split("-"))
 
-        # Select intermediate that is fragmented in the reaction (A*)
-
+        # Select reaction component with unfragmented adsorbate (A* + *)
         inters = {
             inter.code: inter.graph.number_of_edges()
             for inter in list(step.reactants) + list(step.products)
@@ -476,7 +477,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             if not inter.is_surface and inter.code != inter_code
         ]
 
-        # Build the nx graph of the competitors (B* + C*)
+        # Build the nx graph of the other reaction component (B* + C*)
         if len(competitors) == 1:
             if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
                 nx_bc = [competitors[0].graph, competitors[0].graph]

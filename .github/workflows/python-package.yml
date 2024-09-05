@@ -23,7 +23,7 @@ jobs:
         conda create -n care_test python=3.11
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        conda install pytorch cpuonly pyg -c pytorch -c pyg
+        conda install pytorch cpuonly pyg pytorch-scatter -c pytorch -c pyg
         pip install .
         pip install fairchem-core
         pip install mace-torch
