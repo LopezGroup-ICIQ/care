@@ -25,4 +25,7 @@ class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):
         for inter in intermediates.values():
             interface.eval(inter)
-            assert len(inter.ads_configs) == 2
+            if inter.phase == "ads":
+                assert len(inter.ads_configs) == 2
+            elif inter.phase in ("gas", "surf"):
+                assert len(inter.ads_configs) == 1

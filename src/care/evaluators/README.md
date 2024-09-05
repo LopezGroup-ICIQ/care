@@ -13,7 +13,7 @@ We provide a [template](./template) folder where you can find the basic classes 
 
 | Model   | Type  | Target | Unit | Transition State   | Note |
 |------------|------------|------------|------------|------------|------------|
-| GAME-Net-UQ | GNN |DFT scaled adsorption energy ($E_{tot}-E_{slab}$)|eV| ✅ (bond-breaking steps) | Direct approach
-| OC20 models| MLIP |DFT adsorption energy ($E_{tot}-E_{slab}-E_{molecule}$) |eV|  	❌️ (feasible!) | Structural relaxation |
-| MACE-MP-0 | MLIP | DFT total energy ($E_{slab}$)|eV|  	❌️ (feasible!) | Structural relaxation ||
+| GAME-Net-UQ | GNN | DFT scaled adsorption energy |eV| ✅ (bond-breaking steps) | Direct approach
+| OC20 models| MLIP |DFT adsorption energy |eV|  	❌️ (feasible!) | Structural relaxation |
+| MACE-MP-0 | MLIP | DFT total energy |eV|  	❌️ (feasible!) | Structural relaxation ||
 
