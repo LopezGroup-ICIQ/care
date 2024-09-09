@@ -15,7 +15,8 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
         cpu: bool = True,
         fmax: float = 0.05,
         max_steps: int = 100,
-        num_configs: int = 1
+        num_configs: int = 1,
+        **kwargs
     ):
         """Interface for the models from the Open Catalyst Project
         (OCP) for predicting the energy of an intermediate on a surface.
