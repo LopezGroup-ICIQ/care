@@ -15,7 +15,7 @@ CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and man
 
 ## 🪛 Installation
 
-Installing CARE requires Conda ang Git locally installed. The following instructions are optimized to install CARE on Linux systems, while for macOS we noticed a lower performance in the CRN generation mainly due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
+Installing CARE requires Conda and Git locally installed. The following instructions are optimized to install CARE on Linux systems, while for macOS we noticed a lower performance in the CRN generation mainly due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
 
 1. Clone the repo:
 
@@ -42,7 +42,7 @@ python3 -m pip install .
 4. Install `pytorch` and `pytorch_geometric` through conda. **Ensure that the libraries are obtained from the pytorch and pyg channels**, as shown here:
 
 ```bash
-conda install pytorch cpuonly pyg -c pytorch -c pyg
+conda install pytorch cpuonly pytorch-scatter pytorch-sparse pyg -c pytorch -c pyg
 ```
 
 *NOTE: MacOS users might need to install pytorch geometric using pip.*
@@ -58,6 +58,16 @@ julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pk
 
 ```bash
 curl -fsSL https://install.julialang.org | sh -s -- -y
+```
+
+6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following command:
+
+*NOTE: There currently is an dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but 
+both libraries should work correctly if the installation order shown below is followed.*
+
+```bash
+python3 -m pip install fairchem-core
+python3 -m pip install mace-torch
 ```
 
 ## 💥 Usage and tutorials
