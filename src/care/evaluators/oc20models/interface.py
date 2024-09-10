@@ -28,6 +28,10 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
         cpu (bool): Whether to use the CPU for the calculation. Default is False.
         fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
         max_steps (int): The maximum number of steps for the relaxation. Default is 100.
+
+        Note:
+
+        - The intermediate energy is stored as E_tot - E_slab in eV.
         """
 
         self.model_name = model_name
@@ -60,11 +64,7 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
         """
         gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O']
 
-        if intermediate.phase == "surf":  # active site
-            intermediate.ads_configs = {
-                "surf": {"ase": intermediate.molecule, "mu": 0.0, "s": 0.0}
-            }
-        elif intermediate.phase == "gas":  # gas phase
+        if intermediate.phase == "gas":  # gas phase
             intermediate.ads_configs = {
                 "gas": {
                     "ase": intermediate.molecule,
@@ -74,14 +74,14 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
             }
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
-            adsorptions = place_adsorbate(intermediate, self.surface)
-            for i in range(self.num_configs):
-                ads_config_dict[str(i)] = {}
-                adsorptions[i].set_calculator(self.calc)
-                opt = BFGS(adsorptions[i])
+            adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            for i, adsorption in enumerate(adsorptions):
+                adsorption.set_calculator(self.calc)
+                opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
-                ads_config_dict[str(i)]['ase'] = adsorptions[i]
-                ads_config_dict[str(i)]['mu'] = adsorptions[i].get_potential_energy() + gas_energy
+                ads_config_dict[str(i)] = {}
+                ads_config_dict[str(i)]['ase'] = adsorption
+                ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
                 ads_config_dict[str(i)]['s'] = 0.0
             intermediate.ads_configs = ads_config_dict
             print(intermediate.ads_configs)

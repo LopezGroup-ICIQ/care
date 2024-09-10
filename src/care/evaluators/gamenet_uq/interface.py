@@ -31,8 +31,8 @@ from care.crn.templates import BondBreaking
 
 class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(
-        self, 
-        surface: Surface, 
+        self,
+        surface: Surface,
         dft_db_path: Optional[str] = None,
         num_configs: int = 3,
         **kwargs
@@ -178,16 +178,14 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             if self.db and self.retrieve_from_db(intermediate):
                 return
             else:
-                adsorptions = place_adsorbate(intermediate, self.surface)
+                adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
                 ads_config_dict = {}
-                for i in range(len(adsorptions)):
-                    if i == self.num_configs:
-                        break
+                for i, adsorption in enumerate(adsorptions):
                     with no_grad():
                         ads_config_dict[f"{i}"] = {}
-                        ads_config_dict[f"{i}"]["ase"] = adsorptions[i]
+                        ads_config_dict[f"{i}"]["ase"] = adsorption
                         ads_config_dict[f"{i}"]["pyg"] = atoms_to_data(
-                            adsorptions[i], self.model.graph_params
+                            adsorption, self.model.graph_params
                         )
                         y = self.model(ads_config_dict[f"{i}"]["pyg"])
                         ads_config_dict[f"{i}"]["mu"] = (
