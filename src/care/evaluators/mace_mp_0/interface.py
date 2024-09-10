@@ -1,4 +1,6 @@
 
+from copy import deepcopy
+
 from ase.optimize import BFGS
 from mace.calculators import mace_mp
 
@@ -34,6 +36,7 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         """
 
         self.surface = surface
+        self.slab_energy = 0.0
         self.size = size
         self.dtype = dtype
         self.device = device
@@ -41,9 +44,17 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
+        self.get_slab_energy()
 
     def __repr__(self) -> str:
         return f'MACE-MP-0 potential ({self.size}, {self.device}, {self.dtype})'
+    
+    def get_slab_energy(self):
+        self.surface.slab.set_calculator(self.calc)
+        opt = BFGS(self.surface.slab)
+        opt.run(fmax=self.fmax, steps=self.max_steps)
+        self.slab_energy = self.surface.slab.get_potential_energy()
+        print('self.slab_energy: ', self.slab_energy)
 
 
     def adsorbate_domain(self):
@@ -63,28 +74,33 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
 
-        if intermediate.phase in ("surf", "gas"):  # active site
-            intermediate.molecule.set_calculator(self.calc)
-            opt = BFGS(intermediate.molecule)
+        if intermediate.phase == 'gas':  # gas
+            molec_eval = deepcopy(intermediate.molecule)
+            # Setting the cell of the molecule to 10 Angstrom
+            molec_eval.set_cell([10, 10, 10])
+
+            molec_eval.set_calculator(self.calc)
+            opt = BFGS(molec_eval)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             intermediate.ads_configs = {
                 intermediate.phase: {
-                    "ase": intermediate.molecule,
-                    "mu": intermediate.molecule.get_potential_energy(),  # eV
+                    "ase": molec_eval,
+                    "mu": molec_eval.get_potential_energy(),  # eV
                     "s": 0.0,  # eV
                 }
             }
             print(intermediate.ads_configs)
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
-            adsorptions = place_adsorbate(intermediate, self.surface)
-            for i in range(self.num_configs):
+            adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            for i, adsorption in enumerate(adsorptions):
                 ads_config_dict[str(i)] = {}
-                adsorptions[i].set_calculator(self.calc)
-                opt = BFGS(adsorptions[i])
+                adsorption.set_calculator(self.calc)
+                opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
-                ads_config_dict[str(i)]['ase'] = adsorptions[i]
-                ads_config_dict[str(i)]['mu'] = adsorptions[i].get_potential_energy()  # eV
+                # Filtering structures (check if the structure makes sense)
+                ads_config_dict[str(i)]['ase'] = adsorption
+                ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                 ads_config_dict[str(i)]['s'] = 0.0
             intermediate.ads_configs = ads_config_dict
             print(intermediate.ads_configs)
