@@ -50,7 +50,7 @@ conda install pytorch cpuonly pytorch-scatter pytorch-sparse pyg -c pytorch -c p
 5. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform microkinetic simulations. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
-curl -fsSL https://install.julialang.org | sh  
+curl -fsSL https://install.julialang.org | sh
 python3 -m pip install juliacall  # Python-Julia bridge
 julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
 ```
@@ -62,7 +62,7 @@ curl -fsSL https://install.julialang.org | sh -s -- -y
 
 6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following command:
 
-*NOTE: There currently is an dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but 
+*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
 both libraries should work correctly if the installation order shown below is followed.*
 
 ```bash
@@ -70,9 +70,44 @@ python3 -m pip install fairchem-core
 python3 -m pip install mace-torch
 ```
 
-## 💥 Usage and tutorials
+## 💥 Usage
 
-The current way to generate chemical reaction networks and running microkinetic simulations with CARE requires configuring a .toml configuration file and running the `care_run` script:
+### Blueprint generation
+
+```bash
+gen_crn_blueprint -h  # documentation
+gen_crn_blueprint [-ncc NCC] [-noc NOC] [-electro ELECTRO] [-o OUTPUT] [-ncpu NUM_CPU]
+```
+
+This script does not require any input file. The output is stored as pickle file. To access the blueprint, do:
+
+```python
+from pickle import load
+
+with open('path_to_blueprint_file', 'rb') as f:
+    intermediates, reactions = load(f)
+```
+
+### Evaluation of intermediate and reaction properties
+
+```bash
+eval_crn -h  # documentation
+eval_crn [-i INPUT] [-bp BP] [-o OUTPUT] [-ncpu NUM_CPU]
+```
+
+This script requires an input toml file defining the surface of interest, property evaluators, and their settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find an example input file [here](./src/care/scripts/example_eval.toml).
+
+### Microkinetic simulation
+
+```bash
+run_kinetic [-i INPUT] [-crn CRN] [-o OUTPUT]
+```
+
+This script runs microkinetic simulation starting from the evaluated reaction network and an input toml file defining the reaction conditions, solver, inlet conditions. The results are stored as a pickle object file.
+
+### Run all together
+
+You can run the entire pipeline (blueprint generation -> properties evaluation -> kinetic simulation) running the `care_run` script:
 
 ```bash
 care_run -h  # documentation
@@ -82,19 +117,12 @@ care_run -i input.toml -o output_name
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
 Examples of input .toml files can be found in `src/care/scripts` and `src/care/examples`.
 
+## 📖 Tutorials
+
 We currently provide three tutorials, available in the ``notebooks`` directory:
 - [CRN generation and manipulation](./notebooks/care_demo.ipynb) <br/>
 - [Energy evaluator interface implementation](./notebooks/interface_demo.ipynb) <br/>
 - [Microkinetic simulations](./notebooks/kinetics_demo.ipynb)
-
-## How to access the CRN
-
-```python
-from pickle import load
-
-with open('path_to_output_dir/crn.pkl', 'rb') as pickle_file:
-    crn = load(pickle_file)
-```
 
 ## ❗️Notes
 
