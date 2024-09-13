@@ -10,6 +10,19 @@ cyclic = false
 metal = "Ru" # metal catalyst (str)
 hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
+[eval]
+model="gamenetuq"
+
+[intermediate_args]
+model_name = "EquiformerV2-31M-S2EF-OC20-All+MD" # for models from OC20 only
+fmax = 0.05 # convergence criteria for relaxation
+max_steps = 2 # max iterations allowed during relaxation
+num_configs = 3 # number of screened configurations for each adsorbate/surface pair
+size = 'small' # MACE-MP-0 size
+dtype = 'float32' # MACE-MP-0
+use_uq = false # Criterion for GAME-Net-UQ: if True, selects best configurations based on uncertainty (s), else based on lowest energy (mu)
+
+[reaction_args]
 
 [mkm]
 run = false             # Run microkinetic simulation (bool)
