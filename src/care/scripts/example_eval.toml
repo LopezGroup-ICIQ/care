@@ -12,5 +12,6 @@ max_steps = 2 # max iterations allowed during relaxation
 num_configs = 1 # number of screened configurations for each adsorbate/surface pair
 size = 'small' # MACE-MP-0 size
 dtype = 'float32' # MACE-MP-0
+use_uq = false # Criterion for GAME-Net-UQ: if True, selects best configurations based on uncertainty (s), else based on lowest energy (mu)
 
 [reaction_args]
