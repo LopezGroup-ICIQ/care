@@ -170,6 +170,9 @@ class ReactionNetwork:
             return new_net
         else:
             raise TypeError("Can only add ReactionNetwork to ReactionNetwork")
+        
+    def __call__(self, *args, **kwargs):
+        return self.run_microkinetic(*args, **kwargs)
 
     @classmethod
     def from_dict(cls, net_dict: dict):

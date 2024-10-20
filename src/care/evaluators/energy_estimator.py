@@ -16,6 +16,10 @@ class IntermediateEnergyEstimator(ABC):
     @abstractmethod
     def __init__(self):
         pass
+    
+    @abstractmethod
+    def __call__(self, inter: Intermediate, surf: Optional[Surface] = None) -> None:
+        self.eval(inter, surf)
 
     @property
     @abstractmethod
@@ -54,6 +58,10 @@ class ReactionEnergyEstimator(ABC):
     @abstractmethod
     def __init__(self):
         pass
+    
+    @abstractmethod
+    def __call__(self, reaction: ElementaryReaction) -> None:
+        self.eval(reaction)
 
     @property
     @abstractmethod

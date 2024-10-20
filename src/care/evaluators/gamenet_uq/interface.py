@@ -58,6 +58,14 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             self.db = connect(dft_db_path)
         else:
             self.db = None
+            
+    def __call__(self, 
+                 intermediate: Intermediate, 
+                 **kwargs) -> None:
+        if isinstance(intermediate, Intermediate):
+            self.eval(intermediate, **kwargs)
+        else:
+            return NotImplementedError("Input must be an Intermediate object.")
 
     def adsorbate_domain(self):
         return ADSORBATE_ELEMS
@@ -244,6 +252,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         return (
             f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"
         )
+        
+    def __call__(self, 
+                 rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """
