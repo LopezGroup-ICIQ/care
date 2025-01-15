@@ -11,7 +11,7 @@ from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption import place_adsorbate
 
-class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
+class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
@@ -24,7 +24,7 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         dispersion: bool=True,
         **kwargs
     ):
-        """Interface for the MACE-MP-0 model.
+        """Interface to the MACE-MP-0 models family.
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
@@ -118,7 +118,7 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
             raise ValueError("Phase not supported by the current estimator.")
 
 
-class MaceReactionEvaluator(ReactionEnergyEstimator):
+class MACEReactionEvaluator(ReactionEnergyEstimator):
     def __init__(
         self,
         intermediates: dict[str, Intermediate], **kwargs

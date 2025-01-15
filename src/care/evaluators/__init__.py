@@ -30,13 +30,13 @@ def load_surface(metal: str, hkl: str) -> Surface:
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
 from care.evaluators.ocp import OCPIntermediateEvaluator, OCPReactionEvaluator
-from care.evaluators.mace_mp_0 import MaceIntermediateEvaluator, MaceReactionEvaluator
+from care.evaluators.mace import MACEIntermediateEvaluator, MACEReactionEvaluator
 from care.evaluators.gamenet_uq import DB_PATH, METAL_STRUCT_DICT  # here for a reason
 
 eval_dict = {
     "gamenetuq": (GameNetUQInter, GameNetUQRxn),
     "ocp": (OCPIntermediateEvaluator, OCPReactionEvaluator),
-    "mace": (MaceIntermediateEvaluator, MaceReactionEvaluator),
+    "mace": (MACEIntermediateEvaluator, MACEReactionEvaluator),
 }
 
 def load_inter_evaluator(model: str, surface, **kwargs) -> IntermediateEnergyEstimator:
