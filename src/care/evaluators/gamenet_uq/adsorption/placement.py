@@ -2,14 +2,17 @@
 
 from typing import Any
 
-import networkx as nx
 from ase import Atoms
+from itertools import combinations
+import networkx as nx
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
+from care.crn.utils.species import atoms_to_graph
 
 import care.evaluators.gamenet_uq.adsorption.dockonsurf.dockonsurf as dos
 from care import Intermediate, Surface
-from care import BOND_ORDER
+from care import BOND_ORDER, CORDERO
+from ase import Atoms
 
 
 def connectivity_analysis(graph: nx.Graph) -> list[int]:
@@ -46,6 +49,14 @@ def connectivity_analysis(graph: nx.Graph) -> list[int]:
             sat_elems = [
                 node for node in graph.nodes() if graph.nodes[node]["elem"] != "H"
             ]
+
+            # If there are oxygen atoms, return the list of oxygen atoms
+            if "O" in [graph.nodes[node]["elem"] for node in graph.nodes()]:
+                return [
+                    node for node in graph.nodes()
+                    if graph.nodes[node]["elem"] == "O"
+                ]
+            
             return list(set(sat_elems))
 
     # Specifying the carbon monoxide case
@@ -137,9 +148,9 @@ def generate_inp_vars(
         "use_molec_file": adsorbate,
         "sites": sites,
         "molec_ctrs": molec_ctrs,
-        "min_coll_height": 1.5,
+        "min_coll_height": 0.1,
         "adsorption_height": float(ads_height),
-        "collision_threshold": 1.0,
+        "collision_threshold": 1.05 if len(adsorbate) > 1 else 0.5,
         "max_structures": max_structures,
         "set_angles": "euler",
         "sample_points_per_angle": 3,
@@ -210,7 +221,6 @@ def place_adsorbate(
         List of Atoms objects with the initial adsorption structures.
     """
 
-    connect_sites_molec = connectivity_analysis(intermediate.graph)
     slab = adapt_surface(intermediate.molecule, surface)
     active_sites = {
         "{}".format(site["label"]): site["indices"] for site in surface.active_sites
@@ -218,52 +228,73 @@ def place_adsorbate(
 
     total_config_list = []
 
-    if len(intermediate.molecule) > 6:
+    if len(intermediate.molecule) > 10:
         site_idx = [site["indices"] for site in surface.active_sites]
         site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
 
-        ads_height = 2.5
-        config_list = []
-        while config_list == []:
-            inp_vars = generate_inp_vars(
-                adsorbate=intermediate.molecule,
-                surface=slab,
-                ads_height=ads_height,
-                max_structures=3,
-                molec_ctrs=connect_sites_molec,
-                sites=site_idx,
-            )
-            config_list = dos.dockonsurf(inp_vars)
-            ads_height += 0.2
-            total_config_list.extend(config_list)
+        ads_height = 2.0
+        # config = intermediate.molecule
+        for site_idxs in active_sites.values():
+            if site_idxs != []:
+                for config in intermediate.gas_configs:
+                    config_graph = atoms_to_graph(config)
+                    connect_sites_molec = connectivity_analysis(config_graph)
+                    config_list_i = []
+                    while config_list_i == []:
+                        inp_vars = generate_inp_vars(
+                            adsorbate=config,
+                            surface=slab,
+                            ads_height=ads_height,
+                            max_structures=3,
+                            molec_ctrs=connect_sites_molec,
+                            sites=site_idxs,
+                        )
+                        config_list_i = dos.dockonsurf(inp_vars)
+                        ads_height += 0.2
+                        total_config_list.extend(config_list_i)
+                
         return total_config_list
-    elif 2 <= len(intermediate.molecule) <= 6:
+    
+    elif 2 <= len(intermediate.molecule) <= 10:
 
         ads_height = (
-            2.2 if intermediate.molecule.get_chemical_formula() != "H2" else 1.8
+            1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
         )
         for site_idxs in active_sites.values():
             if site_idxs != []:
-                config_list = []
-                while config_list == []:
-                    inp_vars = generate_inp_vars(
-                        adsorbate=intermediate.molecule,
-                        surface=slab,
-                        ads_height=ads_height,
-                        max_structures=1,
-                        molec_ctrs=connect_sites_molec,
-                        sites=site_idxs,
-                    )
-                    config_list = dos.dockonsurf(inp_vars)
-                    ads_height += 0.1
-                    total_config_list.extend(config_list)
-
+                for config in intermediate.gas_configs:
+                    config_graph = atoms_to_graph(config)
+                    connect_sites_molec = connectivity_analysis(config_graph)
+                    connect_sites_molec_comb = []
+                    for i in range(1, len(connect_sites_molec) + 1):
+                        for j in range(len(connect_sites_molec) - i + 1):
+                            connect_sites_molec_comb.append(connect_sites_molec[j : j + i])
+                    config_list_i = []
+                    while config_list_i == []:
+                        inp_vars = generate_inp_vars(
+                            adsorbate=config,
+                            surface=slab,
+                            ads_height=ads_height,
+                            max_structures=1,
+                            molec_ctrs=connect_sites_molec,
+                            sites=site_idxs,
+                        )
+                        config_list_i = dos.dockonsurf(inp_vars)
+                        ads_height += 0.1
+                        total_config_list.extend(config_list_i)
         return total_config_list
+
     else:
+        surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
         for site in surface.active_sites:
+
             atoms = slab.copy()
             atoms.append(intermediate.molecule[0])
-            atoms.positions[-1] = site["position"]
+
+            site_pos = site["position"] + [0, 0, surface_atom_radii]
+            
+            atoms.positions[-1] = site_pos
+
             atoms.set_cell(surface.slab.get_cell())
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)

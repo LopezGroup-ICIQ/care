@@ -58,7 +58,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             self.db = connect(dft_db_path)
         else:
             self.db = None
-            
+
     def __call__(self, 
                  intermediate: Intermediate, 
                  **kwargs) -> None:
@@ -101,6 +101,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         metal = self.surface.metal if phase == "ads" else "N/A"
         hkl = self.surface.facet if phase == "ads" else "N/A"
         metal_struct = f"{METAL_STRUCT_DICT[metal]}({hkl})" if phase == "ads" else "N/A"
+
+        if intermediate.formula == 'H2':
+            inchikey = 'SMIUJKHFIOXZIP-UHFFFAOYSA-N'
 
         stable_conf, max = [], np.inf
         for row in self.db.select(
@@ -252,7 +255,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         return (
             f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"
         )
-        
+    
     def __call__(self, 
                  rxn: ElementaryReaction) -> None:
         self.eval(rxn)
@@ -441,8 +444,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     for config in self.intermediates[reactant.code].ads_configs.values()
                 ]
                 if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
                 else:
                     s_min_config = min(s_list)
                     e_min_config = energy_list[s_list.index(s_min_config)]
@@ -461,8 +464,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     for config in self.intermediates[product.code].ads_configs.values()
                 ]
                 if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
                 else:
                     s_min_config = min(s_list)
                     e_min_config = energy_list[s_list.index(s_min_config)]
@@ -519,9 +522,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             if not inter.is_surface
         }
         inter_code = max(inters, key=inters.get)
+        criterion = 's' if self.use_uq else 'mu'
         idx = min(
             self.intermediates[inter_code].ads_configs,
-            key=lambda x: self.intermediates[inter_code].ads_configs[x]["mu"],
+            key=lambda x: self.intermediates[inter_code].ads_configs[x][criterion],
         )
         ts_graph = deepcopy(self.intermediates[inter_code].ads_configs[idx]["pyg"])
         competitors = [

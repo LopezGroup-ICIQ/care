@@ -8,6 +8,7 @@ from rich.progress import Progress
 from prettytable import PrettyTable
 import cpuinfo
 import psutil
+import shutil
 import tempfile
 import time
 
@@ -190,6 +191,9 @@ def main():
                     intermediates.update(load(file))
                 except EOFError:
                     break
+        
+        # Remove tmp folder
+        shutil.rmtree(tmp_folder)
 
         # Check how many species were available in the DFT database
         if inter_evaluator.db != None:

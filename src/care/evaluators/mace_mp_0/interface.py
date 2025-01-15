@@ -13,12 +13,13 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
-        size: str = "small",
+        size: str = "large",
         device: str = "cpu",
         fmax: float = 0.05,
         max_steps: int = 100,
         dtype: str = "float64",
         num_configs: int = 1,
+        dispersion: bool=True,
         **kwargs
     ):
         """Interface for the MACE-MP-0 model.
@@ -40,7 +41,8 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         self.size = size
         self.dtype = dtype
         self.device = device
-        self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype)
+        self.dispersion = dispersion
+        self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=dispersion)
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -103,7 +105,6 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
                 ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                 ads_config_dict[str(i)]['s'] = 0.0
             intermediate.ads_configs = ads_config_dict
-            print(intermediate.ads_configs)
         else:
             raise ValueError("Phase not supported by the current estimator.")
 

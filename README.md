@@ -66,7 +66,7 @@ curl -fsSL https://install.julialang.org | sh -s -- -y
 both libraries should work correctly if the installation order shown below is followed.*
 
 ```bash
-python3 -m pip install fairchem-core
+python3 -m pip install fairchem-core==1.1.0
 python3 -m pip install mace-torch
 ```
 

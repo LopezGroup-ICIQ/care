@@ -38,12 +38,12 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
         node.set_orientation("portrait")
         attrs = node.get_attributes()
         if attrs["category"] == "intermediate":
-            formula = node.get_attributes()["formula"]
-            formula += "" if attrs["phase"] == "gas" else "*"
-            for num in re.findall(r"\d+", formula):
-                SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-                formula = formula.replace(num, num.translate(SUB))
-            node.set_fontname("Arial")
+            formula = node.get_attributes()["molecule"]
+            # formula += "" if attrs["phase"] == "gas" else "*"
+            # for num in re.findall(r"\d+", formula):
+            #     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+            #     formula = formula.replace(num, num.translate(SUB))
+            # node.set_fontname("Arial")
             node.set_label(formula)
             node.set_style("filled")
             if attrs["phase"] != "gas":
@@ -51,24 +51,22 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
             else:
                 node.set_fillcolor("lightpink")
             node.set_shape("ellipse")
-            node.set_width("4/2.54")
-            node.set_height("4/2.54")
+            # node.set_width("4/2.54")
+            # node.set_height("4/2.54")
             # node.set_fixedsize("true")
-            node.set_fontsize("120")
-            if attrs["phase"] == "gas" and float(attrs["molar_fraction"]) > 0.0:
-                # set node_shape to cylinder
-                node.set_width("5/2.54")
-                node.set_height("5/2.54")
-                node.set_shape("cylinder")
-                node.set_fillcolor("lightcoral")
-                node.set_fontsize("150")
-                subgraph_source.add_node(node)
-            elif attrs["phase"] == "gas" and float(attrs["molar_fraction"]) == 0.0:
-                # give lowest rank
-                subgraph_sink.add_node(node)
-            else:
-                # subgraph_same.add_node(node)
-                pass
+            # node.set_fontsize("120")
+            # if attrs["phase"] == "gas" and float(attrs["molar_fraction"]) > 0.0:
+            #     # set node_shape to cylinder
+            #     node.set_width("5/2.54")
+            #     node.set_height("5/2.54")
+            #     node.set_shape("cylinder")
+            #     node.set_fillcolor("lightcoral")
+            #     node.set_fontsize("150")
+            #     subgraph_source.add_node(node)
+            # elif attrs["phase"] == "gas" and float(attrs["molar_fraction"]) == 0.0:
+            #     subgraph_sink.add_node(node)
+            # else:
+            #     pass
         elif attrs["category"] == "electro":
             formula = node.get_attributes()["formula"]
             node.set_shape("diamond")
@@ -99,26 +97,10 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
                 node.set_fillcolor("steelblue3")
                 subgraph_same.add_node(node)
 
-    # set edge width as function of consumption rate
-    # width_list = []
-    # max_scale, min_scale = 10, 1
-    # max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
     for edge in plot.get_edges():
         if edge.get_source() == "*" or edge.get_destination() == "*":
             plot.del_edge(edge.get_source(), edge.get_destination())
             continue
-        # rate = float(edge.get_attributes()["rate"])
-        # # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
-        # edge_width = -np.log10(rate)
-        # width = (max_scale - min_scale) / (max_weight - min_weight) * (
-        #     edge_width - max_weight
-        # ) + max_scale
-        # if edge.get_attributes()["max"] == "max":
-        #     edge.set_color("firebrick")
-
-        # edge.set_penwidth(30)
-        # edge.set_penwidth(width)
-        # width_list.append(width)
 
     plot.add_subgraph(subgraph_source)
     plot.add_subgraph(subgraph_sink)
@@ -154,12 +136,12 @@ def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
         node.set_orientation("portrait")
         attrs = node.get_attributes()
         if attrs["category"] == "intermediate":
-            formula = node.get_attributes()["formula"]
-            formula += "" if attrs["phase"] == "gas" else "*"
-            for num in re.findall(r"\d+", formula):
-                SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-                formula = formula.replace(num, num.translate(SUB))
-            node.set_fontname("Arial")
+            formula = node.get_attributes()["molecule"]
+            # formula += "" if attrs["phase"] == "gas" else "*"
+            # for num in re.findall(r"\d+", formula):
+            #     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+            #     formula = formula.replace(num, num.translate(SUB))
+            # node.set_fontname("Arial")
             node.set_label(formula)
             node.set_style("filled")
             if attrs["phase"] != "gas":
@@ -179,17 +161,6 @@ def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
                 node.set_fillcolor("lightcoral")
                 node.set_fontsize("150")
                 subgraph_gas.add_node(node)
-        # elif attrs["category"] == "electro":
-        #     formula = node.get_attributes()["formula"]
-        #     node.set_shape("diamond")
-        #     node.set_style("filled")
-        #     node.set_label(formula)
-        #     node.set_width("2/2.54")
-        #     node.set_height("2/2.54")
-        #     node.set_fillcolor("yellow")
-        #     node.set_fontsize("150")
-        #     node.set_fontname("Arial")
-        #     subgraph_electro.add_node(node)
         else:  # REACTION
             node.set_shape("square")
             node.set_style("filled")
@@ -206,26 +177,11 @@ def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
                 node.set_fillcolor("steelblue3")
                 subgraph_surf.add_node(node)
 
-    # set edge width as function of consumption rate
-    # width_list = []
-    # max_scale, min_scale = 10, 1
-    # max_weight, min_weight = -np.log10(graph.min_rate), -np.log10(graph.max_rate)
     for edge in plot.get_edges():
         if edge.get_source() == "*" or edge.get_destination() == "*":
             plot.del_edge(edge.get_source(), edge.get_destination())
             continue
-        # rate = float(edge.get_attributes()["rate"])
-        # # Scale logarithmically the width of the edge considering graph.max_rate and graph.min_rate
-        # edge_width = -np.log10(rate)
-        # width = (max_scale - min_scale) / (max_weight - min_weight) * (
-        #     edge_width - max_weight
-        # ) + max_scale
-        # if edge.get_attributes()["max"] == "max":
-        #     edge.set_color("firebrick")
 
-        # edge.set_penwidth(30)
-        # edge.set_penwidth(width)
-        # width_list.append(width)
 
     plot.add_subgraph(subgraph_gas)
     plot.add_subgraph(subgraph_ads)

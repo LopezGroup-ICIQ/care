@@ -37,7 +37,7 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
         self.model_name = model_name
         self.checkpoint_path = model_name_to_local_file(model_name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
-        self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu)
+        self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs

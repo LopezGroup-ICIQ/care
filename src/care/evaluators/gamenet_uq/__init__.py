@@ -2,7 +2,7 @@ import pathlib as pl
 MODULEROOT = pl.Path(__file__).parent
 MODEL_PATH = f"{MODULEROOT}/dim192_5splits"
 DB_PATH = f"{MODULEROOT}/data/metal_surfaces.db"
-DFT_DB_PATH = f"{MODULEROOT}/data/FG2dataset.db"
+DFT_DB_PATH = f"{MODULEROOT}/data/fg.db"
 
 METAL_STRUCT_DICT = {
     "Ag": "fcc",

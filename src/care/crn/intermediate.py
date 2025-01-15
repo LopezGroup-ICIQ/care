@@ -66,6 +66,8 @@ class Intermediate:
         self.formula = (
             self.molecule.get_chemical_formula() if not self.is_surface else "surface"
         )
+
+        self.gas_configs = self.gen_gas_configs()
         self._graph = graph
         self.ads_configs = ads_configs
         self.electrons = self.get_num_electrons()
@@ -284,8 +286,92 @@ class Intermediate:
                                 0
                             ] += 1
                 return True
+            
+    def gen_gas_configs(self) -> list[Atoms, list[Atoms]]:
+        """
+        Generate a list of gas-phase ASE Atoms object from an RDKit molecule.
+        Needed for adsorbate placement (if a better scan is preferred)
 
-    def rdkit_to_ase(self) -> Atoms:
+        """
+        rdkit_molecule = self.rdkit
+
+        # If there are no atoms in the molecule, return an empty ASE Atoms object (Surface)
+        if rdkit_molecule is None:
+            return Atoms(), [Atoms()]
+
+        rdkit_molecule = Chem.AddHs(
+            rdkit_molecule
+        ) 
+
+        num_C = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"]
+        )
+
+        num_O = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"]
+        )
+
+        num_H = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "H"]
+        )
+
+        num_conformers = 50 * (1+num_C) + 10 * num_O + 2 * num_H
+        randomseed = 42
+
+
+        if rdkit_molecule.GetNumAtoms() > 2:
+            AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
+
+            energies = []
+            for conf in rdkit_molecule.GetConformers():
+                confId = conf.GetId()
+                result = AllChem.MMFFOptimizeMolecule(rdkit_molecule, confId=confId)
+                if result == 0:
+                    mmff_props = AllChem.MMFFGetMoleculeProperties(rdkit_molecule)
+                    ff = AllChem.MMFFGetMoleculeForceField(rdkit_molecule, mmff_props, confId=confId)
+                    energy = ff.CalcEnergy()
+                    energies.append((confId, energy))
+                else:
+                    energies.append((confId, float('inf')))
+
+            energies.sort(key=lambda x: x[1])
+
+            lowest_N_confIds = [confId for confId, _ in energies[:3]]
+            gas_configs_list = []
+            for confId in lowest_N_confIds:
+                xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule, confId=confId)
+                ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
+                ase_atoms.set_cell([20, 20, 20])
+                ase_atoms.set_pbc(True)
+                gas_configs_list.append(ase_atoms)
+
+        else:
+            AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
+
+            num_atoms = rdkit_molecule.GetNumAtoms()
+
+            positions = []
+            symbols = []
+
+            for atom_idx in range(num_atoms):
+                atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
+                atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
+                positions.append(atom_position)
+                symbols.append(atom_symbol)
+
+            ase_atoms = Atoms(
+                [
+                    Atom(symbol=symbol, position=position)
+                    for symbol, position in zip(symbols, positions)
+                ]
+            )
+            ase_atoms.set_cell([20, 20, 20])
+            ase_atoms.set_pbc(True)
+            gas_configs_list = [ase_atoms]
+
+        return gas_configs_list
+
+    def rdkit_to_ase(self) -> list[Atoms, list[Atoms]]:
         """
         Generate an ASE Atoms object from an RDKit molecule.
 
@@ -304,23 +390,32 @@ class Intermediate:
         num_C = sum(
             [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"]
         )
+
         num_O = sum(
             [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"]
         )
-        num_conformers = 50 * num_C + 10 * num_O
 
-        # If the molecule has more than 1 atom, generate multiple conformers and optimize them
+        num_H = sum(
+            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "H"]
+        )
+
+        num_conformers = 100 * (1+num_C) + 10 * num_O + 2 * num_H
+        randomseed = 42
+
+        # If the molecule has more than 2 atom, generate multiple conformers and optimize them
         if rdkit_molecule.GetNumAtoms() > 2:
-            AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers)
+
+            AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
             confs = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule)
             conf_energies = [item[1] for item in confs]
             lowest_conf = int(np.argmin(conf_energies))
+            lowest_conf = AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
             xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule, confId=lowest_conf)
 
             # Generating the ASE atoms object from the XYZ coordinates string
             ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
         else:
-            AllChem.EmbedMolecule(rdkit_molecule, AllChem.ETKDG())
+            AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
 
             # Get the number of atoms in the molecule
             num_atoms = rdkit_molecule.GetNumAtoms()
@@ -343,7 +438,7 @@ class Intermediate:
                     for symbol, position in zip(symbols, positions)
                 ]
             )
-
+        ase_atoms.set_cell([20, 20, 20])
         ase_atoms.set_pbc(True)
 
         return ase_atoms
@@ -354,7 +449,7 @@ class Intermediate:
         """
         buffer = StringIO()
         curr_mol = self.molecule.copy()
-        curr_mol.set_cell([10, 10, 10])
+        curr_mol.set_cell([20, 20, 20])
 
         write(buffer, curr_mol, format="proteindatabank")
 
