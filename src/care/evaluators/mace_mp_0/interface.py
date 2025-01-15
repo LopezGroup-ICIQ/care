@@ -17,7 +17,7 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         device: str = "cpu",
         fmax: float = 0.05,
         max_steps: int = 100,
-        dtype: str = "float64",
+        dtype: str = "float32",
         num_configs: int = 1,
         dispersion: bool=True,
         **kwargs
@@ -50,6 +50,14 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def __repr__(self) -> str:
         return f'MACE-MP-0 potential ({self.size}, {self.device}, {self.dtype})'
+    
+    def __call__(self, 
+                 intermediate: Intermediate, 
+                 **kwargs) -> None:
+        if isinstance(intermediate, Intermediate):
+            self.eval(intermediate, **kwargs)
+        else:
+            return NotImplementedError("Input must be an Intermediate object.")
     
     def get_slab_energy(self):
         self.surface.slab.set_calculator(self.calc)
@@ -122,6 +130,10 @@ class MaceReactionEvaluator(ReactionEnergyEstimator):
 
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
+    
+    def __call__(self, 
+                 rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
