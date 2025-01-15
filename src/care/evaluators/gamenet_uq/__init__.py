@@ -1,6 +1,6 @@
 import pathlib as pl
 MODULEROOT = pl.Path(__file__).parent
-MODEL_PATH = f"{MODULEROOT}/dim192_5splits"
+MODEL_PATH = f"{MODULEROOT}/model"
 DB_PATH = f"{MODULEROOT}/data/metal_surfaces.db"
 DFT_DB_PATH = f"{MODULEROOT}/data/fg.db"
 
