@@ -1,3 +1,6 @@
+"""
+Interface to MACE-MP models.
+"""
 
 from copy import deepcopy
 
@@ -6,8 +9,7 @@ from mace.calculators import mace_mp
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import METALS
-from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
+from care.adsorption import place_adsorbate
 
 class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -25,15 +27,14 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         """Interface for the MACE-MP-0 model.
 
         Args:
-
-        surface (Surface): The surface on which the reaction network is adsorbed.
-        size (str): The size of the model to use among the mace models. Default is "small".
-        device (str): The device to use for the calculation. Default is "cpu".
-        cpu (bool): Whether to use the CPU for the calculation. Default is False.
-        fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
-        max_steps (int): The maximum number of steps for the relaxation. Default is 100.
-        dtype (str): The data type to use for the calculation. Default is "float64".
-        num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
+            surface (Surface): The surface on which the reaction network is adsorbed.
+            size (str): The size of the model to use among the mace models. Default is "small".
+            device (str): The device to use for the calculation. Default is "cpu".
+            cpu (bool): Whether to use the CPU for the calculation. Default is False.
+            fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
+            max_steps (int): The maximum number of steps for the relaxation. Default is 100.
+            dtype (str): The data type to use for the calculation. Default is "float64".
+            num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
         """
 
         self.surface = surface
@@ -50,7 +51,15 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def __repr__(self) -> str:
         return f'MACE-MP-0 potential ({self.size}, {self.device}, {self.dtype})'
-    
+
+    def __call__(self,
+                 intermediate: Intermediate,
+                 **kwargs) -> None:
+        if isinstance(intermediate, Intermediate):
+            self.eval(intermediate, **kwargs)
+        else:
+            return NotImplementedError("Input must be an Intermediate object.")
+
     def get_slab_energy(self):
         self.surface.slab.set_calculator(self.calc)
         opt = BFGS(self.surface.slab)
@@ -61,11 +70,11 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return ['C', 'H', 'O', 'N']
+        return ['C', 'H', 'O', 'N']  # TODO: Add more details
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
 
     def eval(
         self,
@@ -123,13 +132,17 @@ class MaceReactionEvaluator(ReactionEnergyEstimator):
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
 
+    def __call__(self,
+                 rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
+
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return ['C', 'H', 'O', 'N']
+        return ['C', 'H', 'O', 'N']  # TODO: Add more details
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more metals
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """

@@ -1,8 +1,5 @@
 import setuptools
 
-with open("README.md", "r") as readme_fh:
-    long_description = readme_fh.read()
-
 install_requires = [
     "ase>=3.19.1",
     "hdbscan~=0.8.26",
@@ -17,14 +14,12 @@ install_requires = [
 ]
 
 setuptools.setup(
-    name="dockonsurf",  # Replace with your own username
+    name="dockonsurf",
     version="0.0.1",
     author="Carles Martí",
     author_email="carles.marti2@gmail.com",
     description="Code to systematically find the most stable geometry for "
     "molecules on surfaces",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
     url="https://gitlab.com/lch_interfaces/dockonsurf",
     packages=setuptools.find_packages(),
     classifiers=[

@@ -1,18 +1,18 @@
-"""Module containing functions for adsorption placement on a surface."""
+"""
+Module containing tools to place molecules on surfaces.
+These include DockOnSurf and ASE functionalities.
+"""
 
 from typing import Any
 
 from ase import Atoms
-from itertools import combinations
 import networkx as nx
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
-from care.crn.utils.species import atoms_to_graph
 
-import care.evaluators.gamenet_uq.adsorption.dockonsurf.dockonsurf as dos
-from care import Intermediate, Surface
-from care import BOND_ORDER, CORDERO
-from ase import Atoms
+import care.adsorption.dockonsurf.dockonsurf as dos
+from care.crn.utils.species import atoms_to_graph
+from care import Intermediate, Surface, BOND_ORDER, CORDERO
 
 
 def connectivity_analysis(graph: nx.Graph) -> list[int]:
@@ -56,7 +56,7 @@ def connectivity_analysis(graph: nx.Graph) -> list[int]:
                     node for node in graph.nodes()
                     if graph.nodes[node]["elem"] == "O"
                 ]
-            
+
             return list(set(sat_elems))
 
     # Specifying the carbon monoxide case
@@ -252,9 +252,9 @@ def place_adsorbate(
                         config_list_i = dos.dockonsurf(inp_vars)
                         ads_height += 0.2
                         total_config_list.extend(config_list_i)
-                
+
         return total_config_list
-    
+
     elif 2 <= len(intermediate.molecule) <= 10:
 
         ads_height = (
@@ -292,7 +292,7 @@ def place_adsorbate(
             atoms.append(intermediate.molecule[0])
 
             site_pos = site["position"] + [0, 0, surface_atom_radii]
-            
+
             atoms.positions[-1] = site_pos
 
             atoms.set_cell(surface.slab.get_cell())

@@ -1,20 +1,23 @@
+"""
+Interface to Open Catalyst Project (OCP) models.
+"""
+
 from fairchem.core.models.model_registry import model_name_to_local_file
 from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 from ase.optimize import BFGS
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import METALS
-from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
+from care.adsorption import place_adsorbate
 
-class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
+class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
         model_name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
         cpu: bool = True,
         fmax: float = 0.05,
-        max_steps: int = 100,
+        max_steps: int = 5,
         num_configs: int = 1,
         **kwargs
     ):
@@ -46,13 +49,21 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
     def __repr__(self) -> str:
         return f'{self.model_name} from OC20 models'
 
+    def __call__(self,
+                 intermediate: Intermediate,
+                 **kwargs) -> None:
+        if isinstance(intermediate, Intermediate):
+            self.eval(intermediate, **kwargs)
+        else:
+            return NotImplementedError("Input must be an Intermediate object.")
+
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
         return ['C', 'H', 'O', 'N']
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
 
     def eval(
         self,
@@ -89,10 +100,11 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
             raise ValueError("Phase not supported by the current estimator.")
 
 
-class OC20ReactionEvaluator(ReactionEnergyEstimator):
+class OCPReactionEvaluator(ReactionEnergyEstimator):
     def __init__(
         self,
-        intermediates: dict[str, Intermediate]
+        intermediates: dict[str, Intermediate],
+        **kwargs
     ):
         """Evaluate TS with CaTTsunami based on OCP models.
         For now, thermodynamic properties are only calculated, not for electro-purposes yet.
@@ -103,13 +115,17 @@ class OC20ReactionEvaluator(ReactionEnergyEstimator):
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
 
+    def __call__(self,
+                 rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
+
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
         return ['C', 'H', 'O', 'N']
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """

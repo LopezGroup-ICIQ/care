@@ -99,15 +99,13 @@ import logging
 import os.path
 from configparser import (
     ConfigParser,
-    DuplicateOptionError,
-    MissingSectionHeaderError,
     NoOptionError,
     NoSectionError,
 )
 
 import numpy as np
 
-from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
+from care.adsorption.dockonsurf.src.dockonsurf.utilities import try_command
 
 logger = logging.getLogger("DockOnSurf")
 
@@ -1100,9 +1098,6 @@ def get_energy_cutoff(dos_inp):
     return energy_cutoff
 
 
-# Read input parameters
-
-
 def read_input(dos_inp):
     """Directs the reading of the parameters in the input file.
 
@@ -1110,39 +1105,10 @@ def read_input(dos_inp):
     @return inp_vars: Dictionary with the values for every option in the input
     file.
     """
-    from care.evaluators.gamenet_uq.adsorption.dockonsurf.src.dockonsurf.formats import adapt_format
+    from care.adsorption.dockonsurf.src.dockonsurf.formats import adapt_format
 
-    # Checks for errors in the Input file.
     err_msg = False
-    # try:
-    #     dos_inp.read(in_file)
-    # except MissingSectionHeaderError as e:
-    #     logger.error('There are options in the input file without a Section '
-    #                  'header.')
-    #     err_msg = e
-    # except DuplicateOptionError as e:
-    #     logger.error('There is an option in the input file that has been '
-    #                  'specified more than once.')
-    #     err_msg = e
-    # except Exception as e:
-    #     err_msg = e
-    # else:
-    #     err_msg = False
-    # finally:
-    #     if isinstance(err_msg, BaseException):
-    #         raise err_msg
-
     inp_vars = {}
-
-    # Global
-    # if isinstance(dos_inp, ConfigParser):
-    #     if not dos_inp.has_section("Global"):
-    #         logger.error(no_sect_err % "Global")
-    #         raise NoSectionError("Global")
-    # else:
-    #     if dos_inp["Global"] == False:
-    #         logger.error(no_sect_err % "Global")
-    #         raise NoSectionError("Global")
 
     # Mandatory options
     # Checks whether the mandatory options 'run_type', 'code', etc. are present.
@@ -1158,31 +1124,12 @@ def read_input(dos_inp):
         #         raise NoOptionError(opt, 'Global')
 
     # Mandatory options
-    # if isinstance(dos_inp, ConfigParser):
     isolated, screening, refinement = get_run_type(dos_inp=dos_inp)
     inp_vars["isolated"] = isolated
     inp_vars["screening"] = screening
     inp_vars["refinement"] = refinement
     inp_vars["code"] = get_code(dos_inp=dos_inp)
     inp_vars["batch_q_sys"] = get_batch_q_sys(dos_inp=dos_inp)
-    # else:
-    #     isolated, screening, refinement = (False,True,False)
-    #     inp_vars['isolated'] = isolated
-    #     inp_vars['screening'] = screening
-    #     inp_vars['refinement'] = refinement
-    #     inp_vars['code'] = dos_inp['code'].lower()
-    #     inp_vars['batch_q_sys'] = dos_inp['batch_q_sys']
-
-    # Dependent options:
-    # if inp_vars["batch_q_sys"]:
-    #     inp_vars["max_jobs"] = get_max_jobs(dos_inp=dos_inp)
-    #     if inp_vars["batch_q_sys"] != "local":
-    #         if not dos_inp.has_option("Global", "subm_script"):
-    #             logger.error(no_opt_err % ("subm_script", "Global"))
-    #             raise NoOptionError("subm_script", "Global")
-    #         inp_vars["subm_script"] = get_subm_script(dos_inp=dos_inp)
-    # if inp_vars["code"] == "vasp":
-    #     inp_vars["potcar_dir"] = get_potcar_dir(dos_inp=dos_inp)
 
     # Facultative options (Default/Fallback value present)
     inp_vars["pbc_cell"] = get_pbc_cell(dos_inp=dos_inp)
@@ -1241,7 +1188,6 @@ def read_input(dos_inp):
         inp_vars["num_conformers"] = get_num_conformers()
         inp_vars["pre_opt"] = get_pre_opt()
 
-    # Screening
     if screening:
         if isinstance(dos_inp, ConfigParser):
             if not dos_inp.has_section("Screening"):

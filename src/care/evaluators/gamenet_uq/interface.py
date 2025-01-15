@@ -1,3 +1,7 @@
+"""
+Interface to GAME-Net-UQ model.
+"""
+
 import os
 from typing import Optional
 
@@ -18,7 +22,7 @@ from care import (
 )
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS
-from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
+from care.adsorption import place_adsorbate
 from care.constants import INTER_ELEMS, K_B
 from care.crn.utils.electro import Proton, Electron, Water
 from care.evaluators.gamenet_uq import METAL_STRUCT_DICT
@@ -59,8 +63,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         else:
             self.db = None
 
-    def __call__(self, 
-                 intermediate: Intermediate, 
+    def __call__(self,
+                 intermediate: Intermediate,
                  **kwargs) -> None:
         if isinstance(intermediate, Intermediate):
             self.eval(intermediate, **kwargs)
@@ -255,8 +259,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         return (
             f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"
         )
-    
-    def __call__(self, 
+
+    def __call__(self,
                  rxn: ElementaryReaction) -> None:
         self.eval(rxn)
 
