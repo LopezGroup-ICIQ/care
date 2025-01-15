@@ -46,6 +46,14 @@ class OC20IntermediateEvaluator(IntermediateEnergyEstimator):
     def __repr__(self) -> str:
         return f'{self.model_name} from OC20 models'
 
+    def __call__(self, 
+                 intermediate: Intermediate, 
+                 **kwargs) -> None:
+        if isinstance(intermediate, Intermediate):
+            self.eval(intermediate, **kwargs)
+        else:
+            return NotImplementedError("Input must be an Intermediate object.")
+
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
         return ['C', 'H', 'O', 'N']
@@ -102,6 +110,10 @@ class OC20ReactionEvaluator(ReactionEnergyEstimator):
 
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
+    
+    def __call__(self, 
+                rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
