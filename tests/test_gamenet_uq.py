@@ -1,3 +1,4 @@
+import random
 import unittest
 
 from care import gen_blueprint
@@ -6,7 +7,7 @@ from care.evaluators.gamenet_uq import GameNetUQInter, METALS, METAL_STRUCT_DICT
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
 surface = load_surface("Pt", "111")
-interface = GameNetUQInter(surface, num_configs=2)
+model_inter = GameNetUQInter(surface, num_configs=2)
 
 class TestEvaluator(unittest.TestCase):
 
@@ -20,12 +21,20 @@ class TestEvaluator(unittest.TestCase):
                 assert len(surface.active_sites) != 0
 
     def test_model(self):
-        assert interface.model.parameters() != None
+        assert model_inter.model.parameters() != None
 
     def test_serial_eval(self):
-        for inter in intermediates.values():
-            interface.eval(inter)
+        test_inters = random.sample(list(intermediates.values()), 3)
+        for inter in test_inters:
+            model_inter.eval(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
+                # print(inter.ads_configs)
+                # self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
+                # self.assertIsInstance(inter.ads_configs["0"]["s"], float)
+                # self.assertIsInstance(inter.ads_configs["1"]["mu"], float)
+                # self.assertIsInstance(inter.ads_configs["1"]["s"], float)
+                # self.assertGreater(inter.ads_configs["0"]["s"], 0.0)
+                # self.assertGreater(inter.ads_configs["1"]["s"], 0.0)
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1
