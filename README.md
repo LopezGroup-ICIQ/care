@@ -7,7 +7,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./care_readme_figure.png" width="90%" height="90%" />
+     <img src="./care_readme_figure.png" width="80%" height="80%" />
     </p>
 </div>
 
