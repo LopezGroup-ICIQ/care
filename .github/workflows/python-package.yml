@@ -25,7 +25,7 @@ jobs:
         conda activate care_test
         conda install pytorch cpuonly pyg pytorch-scatter -c pytorch -c pyg
         pip install .
-        pip install fairchem-core==1.1.0
+        pip install fairchem-core
         pip install mace-torch torch-dftd
     - name: Install Julia and dependencies
       run: |
