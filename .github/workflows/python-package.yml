@@ -31,7 +31,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        curl -y -fsSL https://install.julialang.org | sh
+        curl -fsSL https://install.julialang.org | sh
         juliaup add 1.10.4
         pip install juliacall
         julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
