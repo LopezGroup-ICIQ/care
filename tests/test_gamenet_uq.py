@@ -29,7 +29,6 @@ class TestEvaluator(unittest.TestCase):
             model_inter.eval(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
-                # print(inter.ads_configs)
                 # self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
                 # self.assertIsInstance(inter.ads_configs["0"]["s"], float)
                 # self.assertIsInstance(inter.ads_configs["1"]["mu"], float)

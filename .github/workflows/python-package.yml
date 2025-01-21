@@ -25,14 +25,13 @@ jobs:
         conda activate care_test
         conda install pytorch cpuonly pyg pytorch-scatter pytorch-sparse -c pytorch -c pyg
         pip install .
-        pip install fairchem-core
+        pip install fairchem-core==1.1.0
         pip install mace-torch torch-dftd
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         curl -fsSL https://install.julialang.org | sh
-        juliaup -y add 1.10.4
         pip install juliacall
         julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
     - name: Lint with flake8
