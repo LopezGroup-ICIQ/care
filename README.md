@@ -1,3 +1,4 @@
+[![DOI](https://img.shields.io/badge/DOI-10.26434%2Fchemrxiv--2024--bfv3d-blue)](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
@@ -78,15 +79,17 @@ The blueprint can be constructed in two ways, by providing (i) network carbon an
 
 ```bash
 gen_crn_blueprint -h  # documentation
-gen_crn_blueprint [-ncc NCC] [-noc NOC] [-cs CS...] [-electro ELECTRO] [-o OUTPUT] [-ncpu NUM_CPU]
-```
-
-This script does not require any input file. The output is stored as pickle file. To access the blueprint, do:
-
-```bash
 gen_crn_blueprint -ncc 2 -noc 1 -o output_name  # Example from ncc and noc
 gen_crn_blueprint -cs "CCO" "C(CO)O" -o output_name # Example from user-defined chemical space
 ```
+
+<div style="display: flex; justify-content: center; align-items: center;">
+    <p align="center">
+     <img src="./output_crn_bp_script.png" width="70%" height="70%" />
+    </p>
+</div>
+
+The CRN blueprint is stored as pickle file. To access the blueprint, do:
 
 ```python
 from pickle import load
