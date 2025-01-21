@@ -13,8 +13,8 @@ import tempfile
 import time
 
 from care import ReactionNetwork, Intermediate, gen_blueprint
-from care.evaluators import load_surface
-from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, DFT_DB_PATH
+from care.evaluators import load_surface, eval_dict
+from care.evaluators.gamenet_uq import DFT_DB_PATH
 
 lock = mp.Lock()
 
@@ -36,7 +36,7 @@ def evaluate_intermediate(
 
     eval_inter = {}
     for intermediate in chunk_intermediate:
-        model.eval(intermediate)
+        model(intermediate)
         eval_inter[intermediate.code] = intermediate
 
     progress_queue.put(1)
@@ -136,16 +136,26 @@ def main():
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"
         )
 
+        # Check correct model definition
+        if "evaluator" not in config:
+            raise ValueError("Evaluator model not defined in the input file.")
+        else:
+            if "model" not in config["evaluator"]:
+                raise ValueError("Evaluator model not defined in the input file.")
+            if config["evaluator"]["model"] not in eval_dict:
+                raise ValueError(
+                    f"Model {config['evaluator']['model']} not found in the evaluators."
+                )
+
         # Load surface from ase db
         surface = load_surface(metal, hkl)
 
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")
-        inter_evaluator = GameNetUQInter(surface, DFT_DB_PATH)
+        evaluators = eval_dict[config["evaluator"]["model"]]
+        dft_db_path = DFT_DB_PATH if "dft_db_path" in config["evaluator"] else None
+        inter_evaluator = evaluators[0](surface, dft_db_path=dft_db_path, **config["evaluator"])
         print(" Intermediates energy calculator: ", inter_evaluator)
-
-        if inter_evaluator.db != None:
-            print(" DFT database: ", DFT_DB_PATH)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
@@ -191,24 +201,14 @@ def main():
                     intermediates.update(load(file))
                 except EOFError:
                     break
-        
+
         # Remove tmp folder
         shutil.rmtree(tmp_folder)
-
-        # Check how many species were available in the DFT database
-        if inter_evaluator.db != None:
-            counter = 0
-            for inter in intermediates.values():
-                if "dft" in inter.ads_configs.keys():
-                    counter += 1
-            print(
-                f"\n {counter}/{len(intermediates)} ({round(counter/len(intermediates)*100,1)}%) intermediates available in the DFT database."
-            )
 
         # 2.2. Reaction evaluator
         print("\n Energy estimation of the reactions...")
 
-        rxn_evaluator = GameNetUQRxn(intermediates, T=T, U=U, pH=PH)
+        rxn_evaluator = evaluators[1](intermediates, T=T, U=U, pH=PH)
         print(" Reaction property calculator: ", rxn_evaluator)
 
         with Progress() as progress:
@@ -251,26 +251,27 @@ def main():
             crn = load(f)
 
     # 4. Running MKM
-    if config["mkm"]["run"]:
-        print("\nRunning the microkinetic simulation...")
-        results = crn.run_microkinetic(
-            iv=config["initial_conditions"],
-            oc={"T": T, "P": P, "U": U, "pH": PH},
-            uq=config["mkm"]["uq"],
-            nruns=config["mkm"]["uq_samples"],
-            thermo=config["mkm"]["thermo"],
-            solver=config["mkm"]["solver"],
-            barrier_threshold=config["mkm"].get("barrier_threshold"),
-            ss_tol=config["mkm"]["ss_tol"],
-            tfin=config["mkm"]["tfin"],
-            eapp=config["mkm"]["eapp"],
-            gpu=config["mkm"]["gpu"],
-        )
+    if "mkm" in config:
+        if config["mkm"]["run"]:
+            print("\nRunning the microkinetic simulation...")
+            results = crn.run_microkinetic(
+                iv=config["initial_conditions"],
+                oc={"T": T, "P": P, "U": U, "pH": PH},
+                uq=config["mkm"]["uq"],
+                nruns=config["mkm"]["uq_samples"],
+                thermo=config["mkm"]["thermo"],
+                solver=config["mkm"]["solver"],
+                barrier_threshold=config["mkm"].get("barrier_threshold"),
+                ss_tol=config["mkm"]["ss_tol"],
+                tfin=config["mkm"]["tfin"],
+                eapp=config["mkm"]["eapp"],
+                gpu=config["mkm"]["gpu"],
+            )
 
-        print("\nSaving the microkinetic simulation...")
+            print("\nSaving the microkinetic simulation...")
 
-        with open(f"{output_dir}/mkm.pkl", "wb") as f:
-            dump(results, f)
+            with open(f"{output_dir}/mkm.pkl", "wb") as f:
+                dump(results, f)
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1e6

@@ -1,71 +1,61 @@
+"""
+Interface to Open Catalyst Project (OCP) models.
+"""
 
-from copy import deepcopy
-
+from fairchem.core.models.model_registry import model_name_to_local_file
+from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 from ase.optimize import BFGS
-from mace.calculators import mace_mp
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import METALS
-from care.evaluators.gamenet_uq.adsorption.placement import place_adsorbate
+from care.adsorption import place_adsorbate
 
-class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
+class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
-        size: str = "large",
-        device: str = "cpu",
+        model_name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
+        cpu: bool = True,
         fmax: float = 0.05,
-        max_steps: int = 100,
-        dtype: str = "float32",
+        max_steps: int = 5,
         num_configs: int = 1,
-        dispersion: bool=True,
         **kwargs
     ):
-        """Interface for the MACE-MP-0 model.
+        """Interface for the models from the Open Catalyst Project
+        (OCP) for predicting the energy of an intermediate on a surface.
 
         Args:
 
         surface (Surface): The surface on which the reaction network is adsorbed.
-        size (str): The size of the model to use among the mace models. Default is "small".
-        device (str): The device to use for the calculation. Default is "cpu".
+        model_name (str): The name of the model to use among the oc20 models.
         cpu (bool): Whether to use the CPU for the calculation. Default is False.
         fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
         max_steps (int): The maximum number of steps for the relaxation. Default is 100.
-        dtype (str): The data type to use for the calculation. Default is "float64".
-        num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
+
+        Note:
+
+        - The intermediate energy is stored as E_tot - E_slab in eV.
         """
 
+        self.model_name = model_name
+        self.checkpoint_path = model_name_to_local_file(model_name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
-        self.slab_energy = 0.0
-        self.size = size
-        self.dtype = dtype
-        self.device = device
-        self.dispersion = dispersion
-        self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=dispersion)
+        self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
-        self.get_slab_energy()
+        self.eref = {'C': -7.282, 'H': -3.477, 'O': -7.204}
 
     def __repr__(self) -> str:
-        return f'MACE-MP-0 potential ({self.size}, {self.device}, {self.dtype})'
-    
-    def __call__(self, 
-                 intermediate: Intermediate, 
+        return f'{self.model_name} from OC20 models'
+
+    def __call__(self,
+                 intermediate: Intermediate,
                  **kwargs) -> None:
         if isinstance(intermediate, Intermediate):
             self.eval(intermediate, **kwargs)
         else:
             return NotImplementedError("Input must be an Intermediate object.")
-    
-    def get_slab_energy(self):
-        self.surface.slab.set_calculator(self.calc)
-        opt = BFGS(self.surface.slab)
-        opt.run(fmax=self.fmax, steps=self.max_steps)
-        self.slab_energy = self.surface.slab.get_potential_energy()
-        print('self.slab_energy: ', self.slab_energy)
-
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
@@ -73,7 +63,7 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
 
     def eval(
         self,
@@ -83,46 +73,40 @@ class MaceIntermediateEvaluator(IntermediateEnergyEstimator):
         """
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
+        gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O']
 
-        if intermediate.phase == 'gas':  # gas
-            molec_eval = deepcopy(intermediate.molecule)
-            # Setting the cell of the molecule to 10 Angstrom
-            molec_eval.set_cell([10, 10, 10])
-
-            molec_eval.set_calculator(self.calc)
-            opt = BFGS(molec_eval)
-            opt.run(fmax=self.fmax, steps=self.max_steps)
+        if intermediate.phase == "gas":  # gas phase
             intermediate.ads_configs = {
-                intermediate.phase: {
-                    "ase": molec_eval,
-                    "mu": molec_eval.get_potential_energy(),  # eV
+                "gas": {
+                    "ase": intermediate.molecule,
+                    "mu": gas_energy,  # eV
                     "s": 0.0,  # eV
                 }
             }
-            print(intermediate.ads_configs)
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
             adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
             for i, adsorption in enumerate(adsorptions):
-                ads_config_dict[str(i)] = {}
-                adsorption.set_calculator(self.calc)
+                adsorption.calc = self.calc
                 opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
-                # Filtering structures (check if the structure makes sense)
+                ads_config_dict[str(i)] = {}
                 ads_config_dict[str(i)]['ase'] = adsorption
-                ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
+                ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
                 ads_config_dict[str(i)]['s'] = 0.0
             intermediate.ads_configs = ads_config_dict
+            print(intermediate.ads_configs)
         else:
             raise ValueError("Phase not supported by the current estimator.")
 
 
-class MaceReactionEvaluator(ReactionEnergyEstimator):
+class OCPReactionEvaluator(ReactionEnergyEstimator):
     def __init__(
         self,
-        intermediates: dict[str, Intermediate], **kwargs
+        intermediates: dict[str, Intermediate],
+        **kwargs
     ):
-        """
+        """Evaluate TS with CaTTsunami based on OCP models.
         For now, thermodynamic properties are only calculated, not for electro-purposes yet.
         """
 
@@ -130,8 +114,12 @@ class MaceReactionEvaluator(ReactionEnergyEstimator):
 
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
-    
-    def __call__(self, 
+
+    def __call__(self,
+                rxn: ElementaryReaction) -> None:
+        self.eval(rxn)
+
+    def __call__(self,
                  rxn: ElementaryReaction) -> None:
         self.eval(rxn)
 
@@ -141,7 +129,7 @@ class MaceReactionEvaluator(ReactionEnergyEstimator):
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return METALS
+        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """
@@ -180,9 +168,7 @@ class MaceReactionEvaluator(ReactionEnergyEstimator):
 
         """
         Given the reaction, return the properties of the reaction as attributes of the reaction object.
-        For now, CatTsunami not implemented yet.
         """
-
         self.calc_reaction_energy(reaction)
         reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
         reaction.e_act = reaction.e_ts[0] - reaction.e_is[0], 0.0

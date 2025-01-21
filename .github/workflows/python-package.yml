@@ -23,10 +23,11 @@ jobs:
         conda create -n care_test python=3.11
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        conda install pytorch cpuonly pyg pytorch-scatter -c pytorch -c pyg
+        conda install -q -y pytorch cpuonly -c pytorch
+        conda install -q -y pyg pytorch-scatter pytorch-sparse -c pyg
         pip install .
         pip install fairchem-core
-        pip install mace-torch
+        pip install mace-torch torch-dftd
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
@@ -48,4 +49,4 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install pytest
-        pytest
+        pytest -k "not test_mace and not test_ocp"

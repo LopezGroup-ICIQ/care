@@ -7,7 +7,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./CARE_github.png" width="90%" height="90%" />
+     <img src="./care_readme_figure.png" width="80%" height="80%" />
     </p>
 </div>
 
@@ -67,7 +67,7 @@ both libraries should work correctly if the installation order shown below is fo
 
 ```bash
 python3 -m pip install fairchem-core==1.1.0
-python3 -m pip install mace-torch
+python3 -m pip install mace-torch torch-dftd
 ```
 
 ## 💥 Usage
