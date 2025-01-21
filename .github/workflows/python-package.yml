@@ -26,6 +26,8 @@ jobs:
         conda install -q -y pytorch cpuonly -c pytorch
         conda install -q -y pyg pytorch-scatter pytorch-sparse -c pyg
         pip install .
+        pip install fairchem-core
+        pip install mace-torch torch-dftd
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
@@ -46,7 +48,5 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        # pip install fairchem-core
-        # pip install mace-torch torch-dftd
         pip install pytest
         pytest -k "not test_mace and not test_ocp"
