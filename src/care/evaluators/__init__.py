@@ -1,5 +1,7 @@
 from ase.db import connect
 
+import torch
+
 from care import Surface
 
 def load_surface(metal: str, hkl: str) -> Surface:
