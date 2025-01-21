@@ -92,11 +92,12 @@ def main():
     print(f"{LOGO}\n")
 
     # Loading parameters
-    ncc = config["chemspace"]["ncc"]
-    noc = config["chemspace"]["noc"]
-    cyclic = config["chemspace"]["cyclic"]
-    additional_rxns = config["chemspace"]["additional"]
-    electrochem = config["chemspace"]["electro"]
+    ncc = config["chemspace"]["ncc"] if "ncc" in config["chemspace"] else None
+    noc = config["chemspace"]["noc"] if "noc" in config["chemspace"] else None
+    cs = config["chemspace"]["cs"] if "cs" in config["chemspace"] else None
+    cyclic = config["chemspace"]["cyclic"] if "cyclic" in config["chemspace"] else None
+    additional_rxns = config["chemspace"]["additional"] if "additional" in config["chemspace"] else None
+    electrochem = config["chemspace"]["electro"] if "electro" in config["chemspace"] else None
     crn_type = "electrochemical" if electrochem else "thermal"
 
     metal = config["surface"]["metal"]
@@ -104,8 +105,8 @@ def main():
 
     PH = config["operating_conditions"]["pH"] if electrochem else None
     U = config["operating_conditions"]["U"] if electrochem else None
-    T = config["operating_conditions"]["temperature"]
-    P = config["operating_conditions"]["pressure"]
+    T = config["operating_conditions"]["temperature"] if "operating_conditions" in config else None
+    P = config["operating_conditions"]["pressure"] if "operating_conditions" in config else None
 
     # Output directory
     OUTPUT_DIR = ARGS.output
@@ -119,12 +120,18 @@ def main():
     # 0. Check if the CRN already exists
     if (not os.path.exists(crn_path)) or (config["chemspace"]["regen"] == True):
         # 1. Generate CRN blueprint
-        print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ncc}O{noc} CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-        )
+        if ncc and not cs:
+            print(
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN(ncc={ARGS.ncc},ncc={ARGS.noc}) blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+            )
+        else:
+            print(
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+            )
+            print("Input chemical space (SMILES): {}".format(", ".join(cs)))
 
         intermediates, reactions = gen_blueprint(
-            ncc, noc, cyclic, additional_rxns, electrochem, ARGS.num_cpu, True
+            ncc, noc, cs, cyclic, additional_rxns, electrochem, ARGS.num_cpu, True
         )
 
         print(

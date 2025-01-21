@@ -4,13 +4,14 @@ import multiprocessing as mp
 
 from prettytable import PrettyTable
 from rdkit import RDLogger
+from rdkit.Chem import MolFromSmiles
 
 from care import ElementaryReaction, Intermediate
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
 
 
-warnings.filterwarnings("ignore")
-RDLogger.DisableLog("rdApp.*")
+# warnings.filterwarnings("ignore")
+# RDLogger.DisableLog("rdApp.*")
 
 
 def format_description(description, width=45):
@@ -19,7 +20,14 @@ def format_description(description, width=45):
 
 
 def gen_blueprint(
-    ncc: int, noc: int, cyclic: bool, additional_rxns: bool, electro: bool, num_cpu: int = mp.cpu_count(), show_progress: bool = False
+    ncc: int = None,
+    noc: int = None,
+    cs: list[str] = None,
+    cyclic: bool = None,
+    additional_rxns: bool = None,
+    electro: bool = None,
+    num_cpu: int = mp.cpu_count(),
+    show_progress: bool = False
 ) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
     """
     Generate the CRN blueprint by applying
@@ -33,8 +41,11 @@ def gen_blueprint(
     noc : int
         Network Oxygen Cutoff, Maximum number of O atoms in the intermediates.
         if is a negative number, then the noc is set to the max number of O atoms in the intermediates.
+    cs : list[str]
+        List of SMILES of the molecules defining the Chemical Space of the CRN.
+        You can provide cs or ncc and noc. If both are provided, cs is used.
     cyclic : bool
-        If True, generates cyclic compounds (epoxides).
+        If True, generates cyclic compounds (epoxides). Only used with ncc and noc.
     additional_rxns : bool
         If True, additional reactions are generated (rearrangement reactions).
     electro : bool
@@ -59,12 +70,34 @@ def gen_blueprint(
 
     # Generate the chemical space (CS)
     t0cs = time.time()
-    chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic, show_progress)
+    if cs and (ncc and noc):
+        warnings.warn("You provided both a Chemical Space and a Network Carbon and Oxygen Cutoffs. The Chemical Space (input SMILES) will be used.", UserWarning)
+        cs_filtered = []
+        for smiles in cs:
+            mol = MolFromSmiles(smiles)
+            if mol:
+                cs_filtered.append(smiles)
+            else:
+                warnings.warn(f"Invalid SMILES: {smiles}. Filtered from CRN Chemical Space.", UserWarning)
+        chemical_space = cs_filtered
+    elif not cs and not ncc and not noc:
+        raise ValueError("You must provide either a Chemical Space (cs) or Network Carbon and Oxygen Cutoffs (ncc and noc).")
+    elif cs:
+        cs_filtered = []
+        for smiles in cs:
+            mol = MolFromSmiles(smiles)
+            if mol:
+                cs_filtered.append(smiles)
+            else:
+                warnings.warn(f"Invalid SMILES: {smiles}. Filtered from CRN Chemical Space.", UserWarning)
+        chemical_space = cs_filtered
+    else:
+        chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic, show_progress)
     ncs = len(chemical_space)
     tcs = time.time() - t0cs
-    table.add_row(["Saturated molecules", ncs, f"{tcs:.2f}"])
+    table.add_row(["Chemical Space", ncs, f"{tcs:.2f}"])
 
-    # Extend CS with dissociation reactions
+    # Extend CS with molecules originating from dissociation of CS species
     t0ecs = time.time()
     bb_inters, bb_steps = dissociation.dissociate(chemical_space, num_cpu, show_progress)
     nfrags = len(bb_inters) - len(chemical_space)

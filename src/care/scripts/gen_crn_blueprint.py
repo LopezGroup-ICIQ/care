@@ -22,15 +22,23 @@ def main():
         "-ncc",
         type=int,
         dest="ncc",
-        default=1,
+        default=None,
         help="Network Carbon Cutoff (i.e., max number of C atoms in the intermediates). Default is 1.",
     )
     PARSER.add_argument(
         "-noc",
         type=int,
         dest="noc",
-        default=1,
+        default=None,
         help="Network Oxygen Cutoff (i.e., max number of O atoms in the intermediates). Default is 1.",
+    )
+    PARSER.add_argument(
+        "-cs",
+        type=str,
+        nargs="+",
+        dest="cs",
+        default=None,
+        help="List of SMILES of the molecules from which the CRN is constructed. You can provide cs or ncc and noc. If both are provided, cs is used.",
     )
     PARSER.add_argument(
         "-cyclic",
@@ -75,14 +83,20 @@ def main():
         LOGO = file.read()
         print(f"{LOGO}\n")
 
-
-    print(
-        f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the C{ARGS.ncc}O{ARGS.noc} CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-    )
+    if ARGS.ncc and not ARGS.cs:
+        print(
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN(ncc={ARGS.ncc},ncc={ARGS.noc}) blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        )
+    else:
+        print(
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        )
+        print("Input chemical space (SMILES): {}".format(", ".join(ARGS.cs)))
     t0 = time()
     inters, rxns = gen_blueprint(
         ncc=ARGS.ncc,
         noc=ARGS.noc,
+        cs=ARGS.cs,
         cyclic=ARGS.cyclic,
         additional_rxns=ARGS.rearr,
         electro=ARGS.electro,

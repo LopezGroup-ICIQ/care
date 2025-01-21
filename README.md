@@ -74,12 +74,19 @@ python3 -m pip install mace-torch torch-dftd
 
 ### Blueprint generation
 
+The blueprint can be constructed in two ways, by providing (i) network carbon and oxygen cutoffs *ncc* and *noc*, or (ii) by providing the chemical space as list of SMILES.
+
 ```bash
 gen_crn_blueprint -h  # documentation
-gen_crn_blueprint [-ncc NCC] [-noc NOC] [-electro ELECTRO] [-o OUTPUT] [-ncpu NUM_CPU]
+gen_crn_blueprint [-ncc NCC] [-noc NOC] [-cs CS...] [-electro ELECTRO] [-o OUTPUT] [-ncpu NUM_CPU]
 ```
 
 This script does not require any input file. The output is stored as pickle file. To access the blueprint, do:
+
+```bash
+gen_crn_blueprint -ncc 2 -noc 1 -o output_name  # Example from ncc and noc
+gen_crn_blueprint -cs "CCO" "C(CO)O" -o output_name # Example from user-defined chemical space
+```
 
 ```python
 from pickle import load
