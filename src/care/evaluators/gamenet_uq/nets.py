@@ -129,6 +129,7 @@ class GameNetUQ(torch.nn.Module):
         # ---------------------------------#
         # NODE LEVEL (FFNN & CONVOLUTION) #
         # ---------------------------------#
+        data.x = data.x.float()
         out = self.sigma(self.input_layer(data.x))
         for layer in range(len(self.lin_block)):
             out = self.sigma(self.lin_block[layer](out))

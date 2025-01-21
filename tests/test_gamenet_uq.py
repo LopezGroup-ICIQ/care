@@ -26,14 +26,8 @@ class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):
         test_inters = random.sample(list(intermediates.values()), 3)
         for inter in test_inters:
-            model_inter.eval(inter)
+            model_inter(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
-                # self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
-                # self.assertIsInstance(inter.ads_configs["0"]["s"], float)
-                # self.assertIsInstance(inter.ads_configs["1"]["mu"], float)
-                # self.assertIsInstance(inter.ads_configs["1"]["s"], float)
-                # self.assertGreater(inter.ads_configs["0"]["s"], 0.0)
-                # self.assertGreater(inter.ads_configs["1"]["s"], 0.0)
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1

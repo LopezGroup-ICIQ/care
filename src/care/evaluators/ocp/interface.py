@@ -87,7 +87,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
             ads_config_dict = {}
             adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
             for i, adsorption in enumerate(adsorptions):
-                adsorption.set_calculator(self.calc)
+                adsorption.calc = self.calc
                 opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 ads_config_dict[str(i)] = {}

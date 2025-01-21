@@ -26,7 +26,7 @@ jobs:
         conda install -q -y pytorch cpuonly -c pytorch
         conda install -q -y pyg pytorch-scatter pytorch-sparse -c pyg
         pip install .
-        pip install fairchem-core
+        pip install fairchem-core==1.1.0
         pip install mace-torch torch-dftd
     - name: Install Julia and dependencies
       run: |

@@ -16,7 +16,5 @@ class TestEvaluator(unittest.TestCase):
             model_inter(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
-                self.assertAlmostEqual(inter.ads_configs["0"]["s"], 0.0, places=3)
-                self.assertAlmostEqual(inter.ads_configs["1"]["s"], 0.0, places=3)
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1

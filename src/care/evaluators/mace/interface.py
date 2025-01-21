@@ -90,7 +90,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             # Setting the cell of the molecule to 10 Angstrom
             molec_eval.set_cell([10, 10, 10])
 
-            molec_eval.set_calculator(self.calc)
+            molec_eval.calc = self.calc
             opt = BFGS(molec_eval)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             intermediate.ads_configs = {
@@ -106,7 +106,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
             for i, adsorption in enumerate(adsorptions):
                 ads_config_dict[str(i)] = {}
-                adsorption.set_calculator(self.calc)
+                adsorption.calc = self.calc
                 opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 # Filtering structures (check if the structure makes sense)
