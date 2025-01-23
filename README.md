@@ -63,19 +63,19 @@ curl -fsSL https://install.julialang.org | sh -s -- -y
 
 6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following command:
 
-*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
-both libraries should work correctly if the installation order shown below is followed.*
-
 ```bash
 python3 -m pip install fairchem-core==1.1.0
 python3 -m pip install mace-torch torch-dftd
 ```
 
+*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
+both libraries should work correctly if the installation order shown below is followed.*
+
 ## 💥 Usage
 
 ### Blueprint generation
 
-The blueprint can be constructed in two ways, by providing (i) network carbon and oxygen cutoffs *ncc* and *noc*, or (ii) by providing the chemical space as list of SMILES.
+The blueprint can be constructed in two ways, by providing (i) the network carbon and oxygen cutoffs *ncc* and *noc*, or (ii) the chemical space as list of SMILES.
 
 ```bash
 gen_crn_blueprint -h  # documentation
@@ -100,12 +100,14 @@ with open('path_to_blueprint_file', 'rb') as f:
 
 ### Evaluation of intermediate and reaction properties
 
+The available energy evaluators are GAME-Net-UQ, OCP models, and MACE-MP potentials.
+
 ```bash
 eval_crn -h  # documentation
 eval_crn [-i INPUT] [-bp BP] [-o OUTPUT] [-ncpu NUM_CPU]
 ```
 
-This script requires an input toml file defining the surface of interest, property evaluators, and their settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find an example input file [here](./src/care/scripts/example_eval.toml).
+This script requires an input toml file defining the material/surface of interest, the model of choice and its settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find examples of input files [here](./src/care/scripts/input_examples/eval_crn/).
 
 ### Microkinetic simulation
 
@@ -125,7 +127,7 @@ care_run -i input.toml -o output_name
 ```
 
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
-Examples of input .toml files can be found in `src/care/scripts` and `src/care/examples`.
+Examples of input .toml files can be found [here](`./src/care/scripts/input_examples/care_script/`).
 
 ## 📖 Tutorials
 

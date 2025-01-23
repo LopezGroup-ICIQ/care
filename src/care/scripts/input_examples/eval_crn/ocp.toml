@@ -1,0 +1,11 @@
+[surface]
+metal = "Ru" # metal catalyst (str)
+hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+
+[evaluator]
+model = "ocp"  # available are gamenetuq, ocp, mace
+name = "EquiformerV2-31M-S2EF-OC20-All+MD"  # Model name (check available ones on fairchem repo :))
+device = "cpu"  # Device (cpu/cuda)
+fmax = 0.05  # Convergence criterion: if fmax lower than fmax, stop relaxation
+max_steps = 100  # Max number of ionic steps
+num_configs = 3  # Number of adsorption configurations per adsorbate-surface pair to screen
