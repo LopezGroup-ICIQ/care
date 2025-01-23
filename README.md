@@ -127,7 +127,7 @@ care_run -i input.toml -o output_name
 ```
 
 This will generate a directory `output_name` containing a `crn.pkl` with the generated reaction network.
-Examples of input .toml files can be found [here](`./src/care/scripts/input_examples/care_script/`).
+Examples of input .toml files can be found [here](./src/care/scripts/input_examples/care_script/).
 
 ## 📖 Tutorials
 
