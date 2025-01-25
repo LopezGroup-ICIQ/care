@@ -1,0 +1,10 @@
+# Ignore all files and folders by default
+**
+
+# Allow the src folder
+!src/
+
+# Optionally, allow files within the src folder (if needed)
+!src/**
+
+!pyproject.toml
