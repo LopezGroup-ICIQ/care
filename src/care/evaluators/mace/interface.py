@@ -5,6 +5,7 @@ Interface to MACE-MP models.
 from copy import deepcopy
 
 from ase.optimize import BFGS
+from ase.build import add_adsorbate
 from mace.calculators import mace_mp
 
 from care import Intermediate, Surface, ElementaryReaction
@@ -103,7 +104,17 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             print(intermediate.ads_configs)
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
-            adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            try:
+                adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            except:
+                adsorptions = []
+                for configuration in range(self.num_configs):
+                    adsorption = self.surface.slab.copy()
+                    x_pos = adsorption.get_cell()[0, 0] / (self.num_configs+1) * configuration
+                    y_pos = adsorption.get_cell()[1, 1] / (self.num_configs+1) * configuration
+                    add_adsorbate(adsorption, intermediate.molecule, 2.0, position=(x_pos, y_pos))
+                    adsorptions.append(adsorption)
+
             for i, adsorption in enumerate(adsorptions):
                 ads_config_dict[str(i)] = {}
                 adsorption.calc = self.calc

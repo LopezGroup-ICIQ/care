@@ -5,6 +5,7 @@ Interface to Open Catalyst Project (OCP) models.
 from fairchem.core.models.model_registry import model_name_to_local_file
 from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 from ase.optimize import BFGS
+from ase.build import add_adsorbate
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
@@ -85,7 +86,16 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
             }
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
-            adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            try:
+                adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
+            except:
+                adsorptions = []
+                for configuration in range(self.num_configs):
+                    adsorption = self.surface.slab.copy()
+                    x_pos = adsorption.get_cell()[0, 0] / (self.num_configs+1) * configuration
+                    y_pos = adsorption.get_cell()[1, 1] / (self.num_configs+1) * configuration
+                    add_adsorbate(adsorption, intermediate.molecule, 2.0, position=(x_pos, y_pos))
+                    adsorptions.append(adsorption)
             for i, adsorption in enumerate(adsorptions):
                 adsorption.calc = self.calc
                 opt = BFGS(adsorption)
