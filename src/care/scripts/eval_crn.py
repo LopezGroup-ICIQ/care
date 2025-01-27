@@ -98,12 +98,12 @@ def main():
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
-    metal = config["surface"]["metal"]
-    hkl = config["surface"]["hkl"]
-    surface = load_surface(metal, hkl)
+    # metal = config["surface"]["metal"]
+    # hkl = config["surface"]["hkl"]
+    surface = load_surface(**config["surface"])
 
     # Set evaluators
-    model_name = config["eval"]["model"]
+    model_name = config["evaluator"]["model"]
 
     current_dir = os.path.dirname(__file__)
     logo_path = current_dir + "/../logo.txt"
@@ -113,12 +113,13 @@ def main():
 
     # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
     print(
-        f"\n┏━━━━━━━━━━━━ Evaluating CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"
+        f"\n┏━━━━━━━━━━━━ Evaluating CRN ━━━━━━━━━━━┓\n"
     )
     t0 = time()
     # INTERMEDIATE EVALUATION
     print(" Energy estimation of the intermediates...")
-    inter_evaluator = load_inter_evaluator(model_name, surface, **config["intermediate_args"])
+    del config["evaluator"]["model"]
+    inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
     print(" Intermediates energy calculator: ", inter_evaluator)
 
     _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -168,7 +169,7 @@ def main():
 
     # REACTION EVALUATION
     print("\n Energy estimation of the reactions...")
-    rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["reaction_args"])
+    rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["evaluator"])
     print(" Reactions energy calculator: ", rxn_evaluator)
     with Progress() as progress:
         task = progress.add_task(" [green]Processing...", total=len(rxns))

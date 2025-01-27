@@ -2,6 +2,7 @@ from collections import defaultdict
 
 import numpy as np
 from acat.adsorption_sites import SlabAdsorptionSites
+from acat.settings import CustomSurface
 from ase import Atoms
 
 from care.constants import METAL_STRUCT_DICT
@@ -16,10 +17,11 @@ class Surface:
         self,
         ase_atoms_slab: Atoms,
         facet: str,
+        from_mp: bool = False,
     ):
         self.slab = ase_atoms_slab
-        self.metal = ase_atoms_slab.get_chemical_formula()[:2]
-        self.crystal_structure = METAL_STRUCT_DICT[self.metal]
+        self.metal = ase_atoms_slab.get_chemical_formula()[:2] if not from_mp else ase_atoms_slab.get_chemical_formula()
+        self.crystal_structure = METAL_STRUCT_DICT[self.metal] if not from_mp else "Unknown"
         self.facet = facet
         self.num_atoms = len(ase_atoms_slab)
 
@@ -83,13 +85,23 @@ class Surface:
                 self.slab, surface=surf, tol=tol, label_sites=True
             )
         else:
-            sas = SlabAdsorptionSites(
-                self.slab,
-                surface=surf,
-                tol=tol_dict[self.metal],
-                label_sites=True,
-                optimize_surrogate_cell=True,
-            )
+            try:
+                sas = SlabAdsorptionSites(
+                    self.slab,
+                    surface=surf,
+                    tol=tol_dict[self.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+            except ValueError:
+                sas = SlabAdsorptionSites(
+                    self.slab,
+                    surface=CustomSurface(surf),
+                    tol=tol_dict[self.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+
         sas = sas.get_unique_sites()
         sas = [site for site in sas if site["position"][2] > 0.65 * self.slab_height]
         return sas

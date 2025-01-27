@@ -1,31 +1,95 @@
+import os
+import warnings
+
 from ase.db import connect
+from ase.build import surface
+from ase.constraints import FixAtoms
+from mp_api.client import MPRester
+from pymatgen.io.ase import AseAtomsAdaptor
 
 from care import Surface
 
-def load_surface(metal: str, hkl: str) -> Surface:
+def load_surface(metal: str = None,
+                 hkl: str = None,
+                 mpid: str = None,
+                 num_layers: int = 3,
+                 xy_repeat: int = 3,
+                 vacuum: float = 10.0) -> Surface:
     """
-    Load surface from ASE database.
+    Load catalyst surface. Two options:
+    - metal and hkl
+    - mp-id and hkl. This option requires API Key for Materials Project.
 
     Args:
         metal (str): Metal symbol (e.g., "Ag")
         hkl (str): Miller index (e.g., "111", "0001")
+        mp_id (str): Materials Project ID (e.g., "mp-1234")
+        num_layers (int): Number of layers in the slab
+        xy_repeat (int): Number of times to repeat the slab in the x and y directions
+        vacuum (float): Vacuum spacing in Angstroms. defaults to 10 Angstroms.
 
     Note:
         The database should contain a surface with the given metal and Miller index.
         For hcp metals, the Miller index should be in the form "hkil", negative indices
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
-    metal_db = connect(DB_PATH)
-    metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
-    try:
-        surface_ase = metal_db.get_atoms(
-            calc_type="surface", metal=metal, facet=metal_structure, add_additional_information=True
-        )
-    except:
-        # Generate surface from scratch (possible with current implementation!!!)
-        raise ValueError(f"{metal} surface {metal_structure} not found in the database.")
+    if hkl is None:
+        warnings.warn("No Miller index provided. Returning bulk structure.")
 
-    return Surface(surface_ase, hkl)
+
+    if mpid and not metal:
+        # Download material bulk from MP
+        with MPRester(os.environ.get("MP_API_KEY")) as mpr:
+            bulk = mpr.get_structure_by_material_id(mpid, final=True, conventional_unit_cell=True)
+            # bulk to ASE
+            ase_adaptor = AseAtomsAdaptor()
+            bulk = ase_adaptor.get_atoms(bulk)
+
+        # Generate slab from bulk
+        l = int(hkl[-1])
+        if len(hkl) > 3 and "m" in hkl:
+            hkil = ""
+            m_indices = []
+            for index, char in enumerate(hkl):
+                if hkl[index] != "m":
+                    hkil += char
+                else:
+                    m_indices.append(index)
+            if "0" in m_indices:
+                h = -int(hkil[0])
+            else:
+                h = int(hkil[0])
+            if "2" in m_indices:
+                k = -int(hkil[1])
+            else:
+                k = int(hkil[1])
+        else:  # fcc, bcc, and hcp with positive indices ("111", "110", "0001")
+            h, k = int(hkl[0]), int(hkl[1])
+        num_layers = num_layers if num_layers else 3
+        slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        z = {atom.index:atom.position[2] for atom in slab}
+        layers_z = list(set(z.values()))
+        layers_z.sort()
+        num_layers = len(layers_z)
+        c = FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(num_layers/2)]])
+        slab.set_constraint(c)
+        xy_repeat = xy_repeat if xy_repeat else 3
+        slab = slab.repeat((xy_repeat, xy_repeat, 1))
+        delta_vacuum = vacuum if vacuum else 10.0
+        slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, delta_vacuum]], scale_atoms=False)
+        return Surface(slab, hkl, from_mp=True)
+
+    elif not mpid and metal:
+        metal_db = connect(DB_PATH)
+        metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
+        try:
+            surface_ase = metal_db.get_atoms(
+                calc_type="surface", metal=metal, facet=metal_structure, add_additional_information=True
+            )
+        except:
+            # Generate surface from scratch (possible with current implementation!!!)
+            raise ValueError(f"{metal} surface {metal_structure} not found in the database.")
+        return Surface(surface_ase, hkl, from_mp=False)
 
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
