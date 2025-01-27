@@ -13,8 +13,8 @@ def load_surface(metal: str = None,
                  hkl: str = None,
                  mpid: str = None,
                  num_layers: int = 3,
-                 xy_repeat: int = 3,
-                 vacuum: float = 10.0) -> Surface:
+                 xy_repeat: int = 1,
+                 vacuum: float = 15.0) -> Surface:
     """
     Load catalyst surface. Two options:
     - metal and hkl
