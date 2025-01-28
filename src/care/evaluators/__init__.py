@@ -38,7 +38,8 @@ def load_surface(metal: str = None,
 
 
     if mpid and not metal:
-        # Download material bulk from MP
+        if not os.environ.get("MP_API_KEY"):
+            raise ValueError("Materials Project API key not set. Please set your MP_API_KEY environment variable.")
         with MPRester(os.environ.get("MP_API_KEY")) as mpr:
             bulk = mpr.get_structure_by_material_id(mpid, final=True, conventional_unit_cell=True)
             # bulk to ASE
