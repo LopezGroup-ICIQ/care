@@ -100,7 +100,8 @@ with open('path_to_blueprint_file', 'rb') as f:
 
 ### Evaluation of intermediate and reaction properties
 
-The available energy evaluators are GAME-Net-UQ, OCP models, and MACE-MP potentials.
+The range of catalyst materials on which CRNs can be constructed depends on the domain of the data-driven energy evaluator employed to derive the reaction properties.
+Currently, CARE provides interfaces to GAME-Net-UQ, OCP models, and MACE-MP potentials.
 
 ```bash
 eval_crn -h  # documentation
