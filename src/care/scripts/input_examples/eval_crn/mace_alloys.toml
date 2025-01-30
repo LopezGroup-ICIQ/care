@@ -1,0 +1,13 @@
+[surface]
+hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
+mpid = "mp-865855"  # Materials Project ID
+
+[evaluator]
+model = "mace"  # available are gamenetuq, ocp, mace
+size = "small"  # Model size (small/medium/large)
+device = "cpu"  # Device (cpu or cuda)
+fmax = 0.05  # Convergence criterion: if fmax lower than fmax, stop relaxation
+max_steps = 10  # Max number of ionic steps
+dtype = "float32"  # Data type (float32 or float64)
+num_configs = 1  # Number of adsorption configurations per adsorbate-surface pair to screen
+dispersion = false  # include dispersion correction
