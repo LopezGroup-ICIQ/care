@@ -24,6 +24,7 @@ dependencies = [
   "rich",
   "py-cpuinfo",
   "psutil",
+  "mp-api"
 ]
 
 authors = [
