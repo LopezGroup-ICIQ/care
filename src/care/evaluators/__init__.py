@@ -1,5 +1,4 @@
 import os
-import warnings
 
 from ase.db import connect
 from ase.build import surface
@@ -34,8 +33,7 @@ def load_surface(metal: str = None,
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
     if hkl is None:
-        warnings.warn("No Miller index provided. Returning bulk structure.")
-
+        raise ValueError("Miller index hkl not provided.")
 
     if mpid and not metal:
         if not os.environ.get("MP_API_KEY"):

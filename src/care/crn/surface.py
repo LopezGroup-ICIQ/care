@@ -24,6 +24,7 @@ class Surface:
         self.crystal_structure = METAL_STRUCT_DICT[self.metal] if not from_mp else "Unknown"
         self.facet = facet
         self.num_atoms = len(ase_atoms_slab)
+        self.from_mp = from_mp
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
