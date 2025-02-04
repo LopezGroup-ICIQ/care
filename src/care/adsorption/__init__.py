@@ -236,7 +236,12 @@ def place_adsorbate(
         # config = intermediate.molecule
         for site_idxs in active_sites.values():
             if site_idxs != []:
-                for config in intermediate.gas_configs:
+                try:
+                    configs_to_place = intermediate.gas_configs
+                except AttributeError:
+                    configs_to_place = [intermediate.molecule]
+
+                for config in configs_to_place:
                     config_graph = atoms_to_graph(config)
                     connect_sites_molec = connectivity_analysis(config_graph)
                     config_list_i = []
@@ -262,7 +267,12 @@ def place_adsorbate(
         )
         for site_idxs in active_sites.values():
             if site_idxs != []:
-                for config in intermediate.gas_configs:
+                try:
+                    configs_to_place = intermediate.gas_configs
+                except AttributeError:
+                    configs_to_place = [intermediate.molecule]
+                    
+                for config in configs_to_place:
                     config_graph = atoms_to_graph(config)
                     connect_sites_molec = connectivity_analysis(config_graph)
                     connect_sites_molec_comb = []
