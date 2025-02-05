@@ -48,4 +48,4 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install pytest
-        pytest -k "not test_mace and not test_ocp"
+        pytest

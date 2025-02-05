@@ -7,7 +7,7 @@ from care.evaluators.mace import MACEIntermediateEvaluator
 
 intermediates, rxns = gen_blueprint(1, 1, False, False, False)
 surface = load_surface("Zn", "10m10")
-model_inter = MACEIntermediateEvaluator(surface, num_configs=2, max_steps=3)
+model_inter = MACEIntermediateEvaluator(surface, size="small", num_configs=2, max_steps=3)
 
 class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):
