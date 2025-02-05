@@ -40,14 +40,6 @@ python3 -m pip install .
 
 *NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
 
-4. Install `pytorch` and `pytorch_geometric` through conda. **Ensure that the libraries are obtained from the pytorch and pyg channels**, as shown here:
-
-```bash
-conda install pytorch cpuonly pytorch-scatter pytorch-sparse pyg -c pytorch -c pyg
-```
-
-*NOTE: MacOS users might need to install pytorch geometric using pip.*
-
 5. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform microkinetic simulations. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
@@ -61,14 +53,15 @@ julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pk
 curl -fsSL https://install.julialang.org | sh -s -- -y
 ```
 
-6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following command:
+6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following commands:
 
 ```bash
-python3 -m pip install fairchem-core==1.1.0
-python3 -m pip install mace-torch torch-dftd
+# OCP
+python3 -m pip install .[ocp] torch_scatter torch_sparse
+python3 -m pip install .[mace]
 ```
 
-*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
+*NOTE1: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
 both libraries should work correctly if the installation order shown below is followed.*
 
 ## 💥 Usage

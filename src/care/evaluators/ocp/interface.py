@@ -2,8 +2,6 @@
 Interface to Open Catalyst Project (OCP) models.
 """
 
-from fairchem.core.models.model_registry import model_name_to_local_file
-from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 from ase.optimize import BFGS
 from ase.build import add_adsorbate
 
@@ -37,6 +35,8 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
 
         - The intermediate energy is stored as E_tot - E_slab in eV.
         """
+        from fairchem.core.models.model_registry import model_name_to_local_file
+        from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 
         self.model_name = model_name
         self.checkpoint_path = model_name_to_local_file(model_name, local_cache='/tmp/fairchem_checkpoints/')

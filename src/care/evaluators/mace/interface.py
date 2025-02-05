@@ -6,7 +6,6 @@ from copy import deepcopy
 
 from ase.optimize import BFGS
 from ase.build import add_adsorbate
-from mace.calculators import mace_mp
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
@@ -37,6 +36,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             dtype (str): The data type to use for the calculation. Default is "float64".
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
         """
+        from mace.calculators import mace_mp
 
         self.surface = surface
         self.slab_energy = 0.0
