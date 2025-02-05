@@ -3,6 +3,7 @@ import os
 from ase.db import connect
 from ase.build import surface
 from ase.constraints import FixAtoms
+from ase.io import read
 from mp_api.client import MPRester
 from pymatgen.io.ase import AseAtomsAdaptor
 
@@ -11,18 +12,21 @@ from care import Surface
 def load_surface(metal: str = None,
                  hkl: str = None,
                  mpid: str = None,
+                 path: str = None,
                  num_layers: int = 3,
                  xy_repeat: int = 1,
                  vacuum: float = 15.0) -> Surface:
     """
-    Load catalyst surface. Two options:
-    - metal and hkl
+    Load catalyst surface. Three options:
+    - metal and hkl. Get surface from the ASE database intergrated in CARE for metals.
     - mp-id and hkl. This option requires API Key for Materials Project.
+    - path to VASP CONTCAR file. Load surface from the CONTCAR file.
 
     Args:
         metal (str): Metal symbol (e.g., "Ag")
         hkl (str): Miller index (e.g., "111", "0001")
         mp_id (str): Materials Project ID (e.g., "mp-1234")
+        path (str): Path to VASP CONTCAR file.
         num_layers (int): Number of layers in the slab
         xy_repeat (int): Number of times to repeat the slab in the x and y directions
         vacuum (float): Vacuum spacing in Angstroms. defaults to 10 Angstroms.
@@ -32,6 +36,10 @@ def load_surface(metal: str = None,
         For hcp metals, the Miller index should be in the form "hkil", negative indices
         should be written as "mh-kil" (e.g. "10m11" stands for 10-11).
     """
+    if path:
+        slab = read(path)
+        return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=False)
+
     if hkl is None:
         raise ValueError("Miller index hkl not provided.")
 
@@ -76,7 +84,7 @@ def load_surface(metal: str = None,
         slab = slab.repeat((xy_repeat, xy_repeat, 1))
         delta_vacuum = vacuum if vacuum else 10.0
         slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, delta_vacuum]], scale_atoms=False)
-        return Surface(slab, hkl, from_mp=True)
+        return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=True)
 
     elif not mpid and metal:
         metal_db = connect(DB_PATH)
@@ -88,7 +96,7 @@ def load_surface(metal: str = None,
         except:
             # Generate surface from scratch (possible with current implementation!!!)
             raise ValueError(f"{metal} surface {metal_structure} not found in the database.")
-        return Surface(surface_ase, hkl, from_mp=False)
+        return Surface(ase_atoms_slab=surface_ase, facet=hkl, from_mp=False)
 
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn

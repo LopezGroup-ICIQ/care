@@ -1,16 +1,12 @@
-from collections import defaultdict
-
-import numpy as np
-from acat.adsorption_sites import SlabAdsorptionSites
-from acat.settings import CustomSurface
 from ase import Atoms
+import numpy as np
 
 from care.constants import METAL_STRUCT_DICT
 
 
 class Surface:
     """
-    Class for representing surface models.
+    Class for representing catalyst surfaces.
     """
 
     def __init__(
@@ -61,48 +57,3 @@ class Surface:
         """
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(np.cross(a, b))
-
-    @property
-    def active_sites(self) -> list[dict]:
-        surf = self.crystal_structure + self.facet
-        if self.facet == "10m10":
-            surf += "h"
-        tol_dict = defaultdict(lambda: 0.5)
-        tol_dict["Cd"] = 1.5
-        tol_dict["Co"] = 0.75
-        tol_dict["Os"] = 0.75
-        tol_dict["Ru"] = 0.75
-        tol_dict["Zn"] = 1.25
-        if self.facet == "10m11" or (
-            self.crystal_structure == "bcp" and self.facet in ("111", "100")
-        ):
-            tol = 2.0
-            sas = SlabAdsorptionSites(
-                self.slab, surface=surf, tol=tol, label_sites=True
-            )
-        elif self.crystal_structure == "fcc" and self.facet == "110":
-            tol = 1.5
-            sas = SlabAdsorptionSites(
-                self.slab, surface=surf, tol=tol, label_sites=True
-            )
-        else:
-            try:
-                sas = SlabAdsorptionSites(
-                    self.slab,
-                    surface=surf,
-                    tol=tol_dict[self.metal],
-                    label_sites=True,
-                    optimize_surrogate_cell=True,
-                )
-            except ValueError:
-                sas = SlabAdsorptionSites(
-                    self.slab,
-                    surface=CustomSurface(surf),
-                    tol=tol_dict[self.metal],
-                    label_sites=True,
-                    optimize_surrogate_cell=True,
-                )
-
-        sas = sas.get_unique_sites()
-        sas = [site for site in sas if site["position"][2] > 0.65 * self.slab_height]
-        return sas
