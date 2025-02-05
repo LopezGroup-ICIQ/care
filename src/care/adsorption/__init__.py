@@ -2,9 +2,12 @@
 Module containing tools to place molecules on surfaces.
 These include DockOnSurf and ASE functionalities.
 """
+from collections import defaultdict
 
 from typing import Any
 
+from acat.adsorption_sites import SlabAdsorptionSites
+from acat.settings import CustomSurface
 from ase import Atoms
 import networkx as nx
 from numpy import max
@@ -178,7 +181,7 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
     surface : Surface
         Surface instance of the surface.
     tolerance : float
-        Toleration in Angstrom.
+        Tolerance in Angstrom.
 
     Returns
     -------
@@ -222,14 +225,15 @@ def place_adsorbate(
     """
 
     slab = adapt_surface(intermediate.molecule, surface)
+    active_sites_acat = get_active_sites(surface)
     active_sites = {
-        "{}".format(site["label"]): site["indices"] for site in surface.active_sites
+        "{}".format(site["label"]): site["indices"] for site in active_sites_acat
     }
 
     total_config_list = []
 
     if len(intermediate.molecule) > 10:
-        site_idx = [site["indices"] for site in surface.active_sites]
+        site_idx = [site["indices"] for site in active_sites_acat]
         site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
 
         ads_height = 2.0
@@ -296,7 +300,7 @@ def place_adsorbate(
 
     else:
         surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
-        for site in surface.active_sites:
+        for site in active_sites_acat:
 
             atoms = slab.copy()
             atoms.append(intermediate.molecule[0])
@@ -309,3 +313,46 @@ def place_adsorbate(
             atoms.set_pbc(surface.slab.get_pbc())
             total_config_list.append(atoms)
         return total_config_list
+
+def get_active_sites(surface) -> list[dict]:
+        surf = surface.crystal_structure + surface.facet
+        if surface.facet == "10m10":
+            surf += "h"
+        tol_dict = defaultdict(lambda: 0.5)
+        tol_dict["Cd"] = 1.5
+        tol_dict["Co"] = 0.75
+        tol_dict["Os"] = 0.75
+        tol_dict["Ru"] = 0.75
+        tol_dict["Zn"] = 1.25
+        if surface.facet == "10m11" or (
+            surface.crystal_structure == "bcp" and surface.facet in ("111", "100")
+        ):
+            tol = 2.0
+            sas = SlabAdsorptionSites(
+                surface.slab, surface=surf, tol=tol, label_sites=True
+            )
+        elif surface.crystal_structure == "fcc" and surface.facet == "110":
+            tol = 1.5
+            sas = SlabAdsorptionSites(
+                surface.slab, surface=surf, tol=tol, label_sites=True
+            )
+        else:
+            try:
+                sas = SlabAdsorptionSites(
+                    surface.slab,
+                    surface=surf,
+                    tol=tol_dict[surface.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+            except ValueError:
+                sas = SlabAdsorptionSites(
+                    surface.slab,
+                    surface=CustomSurface(surf),
+                    tol=tol_dict[surface.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+        sas = sas.get_unique_sites()
+        sas = [site for site in sas if site["position"][2] > 0.65 * surface.slab_height]
+        return sas
