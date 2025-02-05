@@ -14,19 +14,19 @@ dependencies = [
   "pandas==2.2.0",
   "prettytable==3.9.0",
   "pydot==2.0.0",
-  "pymatgen==2024.2.20",
+  "mp-api==0.45.1",
+  "pymatgen",
   "torch==2.4.0",
   "torch_geometric==2.5.3",
   "rdkit==2023.3.3",
   "scikit_learn==1.5.1",
-  "scipy==1.12.0",
+  "scipy==1.15.1",
   "setuptools==70.0.0",
   "numba",
   "energydiagram @ git+https://github.com/giacomomarchioro/PyEnergyDiagrams",
   "rich",
   "py-cpuinfo",
   "psutil",
-  "mp-api"
 ]
 
 authors = [
