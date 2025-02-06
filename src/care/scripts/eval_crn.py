@@ -89,11 +89,8 @@ def main():
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
-    # metal = config["surface"]["metal"]
-    # hkl = config["surface"]["hkl"]
     surface = load_surface(**config["surface"])
 
-    # Set evaluators
     model_name = config["evaluator"]["model"]
 
     current_dir = os.path.dirname(__file__)
@@ -161,7 +158,7 @@ def main():
     # REACTION EVALUATION
     print("\n Energy estimation of the reactions...")
     rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["evaluator"])
-    print(" Reactions energy calculator: ", rxn_evaluator)
+    print(" Reaction properties calculator: ", rxn_evaluator)
     with Progress() as progress:
         task = progress.add_task(" [green]Processing...", total=len(rxns))
         processed_items = 0

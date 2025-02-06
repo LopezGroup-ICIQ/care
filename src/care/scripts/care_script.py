@@ -13,8 +13,8 @@ import tempfile
 import time
 
 from care import ReactionNetwork, Intermediate, gen_blueprint
-from care.evaluators import load_surface, eval_dict
-from care.evaluators.gamenet_uq import DFT_DB_PATH
+from care.crn.utils.electro import Electron
+from care.evaluators import load_surface, load_inter_evaluator, load_reaction_evaluator, eval_dict
 
 lock = mp.Lock()
 
@@ -131,8 +131,15 @@ def main():
             print("Input chemical space (SMILES): {}".format(", ".join(cs)))
 
         intermediates, reactions = gen_blueprint(
-            ncc, noc, cs, cyclic, additional_rxns, electrochem, ARGS.num_cpu, True
-        )
+                                            ncc=ncc,
+                                            noc=noc,
+                                            cs=cs,
+                                            cyclic=cyclic,
+                                            additional_rxns=additional_rxns,
+                                            electro=electrochem,
+                                            num_cpu=ARGS.num_cpu,
+                                            show_progress=True
+                                        )
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
@@ -143,25 +150,28 @@ def main():
             f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"
         )
 
-        # Check correct model definition
+        # Check correct energy evaluator definition
         if "evaluator" not in config:
             raise ValueError("Evaluator model not defined in the input file.")
         else:
             if "model" not in config["evaluator"]:
                 raise ValueError("Evaluator model not defined in the input file.")
-            if config["evaluator"]["model"] not in eval_dict:
+            if config["evaluator"]["model"] not in eval_dict.keys():
                 raise ValueError(
-                    f"Model {config['evaluator']['model']} not found in the evaluators."
+                    f"Model {config['evaluator']['model']} not found in the available evaluators {eval_dict}."
                 )
 
-        # Load surface from ase db
-        surface = load_surface(metal, hkl)
+        # Load surface
+        surface = load_surface(**config["surface"])
+
+        model_name = config["evaluator"]["model"]
 
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")
-        evaluators = eval_dict[config["evaluator"]["model"]]
-        dft_db_path = DFT_DB_PATH if "dft_db_path" in config["evaluator"] else None
-        inter_evaluator = evaluators[0](surface, dft_db_path=dft_db_path, **config["evaluator"])
+        del config["evaluator"]["model"]
+
+        # dft_db_path = DFT_DB_PATH if "dft_db_path" in config["evaluator"] else None
+        inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         print(" Intermediates energy calculator: ", inter_evaluator)
 
         _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -209,15 +219,10 @@ def main():
                 except EOFError:
                     break
 
-        # Remove tmp folder
-        shutil.rmtree(tmp_folder)
-
-        # 2.2. Reaction evaluator
+        # REACTION EVALUATION
         print("\n Energy estimation of the reactions...")
-
-        rxn_evaluator = evaluators[1](intermediates, T=T, U=U, pH=PH)
-        print(" Reaction property calculator: ", rxn_evaluator)
-
+        rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["evaluator"])
+        print(" Reaction properties calculator: ", rxn_evaluator)
         with Progress() as progress:
             task = progress.add_task(" [green]Processing...", total=len(reactions))
             processed_items = 0
@@ -229,14 +234,19 @@ def main():
                     advance=1,
                     description=f" [green]Processing {processed_items}/{len(reactions)}...",
                 )
-
         reactions = sorted(reactions)
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
         )
 
-        # 3. Building and saving the CRN
+        for r in reactions:
+            if Electron in r.reactants or Electron in r.products:
+                crn_type = "electrochemical"
+                break
+        else:
+            crn_type = "thermal"
+
         crn = ReactionNetwork(
             intermediates=intermediates,
             reactions=reactions,
