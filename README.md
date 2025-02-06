@@ -12,7 +12,7 @@
     </p>
 </div>
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered with [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), a graph neural network with uncertainty quantification targeting the DFT energy of relaxed species and transition states.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, and [MACE](https://github.com/ACEsuit/mace) potentials.
 
 ## 🪛 Installation
 
@@ -56,13 +56,12 @@ curl -fsSL https://install.julialang.org | sh -s -- -y
 6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following commands:
 
 ```bash
-# OCP
-python3 -m pip install .[ocp] torch_scatter torch_sparse
-python3 -m pip install .[mace]
+python3 -m pip install .[ocp] torch_scatter torch_sparse  # Open Catalyst models
+python3 -m pip install .[mace]  # MACE models
 ```
 
-*NOTE1: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
-both libraries should work correctly if the installation order shown below is followed.*
+*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
+both evaluators should work correctly if the installation order shown above is followed.*
 
 ## 💥 Usage
 
@@ -113,7 +112,7 @@ This script runs microkinetic simulation starting from the evaluated reaction ne
 
 ### Run all together
 
-You can run the entire pipeline (blueprint generation -> properties evaluation -> kinetic simulation) running the `care_run` script:
+You can run the entire pipeline (blueprint generation ➡ properties evaluation ➡ kinetic simulation) running the `care_run` script:
 
 ```bash
 care_run -h  # documentation
