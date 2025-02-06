@@ -122,7 +122,7 @@ def main():
         # 1. Generate CRN blueprint
         if ncc and not cs:
             print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN(ncc={ARGS.ncc},ncc={ARGS.noc}) blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN(ncc={ncc},ncc={noc}) blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
             )
         else:
             print(
