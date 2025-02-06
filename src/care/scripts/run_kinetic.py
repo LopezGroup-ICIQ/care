@@ -1,5 +1,5 @@
 """
-Generate chemical reaction network blueprint with CARE.
+Run kinetic simulation for CRN constructed with CARE.
 """
 
 import argparse

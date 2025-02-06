@@ -40,7 +40,22 @@ python3 -m pip install .
 
 *NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
 
-5. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform microkinetic simulations. As alternative, simulations can run with the implemented Scipy solver.
+4. (optional) To interface to energy evaluators from [Open Catalyst Project](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [Pytorch Geomteric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
+
+```bash
+python3 -m pip install .[ocp]
+```
+
+5. (optional) To employ [MACE](https://github.com/ACEsuit/mace) models as energy evaluator, run:
+
+```bash
+python3 -m pip install .[mace]
+```
+
+*NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
+both evaluators should work correctly if the installation order shown above is followed.*
+
+6. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform microkinetic simulations. As alternative, simulations can run with the implemented Scipy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
@@ -52,16 +67,6 @@ julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pk
 ```bash
 curl -fsSL https://install.julialang.org | sh -s -- -y
 ```
-
-6. (optional) Install the different evaluators available ([MACE](https://github.com/ACEsuit/mace), [fairchem](https://github.com/FAIR-Chem/fairchem)), through the following commands:
-
-```bash
-python3 -m pip install .[ocp] torch_scatter torch_sparse  # Open Catalyst models
-python3 -m pip install .[mace]  # MACE models
-```
-
-*NOTE: There currently is a dependency clash during installation for the two evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
-both evaluators should work correctly if the installation order shown above is followed.*
 
 ## 💥 Usage
 

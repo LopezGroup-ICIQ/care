@@ -4,22 +4,13 @@ Evaluate chemical reaction network blueprint with CARE.
 
 import argparse
 import os
-from pickle import dump, load
 from time import time
-import tomllib
-
-import argparse
-import os
 import tomllib
 import multiprocessing as mp
 from pickle import dump, load, dumps
 import resource
 from rich.progress import Progress
-from prettytable import PrettyTable
-import cpuinfo
-import psutil
 import tempfile
-from time import time
 
 from rich.progress import Progress
 
