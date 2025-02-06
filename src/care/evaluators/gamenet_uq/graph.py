@@ -20,7 +20,7 @@ from sklearn.preprocessing import OneHotEncoder
 from torch_geometric.data import Data
 
 from care.constants import CORDERO
-from care.evaluators.gamenet_uq import METALS, ADSORBATE_ELEMS
+from care.evaluators.gamenet_uq import ADSORBATE_ELEMS, ONE_HOT_ENCODER_NODES, ELEMENT_DOMAIN
 from care.crn.utils.species import atoms_to_graph
 from care.evaluators.gamenet_uq.graph_filters import C_filter, H_filter, fragment_filter
 
@@ -207,7 +207,7 @@ def atoms_to_pyg(
                          "int": intermediate, "ts": transition state.
         voronoi_tol (float): Tolerance applied during the graph conversion.
         scaling_factor (float): Scaling factor applied to metal radius of metals.
-        one_hot_encoder (OneHotEncoder): One-hot encoder.
+        one_hot_encoder (OneHotEncoder): One-hot encoder for graph node features.
         adsorbate_elems (list[str]): list of elements present in the adsorbate.
     Returns:
         graph (torch_geometric.data.Data): graph representation of the transition state.
@@ -264,17 +264,13 @@ def atoms_to_data(
         raise TypeError("Structure type must be ase.Atoms")
 
     elements_list = list(set(structure.get_chemical_symbols()))
-    if not all(elem in METALS + ADSORBATE_ELEMS for elem in elements_list):
+    if not all(elem in ELEMENT_DOMAIN for elem in elements_list):
         raise ValueError(
             "Not all species in the structure can be processed by the model."
         )
 
     formula = structure.get_chemical_formula()
-    ohe_elements = OneHotEncoder().fit(
-        np.array(METALS + ADSORBATE_ELEMS).reshape(-1, 1)
-    )
-    elements_list = list(ohe_elements.categories_[0])
-    node_features_list = list(ohe_elements.categories_[0])
+    node_features_list = ELEMENT_DOMAIN
     for key, value in graph_params["features"].items():
         if value:
             node_features_list.append(key.upper())
@@ -286,7 +282,7 @@ def atoms_to_data(
         graph_params["structure"]["tolerance"],
         graph_params["structure"]["scaling_factor"],
         graph_params["structure"]["second_order"],
-        ohe_elements,
+        ONE_HOT_ENCODER_NODES,
         ADSORBATE_ELEMS,
     )
     graph.node_feats = node_features_list

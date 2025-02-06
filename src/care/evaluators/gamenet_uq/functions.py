@@ -3,6 +3,7 @@
 from torch import load
 from torch.nn import Module
 
+from care.evaluators.gamenet_uq import ELEMENT_DOMAIN
 from care.evaluators.gamenet_uq.nets import GameNetUQ
 
 def get_mean_std_from_model(path: str) -> tuple[float]:
@@ -51,15 +52,13 @@ def load_model(path: str) -> Module:
     """
     Load GAME-Net-UQ model.
     """
-    one_hot_encoder_elements = load(path + "/one_hot_encoder_elements.pth")
     with open(path + "/input.txt", "r") as f:
         config_dict = eval(f.read())
     graph_params = config_dict["graph"]
     scale_params = get_mean_std_from_model(path)
-    node_feats_list = one_hot_encoder_elements.categories_[0].tolist()
-    num_node_feats = len(node_feats_list) + sum(graph_params["features"].values())
+    num_node_feats = len(ELEMENT_DOMAIN) + sum(graph_params["features"].values())
     model = GameNetUQ(num_node_feats, config_dict["architecture"]["dim"])
-    model.load_state_dict(load(path + "/GNN.pth"))
+    model.load_state_dict(load(path + "/GNN.pth", weights_only=True))
     model.y_scale_params = {"mean": scale_params[0], "std": scale_params[1]}
     model.eval()
     model.graph_params = graph_params

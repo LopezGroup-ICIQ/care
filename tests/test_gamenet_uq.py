@@ -6,7 +6,7 @@ from care.evaluators import load_surface
 from care.evaluators.gamenet_uq import GameNetUQInter, METALS, METAL_STRUCT_DICT, FACET_DICT
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
-surface = load_surface("Pt", "111")
+surface = load_surface(metal="Pt", hkl="111")
 model_inter = GameNetUQInter(surface, num_configs=2)
 
 class TestEvaluator(unittest.TestCase):
@@ -16,9 +16,9 @@ class TestEvaluator(unittest.TestCase):
         """
         for metal in METALS:
             for facet in FACET_DICT[METAL_STRUCT_DICT[metal]]:
-                surface = load_surface(metal, facet)
+                surface = load_surface(metal=metal, hkl=facet)
                 assert surface.num_atoms != 0
-                assert len(surface.active_sites) != 0
+                assert len(surface.vacuum_height) >= 10.0
 
     def test_model(self):
         assert model_inter.model.parameters() != None

@@ -6,7 +6,7 @@ from care.evaluators import load_surface
 from care.adsorption import place_adsorbate
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
-surface = load_surface("Pt", "111")
+surface = load_surface(metal="Pt", hkl="111")
 
 
 class TestAdsorbatePlacement(unittest.TestCase):
