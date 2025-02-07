@@ -170,7 +170,7 @@ class ReactionNetwork:
             return new_net
         else:
             raise TypeError("Can only add ReactionNetwork to ReactionNetwork")
-        
+
     def __call__(self, *args, **kwargs):
         return self.run_microkinetic(*args, **kwargs)
 
@@ -736,10 +736,10 @@ class ReactionNetwork:
         nruns: int = 100,
         thermo: bool = False,
         solver: str = "Julia",
-        barrier_threshold: float = None,
+        barrier_threshold: float = 0.0,
         ss_tol: float = 1e-10,
         tfin: float = 1e6,
-        target_products: list[str] = None,
+        target_products: list[str] = [],
         eapp: bool = False,
         gpu: bool = False,
     ) -> dict:

@@ -1,6 +1,6 @@
 [chemspace]
 ncc = 1 # Network Carbon Cutoff (int)
-noc = 2  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
+noc = 1  # Network Oxygen Cutoff (int, if <0, maximum O saturation)
 regen = true  # Force the re-generatation of the existing CRN (bool)
 additional = false  # Include 1.2-H shifts (bool)
 electro = false # electrochemical process, readjusts the reaction expressions accordingly (bool)
@@ -10,30 +10,16 @@ cyclic = false
 metal = "Pd"  # metal catalyst (str)
 hkl = "111"  # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
-[eval]
+[evaluator]
 model="gamenetuq"
-
-[intermediate_args]
-model_name = "EquiformerV2-31M-S2EF-OC20-All+MD" # for models from OC20 only
-fmax = 0.05 # convergence criteria for relaxation
-max_steps = 2 # max iterations allowed during relaxation
 num_configs = 3 # number of screened configurations for each adsorbate/surface pair
-size = 'small' # MACE-MP-0 size
-dtype = 'float32' # MACE-MP-0
-use_uq = false # Criterion for GAME-Net-UQ: if True, selects best configurations based on uncertainty (s), else based on lowest energy (mu)
-
-[reaction_args]
+use_uq = false # Criterion for GAME-Net-UQ: if True, selects best configurations based on lowest uncertainty (s), else based on lowest energy (mu).
 
 [mkm]
-run = true # Run microkinetic simulation (bool)
 solver = "Python"  # "Python" for Scipy BDF or "Julia" to run with DifferentialEquations.jl on CPU/GPU (str)
-#barrier_threshold = 1.0  # filter out elementary reactions whose activation barriers (both direct and reverse) are higher than this value (None or float)
 uq = false  # Uncertainty quantification (bool)
-uq_samples = 100  # Number of samples to get for the UQ (int)
-thermo = false  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool) 
+thermo = false  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool)
 ss_tol = 1e-16 # define stopping criteria for the kinetic simulation, if the sum of the absolute derivatives are lower than this value, integration is stopped.
-main_reactant = "CO2"  # must be present in the initial_conditions keys, used to get the main species fluxes
-
 
 [operating_conditions]
 temperature = 473 #temperature in Kelvin (float)

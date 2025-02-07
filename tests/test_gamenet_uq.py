@@ -18,7 +18,7 @@ class TestEvaluator(unittest.TestCase):
             for facet in FACET_DICT[METAL_STRUCT_DICT[metal]]:
                 surface = load_surface(metal=metal, hkl=facet)
                 assert surface.num_atoms != 0
-                assert len(surface.vacuum_height) >= 10.0
+                assert surface.vacuum_height >= 10.0
 
     def test_model(self):
         assert model_inter.model.parameters() != None

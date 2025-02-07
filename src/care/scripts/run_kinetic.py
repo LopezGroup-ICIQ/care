@@ -25,7 +25,7 @@ def main():
         "-crn",
         type=str,
         dest="crn",
-        help="Path to evaluated CRN.",
+        help="Path to CRN pickle file already evaluated energetically.",
     )
     PARSER.add_argument(
         "-o",
@@ -54,6 +54,11 @@ def main():
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
+    if "mkm" in config.keys() and "operating_conditions" in config.keys() and "initial_conditions" in config.keys():
+        MKM_SWITCH = True
+    else:
+        raise KeyError("Running kinetic simulations requires the fields 'mkm', 'operating_conditions', and 'initial_conditions' in the input .toml file.")
+
     PH = config["operating_conditions"]["pH"] if crn.type == "electro" else None
     U = config["operating_conditions"]["U"] if crn.type == "electro" else None
     T = config["operating_conditions"]["temperature"]
@@ -67,15 +72,7 @@ def main():
     y = crn.run_microkinetic(
             iv=config["initial_conditions"],
             oc={"T": T, "P": P, "U": U, "pH": PH},
-            uq=config["mkm"]["uq"],
-            nruns=config["mkm"]["uq_samples"],
-            thermo=config["mkm"]["thermo"],
-            solver=config["mkm"]["solver"],
-            barrier_threshold=config["mkm"].get("barrier_threshold"),
-            ss_tol=config["mkm"]["ss_tol"],
-            tfin=config["mkm"]["tfin"],
-            eapp=config["mkm"]["eapp"],
-            gpu=config["mkm"]["gpu"],
+            **config["mkm"]
         )
 
     print(

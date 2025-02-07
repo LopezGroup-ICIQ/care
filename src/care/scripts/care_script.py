@@ -84,11 +84,19 @@ def main():
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
+    BP_SWITCH, EVAL_SWITCH, MKM_SWITCH = False, False, False
+
+    if "chemspace" in config.keys():
+        BP_SWITCH = True
+    if "surface" in config.keys() and "evaluator" in config.keys():
+        EVAL_SWITCH = True
+    if "mkm" in config.keys() and "operating_conditions" in config.keys() and "initial_conditions" in config.keys():
+        MKM_SWITCH = True
+
     current_dir = os.path.dirname(__file__)
     logo_path = current_dir + "/../logo.txt"
     with open(logo_path, "r") as file:
         LOGO = file.read()
-
     print(f"{LOGO}\n")
 
     # Loading parameters
@@ -114,7 +122,7 @@ def main():
         output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
     else:
         output_dir = OUTPUT_DIR
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=False)
     crn_path = f"{output_dir}/crn.pkl"
 
     # 0. Check if the CRN already exists
@@ -267,28 +275,18 @@ def main():
         with open(crn_path, "rb") as f:
             crn = load(f)
 
-    # 4. Running MKM
-    if "mkm" in config:
-        if config["mkm"]["run"]:
-            print("\nRunning the microkinetic simulation...")
-            results = crn.run_microkinetic(
-                iv=config["initial_conditions"],
-                oc={"T": T, "P": P, "U": U, "pH": PH},
-                uq=config["mkm"]["uq"],
-                nruns=config["mkm"]["uq_samples"],
-                thermo=config["mkm"]["thermo"],
-                solver=config["mkm"]["solver"],
-                barrier_threshold=config["mkm"].get("barrier_threshold"),
-                ss_tol=config["mkm"]["ss_tol"],
-                tfin=config["mkm"]["tfin"],
-                eapp=config["mkm"]["eapp"],
-                gpu=config["mkm"]["gpu"],
-            )
+    if MKM_SWITCH:
+        print("\nRunning the microkinetic simulation...")
+        results = crn.run_microkinetic(
+            iv=config["initial_conditions"],
+            oc={"T": T, "P": P, "U": U, "pH": PH},
+            **config["mkm"]
+        )
 
-            print("\nSaving the microkinetic simulation...")
+        print("\nSaving the microkinetic simulation...")
 
-            with open(f"{output_dir}/mkm.pkl", "wb") as f:
-                dump(results, f)
+        with open(f"{output_dir}/mkm.pkl", "wb") as f:
+            dump(results, f)
 
     ram_mem = psutil.virtual_memory().available / 1e9
     peak_memory_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1e6

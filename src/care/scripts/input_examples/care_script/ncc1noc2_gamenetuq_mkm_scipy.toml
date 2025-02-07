@@ -10,7 +10,7 @@ cyclic = false
 metal = "Ru" # metal catalyst (str)
 hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
-[intermediate_args]
+[evaluator]
 model = "gamenetuq" # for models from OC20 only
 num_configs = 3 # number of screened configurations for each adsorbate/surface pair
 use_uq = false # if true, selects best configuration based on lowest uncertainty (s), else based on lowest energy (mu)
@@ -21,7 +21,7 @@ solver = "Python" # "Python" for Scipy BDF or "Julia" to run with DifferentialEq
 gpu = false
 barrier_threshold = 0.0 # filter out reactions with activation barrier (both direct and reverse) higher than this value (None/float)
 uq = false  # Uncertainty quantification (bool)
-uq_samples = 100  # Number of samples to get for the UQ (int)
+nruns = 100  # Number of samples to get for the UQ (int)
 thermo = true  # If true, the activation barriers are neglected and only the thermodynamic path is considered (bool)
 ss_tol = 1e-10 # define stopping criteria for the kinetic simulation, if the sum of the absolute derivatives are lower than this value, integration is stopped.
 main_reactant = "CO2"  # must be present in the initial_conditions keys, used to get the main species fluxes

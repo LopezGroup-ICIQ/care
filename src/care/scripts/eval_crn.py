@@ -89,9 +89,17 @@ def main():
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
+    # Check on input toml entries
+    if "surface" not in config.keys():
+        raise KeyError("'surface' field definition not found in input .toml file. Please define the surface where you want to evaluate your CRN.")
+    if "evaluator" not in config.keys():
+        raise KeyError("'evaluator' field definition not found in the input .toml file. Please define the energy evaluator.")
+
     surface = load_surface(**config["surface"])
 
     model_name = config["evaluator"]["model"]
+    del config["evaluator"]["model"]
+    inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
 
     current_dir = os.path.dirname(__file__)
     logo_path = current_dir + "/../logo.txt"
@@ -106,8 +114,6 @@ def main():
     t0 = time()
     # INTERMEDIATE EVALUATION
     print(" Energy estimation of the intermediates...")
-    del config["evaluator"]["model"]
-    inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
     print(" Intermediates energy calculator: ", inter_evaluator)
 
     _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
