@@ -16,8 +16,12 @@ class Surface:
         from_mp: bool = False,
     ):
         self.slab = ase_atoms_slab
-        self.metal = ase_atoms_slab.get_chemical_formula()[:2] if not from_mp else ase_atoms_slab.get_chemical_formula()
-        self.crystal_structure = METAL_STRUCT_DICT[self.metal] if not from_mp else "Unknown"
+        try:
+            self.metal = ase_atoms_slab.get_chemical_formula()[:2] if not from_mp else ase_atoms_slab.get_chemical_formula()
+            self.crystal_structure = METAL_STRUCT_DICT[self.metal] if not from_mp else "Unknown"
+        except:
+            self.metal = ase_atoms_slab.get_chemical_formula()
+            self.crystal_structure = "Unknown"
         self.facet = facet
         self.num_atoms = len(ase_atoms_slab)
         self.from_mp = from_mp

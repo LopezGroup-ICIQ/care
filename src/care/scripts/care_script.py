@@ -8,7 +8,6 @@ from rich.progress import Progress
 from prettytable import PrettyTable
 import cpuinfo
 import psutil
-import shutil
 import tempfile
 import time
 
@@ -108,9 +107,6 @@ def main():
     electrochem = config["chemspace"]["electro"] if "electro" in config["chemspace"] else None
     crn_type = "electrochemical" if electrochem else "thermal"
 
-    metal = config["surface"]["metal"]
-    hkl = config["surface"]["hkl"]
-
     PH = config["operating_conditions"]["pH"] if electrochem else None
     U = config["operating_conditions"]["U"] if electrochem else None
     T = config["operating_conditions"]["temperature"] if "operating_conditions" in config else None
@@ -119,7 +115,7 @@ def main():
     # Output directory
     OUTPUT_DIR = ARGS.output
     if OUTPUT_DIR is None:
-        output_dir = f"C{ncc}O{noc}_{metal}{hkl}"
+        output_dir = "crn_output"
     else:
         output_dir = OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=False)
@@ -127,15 +123,12 @@ def main():
 
     # 0. Check if the CRN already exists
     if (not os.path.exists(crn_path)) or (config["chemspace"]["regen"] == True):
-        # 1. Generate CRN blueprint
+        print(
+        f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        )
         if ncc and not cs:
-            print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN(ncc={ncc},ncc={noc}) blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-            )
+            print(f"ncc={ncc}, noc={noc}")
         else:
-            print(
-            f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Generating the CRN blueprint  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-            )
             print("Input chemical space (SMILES): {}".format(", ".join(cs)))
 
         intermediates, reactions = gen_blueprint(
@@ -154,8 +147,9 @@ def main():
         )
 
         # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
+        surface = load_surface(**config["surface"])
         print(
-            f"\n┏━━━━━━━━━━━━ Evaluating the C{ncc}O{noc} CRN on {metal}({hkl}) ━━━━━━━━━━━┓\n"
+            f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface.metal}) ━━━━━━━━━━━┓\n"
         )
 
         # Check correct energy evaluator definition
@@ -169,16 +163,11 @@ def main():
                     f"Model {config['evaluator']['model']} not found in the available evaluators {eval_dict}."
                 )
 
-        # Load surface
-        surface = load_surface(**config["surface"])
-
         model_name = config["evaluator"]["model"]
 
         # 2.1 Intermediate evaluator
         print(" Energy estimation of the intermediates...")
         del config["evaluator"]["model"]
-
-        # dft_db_path = DFT_DB_PATH if "dft_db_path" in config["evaluator"] else None
         inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         print(" Intermediates energy calculator: ", inter_evaluator)
 
