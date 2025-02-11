@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "care"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
   "acat==1.6.8",
   "ase==3.23.0",
@@ -39,7 +39,7 @@ maintainers = [
   {name = "Oliver Loveday", email = "oloveday@iciq.es"},
   {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
-description = "Chemical Reaction Network generator for heterogenous catalysis on transition metal surfaces"
+description = "Chemical Reaction Network generator for heterogenous catalysis"
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]

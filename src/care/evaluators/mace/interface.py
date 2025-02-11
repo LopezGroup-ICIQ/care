@@ -19,22 +19,22 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         device: str = "cpu",
         fmax: float = 0.05,
         max_steps: int = 100,
-        dtype: str = "float64",
+        dtype: str = "float32",
         num_configs: int = 1,
         dispersion: bool=True,
         **kwargs
     ):
-        """Interface to the MACE-MP-0 models family.
+        """Interface to the MACE models family.
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
-            size (str): The size of the model to use among the mace models. Default is "small".
+            size (str): The size of the model to use among the mace models. Default is "large", available are "small", "medium", and "large".
             device (str): The device to use for the calculation. Default is "cpu".
-            cpu (bool): Whether to use the CPU for the calculation. Default is False.
             fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
             max_steps (int): The maximum number of steps for the relaxation. Default is 100.
-            dtype (str): The data type to use for the calculation. Default is "float64".
+            dtype (str): The data type to use for the calculation. Default is "float32".
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
+            dispersion (bool): Include dispersion correction. Defaults to True.
         """
         from mace.calculators import mace_mp
 
@@ -136,6 +136,7 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
     ):
         """
         For now, thermodynamic properties are only calculated, not for electro-purposes yet.
+        Eact = Delta E for endothermic reactions, 0 for exothermic ones.
         """
 
         self.intermediates = intermediates

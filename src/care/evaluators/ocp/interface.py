@@ -13,7 +13,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
-        model_name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
+        name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
         cpu: bool = True,
         fmax: float = 0.05,
         max_steps: int = 5,
@@ -26,10 +26,11 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         Args:
 
         surface (Surface): The surface on which the reaction network is adsorbed.
-        model_name (str): The name of the model to use among the oc20 models.
-        cpu (bool): Whether to use the CPU for the calculation. Default is False.
+        name (str): The name of the model to use among the checkpoints available in fairchem (OC20 and OC22)
+        cpu (bool): Whether to use the CPU for the calculation. Default is True
         fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
         max_steps (int): The maximum number of steps for the relaxation. Default is 100.
+        num_configs (int): The number of configurations to consider for the adsorbed phase. Default to 1.
 
         Note:
 
@@ -38,8 +39,8 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         from fairchem.core.models.model_registry import model_name_to_local_file
         from fairchem.core.common.relaxation.ase_utils import OCPCalculator
 
-        self.model_name = model_name
-        self.checkpoint_path = model_name_to_local_file(model_name, local_cache='/tmp/fairchem_checkpoints/')
+        self.model_name = name
+        self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
         self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
         self.fmax = fmax
@@ -116,8 +117,9 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
         intermediates: dict[str, Intermediate],
         **kwargs
     ):
-        """Evaluate TS with CaTTsunami based on OCP models.
+        """
         For now, thermodynamic properties are only calculated, not for electro-purposes yet.
+        Eact = Delta E if endothermic, 0 if exothermic.
         """
 
         self.intermediates = intermediates
