@@ -110,6 +110,12 @@ eval_dict = {
     "mace": (MACEIntermediateEvaluator, MACEReactionEvaluator),
 }
 
+def get_available_evaluators():
+    """
+    Show available energy evaluators in CARE.
+    """
+    return list(eval_dict.keys())
+
 def load_inter_evaluator(model: str, surface, **kwargs) -> IntermediateEnergyEstimator:
     """
     Load the intermediate evaluator.
