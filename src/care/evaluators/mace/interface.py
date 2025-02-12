@@ -22,6 +22,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         dtype: str = "float32",
         num_configs: int = 1,
         dispersion: bool=True,
+        del_traj: bool = True,
         **kwargs
     ):
         """Interface to the MACE models family.
@@ -35,6 +36,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             dtype (str): The data type to use for the calculation. Default is "float32".
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
             dispersion (bool): Include dispersion correction. Defaults to True.
+            del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
+                             note that this option may imply 10e6x larger CRN files!
         """
         from mace.calculators import mace_mp
 
@@ -48,6 +51,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
+        self.del_traj = del_traj
         self.get_slab_energy()
 
     def __repr__(self) -> str:
@@ -66,6 +70,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         opt = BFGS(self.surface.slab)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
+        if self.del_traj:
+            self.surface.slab.calc = None
         print('self.slab_energy: ', self.slab_energy)
 
 
@@ -88,8 +94,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
 
         if intermediate.phase == 'gas':  # gas
             molec_eval = deepcopy(intermediate.molecule)
-            # Setting the cell of the molecule to 10 Angstrom
-            molec_eval.set_cell([10, 10, 10])
+            molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
 
             molec_eval.calc = self.calc
             opt = BFGS(molec_eval)
@@ -101,6 +106,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     "s": 0.0,  # eV
                 }
             }
+            if self.del_traj:
+                molec_eval.calc = None
             print(intermediate.ads_configs)
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
@@ -120,10 +127,11 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                 adsorption.calc = self.calc
                 opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
-                # Filtering structures (check if the structure makes sense)
                 ads_config_dict[str(i)]['ase'] = adsorption
                 ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                 ads_config_dict[str(i)]['s'] = 0.0
+                if self.del_traj:
+                    adsorption.calc = None
             intermediate.ads_configs = ads_config_dict
         else:
             raise ValueError("Phase not supported by the current estimator.")

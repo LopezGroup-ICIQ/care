@@ -18,6 +18,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         fmax: float = 0.05,
         max_steps: int = 5,
         num_configs: int = 1,
+        del_traj: bool = True,
         **kwargs
     ):
         """Interface for the models from the Open Catalyst Project
@@ -31,6 +32,8 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
         max_steps (int): The maximum number of steps for the relaxation. Default is 100.
         num_configs (int): The number of configurations to consider for the adsorbed phase. Default to 1.
+        del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
+                         note that this option may imply 10e6x larger CRN files!
 
         Note:
 
@@ -47,9 +50,10 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.max_steps = max_steps
         self.num_configs = num_configs
         self.eref = {'C': -7.282, 'H': -3.477, 'O': -7.204}
+        self.del_traj = del_traj
 
     def __repr__(self) -> str:
-        return f'{self.model_name} from OC20 models'
+        return f'{self.model_name} from Meta fairchem models'
 
     def __call__(self,
                  intermediate: Intermediate,
@@ -105,6 +109,8 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                 ads_config_dict[str(i)]['ase'] = adsorption
                 ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
                 ads_config_dict[str(i)]['s'] = 0.0
+                if self.del_traj:
+                    adsorption.calc = None
             intermediate.ads_configs = ads_config_dict
             print(intermediate.ads_configs)
         else:

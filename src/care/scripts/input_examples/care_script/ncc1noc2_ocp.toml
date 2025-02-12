@@ -17,3 +17,4 @@ device = "cpu"  # Device (cpu/cuda)
 fmax = 0.05  # Convergence criterion: if fmax lower than fmax, stop relaxation
 max_steps = 100  # Max number of ionic steps
 num_configs = 3  # Number of adsorption configurations per adsorbate-surface pair to screen
+del_traj = true  # Delete ASE calculator with trajectories after relaxation (keep only optimized geometry and energy)

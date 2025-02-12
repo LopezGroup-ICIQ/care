@@ -19,3 +19,4 @@ max_steps = 100  # Max number of ionic steps
 dtype = "float32"  # Data type (float32 or float64)
 num_configs = 3  # Number of adsorption configurations per adsorbate-surface pair to screen
 dispersion = false  # include dispersion correction
+del_traj = true  # Delete ASE calculator with trajectories after relaxation (keep only optimized geometry and energy)
