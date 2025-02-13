@@ -1,6 +1,8 @@
 # Information regarding the execution of the MeOH decomposition benchmark between ML models
 
-This folder contains the necessary script to perform the benchmark between three state-of-the-art ML models presented in our work.
+This folder contains the necessary script and data to perform the benchmark between three state-of-the-art ML models presented in our work.
+
+The csv file contains the experimental data obtained from CatTestHub (https://cpec.umn.edu/cattesthub)
 
 The script has to be run in the benchmark directory (care/examples/MeOH_decomposition/benchmark) by running the following command:
 
