@@ -142,7 +142,7 @@ def apply_bep(reaction: ElementaryReaction):
         print('BEP not applied')
 
 n_cpus_blueprint = os.cpu_count()
-n_cpus_eval = 12 
+n_cpus_eval = os.cpu_count() / 2 
 
 def main():
 
