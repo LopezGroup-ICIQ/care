@@ -3,7 +3,7 @@ import pandas as pd
 import pickle
 import time
 
-from care import gen_blueprint
+from care import gen_blueprint, ElementaryReaction
 from care.evaluators.gamenet_uq.graph import atoms_to_data
 from care.evaluators.gamenet_uq.graph_filters import fragment_filter, ase_adsorption_filter
 from care.evaluators.mace import MACEReactionEvaluator
@@ -28,29 +28,29 @@ MODELS = {'gamenetuq': {'model': 'gamenetuq',
                                'size': 'None', # Model size (small/medium/large)
                                'device': 'cpu', # Device (cpu or cuda)
                                'fmax': 0.05,  # Convergence criterion: if fmax lower than fmax, stop relaxation
-                               'max_steps': 2,  # Max number of ionic steps
+                               'max_steps': 250,  # Max number of ionic steps
                                'dtypes': 'None', # Data type (float32 or float64)
-                               'num_configs': 1,
+                               'num_configs': 3,
                                'dispersion': None,},  # Number of adsorption configurations per adsorbate-surface pair to screen
           'macemp0_large': {'model': 'mace',
                                'name': 'None', # Model name
                                'size': 'large', # Model size (small/medium/large)
                                'device': 'cpu', # Device (cpu or cuda)
                                'fmax': 0.05,  # Convergence criterion: if fmax lower than fmax, stop relaxation
-                               'max_steps': 2,  # Max number of ionic steps
+                               'max_steps': 250,  # Max number of ionic steps
                                'dtypes': 'float32', # Data type (float32 or float64)
-                               'num_configs': 1,  # Number of adsorption configurations per adsorbate-surface pair to screen
+                               'num_configs': 3,  # Number of adsorption configurations per adsorbate-surface pair to screen
                                'dispersion': True,},  # include dispersion correction
             }
 METALS = {
-    'Ag': ['111', ]#'100', '110'],
-    # 'Au': ['111', '100', '110'],
-    # 'Cu': ['111', '100', '110'],
-    # 'Ir': ['111', '100', '110'],
-    # 'Pd': ['111', '100', '110'],
-    # 'Pt': ['111', '100', '110'],
-    # 'Rh': ['111', '100', '110'],
-    # 'Ru': ['0001', '10m10', '10m11'],
+    'Ag': ['111', '100', '110'],
+    'Au': ['111', '100', '110'],
+    'Cu': ['111', '100', '110'],
+    'Ir': ['111', '100', '110'],
+    'Pd': ['111', '100', '110'],
+    'Pt': ['111', '100', '110'],
+    'Rh': ['111', '100', '110'],
+    'Ru': ['0001', '10m10', '10m11'],
 }
 
 blueprint_directory = "blueprints"
@@ -68,7 +68,17 @@ U = None
 pH = None
 oc = {'T': T, 'P': P, 'U': U, 'pH': pH}
 
-def gen_eval_input(metal, facet, model, crn_bp_path, crn_directory, mkm_directory):
+def gen_eval_input(metal: str, facet: str, model: str,) -> str:
+    """
+    Generate the input TOML file for the energy evaluation of the CRNs.
+    Args:
+        metal: Metal.
+        facet: Surface facet.
+        model: Model name.
+    Returns:
+        INPUT_TOML: Input TOML file.
+    """
+
     INPUT_TOML = f"""[surface]
 metal = '{metal}'
 hkl = '{facet}'
@@ -86,7 +96,15 @@ hkl = '{facet}'
 """
     return INPUT_TOML
 
-def apply_bep(reaction):
+def apply_bep(reaction: ElementaryReaction):
+    """
+    Apply Brønsted-Evans-Polanyi (BEP) relation to the reaction energy.
+    Updates the reaction object with the new activation energy.
+    Args:
+        reaction: ElementaryReaction object.
+    Returns:
+        None
+    """
 
     oh_code = 'TUJKJAMUKRIRHC-UHFFFAOYSA-N*'
 
