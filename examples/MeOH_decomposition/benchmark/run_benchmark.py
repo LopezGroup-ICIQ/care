@@ -22,7 +22,8 @@ MODELS = {'gamenetuq': {'model': 'gamenetuq',
                         'max_steps': 'None',  # Max number of ionic steps
                         'dtypes': 'None', # Data type (float32 or float64)
                         'num_configs': 3,  # Number of adsorption configurations per adsorbate-surface pair to screen
-                        'dispersion': None,},  # include dispersion correction
+                        'dispersion': 'None',  # include dispersion correction
+                        'del_traj': 'None',},  # Delete trajectory files
           'equiformerv2_31M': {'model': 'ocp',
                                'name': 'EquiformerV2-31M-S2EF-OC20-All+MD', # Model name
                                'size': 'None', # Model size (small/medium/large)
@@ -30,8 +31,9 @@ MODELS = {'gamenetuq': {'model': 'gamenetuq',
                                'fmax': 0.05,  # Convergence criterion: if fmax lower than fmax, stop relaxation
                                'max_steps': 250,  # Max number of ionic steps
                                'dtypes': 'None', # Data type (float32 or float64)
-                               'num_configs': 3,
-                               'dispersion': None,},  # Number of adsorption configurations per adsorbate-surface pair to screen
+                               'num_configs': 3,  # Number of adsorption configurations per adsorbate-surface pair to screen
+                               'dispersion': 'None',  # Include dispersion correction
+                               'del_traj': 'True',},  # Delete trajectory files
           'macemp0_large': {'model': 'mace',
                                'name': 'None', # Model name
                                'size': 'large', # Model size (small/medium/large)
@@ -40,7 +42,8 @@ MODELS = {'gamenetuq': {'model': 'gamenetuq',
                                'max_steps': 250,  # Max number of ionic steps
                                'dtypes': 'float32', # Data type (float32 or float64)
                                'num_configs': 3,  # Number of adsorption configurations per adsorbate-surface pair to screen
-                               'dispersion': True,},  # include dispersion correction
+                               'dispersion': 'True',  # Include dispersion correction
+                               'del_traj': 'True',},  # Delete trajectory files
             }
 METALS = {
     'Ag': ['111', '100', '110'],
@@ -313,10 +316,8 @@ def main():
                 tfin=1e10,
                 eapp=False,
                 )
-                # Saving the MKM results
                 with open(f"{mkm_directory}/{metal}/{facet}/{model}/mkm.pkl", "wb") as f:
                     pickle.dump(results, f)
-                # Saving the updated CRN
                 with open(f"{crn_directory}/{metal}/{facet}/{model}/{crn_filename}.pkl", "wb") as f:
                     pickle.dump(crn, f)
     print('MKMs generated!')
