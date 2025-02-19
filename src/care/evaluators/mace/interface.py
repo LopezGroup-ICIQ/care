@@ -3,11 +3,14 @@ Interface to MACE-MP models.
 """
 
 from copy import deepcopy
+from itertools import chain
 
 from ase.optimize import BFGS
 from ase.build import add_adsorbate
 
 from care import Intermediate, Surface, ElementaryReaction
+from care.crn.utils.electro import Electron, Proton, Water
+from care.constants import K_B
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption import place_adsorbate
 
@@ -172,27 +175,118 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
             reaction (ElementaryReaction): Elementary reaction.
         """
         mu_is, mu_fs = 0.0, 0.0
-        for reactant in reaction.reactants:
-            if reactant.is_surface:
-                continue
-            energy_list = [
-                config["mu"]
-                for config in self.intermediates[reactant.code].ads_configs.values()
-            ]
-            e_min_config = min(energy_list)
-            mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-        for product in reaction.products:
-            if product.is_surface:
-                continue
-            energy_list = [
-                config["mu"]
-                for config in self.intermediates[product.code].ads_configs.values()
-            ]
-            e_min_config = min(energy_list)
-            mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-        reaction.e_is = mu_is, 0.0
-        reaction.e_fs = mu_fs, 0.0
-        reaction.e_rxn = mu_fs - mu_is, 0.0
+        if reaction.r_type == "PCET":
+            for reactant in reaction.reactants:
+                if reactant.is_surface or isinstance(reactant, Electron):
+                    continue
+                elif isinstance(reactant, Water):
+                    H2O_gas = [
+                        inter
+                        for inter in self.intermediates.values()
+                        if inter.formula == "H2O" and inter.phase == "gas"
+                    ][0]
+                    energy_list = [
+                        config["mu"] for config in H2O_gas.ads_configs.values()
+                    ]
+
+                    e_min_config = min(energy_list)
+                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
+
+                elif isinstance(reactant, Proton):
+                    H2_gas = [
+                        inter
+                        for inter in self.intermediates.values()
+                        if inter.formula == "H2" and inter.phase == "gas"
+                    ][0]
+                    energy_list = [
+                        config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
+                    ]
+
+                    e_min_config = min(energy_list)
+                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
+
+                else:
+                    energy_list = [
+                        config["mu"]
+                        for config in self.intermediates[
+                            reactant.code
+                        ].ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
+
+            for product in reaction.products:
+                if product.is_surface or isinstance(product, Electron):
+                    continue
+                elif isinstance(product, Water):
+                    H2O_gas = [
+                        inter
+                        for inter in self.intermediates.values()
+                        if inter.formula == "H2O" and inter.phase == "gas"
+                    ][0]
+                    energy_list = [
+                        config["mu"] for config in H2O_gas.ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+
+                elif isinstance(product, Proton):
+                    H2_gas = [
+                        inter
+                        for inter in self.intermediates.values()
+                        if inter.formula == "H2" and inter.phase == "gas"
+                    ][0]
+                    energy_list = [
+                        config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+
+                else:
+                    energy_list = [
+                        config["mu"]
+                        for config in self.intermediates[
+                            product.code
+                        ].ads_configs.values()
+                    ]
+                    e_min_config = min(energy_list)
+                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+
+            reaction.e_is = mu_is, 0.0
+            reaction.e_fs = mu_fs, 0.0
+
+            components = list(chain.from_iterable(reaction.components))
+            for component in components:
+                if isinstance(component, Electron):
+                    stoic_electro = reaction.stoic[component.code]
+            reaction.e_rxn = (
+                mu_fs
+                - mu_is
+                - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH),
+                0.0,
+            )
+        else:
+            for reactant in reaction.reactants:
+                if reactant.is_surface:
+                    continue
+                energy_list = [
+                    config["mu"]
+                    for config in self.intermediates[reactant.code].ads_configs.values()
+                ]
+                e_min_config = min(energy_list)
+                mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
+            for product in reaction.products:
+                if product.is_surface:
+                    continue
+                energy_list = [
+                    config["mu"]
+                    for config in self.intermediates[product.code].ads_configs.values()
+                ]
+                e_min_config = min(energy_list)
+                mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+            reaction.e_is = mu_is, 0.0
+            reaction.e_fs = mu_fs, 0.0
+            reaction.e_rxn = mu_fs - mu_is, 0.0
 
     def eval(
         self,
@@ -201,7 +295,6 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
 
         """
         Given the reaction, return the properties of the reaction as attributes of the reaction object.
-        For now, CatTsunami not implemented yet.
         """
 
         self.calc_reaction_energy(reaction)
