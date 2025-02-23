@@ -143,14 +143,27 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
 class MACEReactionEvaluator(ReactionEnergyEstimator):
     def __init__(
         self,
-        intermediates: dict[str, Intermediate], **kwargs
+        intermediates: dict[str, Intermediate], 
+        T: float = None,
+        pH: float = None,
+        U: float = None,
+        **kwargs
     ):
         """
         For now, thermodynamic properties are only calculated, not for electro-purposes yet.
         Eact = Delta E for endothermic reactions, 0 for exothermic ones.
+        
+        Args:
+            intermediates (dict): Dictionary of intermediates already evaluated.
+            T (float): Temperature in Kelvin. Required for electrochemical reactions.
+            pH (float): pH of the system. Required for electrochemical reactions.
+            U (float): Potential of the system. Required for electrochemical reactions.
         """
 
         self.intermediates = intermediates
+        self.pH = pH
+        self.U = U
+        self.T = T
 
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'

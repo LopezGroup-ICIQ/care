@@ -224,12 +224,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
 
 class GameNetUQRxn(ReactionEnergyEstimator):
-    """
-    Interface for evaluating reaction properties using GAME-Net-UQ.
-
-    Properties evaluated are transition state energy, reaction energy, and activation energy in eV.
-    """
-
     def __init__(
         self,
         intermediates: dict[str, Intermediate],
@@ -239,6 +233,17 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         use_uq: bool = False,
         **kwargs
     ):
+        """
+        Interface for evaluating reaction properties using GAME-Net-UQ.
+
+        Properties evaluated are transition state energy, reaction energy, and activation energy in eV.
+        
+        Args:
+                intermediates (dict): Dictionary of intermediates already evaluated.
+                T (float): Temperature in Kelvin. Required for electrochemical reactions.
+                pH (float): pH of the system. Required for electrochemical reactions.
+                U (float): Potential of the system. Required for electrochemical reactions.
+        """
         self.model = load_model(MODEL_PATH)
         self.device = "cuda" if cuda.is_available() else "cpu"
         self.model.to(self.device)
