@@ -4,7 +4,6 @@ Interface to Open Catalyst Project (OCP) models.
 from itertools import chain
 
 from ase.optimize import BFGS
-from ase.build import add_adsorbate
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.crn.utils.electro import Electron, Proton, Water
@@ -94,22 +93,14 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
             }
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
-            try:
-                adsorptions = place_adsorbate(intermediate, self.surface)[:self.num_configs]
-            except:
-                adsorptions = []
-                for configuration in range(self.num_configs):
-                    adsorption = self.surface.slab.copy()
-                    x_pos = adsorption.get_cell()[0, 0] / (self.num_configs+1) * configuration
-                    y_pos = adsorption.get_cell()[1, 1] / (self.num_configs+1) * configuration
-                    add_adsorbate(adsorption, intermediate.molecule, 2.0, position=(x_pos, y_pos))
-                    adsorptions.append(adsorption)
+            adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
             for i, adsorption in enumerate(adsorptions):
                 adsorption.calc = self.calc
                 opt = BFGS(adsorption)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 ads_config_dict[str(i)] = {}
                 ads_config_dict[str(i)]['ase'] = adsorption
+                # Note: OCP output is Eads, so to get Etot - Eslab, we need to add the gas-phase energy of the adsorbate
                 ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
                 ads_config_dict[str(i)]['s'] = 0.0
                 if self.del_traj:
@@ -138,7 +129,6 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
             T (float): Temperature in Kelvin. Required for electrochemical reactions.
             pH (float): pH of the system. Required for electrochemical reactions.
             U (float): Potential of the system. Required for electrochemical reactions.
-            
         """
 
         self.intermediates = intermediates

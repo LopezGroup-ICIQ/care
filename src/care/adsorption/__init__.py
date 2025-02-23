@@ -9,6 +9,7 @@ from typing import Any
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.settings import CustomSurface
 from ase import Atoms
+from ase.build import add_adsorbate
 import networkx as nx
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -206,7 +207,9 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
 
 
 def place_adsorbate(
-    intermediate: Intermediate, surface: Surface
+    intermediate: Intermediate, 
+    surface: Surface, 
+    num_configs: int,
 ) -> list[Atoms]:
     """
     Generate initial adsorption structures for a given intermediate/surface pair.
@@ -217,6 +220,8 @@ def place_adsorbate(
         Intermediate.
     surface : Surface
         Surface.
+    num_configs : int
+        Number of configurations to generate.
 
     Returns
     -------
@@ -224,95 +229,93 @@ def place_adsorbate(
         List of Atoms objects with the initial adsorption structures.
     """
 
-    slab = adapt_surface(intermediate.molecule, surface)
-    active_sites_acat = get_active_sites(surface)
-    active_sites = {
-        "{}".format(site["label"]): site["indices"] for site in active_sites_acat
-    }
+    try:  # DockOnSurf + ACAT
+        slab = adapt_surface(intermediate.molecule, surface)
+        active_sites_acat = get_active_sites(surface)
+        active_sites = {
+            "{}".format(site["label"]): site["indices"] for site in active_sites_acat
+        }
 
-    total_config_list = []
+        total_config_list = []
 
-    if len(intermediate.molecule) > 10:
-        site_idx = [site["indices"] for site in active_sites_acat]
-        site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
-
-        ads_height = 2.0
-        # config = intermediate.molecule
-        for site_idxs in active_sites.values():
-            if site_idxs != []:
-                try:
-                    configs_to_place = intermediate.gas_configs
-                except AttributeError:
-                    configs_to_place = [intermediate.molecule]
-
-                for config in configs_to_place:
-                    config_graph = atoms_to_graph(config)
-                    connect_sites_molec = connectivity_analysis(config_graph)
-                    config_list_i = []
-                    while config_list_i == []:
-                        inp_vars = generate_inp_vars(
-                            adsorbate=config,
-                            surface=slab,
-                            ads_height=ads_height,
-                            max_structures=3,
-                            molec_ctrs=connect_sites_molec,
-                            sites=site_idxs,
-                        )
-                        config_list_i = dos.dockonsurf(inp_vars)
-                        ads_height += 0.2
-                        total_config_list.extend(config_list_i)
-
-        return total_config_list
-
-    elif 2 <= len(intermediate.molecule) <= 10:
-
-        ads_height = (
-            1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
-        )
-        for site_idxs in active_sites.values():
-            if site_idxs != []:
-                try:
-                    configs_to_place = intermediate.gas_configs
-                except AttributeError:
-                    configs_to_place = [intermediate.molecule]
-                    
-                for config in configs_to_place:
-                    config_graph = atoms_to_graph(config)
-                    connect_sites_molec = connectivity_analysis(config_graph)
-                    connect_sites_molec_comb = []
-                    for i in range(1, len(connect_sites_molec) + 1):
-                        for j in range(len(connect_sites_molec) - i + 1):
-                            connect_sites_molec_comb.append(connect_sites_molec[j : j + i])
-                    config_list_i = []
-                    while config_list_i == []:
-                        inp_vars = generate_inp_vars(
-                            adsorbate=config,
-                            surface=slab,
-                            ads_height=ads_height,
-                            max_structures=1,
-                            molec_ctrs=connect_sites_molec,
-                            sites=site_idxs,
-                        )
-                        config_list_i = dos.dockonsurf(inp_vars)
-                        ads_height += 0.1
-                        total_config_list.extend(config_list_i)
-        return total_config_list
-
-    else:
-        surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
-        for site in active_sites_acat:
-
-            atoms = slab.copy()
-            atoms.append(intermediate.molecule[0])
-
-            site_pos = site["position"] + [0, 0, surface_atom_radii]
-
-            atoms.positions[-1] = site_pos
-
-            atoms.set_cell(surface.slab.get_cell())
-            atoms.set_pbc(surface.slab.get_pbc())
-            total_config_list.append(atoms)
-        return total_config_list
+        if len(intermediate.molecule) > 10:
+            site_idx = [site["indices"] for site in active_sites_acat]
+            site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
+            ads_height = 2.0
+            for site_idxs in active_sites.values():
+                if site_idxs != []:
+                    try:
+                        configs_to_place = intermediate.gas_configs
+                    except AttributeError:
+                        configs_to_place = [intermediate.molecule]
+                    for config in configs_to_place:
+                        config_graph = atoms_to_graph(config)
+                        connect_sites_molec = connectivity_analysis(config_graph)
+                        config_list_i = []
+                        while config_list_i == []:
+                            inp_vars = generate_inp_vars(
+                                adsorbate=config,
+                                surface=slab,
+                                ads_height=ads_height,
+                                max_structures=3,
+                                molec_ctrs=connect_sites_molec,
+                                sites=site_idxs,
+                            )
+                            config_list_i = dos.dockonsurf(inp_vars)
+                            ads_height += 0.2
+                            total_config_list.extend(config_list_i)
+        elif 2 <= len(intermediate.molecule) <= 10:
+            ads_height = (
+                1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
+            )
+            for site_idxs in active_sites.values():
+                if site_idxs != []:
+                    try:
+                        configs_to_place = intermediate.gas_configs
+                    except AttributeError:
+                        configs_to_place = [intermediate.molecule]
+                        
+                    for config in configs_to_place:
+                        config_graph = atoms_to_graph(config)
+                        connect_sites_molec = connectivity_analysis(config_graph)
+                        connect_sites_molec_comb = []
+                        for i in range(1, len(connect_sites_molec) + 1):
+                            for j in range(len(connect_sites_molec) - i + 1):
+                                connect_sites_molec_comb.append(connect_sites_molec[j : j + i])
+                        config_list_i = []
+                        while config_list_i == []:
+                            inp_vars = generate_inp_vars(
+                                adsorbate=config,
+                                surface=slab,
+                                ads_height=ads_height,
+                                max_structures=1,
+                                molec_ctrs=connect_sites_molec,
+                                sites=site_idxs,
+                            )
+                            config_list_i = dos.dockonsurf(inp_vars)
+                            ads_height += 0.1
+                            total_config_list.extend(config_list_i)
+        else:
+            surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
+            for site in active_sites_acat:
+                atoms = slab.copy()
+                atoms.append(intermediate.molecule[0])
+                site_pos = site["position"] + [0, 0, surface_atom_radii]
+                atoms.positions[-1] = site_pos
+                atoms.set_cell(surface.slab.get_cell())
+                atoms.set_pbc(surface.slab.get_pbc())
+                total_config_list.append(atoms)
+        return total_config_list[:num_configs]
+    except:  # ASE (when DockOnSurf+ACAT fails on complex surfaces)
+        adsorptions = []
+        for configuration in range(num_configs):
+            adsorption = surface.slab.copy()
+            x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration
+            y_pos = adsorption.get_cell()[1, 1] / (num_configs+1) * configuration
+            add_adsorbate(adsorption, intermediate.molecule, 2.0, position=(x_pos, y_pos))
+            adsorptions.append(adsorption)
+        return adsorptions
+    
 
 def get_active_sites(surface) -> list[dict]:
         surf = surface.crystal_structure + surface.facet

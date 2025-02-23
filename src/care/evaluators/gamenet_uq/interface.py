@@ -195,7 +195,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             if self.db and self.retrieve_from_db(intermediate):
                 return
             else:
-                adsorptions = place_adsorbate(intermediate, self.surface)
+                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
                 ads_config_dict = {}
                 for i, adsorption in enumerate(adsorptions):
                     with no_grad():
@@ -216,7 +216,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 # Select best configurations based on the mean (mu) or the uncertainty (s)
                 criterion = 's' if self.use_uq else 'mu'
                 ads_config_dict = dict(
-                    sorted(ads_config_dict.items(), key=lambda item: item[1][criterion])[:self.num_configs]
+                    sorted(ads_config_dict.items(), key=lambda item: item[1][criterion])
                 )
                 intermediate.ads_configs = ads_config_dict
         else:
