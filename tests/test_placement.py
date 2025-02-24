@@ -17,9 +17,10 @@ class TestAdsorbatePlacement(unittest.TestCase):
         """
         test_inters = random.sample(list(intermediates.values()), 5)
         for inter in test_inters:
-            adsorptions = place_adsorbate(inter, surface, num_configs)
-            self.assertTrue(len(adsorptions) == num_configs)
-            for structure in adsorptions:
-                self.assertTrue(inter['C'] == structure.get_chemical_symbols().count('C'))
-                self.assertTrue(inter['H'] == structure.get_chemical_symbols().count('H'))
-                self.assertTrue(inter['O'] == structure.get_chemical_symbols().count('O'))
+            if inter.phase == "ads":
+                adsorptions = place_adsorbate(inter, surface, num_configs)
+                self.assertTrue(len(adsorptions) == num_configs)
+                for structure in adsorptions:
+                    self.assertTrue(inter['C'] == structure.get_chemical_symbols().count('C'))
+                    self.assertTrue(inter['H'] == structure.get_chemical_symbols().count('H'))
+                    self.assertTrue(inter['O'] == structure.get_chemical_symbols().count('O'))

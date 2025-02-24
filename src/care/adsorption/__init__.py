@@ -173,7 +173,9 @@ def generate_inp_vars(
 
 def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) -> Atoms:
     """
-    Adapts the surface depending on the size of the molecule.
+    Adapts the surface slab size to fit the adsorbate size
+    by measuring the longest distance between atoms in the molecule and 
+    the shortest side of the surface slab.
 
     Parameters
     ----------
@@ -228,16 +230,13 @@ def place_adsorbate(
     total_config_list : list[Atoms]
         List of Atoms objects with the initial adsorption structures.
     """
-
+    adsorptions = []
     try:  # DockOnSurf + ACAT
         slab = adapt_surface(intermediate.molecule, surface)
         active_sites_acat = get_active_sites(surface)
         active_sites = {
             "{}".format(site["label"]): site["indices"] for site in active_sites_acat
         }
-
-        total_config_list = []
-
         if len(intermediate.molecule) > 10:
             site_idx = [site["indices"] for site in active_sites_acat]
             site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
@@ -263,7 +262,7 @@ def place_adsorbate(
                             )
                             config_list_i = dos.dockonsurf(inp_vars)
                             ads_height += 0.2
-                            total_config_list.extend(config_list_i)
+                            adsorptions.extend(config_list_i)
         elif 2 <= len(intermediate.molecule) <= 10:
             ads_height = (
                 1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
@@ -294,8 +293,8 @@ def place_adsorbate(
                             )
                             config_list_i = dos.dockonsurf(inp_vars)
                             ads_height += 0.1
-                            total_config_list.extend(config_list_i)
-        else:
+                            adsorptions.extend(config_list_i)
+        else:  # C*, H*, O*
             surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
             for site in active_sites_acat:
                 atoms = slab.copy()
@@ -304,10 +303,9 @@ def place_adsorbate(
                 atoms.positions[-1] = site_pos
                 atoms.set_cell(surface.slab.get_cell())
                 atoms.set_pbc(surface.slab.get_pbc())
-                total_config_list.append(atoms)
-        return total_config_list[:num_configs]
+                adsorptions.append(atoms)
+        return adsorptions[:num_configs]
     except:  # ASE (when DockOnSurf+ACAT fails on complex surfaces)
-        adsorptions = []
         for configuration in range(num_configs):
             adsorption = surface.slab.copy()
             x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration
