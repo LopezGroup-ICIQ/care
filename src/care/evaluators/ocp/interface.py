@@ -176,10 +176,6 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] for config in H2O_gas.ads_configs.values()
                     ]
-
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
                 elif isinstance(reactant, Proton):
                     H2_gas = [
                         inter
@@ -189,10 +185,6 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
                     ]
-
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
                 else:
                     energy_list = [
                         config["mu"]
@@ -200,9 +192,8 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                             reactant.code
                         ].ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
+                e_min_config = min(energy_list)
+                mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
             for product in reaction.products:
                 if product.is_surface or isinstance(product, Electron):
                     continue
@@ -215,9 +206,6 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] for config in H2O_gas.ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-
                 elif isinstance(product, Proton):
                     H2_gas = [
                         inter
@@ -227,9 +215,6 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-
                 else:
                     energy_list = [
                         config["mu"]
@@ -237,12 +222,10 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
                             product.code
                         ].ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-
+                e_min_config = min(energy_list)
+                mu_fs += abs(reaction.stoic[product.code]) * e_min_config
             reaction.e_is = mu_is, 0.0
             reaction.e_fs = mu_fs, 0.0
-
             components = list(chain.from_iterable(reaction.components))
             for component in components:
                 if isinstance(component, Electron):

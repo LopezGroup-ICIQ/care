@@ -1,3 +1,4 @@
+import pytest
 import unittest
 
 import numpy as np
@@ -99,20 +100,38 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y['backward_rate'].shape == (4,))
         self.assertTrue(y['net_rate'].shape == (4,))
 
-    # def test_integration_jl_cpu(self):
-    #     """
-    #     Check that the integration with Julia is correctly implemented
-    #     """
-    #     y = pfr.integrate(y0=y0, solver='Julia', rtol=1e-6, atol=1e-12, sstol=1e-7, tfin=1e6)
-    #     self.assertTrue(isinstance(y, dict))
-    #     self.assertTrue(y['y'].shape == (7,))
-    #     self.assertTrue(y['forward_rate'].shape == (4,))
-    #     self.assertTrue(y['backward_rate'].shape == (4,))
-    #     self.assertTrue(y['net_rate'].shape == (4,))  Due to dependency issues in PyCall, this test is disabled
+    def test_integration_jl_cpu(self):
+        """
+        Check that the integration with Julia is correctly implemented.
+        """
+        y = pfr.integrate(y0=y0, 
+                          solver='Julia', 
+                          rtol=1e-6, 
+                          atol=1e-12, 
+                          sstol=1e-7, 
+                          tfin=1e6, 
+                          gpu=False)
+        self.assertTrue(isinstance(y, dict))
+        self.assertTrue(y['y'].shape == (7,))
+        self.assertTrue(y['forward_rate'].shape == (4,))
+        self.assertTrue(y['backward_rate'].shape == (4,))
+        self.assertTrue(y['net_rate'].shape == (4,))
 
+    @pytest.mark.skip(reason="GPU unavailable on GitHub Actions")
     def test_integration_jl_gpu(self):
         """
         Check that the integration with Julia is correctly implemented
         when integration is performed on GPU.
         """
-        pass
+        y = pfr.integrate(y0=y0, 
+                          solver='Julia', 
+                          rtol=1e-6, 
+                          atol=1e-12, 
+                          sstol=1e-7, 
+                          tfin=1e6, 
+                          gpu=True)
+        self.assertTrue(isinstance(y, dict))
+        self.assertTrue(y['y'].shape == (7,))
+        self.assertTrue(y['forward_rate'].shape == (4,))
+        self.assertTrue(y['backward_rate'].shape == (4,))
+        self.assertTrue(y['net_rate'].shape == (4,))

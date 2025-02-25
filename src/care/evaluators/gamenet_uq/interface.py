@@ -297,15 +297,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             H2O_gas.code
                         ].ads_configs.values()
                     ]
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
-
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-                    var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
                 elif isinstance(reactant, Proton):
                     H2_gas = [
                         inter
@@ -321,16 +312,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             H2_gas.code
                         ].ads_configs.values()
                     ]
-
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
-
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-                    var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
                 else:
                     energy_list = [
                         config["mu"]
@@ -344,16 +325,15 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             reactant.code
                         ].ads_configs.values()
                     ]
+                if criterion == 'mu':
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
+                else:
+                    s_min_config = min(s_list)
+                    e_min_config = energy_list[s_list.index(s_min_config)]
 
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
-
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-                    var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
+                mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
+                var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
             for product in reaction.products:
                 if product.is_surface or isinstance(product, Electron):
                     continue
@@ -372,15 +352,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             H2O_gas.code
                         ].ads_configs.values()
                     ]
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
-
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-                    var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
                 elif isinstance(product, Proton):
                     H2_gas = [
                         inter
@@ -396,15 +367,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             H2_gas.code
                         ].ads_configs.values()
                     ]
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
-
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-                    var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
                 else:
                     energy_list = [
                         config["mu"]
@@ -418,15 +380,15 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                             product.code
                         ].ads_configs.values()
                     ]
-                    if criterion == 'mu':
-                        e_min_config = min(energy_list)
-                        s_min_config = s_list[energy_list.index(e_min_config)]
-                    else:
-                        s_min_config = min(s_list)
-                        e_min_config = energy_list[s_list.index(s_min_config)]
+                if criterion == 'mu':
+                    e_min_config = min(energy_list)
+                    s_min_config = s_list[energy_list.index(e_min_config)]
+                else:
+                    s_min_config = min(s_list)
+                    e_min_config = energy_list[s_list.index(s_min_config)]
 
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-                    var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
+                mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+                var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
             reaction.e_is = mu_is, var_is**0.5
             reaction.e_fs = mu_fs, var_fs**0.5
             components = list(chain.from_iterable(reaction.components))
@@ -437,9 +399,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 mu_fs
                 - mu_is
                 - stoic_electro * (self.U + 2.303 * K_B * self.T * self.pH),
-                (var_fs + var_is) ** 0.5,
+                (var_fs + var_is) ** 0.5, 
             )
-
         else:
             for reactant in reaction.reactants:
                 if reactant.is_surface:
@@ -458,7 +419,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 else:
                     s_min_config = min(s_list)
                     e_min_config = energy_list[s_list.index(s_min_config)]
-
                 mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
                 var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
             for product in reaction.products:
@@ -478,12 +438,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 else:
                     s_min_config = min(s_list)
                     e_min_config = energy_list[s_list.index(s_min_config)]
-
                 mu_fs += abs(reaction.stoic[product.code]) * e_min_config
                 var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
-            reaction.e_is = mu_is, var_is**0.5
-            reaction.e_fs = mu_fs, var_fs**0.5
-
+            reaction.e_is = mu_is, var_is ** 0.5
+            reaction.e_fs = mu_fs, var_fs ** 0.5
             reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, reaction: ElementaryReaction) -> None:
@@ -543,7 +501,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             if not inter.is_surface and inter.code != inter_code
         ]
 
-        # Build the nx graph of the other reaction component (B* + C*)
+        # Build the NetworkX graph of the other reaction component (B* + C*)
         if len(competitors) == 1:
             if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
                 nx_bc = [competitors[0].graph, competitors[0].graph]
@@ -554,7 +512,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 nx_bc = competitors[0].graph
             else:
                 raise ValueError("Reaction stoichiometry not supported.")
-        else:  # asymmetric fragmentation
+        else:  # A* -> B* + C* (B and C are different)
             nx_bc = [competitors[0].graph, competitors[1].graph]
             mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
             nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)

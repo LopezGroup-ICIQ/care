@@ -1,3 +1,11 @@
+"""
+Differential Plug-Flow Reactor (PFR) model.
+
+Being it a zero-conversion model, conversion (X) is zero by definition, 
+consequently yields (Y = X*S) are also zero. However, TOF and selectivity
+can be computed, as well as apparent activation energy and reaction orders.
+"""
+
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.sparse import csr_matrix
@@ -27,14 +35,16 @@ class DifferentialPFR(ReactorModel):
             - Perfect mixing (zero transport phenomena)
 
         Args:
-            v(ndarray): Stoichiometric matrix of the system.
-            kd(ndarray): Kinetic constants of the direct steps.
-            kr(ndarray): Kinetic constants of the reverse steps.
-            gas_mask(ndarray): Boolean array indicating which species are in the gas phase.
+            v(np.ndarray): Stoichiometric matrix of the system.
+            kd(np.ndarray): Kinetic constants of the direct steps.
+            kr(np.ndarray): Kinetic constants of the reverse steps.
+            gas_mask(np.ndarray): Boolean array indicating which species are in the gas phase.
+            inters(list): List of intermediate species codes.
+            pressure(float): Pressure of the reactor in Pascal.
+            temperature(float): Temperature of the reactor in Kelvin.
         """
 
         self.v_dense = v
-        # Get sparsity of the stoichiometric matrix
         self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100
         self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
         self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
@@ -50,14 +60,14 @@ class DifferentialPFR(ReactorModel):
         self.nr = self.v_dense.shape[1]  # number of reactions
         self.nc = self.v_dense.shape[0]  # number of species
 
-        self.kd = kd  # Direct kinetic constants
-        self.kr = kr  # Reverse kinetic constants
+        self.kd = kd  # Forward kinetic constants
+        self.kr = kr  # Backward kinetic constants
 
-        self.gas_mask = gas_mask
+        self.gas_mask = gas_mask  # Boolean array indicating which species are in the gas phase
         self.inters = inters
 
-        self.P = pressure  # Pressure of the reactor
-        self.T = temperature  # Temperature of the reactor
+        self.P = pressure  # Pressure of the reactor in Pascal
+        self.T = temperature  # Temperature of the reactor in Kelvin
 
         self.sstol = None  # Tolerance for steady-state conditions
         self.sum_ddt, self.time = [], []
