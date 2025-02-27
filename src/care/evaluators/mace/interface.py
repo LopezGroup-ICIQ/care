@@ -50,6 +50,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.device = device
         self.dispersion = dispersion
         self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=dispersion)
+        # self.num_params = sum(p.numel() for p in self.model.parameters())
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -190,10 +191,6 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] for config in H2O_gas.ads_configs.values()
                     ]
-
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
                 elif isinstance(reactant, Proton):
                     H2_gas = [
                         inter
@@ -203,10 +200,6 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
                     ]
-
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
                 else:
                     energy_list = [
                         config["mu"]
@@ -214,9 +207,8 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                             reactant.code
                         ].ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-
+                e_min_config = min(energy_list)
+                mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
             for product in reaction.products:
                 if product.is_surface or isinstance(product, Electron):
                     continue
@@ -229,9 +221,6 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] for config in H2O_gas.ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-
                 elif isinstance(product, Proton):
                     H2_gas = [
                         inter
@@ -241,9 +230,6 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                     energy_list = [
                         config["mu"] * 0.5 for config in H2_gas.ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
-
                 else:
                     energy_list = [
                         config["mu"]
@@ -251,8 +237,8 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
                             product.code
                         ].ads_configs.values()
                     ]
-                    e_min_config = min(energy_list)
-                    mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+                e_min_config = min(energy_list)
+                mu_fs += abs(reaction.stoic[product.code]) * e_min_config
 
             reaction.e_is = mu_is, 0.0
             reaction.e_fs = mu_fs, 0.0
