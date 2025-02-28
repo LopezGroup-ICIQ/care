@@ -16,7 +16,9 @@ CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and man
 
 ## 🪛 Installation
 
-Installing CARE requires Conda and Git locally installed. The following instructions are optimized to install CARE on Linux systems, while for macOS we noticed a lower performance in the CRN generation mainly due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
+Installing CARE requires Conda and Git locally installed. The following instructions are optimized to install CARE on Linux and macOS machines. Installation time estimates are provided for each step on an Ubuntu 24.04.01 (x86_64, 16 GB RAM, internet speed 170 Mbps) and macOS 15.3.1 (arm64, 8 GB RAM, Internet speed 40 Mbps).
+
+⏲ Total installation time estimates: ~18min (Ubuntu), ~11min (macOS)
 
 1. Clone the repo:
 
@@ -31,20 +33,25 @@ conda create -n care_env python=3.11
 conda activate care_env
 ```
 
+⏲ 8s (Ubuntu), 9s (macOS)
+
 3. Enter the repo and install the package with pip:
 
 ```bash
 cd care
 python3 -m pip install .
 ```
+⏲ 4min20s (Ubuntu), 1min50s (macOS)
 
-*NOTE: MacOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
+*NOTE: macOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
 
-4. (optional) To interface to energy evaluators from [Open Catalyst Project](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [Pytorch Geomteric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
+4. (optional) To interface to energy evaluators from [Open Catalyst Project](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
 
 ```bash
 python3 -m pip install .[ocp]
 ```
+
+⏲ 17s (Ubuntu), 19s (macOS)
 
 5. (optional) To employ [MACE](https://github.com/ACEsuit/mace) models as energy evaluator, run:
 
@@ -52,16 +59,21 @@ python3 -m pip install .[ocp]
 python3 -m pip install .[mace]
 ```
 
+⏲ 10s (Ubuntu), 4s (macOS)
+
 *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
 both evaluators should work correctly if the installation order shown above is followed.*
 
-6. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform microkinetic simulations. As alternative, simulations can run with the implemented Scipy solver.
+6. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform kinetic simulations. As alternative, simulations can run with the implemented SciPy solver.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
 python3 -m pip install juliacall  # Python-Julia bridge
 julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
 ```
+
+⏲ 13min (Ubuntu), 9min (macOS)
+
 *NOTE: For some systems Julia may present some error while using sh. If that is the case, please install Julia by running instead:*
 
 ```bash
@@ -105,7 +117,10 @@ eval_crn -h  # documentation
 eval_crn [-i INPUT] [-bp BP] [-o OUTPUT] [-ncpu NUM_CPU]
 ```
 
-This script requires an input toml file defining the material/surface of interest, the model of choice and its settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find examples of input files [here](./src/care/scripts/input_examples/eval_crn/).
+This script requires an input toml file defining the material/surface of interest, the model of choice and its settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find examples of input files [here](./src/care/scripts/input_examples/eval_crn/). 
+
+For macOS we noticed a lower performance in the CRN generation due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
+
 
 ### Microkinetic simulation
 
