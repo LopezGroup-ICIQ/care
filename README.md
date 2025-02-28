@@ -18,13 +18,17 @@ CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and man
 
 Installing CARE requires Conda and Git locally installed. The following instructions are optimized to install CARE on Linux and macOS machines. Installation time estimates are provided for each step on an Ubuntu 24.04.01 (x86_64, 16 GB RAM, internet speed 170 Mbps) and macOS 15.3.1 (arm64, 8 GB RAM, Internet speed 40 Mbps).
 
-⏲ Total installation time estimates: ~18min (Ubuntu), ~11min (macOS)
+⏲ Total installation time estimates: ~18min (Ubuntu), ~11min (macOS).
+
+💾 Required disk space: ~6.5 GB (Conda environment), ~4.3 GB (Julia+dependencies)  
 
 1. Clone the repo:
 
 ```bash
 git clone git@github.com:LopezGroup-ICIQ/care.git
 ```
+
+⏲ 4s (Ubuntu), 26s (macOS)
 
 2. Create a conda environment with Python 3.11 and activate it:
 
@@ -132,7 +136,7 @@ This script runs microkinetic simulation starting from the evaluated reaction ne
 
 ### Run all together
 
-You can run the entire pipeline (blueprint generation ➡ properties evaluation ➡ kinetic simulation) running the `care_run` script:
+You can run the entire pipeline (blueprint generation ➡ energy evaluation ➡ kinetic simulation) running the `care_run` script:
 
 ```bash
 care_run -h  # documentation
