@@ -49,7 +49,12 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.device = device
         self.dispersion = dispersion
         self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=dispersion)
-        self.num_params = None
+        if dispersion:
+            num_params_mace = 0 # sum([p.numel() for p in self.calc.calcs[0].models[0].parameters()]) not working
+            num_params_dispersion = 0
+            self.num_params = num_params_mace + num_params_dispersion
+        else:
+            self.num_params = sum([p.numel() for p in self.calc.models[0].parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -57,7 +62,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.get_slab_energy()
 
     def __repr__(self) -> str:
-        return f'MACE-MP-0 potential ({self.size}, {self.device}, {self.dtype})'
+        return f'MACE-MP-0 potential ({self.size}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
 
     def __call__(self,
                  intermediate: Intermediate,

@@ -47,7 +47,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
         self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
-        self.num_params = None
+        self.num_params = sum([p.numel() for p in self.calc.trainer.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -67,7 +67,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return ['C', 'H', 'O', 'N']
+        return ['C', 'H', 'O', 'N']  # TODO: Add more details
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
