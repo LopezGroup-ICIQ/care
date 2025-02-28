@@ -55,6 +55,10 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             self.db = connect(dft_db_path)
         else:
             self.db = None
+        if not all([elem in self.surface_domain() for elem in surface.slab.get_chemical_symbols()]):
+            raise ValueError(
+                f'GAME-Net-UQ can only evaluate surfaces with {", ".join(self.surface_domain())} elements.'
+            )
 
     def __call__(self,
                  intermediate: Intermediate,
@@ -158,9 +162,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             Updates the Intermediate object with the estimated energy.
             Multiple adsorption configurations are stored in the ads_configs attribute.
         """
-        if not all([elem in self.adsorbate_domain() for elem in intermediate.elements]):
+        if not all([elem in self.adsorbate_domain() for elem in intermediate.molecule.get_chemical_symbols()]):
             raise ValueError(
-                f"GAME-Net-UQ can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain())} elements."
+                f'GAME-Net-UQ can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain())} elements.'
             )
         if intermediate.phase == "surf":  # active site
             intermediate.ads_configs = {
@@ -223,9 +227,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
     def __init__(
         self,
         intermediates: dict[str, Intermediate],
-        T: float = None,
-        pH: float = None,
-        U: float = None,
+        T: float = 298.0,
+        pH: float = 7.0,
+        U: float = 0.0,
         use_uq: bool = False,
         **kwargs
     ):
@@ -236,9 +240,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         
         Args:
                 intermediates (dict): Dictionary of intermediates already evaluated.
-                T (float): Temperature in Kelvin. Required for electrochemical reactions.
-                pH (float): pH of the system. Required for electrochemical reactions.
-                U (float): Potential of the system. Required for electrochemical reactions.
+                T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
+                pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
+                U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
+                use_uq (bool): Whether to use uncertainty in the evaluation. Defaults to False.
         """
         self.model = load_model(MODEL_PATH)
         self.device = "cuda" if cuda.is_available() else "cpu"
@@ -253,7 +258,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         # Check that intermediates have been evaluated with ads_configs attribute, if not raise Warning
         if not all([inter.ads_configs for inter in self.intermediates.values()]):
             raise Warning(
-                "Not all intermediates have been evaluated with GAME-Net-UQ. Please evaluate all intermediates before using this evaluator."
+                "Not all intermediates have been evaluated. Please evaluate all intermediates before evaluating reaction properties."
             )
 
     def adsorbate_domain(self):
@@ -317,14 +322,14 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
             var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
         for product in reaction.products:
-            if product.is_surface or isinstance(reactant, Electron):
+            if product.is_surface or isinstance(product, Electron):       
                 continue
-            elif isinstance(reactant, (Water, Proton)):  # Electrochemical conditions
-                product_formula = "H2O" if isinstance(reactant, Water) else "H2"
+            elif isinstance(product, (Water, Proton)):  # Electrochemical conditions
+                product_formula = "H2O" if isinstance(product, Water) else "H2"
                 gas_inter = [
                     inter
                     for inter in self.intermediates.values()
-                    if inter.formula == reactant_formula and inter.phase == "gas"
+                    if inter.formula == product_formula and inter.phase == "gas"
                 ][0]
                 x = 0.5 if product_formula == "H2" else 1.0
                 energy_list = [
@@ -355,9 +360,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             var_fs += abs(reaction.stoic[product.code]) * s_min_config**2
         reaction.e_is = mu_is, var_is ** 0.5
         reaction.e_fs = mu_fs, var_fs ** 0.5
-        reaction.e_rxn = mu_fs - mu_is, (var_fs + var_is) ** 0.5
-        if reaction.r_type == "PCET": 
-            reaction.e_rxn[0] -= reaction.stoic["e-"] * (self.U + 2.303 * K_B * self.T * self.pH)
+        mu_rxn = mu_fs - mu_is
+        if reaction.r_type == "PCET":
+            mu_rxn -= reaction.stoic["e-"] * (self.U + 2.303 * K_B * self.T * self.pH)
+        reaction.e_rxn = mu_rxn, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, reaction: ElementaryReaction) -> None:
         """
