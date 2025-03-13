@@ -460,11 +460,11 @@ class Intermediate:
         rdkit_mol = Chem.MolFromPDBBlock(pdb_string, removeHs=False)
         return rdkit_mol
 
-    def get_smiles(self):
+    def get_smiles(self, allHsExplicit=False):
         """
         Get the SMILES string of a molecule.
         """
-        return Chem.MolToSmiles(self.rdkit)
+        return Chem.MolToSmiles(self.rdkit, allHsExplicit=allHsExplicit)
 
     def get_num_electrons(self):
         """
