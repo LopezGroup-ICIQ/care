@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from care.crn.reactors import DifferentialPFR
+from care.reactors import DifferentialPFR
 
 
 # Test reaction network

@@ -51,7 +51,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
-        self.eref = {'C': -7.282, 'H': -3.477, 'O': -7.204}
+        self.eref = {'C': -7.282, 'H': -3.477, 'O': -7.204, 'N': -8.083}  # eV
         self.del_traj = del_traj
 
     def __repr__(self) -> str:
@@ -64,14 +64,16 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
             self.eval(intermediate, **kwargs)
         else:
             return NotImplementedError("Input must be an Intermediate object.")
-
+        
+    @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return ['C', 'H', 'O', 'N']  # TODO: Add more details
-
+        return ['C', 'H', 'O', 'N']
+    
+    @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
+        return []  # TODO: Add more details
 
     def eval(
         self,
@@ -81,7 +83,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         """
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
-        gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O']
+        gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O'] + intermediate['N']*self.eref['N']
 
         if intermediate.phase == "gas":  # gas phase
             intermediate.ads_configs = {

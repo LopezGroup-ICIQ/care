@@ -1,8 +1,12 @@
+"""
+Dynamic Continuous Stirred Tank Reactor (CSTR) model.
+"""
+
 from math import pi
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from care.crn.reactors.reactor import ReactorModel
+from care.reactors.reactor import ReactorModel
 from care.constants import N_AV, R
 
 

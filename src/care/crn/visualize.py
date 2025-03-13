@@ -1,6 +1,5 @@
 """Visualization modules for ReactionNetwork objects."""
 
-import re
 from os import makedirs
 from os.path import abspath
 
@@ -12,7 +11,7 @@ import matplotlib.pyplot as plt
 from ase.io import write
 
 from care import ElementaryReaction
-from care.crn.microkinetic import max_flux
+from care.crn.graph import max_flux
 
 
 def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):

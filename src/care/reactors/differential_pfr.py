@@ -11,8 +11,8 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import csr_matrix
 from time import time
 
-from care.crn.reactors.reactor import ReactorModel
-from care.crn.microkinetic import net_rate
+from care.reactors.reactor import ReactorModel
+from care.reactors.utils import net_rate
 
 
 class DifferentialPFR(ReactorModel):

@@ -44,7 +44,6 @@ class Intermediate:
 
         if isinstance(self.molecule, Chem.rdchem.Mol):
             self.rdkit = molecule
-        # If the molecule is an ASE Atoms object and its not empty, convert it to an RDKit molecule, else set the RDKit molecule to None
         elif isinstance(self.molecule, Atoms) and len(self.molecule) != 0:
             self.rdkit = self.ase_to_rdkit()
         else:
@@ -91,8 +90,6 @@ class Intermediate:
             self.phase = phase
 
     def __getitem__(self, key: str):
-        if key not in self.elements:
-            raise ValueError(f"Element {key} not in {self.elements}")
         if key == "*":
             if self.phase in ("surf", "ads"):
                 return 1

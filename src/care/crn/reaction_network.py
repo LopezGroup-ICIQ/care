@@ -11,9 +11,10 @@ from ase.visualize import view
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import K_B, K_BU, OC_KEYS, H
 from care.crn.utils.electro import Electron, Proton, Water
-from care.crn.reactors import DifferentialPFR
+from care.reactors import DifferentialPFR
+from care.reactors.utils import calc_eapp
 from care.crn.visualize import visualize_reaction
-from care.crn.microkinetic import gen_graph, calc_eapp
+from care.crn.graph import gen_graph
 
 
 class ReactionNetwork:
