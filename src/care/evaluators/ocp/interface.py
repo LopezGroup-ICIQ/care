@@ -3,6 +3,7 @@ Interface to Open Catalyst Project (OCP) models.
 """
 
 from ase.optimize import BFGS
+from ase.data import chemical_symbols
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.crn.utils.electro import Electron, Proton, Water
@@ -73,7 +74,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return []  # TODO: Add more details
+        return chemical_symbols[1:]
 
     def eval(
         self,
@@ -83,6 +84,11 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         """
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
+        if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
+            raise ValueError(
+                f'OCP models can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain)} elements.'
+            )
+        
         gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O'] + intermediate['N']*self.eref['N']
 
         if intermediate.phase == "gas":  # gas phase
@@ -155,7 +161,7 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
+        return chemical_symbols[1:]
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """

@@ -41,6 +41,10 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             surface (Surface, optional): Surface of interest.
             dft_db_path (Optional[str], optional): Path to ASE database for retrieving
                 DFT data. Defaults to None.
+            num_configs (int, optional): Number of configurations to consider for the adsorbed phase.
+                Defaults to 3.
+            use_uq (bool, optional): Whether to use uncertainty in the evaluation. Defaults to False.
+                if True, the configurations will be sorted in ascending order of uncertainty in the ads_configs attribute.
         """
 
         self.model = load_model(MODEL_PATH)
@@ -55,9 +59,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             self.db = connect(dft_db_path)
         else:
             self.db = None
-        if not all([elem in self.surface_domain() for elem in surface.slab.get_chemical_symbols()]):
+        if not all([elem in self.surface_domain for elem in surface.slab.get_chemical_symbols()]):
             raise ValueError(
-                f'GAME-Net-UQ can only evaluate surfaces with {", ".join(self.surface_domain())} elements.'
+                f'GAME-Net-UQ can only evaluate surfaces with {", ".join(self.surface_domain)} elements.'
             )
 
     def __call__(self,
@@ -68,9 +72,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         else:
             return NotImplementedError("Input must be an Intermediate object.")
 
+    @property
     def adsorbate_domain(self):
         return ADSORBATE_ELEMS
 
+    @property
     def surface_domain(self):
         return METALS
 
@@ -162,9 +168,9 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             Updates the Intermediate object with the estimated energy.
             Multiple adsorption configurations are stored in the ads_configs attribute.
         """
-        if not all([elem in self.adsorbate_domain() for elem in intermediate.molecule.get_chemical_symbols()]):
+        if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
             raise ValueError(
-                f'GAME-Net-UQ can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain())} elements.'
+                f'GAME-Net-UQ can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain)} elements.'
             )
         if intermediate.phase == "surf":  # active site
             intermediate.ads_configs = {
@@ -244,6 +250,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
                 U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
                 use_uq (bool): Whether to use uncertainty in the evaluation. Defaults to False.
+                    If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
         """
         self.model = load_model(MODEL_PATH)
         self.device = "cuda" if cuda.is_available() else "cpu"

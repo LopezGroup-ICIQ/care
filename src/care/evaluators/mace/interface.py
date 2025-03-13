@@ -5,6 +5,7 @@ Interface to MACE-MP models.
 from copy import deepcopy
 
 from ase.optimize import BFGS
+from ase.data import chemical_symbols
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.crn.utils.electro import Electron, Proton, Water
@@ -81,14 +82,15 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             self.surface.slab.calc = None
         print('self.slab_energy: ', self.slab_energy)
 
-
+    @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return ['C', 'H', 'O', 'N']  # TODO: Add more details
+        return chemical_symbols[1:]
 
+    @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return ['Ag', 'Au', 'Cu', 'Ni', 'Pd', 'Pt']  # TODO: Add more details
+        return chemical_symbols[1:]
 
     def eval(
         self,
@@ -168,11 +170,11 @@ class MACEReactionEvaluator(ReactionEnergyEstimator):
 
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return []  # TODO
+        return chemical_symbols[1:]
 
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return []  # TODO
+        return chemical_symbols[1:]
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """
