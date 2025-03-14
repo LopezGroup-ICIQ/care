@@ -1,5 +1,5 @@
 """
-Interface to MACE-MP models.
+Interface to MACE models.
 """
 
 from copy import deepcopy
@@ -85,12 +85,12 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return chemical_symbols[1:]
+        return [chemical_symbols[i] for i in self.calc.z_table.zs]
 
     @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return chemical_symbols[1:]
+        return [chemical_symbols[i] for i in self.calc.z_table.zs]
 
     def eval(
         self,
@@ -101,6 +101,10 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
 
+        if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
+            raise ValueError(
+                f'MACE can only evaluate molecules with {", ".join(self.adsorbate_domain)} elements.'
+            )
         if intermediate.phase == 'gas':  # gas
             molec_eval = deepcopy(intermediate.molecule)
             molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size

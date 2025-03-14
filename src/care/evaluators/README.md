@@ -1,6 +1,6 @@
 # Evaluators
 
-This folder contains the available interfaces to the energy evaluators that can be used to evaluate the CRNs obtained with CARE. For the moment. Besides GAME-Net-UQ, we are implementing interfaces to Open Catalyst OC20 models and MACE-MP-0 (work in progress). 
+This folder contains the available interfaces to the energy evaluators that can be used to evaluate the CRNs obtained with CARE. For the moment. Besides GAME-Net-UQ, you can use MACE and fairchem models. 
 
 Important notes:
 1) The current interface implementation for these external models is experimental, you have to install the dependencies declared in their original GitHub repos (CARE README does not include those deps). 
@@ -14,6 +14,6 @@ We provide a [template](./template) folder where you can find the basic classes 
 | Model   | Type  | Target | Unit | Transition State   | Note |
 |------------|------------|------------|------------|------------|------------|
 | GAME-Net-UQ | GNN | DFT scaled adsorption energy |eV| ✅ (bond-breaking steps) | Direct approach
-| OC20 models| MLIP |DFT adsorption energy |eV|  	❌️ (feasible!) | Structural relaxation |
-| MACE-MP-0 | MLIP | DFT total energy |eV|  	❌️ (feasible!) | Structural relaxation ||
+| Fairchem OC models| MLIP |DFT adsorption energy |eV|  	❌️ (feasible!) | Structural relaxation |
+| MACE | MLIP | DFT total energy |eV|  	❌️ (feasible!) | Structural relaxation ||
 
