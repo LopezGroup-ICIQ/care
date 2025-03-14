@@ -191,7 +191,9 @@ class Intermediate:
 
     def is_closed_shell(self):
         """
-        Check if a molecule is closed-shell or not.
+        Check if a molecule is closed-shell or not. 
+        This function defines whether an intermediate can desorb
+        or not from the surface.
         """
         graph = self.graph
         molecule = self.molecule

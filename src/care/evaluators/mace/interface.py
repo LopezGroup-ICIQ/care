@@ -41,7 +41,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
         """
-        from mace.calculators import mace_mp
+        from mace.calculators import mace_mp, MACECalculator
 
         self.surface = surface
         self.slab_energy = 0.0
@@ -85,12 +85,18 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        return [chemical_symbols[i] for i in self.calc.z_table.zs]
+        try:
+            return [chemical_symbols[i] for i in self.calc.z_table.zs]
+        except:
+            return chemical_symbols
 
     @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        return [chemical_symbols[i] for i in self.calc.z_table.zs]
+        try:
+            return [chemical_symbols[i] for i in self.calc.z_table.zs]
+        except:
+            return chemical_symbols
 
     def eval(
         self,
