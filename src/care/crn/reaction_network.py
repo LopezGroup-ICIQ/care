@@ -1181,16 +1181,30 @@ class ReactionNetwork:
             else:
                 reactants_mask[i] = False
 
-        reactor = DifferentialPFR(v, kf, kr, gas_mask, inters, P, T)
+        reactor = DifferentialPFR(v=v, 
+                                  kd=kf, 
+                                  kr=kr, 
+                                  gas_mask=gas_mask, 
+                                  inters=inters, 
+                                  pressure=P, 
+                                  temperature=T)
         print(reactor)
 
         if eapp:
-            reactor_plus = DifferentialPFR(
-                v, kf_plus, kr_plus, gas_mask, inters, P, T + DELTA
-            )
-            reactor_minus = DifferentialPFR(
-                v, kf_minus, kr_minus, gas_mask, inters, P, T - DELTA
-            )
+            reactor_plus = DifferentialPFR(v=v, 
+                                           kd=kf_plus, 
+                                           kr=kr_plus, 
+                                           gas_mask=gas_mask, 
+                                           inters=inters, 
+                                           pressure=P, 
+                                           temperature=T + DELTA)
+            reactor_minus = DifferentialPFR(v=v, 
+                                            kd=kf_minus, 
+                                            kr=kr_minus, 
+                                            gas_mask=gas_mask, 
+                                            inters=inters, 
+                                            pressure=P, 
+                                            temperature=T - DELTA)
 
         RTOL, ATOL, SSTOL = 1e-8, 1e-20, ss_tol
         RTOL_MIN, ATOL_MIN = 1e-16, 1e-40

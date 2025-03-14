@@ -30,7 +30,7 @@ v_matrix = np.array(
 kd, kr = np.ones(4), np.ones(4)
 gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
 inters = ['A(g)', 'B(g)', 'C(g)', 'A*', 'B*', 'C*', '*']
-pfr = DifferentialPFR(v_matrix, kd, kr, gas_mask, inters, temperature=500, pressure=1e5)
+pfr = DifferentialPFR(v=v_matrix, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5)
 y0 = np.array([1e6, 1e6, 0, 0, 0, 0, 1])
 
 class TestDifferentialPFR(unittest.TestCase):
