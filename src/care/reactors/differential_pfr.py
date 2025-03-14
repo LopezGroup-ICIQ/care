@@ -18,13 +18,13 @@ from care.reactors.utils import net_rate
 class DifferentialPFR(ReactorModel):
     def __init__(
         self,
-        v: np.ndarray,
-        kd: np.ndarray,
-        kr: np.ndarray,
-        gas_mask: np.ndarray,
-        inters: list[str],
-        pressure: float,
-        temperature: float,
+        v: np.ndarray = np.array([[]]),
+        kd: np.ndarray = np.array([]),
+        kr: np.ndarray = np.array([]),
+        gas_mask: np.ndarray = np.array([]),
+        inters: list[str] = [],
+        pressure: float = 100000.0,
+        temperature: float = 298.0,
     ):
         """
         Differential Plug-Flow Reactor (PFR)
@@ -45,7 +45,7 @@ class DifferentialPFR(ReactorModel):
         """
 
         self.v_dense = v
-        self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100
+        self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100 if v != np.array([[]]) else None
         self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
         self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
         self.v_forward_dense = self.v_forward_dense.T

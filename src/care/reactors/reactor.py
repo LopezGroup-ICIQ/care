@@ -67,3 +67,23 @@ class ReactorModel(ABC):
         Provides the production rate of the specific species.
         """
         ...
+
+    def units_of_measure(self, key=None):
+        units = {'pressure': 'Pa', 
+                 'temperature': 'K', 
+                 'kinetic_constants': 's^-1}', 
+                 'potential': 'V', 
+                 'pH': 'unitless', 
+                 'catalyst_mass': 'kg', 
+                 'volumetric_flowrate': 'm^3 s^-1', 
+                 'length': 'm', 
+                 'conversion': '%', 
+                 'yield': '%', 
+                 'selectivity': '%'}
+        if key == None:
+            return units
+        else:
+            if key in units.keys():
+                return units[key]
+            else:
+                return units

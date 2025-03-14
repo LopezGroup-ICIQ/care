@@ -13,9 +13,9 @@ from care.constants import N_AV, R
 class DynamicCSTR(ReactorModel):
     def __init__(
         self,
-        temperature: float,
-        pressure: float,
-        v_matrix: np.ndarray,
+        temperature: float = 298.0,
+        pressure: float = 100000,
+        v_matrix: np.ndarray = np.array([[]]),
         radius: float = 0.0254,
         length: float = 0.01,
         Q: float = 1e-6,
