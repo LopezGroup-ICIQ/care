@@ -9,11 +9,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_ELEMS, INTER_PHASES
-from care.crn.utils.species import (
-    atoms_to_graph,
-    get_voronoi_neighbourlist,
-    get_fragment_energy,
-)
+from care.crn.utils.species import atoms_to_graph, get_voronoi_neighbourlist
 
 
 class Intermediate:
@@ -470,10 +466,3 @@ class Intermediate:
         Get the number of valence electrons of the intermediate.
         """
         return 4 * self["C"] + 1 * self["H"] - 6 * self["O"]
-
-    def ref_energy(self):
-        """
-        Get the reference energy of the intermediate
-        in gas phase. Returned value is in electronVolt (eV).
-        """
-        return get_fragment_energy(self.molecule)

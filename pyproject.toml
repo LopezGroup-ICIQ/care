@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "care"
 version = "0.1.0"
+requires-python = "==3.12"
 dependencies = [
   "acat==1.6.8",
   "ase==3.23.0",
@@ -18,7 +19,7 @@ dependencies = [
   "pymatgen",
   "torch==2.4.0",
   "torch_geometric==2.5.3",
-  "rdkit==2023.3.3",
+  "rdkit==2023.9.6",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
   "setuptools==70.0.0",
@@ -45,18 +46,18 @@ license = {file = "LICENSE"}
 keywords = ["heterogeneous catalysis", "chemical reaction networks", "kinetics", "machine learning"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python"
+  "Programming Language :: Python :: 3.12"
 ]
 
 [project.optional-dependencies]
 ocp = [
     "fairchem-core==1.4.0",
 ]
-
 mace = [
     "mace-torch",
     "torch-dftd"
 ]
+dev = ["pytest", "pytest-cov"]
 
 [project.urls]
 Repository = "https://github.com/LopezGroup-ICIQ/care"

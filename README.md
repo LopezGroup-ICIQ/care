@@ -1,6 +1,6 @@
 [![DOI](https://img.shields.io/badge/DOI-10.26434%2Fchemrxiv--2024--bfv3d-blue)](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+![Python 3.11](https://img.shields.io/badge/python-3.12-blue.svg)
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
 [![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
 
@@ -30,10 +30,10 @@ git clone git@github.com:LopezGroup-ICIQ/care.git
 
 ⏲ 4s (Ubuntu), 26s (macOS)
 
-2. Create a conda environment with Python 3.11 and activate it:
+2. Create a conda environment with Python 3.12 and activate it:
 
 ```bash
-conda create -n care_env python=3.11
+conda create -n care_env python==3.12
 conda activate care_env
 ```
 
@@ -98,7 +98,7 @@ gen_crn_blueprint -cs "CCO" "C(CO)O" -o output_name # Example from user-defined 
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./output_crn_bp_script.png" width="70%" height="70%" />
+     <img src="./care_bp_screenshot.png" width="70%" height="70%" />
     </p>
 </div>
 

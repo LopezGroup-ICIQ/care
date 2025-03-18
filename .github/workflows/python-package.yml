@@ -13,14 +13,14 @@ jobs:
     - name: Set up Python 3.11
       uses: actions/setup-python@v3
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     - name: Add conda to system path
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install care
       run: |
-        conda create -n care_test python=3.11
+        conda create -n care_test python=3.12
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install .
