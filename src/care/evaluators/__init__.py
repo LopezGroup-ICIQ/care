@@ -13,20 +13,23 @@ def load_surface(metal: str = None,
                  hkl: str = None,
                  mpid: str = None,
                  path: str = None,
+                 bulk_path: str = None,
                  num_layers: int = 3,
                  xy_repeat: int = 1,
                  vacuum: float = 15.0) -> Surface:
     """
-    Load catalyst surface. Three options:
+    Load catalyst surface. Four options:
     - metal and hkl. Get surface from the ASE database intergrated in CARE for metals.
     - mp-id and hkl. This option requires API Key for Materials Project.
     - path to VASP CONTCAR file. Load surface from the CONTCAR file.
+    - bulk_path and hkl to generate a surface from a bulk structure provided in the bulk_path as a VASP CONTCAR file.
 
     Args:
         metal (str): Metal symbol (e.g., "Ag")
         hkl (str): Miller index (e.g., "111", "0001")
         mp_id (str): Materials Project ID (e.g., "mp-1234")
-        path (str): Path to VASP CONTCAR file.
+        path (str): Path to VASP CONTCAR file representing a surface.
+        bulk_path (str): Path to VASP CONTCAR file representing a bulk structure.
         num_layers (int): Number of layers in the slab
         xy_repeat (int): Number of times to repeat the slab in the x and y directions
         vacuum (float): Vacuum spacing in Angstroms. defaults to 10 Angstroms.
@@ -39,10 +42,41 @@ def load_surface(metal: str = None,
     if path:
         slab = read(path)
         return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=False)
-
     if hkl is None:
         raise ValueError("Miller index hkl not provided.")
-
+    if bulk_path:
+        bulk = read(bulk_path)
+        l = int(hkl[-1])
+        if len(hkl) > 3 and "m" in hkl:
+            hkil = ""
+            m_indices = []
+            for index, char in enumerate(hkl):
+                if hkl[index] != "m":
+                    hkil += char
+                else:
+                    m_indices.append(index)
+            if "0" in m_indices:
+                h = -int(hkil[0])
+            else:
+                h = int(hkil[0])
+            if "2" in m_indices:
+                k = -int(hkil[1])
+            else:
+                k = int(hkil[1])
+        else:  # fcc, bcc, and hcp with positive indices ("111", "110", "0001")
+            h, k = int(hkl[0]), int(hkl[1])
+        num_layers = num_layers if num_layers else 3
+        slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        z = {atom.index:atom.position[2] for atom in slab}
+        layers_z = list(set(z.values()))
+        layers_z.sort()
+        num_layers = len(layers_z)
+        slab.set_constraint(FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(num_layers/2)]]))
+        xy_repeat = xy_repeat if xy_repeat else 3
+        slab = slab.repeat((xy_repeat, xy_repeat, 1))
+        delta_vacuum = vacuum if vacuum else 10.0
+        slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, delta_vacuum]], scale_atoms=False)
+        return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=False)
     if mpid and not metal:
         if not os.environ.get("MP_API_KEY"):
             raise ValueError("Materials Project API key not set. Please set your MP_API_KEY environment variable.")
@@ -78,8 +112,7 @@ def load_surface(metal: str = None,
         layers_z = list(set(z.values()))
         layers_z.sort()
         num_layers = len(layers_z)
-        c = FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(num_layers/2)]])
-        slab.set_constraint(c)
+        slab.set_constraint(FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(num_layers/2)]]))
         xy_repeat = xy_repeat if xy_repeat else 3
         slab = slab.repeat((xy_repeat, xy_repeat, 1))
         delta_vacuum = vacuum if vacuum else 10.0

@@ -25,13 +25,14 @@ class Surface:
         self.facet = facet
         self.num_atoms = len(ase_atoms_slab)
         self.from_mp = from_mp
+        self.energy = None
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
 
     @property
     def num_layers(self) -> int:
-        z = {atom.index: atom.position[2] for atom in self.slab}
+        z = {atom.index: round(atom.position[2], 2) for atom in self.slab}
         layers_z = list(set(z.values()))
         return len(layers_z)
 
