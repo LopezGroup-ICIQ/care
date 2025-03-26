@@ -57,13 +57,14 @@ python3 -m pip install .[ocp]
 
 ⏲ 17s (Ubuntu), 19s (macOS)
 
-5. (optional) To employ [MACE](https://github.com/ACEsuit/mace) models as energy evaluator, run:
+5. (optional) To employ [MACE](https://github.com/ACEsuit/mace) and [PET-MAD](https://github.com/lab-cosmo/pet-mad) models as energy evaluator, run:
 
 ```bash
 python3 -m pip install .[mace]
+python3 -m pip install .[petmad]
 ```
 
-⏲ 10s (Ubuntu), 4s (macOS)
+⏲ 20s (Ubuntu), 8s (macOS)
 
 *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
 both evaluators should work correctly if the installation order shown above is followed.*

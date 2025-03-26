@@ -1,5 +1,5 @@
 """
-Interface to MACE models.
+Interface to PET-MAD potential.
 """
 
 from copy import deepcopy
@@ -13,21 +13,20 @@ from care.constants import K_B
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption import place_adsorbate
 
-class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
+class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
-        size: str = "large",
+        version: str = "latest",
         device: str = "cpu",
         fmax: float = 0.05,
         max_steps: int = 100,
         dtype: str = "float32",
         num_configs: int = 1,
-        dispersion: bool=True,
         del_traj: bool = True,
         **kwargs
     ):
-        """Interface to the MACE models family.
+        """Interface to the PET-MAD potential.
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
@@ -41,21 +40,15 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
         """
-        from mace.calculators import mace_mp, MACECalculator
+        from pet_mad.calculator import PETMADCalculator
 
         self.surface = surface
         self.slab_energy = 0.0
-        self.size = size
+        self.version = version
         self.dtype = dtype
         self.device = device
-        self.dispersion = dispersion
-        self.calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=dispersion)
-        if dispersion:
-            dummy_calc = mace_mp(model=self.size, device=self.device, default_dtype=dtype, dispersion=False)
-            self.num_params = sum([p.numel() for p in dummy_calc.models[0].parameters()])
-            del dummy_calc
-        else:
-            self.num_params = sum([p.numel() for p in self.calc.models[0].parameters()])
+        self.calc = PETMADCalculator(version=version, device=device)
+        self.num_params = sum([p.numel() for p in self.calc.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -63,7 +56,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.get_slab_energy()
 
     def __repr__(self) -> str:
-        return f'MACE-MP-0 potential ({self.size}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
+        return f'PET-MAD potential ({self.version}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
 
     def __call__(self,
                  intermediate: Intermediate,
@@ -86,18 +79,12 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
-        try:
-            return [chemical_symbols[i] for i in self.calc.z_table.zs]
-        except:
-            return chemical_symbols
+        return chemical_symbols[1:]
 
     @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
-        try:
-            return [chemical_symbols[i] for i in self.calc.z_table.zs]
-        except:
-            return chemical_symbols
+        return chemical_symbols[1:]
 
     def eval(
         self,
@@ -147,7 +134,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             raise ValueError("Phase not supported by the current estimator.")
 
 
-class MACEReactionEvaluator(ReactionEnergyEstimator):
+class PETMADReactionEvaluator(ReactionEnergyEstimator):
     def __init__(
         self,
         intermediates: dict[str, Intermediate], 

@@ -7,7 +7,7 @@ name = "care"
 version = "0.1.0"
 dependencies = [
   "acat==1.6.8",
-  "ase==3.23.0",
+  "ase==3.24.0",
   "matplotlib==3.8.0",
   "networkx==3.2",
   "numpy==1.26.4",
@@ -55,6 +55,9 @@ ocp = [
 mace = [
     "mace-torch",
     "torch-dftd"
+]
+petmad = [
+    "petmad @ git+https://github.com/lab-cosmo/pet-mad.git",
 ]
 dev = ["pytest", "pytest-cov"]
 
