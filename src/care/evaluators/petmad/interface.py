@@ -30,15 +30,14 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
-            size (str): The size of the model to use among the mace models. Default is "large", available are "small", "medium", and "large".
+            version (str): PET-MAD model version. Default is "latest".
             device (str): The device to use for the calculation. Default is "cpu".
             fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
             max_steps (int): The maximum number of steps for the relaxation. Default is 100.
             dtype (str): The data type to use for the calculation. Default is "float32".
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
-            dispersion (bool): Include dispersion correction. Defaults to True.
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
-                             note that this option may imply 10e6x larger CRN files!
+                             note that this option may imply 10e6x larger CRN objects!
         """
         from pet_mad.calculator import PETMADCalculator
 
