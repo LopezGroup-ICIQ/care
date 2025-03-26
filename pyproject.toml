@@ -54,13 +54,14 @@ ocp = [
 ]
 mace = [
     "mace-torch",
-    "torch-dftd"
+    "torch-dftd",
 ]
 petmad = [
     "petmad @ git+https://github.com/lab-cosmo/pet-mad.git",
 ]
 orb =  [
-    "orb-models == 0.4.2"
+    "orb-models == 0.4.2", 
+    "pynanoflann @ git+https://github.com/u1234x1234/pynanoflann.git@0.0.8",
 ]
 dev = ["pytest", "pytest-cov"]
 

@@ -48,21 +48,21 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN files!
         """
         from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
-        from orb_models.forcefield import pretrained
         from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
 
         if version not in ORB_PRETRAINED_MODELS:
             raise ValueError(f"Version {version} not existing. Choose from {list(ORB_PRETRAINED_MODELS.keys())}.")
+        self.version = version
         self.surface = surface
         self.slab_energy = 0.0
         self.dtype = dtype
         self.device = device
-        self.model = pretrained.orb_v2(device=device)
+        self.model = ORB_PRETRAINED_MODELS[version](device=device)
         self.calc = ORBCalculator(model=self.model, 
                                   brute_force_knn=brute_force_knn, 
                                   system_config=SystemConfig(radius=radius, max_num_neighbors=max_num_neighbors), 
                                   device=device)
-        self.num_params = None  # sum([p.numel() for p in dummy_calc.models[0].parameters()])
+        self.num_params = sum([p.numel() for p in self.calc.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -70,7 +70,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         self.get_slab_energy()
 
     def __repr__(self) -> str:
-        return f'ORB potential ({self.size}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
+        return f'ORB potential ({self.version}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
 
     def __call__(self,
                  intermediate: Intermediate,
@@ -111,7 +111,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
 
         if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
             raise ValueError(
-                f'MACE can only evaluate molecules with {", ".join(self.adsorbate_domain)} elements.'
+                f'ORB can only evaluate molecules with {", ".join(self.adsorbate_domain)} elements.'
             )
         if intermediate.phase == 'gas':  # gas
             molec_eval = deepcopy(intermediate.molecule)

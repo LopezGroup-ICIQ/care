@@ -15,6 +15,6 @@ We provide a [template](./template) folder where you can find the basic classes 
 |------------|------------|------------|------------|------------|------------|
 | GAME-Net-UQ | GNN | DFT scaled adsorption energy |eV| ✅ (bond-breaking steps) | Direct approach
 | Fairchem OC models| MLIP |DFT adsorption energy |eV|  	❌️ (feasible) | Structural relaxation |
-| MACE | MLIP | DFT total energy |eV|  	❌️ (feasible) | Structural relaxation ||
-| PET-MAD | MLIP | DFT total energy |eV| 	❌️ (feasible) | Structural relaxation ||
-
+| MACE | MLIP | DFT total energy |eV| ❌️ (feasible) | Structural relaxation ||
+| PET-MAD | MLIP | DFT total energy |eV| ❌️ (feasible) | Structural relaxation ||
+| ORB | MLIP | DFT total energy |eV| ❌️ (feasible) | Structural relaxation ||

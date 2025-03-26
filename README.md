@@ -12,7 +12,7 @@
     </p>
 </div>
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, and [MACE](https://github.com/ACEsuit/mace) potentials.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, [MACE](https://github.com/ACEsuit/mace), etc.
 
 ## 🪛 Installation
 
@@ -57,11 +57,12 @@ python3 -m pip install .[ocp]
 
 ⏲ 17s (Ubuntu), 19s (macOS)
 
-5. (optional) To employ [MACE](https://github.com/ACEsuit/mace) and [PET-MAD](https://github.com/lab-cosmo/pet-mad) models as energy evaluator, run:
+5. (optional) To employ [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), and [Orb](https://github.com/orbital-materials/orb-models) potentials as energy evaluator, run:
 
 ```bash
 python3 -m pip install .[mace]
 python3 -m pip install .[petmad]
+python3 -m pip install .[orb]
 ```
 
 ⏲ 20s (Ubuntu), 8s (macOS)
