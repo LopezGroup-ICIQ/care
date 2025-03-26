@@ -57,7 +57,7 @@ python3 -m pip install .[ocp]
 
 ⏲ 17s (Ubuntu), 19s (macOS)
 
-5. (optional) To employ [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), and [Orb](https://github.com/orbital-materials/orb-models) potentials as energy evaluator, run:
+5. (optional) To employ [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), and [Orb](https://github.com/orbital-materials/orb-models) potentials as energy evaluators, run:
 
 ```bash
 python3 -m pip install .[mace]

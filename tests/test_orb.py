@@ -7,7 +7,7 @@ from care.evaluators.orb import ORBIntermediateEvaluator
 
 intermediates, rxns = gen_blueprint(1, 1, False, False, False)
 surface = load_surface(metal="Au", hkl="100")
-model_inter = ORBIntermediateEvaluator(surface, version="latest", num_configs=2, max_steps=3)
+model_inter = ORBIntermediateEvaluator(surface, version="orb-v2", num_configs=2, max_steps=3)
 
 class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):

@@ -28,6 +28,7 @@ jobs:
         pip install .[ocp]
         pip install .[mace]
         pip install .[petmad]
+        pip install .[orb]
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
