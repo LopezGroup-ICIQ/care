@@ -17,13 +17,15 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
-        size: str = "large",
+        version: str = "orb-v2",
         device: str = "cpu",
         fmax: float = 0.05,
+        brute_force_knn: bool = None,
+        radius: float = 10.0,
+        max_num_neighbors: int = 20,
         max_steps: int = 100,
         dtype: str = "float32",
         num_configs: int = 1,
-        dispersion: bool=True,
         del_traj: bool = True,
         **kwargs
     ):
@@ -31,29 +33,34 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
-            version (str): The version of the employed ORB potential. Default to.
+            version (str): The version of the employed ORB potential. Default to orb-v2.
             device (str): The device to use for the calculation. Default is "cpu".
             fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
+            brute_force_knn (bool): whether to use a 'brute force' k-nearest neighbors method for graph construction.
+                Defaults to None, in which case brute_force is used if a GPU is available (2-6x faster), but not on CPU (1.5x faster - 4x slower). 
+                For very large systems (>10k atoms), brute_force may OOM on GPU, so it is recommended to set to False in that case.
+            radius (float): The radius to use for the k-nearest neighbors method. Default is 10.0.
+            max_num_neighbors (int): The maximum number of neighbors to consider for the k-nearest neighbors method. Default is 20.
             max_steps (int): The maximum number of steps for the relaxation. Default is 100.
             dtype (str): The data type to use for the calculation. Default is "float32".
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
         """
+        from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
         from orb_models.forcefield import pretrained
-        from orb_models.forcefield.calculator import ORBCalculator
+        from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
 
+        if version not in ORB_PRETRAINED_MODELS:
+            raise ValueError(f"Version {version} not existing. Choose from {list(ORB_PRETRAINED_MODELS.keys())}.")
         self.surface = surface
         self.slab_energy = 0.0
-        self.size = size
         self.dtype = dtype
         self.device = device
-        self.dispersion = dispersion
-
-        self.model = None # pretrained.
+        self.model = pretrained.orb_v2(device=device)
         self.calc = ORBCalculator(model=self.model, 
-                                  brute_force_knn=None, 
-                                  system_config=None, 
+                                  brute_force_knn=brute_force_knn, 
+                                  system_config=SystemConfig(radius=radius, max_num_neighbors=max_num_neighbors), 
                                   device=device)
         self.num_params = None  # sum([p.numel() for p in dummy_calc.models[0].parameters()])
         self.fmax = fmax

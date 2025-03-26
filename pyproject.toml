@@ -59,6 +59,9 @@ mace = [
 petmad = [
     "petmad @ git+https://github.com/lab-cosmo/pet-mad.git",
 ]
+orb =  [
+    "orb-models == 0.4.2"
+]
 dev = ["pytest", "pytest-cov"]
 
 [project.urls]
