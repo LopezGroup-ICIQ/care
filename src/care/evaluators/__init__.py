@@ -136,6 +136,7 @@ from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
 from care.evaluators.ocp import OCPIntermediateEvaluator, OCPReactionEvaluator
 from care.evaluators.mace import MACEIntermediateEvaluator, MACEReactionEvaluator
 from care.evaluators.petmad import PETMADIntermediateEvaluator, PETMADReactionEvaluator
+from care.evaluators.orb import ORBIntermediateEvaluator, ORBReactionEvaluator
 from care.evaluators.gamenet_uq import DB_PATH, METAL_STRUCT_DICT  # here for a reason
 
 eval_dict = {
@@ -143,6 +144,7 @@ eval_dict = {
     "ocp": (OCPIntermediateEvaluator, OCPReactionEvaluator),
     "mace": (MACEIntermediateEvaluator, MACEReactionEvaluator),
     "petmad": (PETMADIntermediateEvaluator, PETMADReactionEvaluator),
+    "orb": (ORBIntermediateEvaluator, ORBReactionEvaluator),
 }
 
 def get_available_evaluators():
