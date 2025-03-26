@@ -57,7 +57,7 @@ mace = [
     "torch-dftd"
 ]
 petmad = [
-    "petmad @ git+https://github.com/lab-cosmo/pet-mad.git",
+    "pet_mad @ git+https://github.com/lab-cosmo/pet-mad.git",
 ]
 dev = ["pytest", "pytest-cov"]
 
