@@ -12,7 +12,7 @@
     </p>
 </div>
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, and [MACE](https://github.com/ACEsuit/mace) potentials.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on heterogenous catalysts. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, and [MACE](https://github.com/ACEsuit/mace) potentials.
 
 ## 🪛 Installation
 

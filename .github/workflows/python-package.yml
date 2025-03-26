@@ -27,6 +27,7 @@ jobs:
         pip install torch_scatter torch_sparse
         pip install .[ocp]
         pip install .[mace]
+        pip install .[petmad]
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
