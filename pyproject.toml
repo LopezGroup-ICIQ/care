@@ -27,6 +27,7 @@ dependencies = [
   "rich",
   "py-cpuinfo",
   "psutil",
+  "dask[complete]==2025.3.0",
 ]
 
 authors = [
