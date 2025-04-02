@@ -1,17 +1,13 @@
-import random
 import unittest
 
 from dask.distributed import Client, LocalCluster
 
-from care import gen_blueprint
 from care.evaluators import load_surface
 from care.evaluators.gamenet_uq import GameNetUQInter, METALS, METAL_STRUCT_DICT, FACET_DICT
+from tests import test_inters, surface
 
-intermediates, _ = gen_blueprint(1, 1, False, False, False)
-surface = load_surface(metal="Pt", hkl="111")
 model_inter = GameNetUQInter(surface, num_configs=2)
-test_inters_seq = random.sample(list(intermediates.values()), 3)
-test_inters_mp = list(intermediates.values())
+
 
 class TestEvaluator(unittest.TestCase):
 
@@ -20,15 +16,15 @@ class TestEvaluator(unittest.TestCase):
         """
         for metal in METALS:
             for facet in FACET_DICT[METAL_STRUCT_DICT[metal]]:
-                surface = load_surface(metal=metal, hkl=facet)
-                assert surface.num_atoms != 0
-                assert surface.vacuum_height >= 10.0
+                test_surface = load_surface(metal=metal, hkl=facet)
+                assert test_surface.num_atoms != 0
+                assert test_surface.vacuum_height >= 10.0
 
     def test_model(self):
         assert model_inter.model.parameters() != None
 
     def test_serial_eval(self):        
-        for inter in test_inters_seq:
+        for inter in test_inters:
             model_inter(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
@@ -42,7 +38,7 @@ class TestEvaluator(unittest.TestCase):
             print(inter.code + "\n")
             model_inter(inter)
             return inter
-        futures = client.map(f, test_inters_mp)
+        futures = client.map(f, test_inters)
         results = client.gather(futures)
         for inter in results:
             if inter.phase == "ads":

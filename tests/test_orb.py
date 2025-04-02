@@ -1,17 +1,13 @@
-import random
 import unittest
 
 from dask.distributed import Client, LocalCluster
 
-from care import gen_blueprint
-from care.evaluators import load_surface
 from care.evaluators.orb import ORBIntermediateEvaluator
+from tests import surface, test_inters
 
 
-intermediates, rxns = gen_blueprint(1, 1, False, False, False)
-surface = load_surface(metal="Au", hkl="100")
 model_inter = ORBIntermediateEvaluator(surface, version="orb-v2", num_configs=2, max_steps=3)
-test_inters = random.sample(list(intermediates.values()), 4)
+
 
 class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):       

@@ -64,6 +64,10 @@ orb =  [
     "orb-models == 0.4.2", 
     "pynanoflann @ git+https://github.com/u1234x1234/pynanoflann.git@0.0.8",
 ]
+sevennet = [
+    "sevenn @ git+https://github.com/MDIL-SNU/SevenNet.git"
+]
+
 dev = ["pytest", "pytest-cov"]
 
 [project.urls]
