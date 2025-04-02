@@ -29,7 +29,6 @@ jobs:
         pip install .[mace]
         pip install .[petmad]
         pip install .[orb]
-        pip install .[sevennet]
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
