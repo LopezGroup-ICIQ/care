@@ -1,20 +1,18 @@
 import unittest
 import pytest
 
-from care.evaluators.sevennet import SevenNetIntermediateEvaluator
 from tests import surface, test_inters
-
-
-model_inter = SevenNetIntermediateEvaluator(surface,
-                                            model="7net-mf-ompa",
-                                            modal="mpa",
-                                            num_configs=2,
-                                            max_steps=2)
 
 
 class TestEvaluator(unittest.TestCase):
     @pytest.mark.skip(reason="Failing only on GitHub Actions. Incompatible with e3nn package across evaluators.")
     def test_serial_eval(self):
+        from care.evaluators.sevennet import SevenNetIntermediateEvaluator
+        model_inter = SevenNetIntermediateEvaluator(surface,
+                                            model="7net-mf-ompa",
+                                            modal="mpa",
+                                            num_configs=2,
+                                            max_steps=2)
         for inter in test_inters:
             model_inter(inter)
             if inter.phase == "ads":
