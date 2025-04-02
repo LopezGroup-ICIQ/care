@@ -3,6 +3,7 @@ Interface to SevenNet potentials.
 """
 
 from copy import deepcopy
+from warnings import warn
 
 from ase.optimize import BFGS
 from ase.data import chemical_symbols
@@ -83,7 +84,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
         self.del_traj = del_traj
         self.get_slab_energy()
 
-        raise Warning(
+        warn(
             "As SevenNet does not support parallelization, do not use for parallel evaluation. ")
 
     def __repr__(self) -> str:
