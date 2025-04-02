@@ -10,7 +10,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.11
+    - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
         python-version: '3.12'
@@ -29,6 +29,7 @@ jobs:
         pip install .[mace]
         pip install .[petmad]
         pip install .[orb]
+        pip install .[sevennet]
     - name: Install Julia and dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
