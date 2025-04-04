@@ -390,18 +390,14 @@ class GameNetUQRxn(ReactionEnergyEstimator):
     
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
-        Given the bond-breaking reaction, detect the broken bond in the
-        transition state and label the corresponding edge.
-        Given A* + * -> B* + C* and the bond-breaking type X-Y, take the graph of A*,
-        break all the potential X-Y bonds and perform isomorphism with B* + C*.
-        When isomorphic, the broken edge is labelled.
+        Generate transition state graph representing the surface bon-breaking
+        elementary reaction A* + * -> B* + C*.
 
         Args:
-            graph (Data): adsorption graph of the intermediate which is fragmented in the reaction.
-            reaction (ElementaryReaction): Bond-breaking reaction.
+            step (ElementaryReaction): Bond-breaking reaction
 
         Returns:
-            Data: graph with the broken bond labeled.
+            Data: graph representing the TS graph
         """
 
         if not isinstance(step, BondBreaking):
@@ -500,9 +496,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         adsorbate_node_indices = list(set(adsorbate_node_indices))
         node_indices_B = list(set(node_indices_B))
         node_indices_C = list(set(node_indices_C))
-        # print("adsorbate indices:", adsorbate_node_indices)
-        # print("node_indices_B:", node_indices_B)
-        # print("node_indices_C:", node_indices_C)
 
         # 5) Find which of the two fragments is not connected to the surface
         connected_to_B, connected_to_C = False, False
@@ -518,20 +511,16 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 or (edge_idxs[1] in node_indices_C and edge_idxs[0] not in adsorbate_node_indices)
             ):
                 connected_to_C = True
-        # print("connected_to_B:", connected_to_B)
-        # print("connected_to_C:", connected_to_C)
 
-        # Find surface atom to connect to the unconnected fragment
+        # 6) Find surface atom to connect to the unconnected fragment
         # Select the 2-hop surface atom with lowest coordination number
-        min_gcn_idx = 1.0
-        min_gcn = 1.0
+        min_gcn_idx, min_gcn = 1, 1.0
         for idx in ts_graph.surf_hops[2]: # Avoid surface atoms already interacting with the adsorbate
             if ts_graph.x[ts_graph.idx.index(idx), -1] < min_gcn:
                 min_gcn = ts_graph.x[ts_graph.idx.index(idx), -1]
                 min_gcn_idx = ts_graph.idx.index(idx)
-        # print("min_gcn_idx:", min_gcn_idx)
 
-        # 6) Add undirected edge between unconnected fragment and surface atom
+        # 7) Add undirected edge between unconnected fragment and surface atom
         if not connected_to_B:
             ts_graph.edge_index = cat(
                 (ts_graph.edge_index, tensor([[u, min_gcn_idx], [min_gcn_idx, u]])), dim=1
@@ -539,7 +528,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             ts_graph.edge_attr = cat(
                 (ts_graph.edge_attr, tensor([[0], [0]])), dim=0
             )
-            print("added edge between fragment B and surface atom")
         if not connected_to_C:
             ts_graph.edge_index = cat(
                 (ts_graph.edge_index, tensor([[v, min_gcn_idx], [min_gcn_idx, v]])), dim=1
@@ -547,15 +535,12 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             ts_graph.edge_attr = cat(
                 (ts_graph.edge_attr, tensor([[0], [0]])), dim=0
             )
-            print("added edge between fragment C and surface atom")
 
-        # 7) Remove from total graph the surface atoms which are not within the 2-hop neighborhood
+        # 8) Remove from total graph the surface atoms which are not within the 2-hop neighborhood
         atoms_to_keep = []
         for i in range(ts_graph.x.shape[0]):
             if ts_graph.idx[i] in ts_graph.surf_hops[0] + ts_graph.surf_hops[1] + ts_graph.surf_hops[2]:
                 atoms_to_keep.append(i)
-        if len(atoms_to_keep) == i+1:
-            print("WARNING!!! No surface atoms in the graph.")
         g = ts_graph.subgraph(tensor(atoms_to_keep))
         surf_hops_keys_to_delete = list(g.surf_hops.keys())
         for key in surf_hops_keys_to_delete:
