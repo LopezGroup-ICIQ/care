@@ -3,7 +3,6 @@ Module containing a set of filter functions for graphs in the Geometric PyTorch 
 These filters are applied before the inclusion of the graphs in the HetGraphDataset objects.
 """
 
-import torch
 from ase import Atoms
 from networkx import cycle_basis, is_connected
 from torch import tensor
@@ -43,7 +42,7 @@ def extract_adsorbate(graph: Data, adsorbate_elems: list[str]) -> bool:
     return graph.subgraph(tensor(adsorbate_nodes))
 
 
-def is_ring(graph: Data, adsorbate_elems) -> bool:
+def is_ring(graph: Data, adsorbate_elems: list[str]) -> bool:
     """Check if the graph contains a ring."""
     adsorbate = extract_adsorbate(graph, adsorbate_elems)
     graph_nx = to_networkx(adsorbate, to_undirected=True)
@@ -68,27 +67,12 @@ def H_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
         (bool): True = Correct connectivity for all H atoms in the adsorbate
                 False = Bad connectivity for at least one H atom in the adsorbate
     """
-    # 1) Get indices of adsorbate atoms in the one-hot encoder
-    adsorbate_elems_indices = [
-        graph.node_feats.index(element) for element in adsorbate_elems
-    ]
-    H_index = graph.node_feats.index("H")
-    # 2) Find indices of hydrogen (H) nodes in the graph
-    H_nodes_indexes = []
-    for i in range(graph.num_nodes):
-        if graph.x[i, H_index] == 1:
-            H_nodes_indexes.append(i)
-    # 3) Apply filter to H nodes (Just one bad connected H makes the whole graph wrong)
-    for node_index in H_nodes_indexes:
+    H_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "H"]
+    for node_index in H_nodes_indices:
         counter = 0  # edges between H and atoms in the adsorbate
         for j in range(graph.num_edges):
-            if (
-                node_index == graph.edge_index[0, j]
-            ):  # NB: in PyG each edge repeated twice to have undirected graph
-                other_atom = torch.where(graph.x[graph.edge_index[1, j], :] == 1)[0][
-                    0
-                ].item()
-                counter += 1 if other_atom in adsorbate_elems_indices else 0
+            if graph.edge_index[0, j] == node_index:
+                counter += 1 if graph.elem[graph.edge_index[1, j]] in adsorbate_elems else 0
         if counter > 1:
             print("H connectivity filter failed for {}".format(graph.formula))
             return False
@@ -107,26 +91,12 @@ def C_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
         (bool): True = Correct connectivity for all C atoms in the molecule
                 False = Bad connectivity for at least one C atom in the molecule
     """
-    # 1) Get indices of molecule atoms in the one-hot encoder
-    adsorbate_elems_indices = [
-        graph.node_feats.index(element) for element in adsorbate_elems
-    ]
-    C_index = adsorbate_elems_indices[graph.node_feats.index("C")]
-    # 2) Find indices of carbon (C) nodes in the graph
-    C_nodes_indices = [
-        index for index in range(graph.num_nodes) if graph.x[index, C_index] == 1
-    ]
-    # 3) Apply filter to C nodes (Just one bad connected C makes the whole graph wrong)
+    C_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "C"]
     for node_index in C_nodes_indices:
         counter = 0  # number of edges between C and atoms belonging to molecule
         for j in range(graph.num_edges):
-            if (
-                node_index == graph.edge_index[0, j]
-            ):  # NB: in PyG each edge repeated twice in order to have undirected graph
-                other_atom = torch.where(graph.x[graph.edge_index[1, j], :] == 1)[0][
-                    0
-                ].item()
-                counter += 1 if other_atom in adsorbate_elems_indices else 0
+            if graph.edge_index[0, j] == node_index:
+                counter += 1 if graph.elem[graph.edge_index[1, j]] in adsorbate_elems else 0
         if counter > 4:
             print("C connectivity filter failed for {}".format(graph.formula))
             return False

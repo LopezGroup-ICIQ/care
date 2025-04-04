@@ -4,7 +4,6 @@ from ASE Atoms objects to PyG Data format.
 """
 
 from itertools import product
-from typing import Union
 
 import numpy as np
 import torch
@@ -105,7 +104,7 @@ def atoms_to_nx(
     atoms: Atoms,
     voronoi_tolerance: float,
     scaling_factor: float,
-    second_order: bool,
+    surface_order: int,
     adsorbate_elements: list[str],
     mode: str,
 ) -> Graph:
@@ -116,6 +115,8 @@ def atoms_to_nx(
         atoms (Atoms): ASE Atoms object representing the adsorbate-metal system.
         voronoi_tolerance (float): tolerance for the distance between two atoms to be considered connected.
         scaling_factor (float): scaling factor for the covalent radii of the surface atoms.
+        surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
+                            all surface slab is included.
         adsorbate_elements (list[str]): list of elements present in the adsorbate.
         mode (str): whether the graph is created for the TS or the reactant/product. Default to 'ts'.
                     In case of 'ts', the graph will include an edge feature representing the broken bond.
@@ -152,33 +153,24 @@ def atoms_to_nx(
             ads_graph.add_edge(missing_edge[0], missing_edge[1])
             components = list(connected_components(ads_graph))
 
-    # 2) Get surface atoms that are neighbours of the adsorbate
-    surface_neighbours_idxs = {
-        pair[1] if pair[0] in adsorbate_idxs else pair[0]
-        for pair in neighbour_list
-        if (pair[0] in adsorbate_idxs and pair[1] not in adsorbate_idxs)
-        or (pair[1] in adsorbate_idxs and pair[0] not in adsorbate_idxs)
-    }
-
-    if second_order:
-        # 2.1) Get surface atoms that are neighbours of the adsorbate's surface neighbours
-        surface_neighbours_idxs = surface_neighbours_idxs.union(
-            {
-                pair[1] if pair[0] in surface_neighbours_idxs else pair[0]
-                for pair in neighbour_list
-                if (
-                    pair[0] in surface_neighbours_idxs and pair[1] not in adsorbate_idxs
-                )
-                or (
-                    pair[1] in surface_neighbours_idxs and pair[0] not in adsorbate_idxs
-                )
-            }
-        )
-
-    ensemble_idxs = adsorbate_idxs.union(surface_neighbours_idxs)
+    if surface_order == -1:
+        surface_order = 100    
+    adsorption_ensemble  = {atom.index for atom in atoms if atom.symbol in adsorbate_elements}
+    surf_hops = {0: list(adsorption_ensemble)}
+    for _ in range(surface_order):
+        surface_ensemble = {
+            pair[1] if pair[0] in adsorption_ensemble else pair[0]
+            for pair in neighbour_list
+            if (pair[0] in adsorption_ensemble and pair[1] not in adsorption_ensemble)
+            or (pair[1] in adsorption_ensemble and pair[0] not in adsorption_ensemble)
+        }
+        surf_hops[_ + 1] = list(surface_ensemble)
+        adsorption_ensemble = adsorption_ensemble.union(surface_ensemble)
+        if len(adsorption_ensemble) == len(atoms):
+            break
     # 3) Construct graph with the atoms in the ensemble
     graph = Graph()
-    graph.add_nodes_from(list(ensemble_idxs))
+    graph.add_nodes_from(list(adsorption_ensemble))
     set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "elem")
     ensemble_neighbour_list = [
         pair
@@ -186,7 +178,7 @@ def atoms_to_nx(
         if pair[0] in graph.nodes() and pair[1] in graph.nodes()
     ]
     graph.add_edges_from(ensemble_neighbour_list, ts_edge=0)
-    return graph, list(surface_neighbours_idxs), None
+    return graph, None, surf_hops
 
 
 def atoms_to_pyg(
@@ -194,7 +186,7 @@ def atoms_to_pyg(
     calc_type: str,
     voronoi_tol: float,
     scaling_factor: float,
-    second_order: bool,
+    surface_order: int,
     one_hot_encoder: OneHotEncoder,
     adsorbate_elems: list[str] = ["C", "H", "O", "N", "S"],
 ) -> Data:
@@ -221,12 +213,13 @@ def atoms_to_pyg(
     if calc_type not in ["int", "ts"]:
         raise ValueError("calc_type must be either 'int' or 'ts'.")
     if all(atoms[i].symbol in adsorbate_elems for i in range(len(atoms))):
-        nx, surface_neighbors, bb_idxs = atoms_to_graph(atoms), None, None
+        nx, bb_idxs, surf_hops = atoms_to_graph(atoms), None, {0: list(range(len(atoms)))}
     else:
-        nx, surface_neighbors, bb_idxs = atoms_to_nx(
-            atoms, voronoi_tol, scaling_factor, second_order, adsorbate_elems, calc_type
+        nx, bb_idxs, surf_hops = atoms_to_nx(
+            atoms, voronoi_tol, scaling_factor, surface_order, adsorbate_elems, calc_type
         )
     elem_list = list(get_node_attributes(nx, "elem").values())
+    idx_list = list(get_node_attributes(nx, "elem").keys())
     elem_array = np.array(elem_list).reshape(-1, 1)
     elem_enc = one_hot_encoder.transform(elem_array).toarray()
     x = torch.from_numpy(elem_enc).float()
@@ -239,11 +232,12 @@ def atoms_to_pyg(
     edge_index = torch.tensor([edge_tails, edge_heads], dtype=torch.long)
     # edge attributes
     edge_attr = torch.zeros(edge_index.shape[1], 1)
-    return Data(x, edge_index, edge_attr, elem=elem_list), surface_neighbors, bb_idxs
+    return Data(x, edge_index, edge_attr, elem=elem_list, idx=idx_list, surf_hops=surf_hops), bb_idxs
 
 
 def atoms_to_data(
-    structure: Atoms, graph_params: dict[str, Union[float, int, bool]]
+    structure: Atoms, 
+    surface_order: int = 2,
 ) -> Data:
     """
     Convert ASE Atoms object to PyG Data graph based on the input parameters.
@@ -253,8 +247,8 @@ def atoms_to_data(
 
     Args:
         structure (Atoms): ASE atoms object.
-        graph_params (dict): Dictionary containing the information for the graph generation in the format:
-                            {"tolerance": float, "scaling_factor": float, "metal_hops": int, "second_order_nn": bool}
+        surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
+                            all surface slab is included.
     Returns:
         graph (Data): PyG Data object.
     """
@@ -263,41 +257,27 @@ def atoms_to_data(
     if not isinstance(structure, Atoms):
         raise TypeError("Structure type must be ase.Atoms")
 
-    elements_list = list(set(structure.get_chemical_symbols()))
-    if not all(elem in ELEMENT_DOMAIN for elem in elements_list):
-        raise ValueError(
-            "Not all species in the structure can be processed by the model."
-        )
-
-    formula = structure.get_chemical_formula()
-    node_features_list = ELEMENT_DOMAIN
-    for key, value in graph_params["features"].items():
-        if value:
-            node_features_list.append(key.upper())
-
     # GRAPH STRUCTURE GENERATION
-    graph, surf_atoms, _ = atoms_to_pyg(
+    graph, _ = atoms_to_pyg(
         structure,
         "int",
-        graph_params["structure"]["tolerance"],
-        graph_params["structure"]["scaling_factor"],
-        graph_params["structure"]["second_order"],
+        0.25,
+        1.25,
+        surface_order,
         ONE_HOT_ENCODER_NODES,
         ADSORBATE_ELEMS,
     )
-    graph.node_feats = node_features_list
-    graph.formula = formula
+    graph.node_feats = ELEMENT_DOMAIN + ["gcn"]
+    graph.formula = structure.get_chemical_formula()
 
     # GRAPH FILTERING
     if not H_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(formula))
+        raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(graph.formula))
     if not C_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Wrong C connectivity in the adsorbate".format(formula))
+        raise ValueError("{}: Wrong C connectivity in the adsorbate".format(graph.formula))
     if not fragment_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Fragmented adsorbate.".format(formula))
+        raise ValueError("{}: Fragmented adsorbate.".format(graph.formula))
 
     # NODE FEATURIZATION
-    if graph_params["features"]["gcn"]:
-        graph = get_gcn(graph, structure, ADSORBATE_ELEMS, surf_atoms)
-
-    return graph
+    graph_new = get_gcn(graph, structure, ADSORBATE_ELEMS)
+    return graph_new

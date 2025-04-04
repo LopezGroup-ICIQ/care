@@ -10,7 +10,7 @@ from ase.db import connect
 from copy import deepcopy
 import networkx as nx
 import numpy as np
-from torch import no_grad, where, cuda
+from torch import no_grad, cuda, tensor, cat
 from torch_geometric.data import Data
 
 from care import Intermediate, ElementaryReaction, Surface
@@ -141,7 +141,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             intermediate.ads_configs = {
                 f"dft": {
                     "ase": stable_conf[-1][0],
-                    "pyg": atoms_to_data(stable_conf[-1][0], self.model.graph_params),
+                    "pyg": atoms_to_data(stable_conf[-1][0]),
                     "mu": stable_conf[-1][1],
                     "s": 0,
                 }
@@ -182,7 +182,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             else:
                 config = intermediate.molecule
                 with no_grad():
-                    pyg = atoms_to_data(config, self.model.graph_params)
+                    pyg = atoms_to_data(config)
                     pyg = pyg.to(self.device)
                     y = self.model(pyg)
                     intermediate.ads_configs = {
@@ -208,7 +208,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ads_config_dict[f"{i}"] = {}
                         ads_config_dict[f"{i}"]["ase"] = adsorption
                         ads_config_dict[f"{i}"]["pyg"] = atoms_to_data(
-                            adsorption, self.model.graph_params
+                            adsorption
                         )
                         y = self.model(ads_config_dict[f"{i}"]["pyg"])
                         ads_config_dict[f"{i}"]["mu"] = (
@@ -387,8 +387,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         else:  # with barrier
             e_act_var = (reaction.e_ts[1] ** 2 + reaction.e_is[1] ** 2) ** 0.5
         reaction.e_act = e_act_mu, e_act_var
-
-
+    
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
         Given the bond-breaking reaction, detect the broken bond in the
@@ -409,26 +408,23 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             raise ValueError("Input reaction must be a bond-breaking reaction.")
         bond = tuple(step.r_type.split("-"))
 
-        # Select reaction component with unfragmented adsorbate (A* + *)
-        inters = {
-            inter.code: inter.graph.number_of_edges()
-            for inter in list(step.reactants) + list(step.products)
-            if not inter.is_surface
-        }
-        inter_code = max(inters, key=inters.get)
-        criterion = 's' if self.use_uq else 'mu'
+        # 1) Select unfragmented adsorbate A*
+        A_code = [
+            inter.code for inter in list(step.reactants) if not inter.is_surface
+        ][0]
         idx = min(
-            self.intermediates[inter_code].ads_configs,
-            key=lambda x: self.intermediates[inter_code].ads_configs[x][criterion],
+            self.intermediates[A_code].ads_configs,
+            key=lambda x: self.intermediates[A_code].ads_configs[x]['s' if self.use_uq else 'mu'],
         )
-        ts_graph = deepcopy(self.intermediates[inter_code].ads_configs[idx]["pyg"])
+        ts_graph = atoms_to_data(self.intermediates[A_code].ads_configs[idx]["ase"], 
+                                 surface_order=-1)  # whole graph
         competitors = [
             inter
-            for inter in list(step.reactants) + list(step.products)
-            if not inter.is_surface and inter.code != inter_code
+            for inter in list(step.products)
+            if not inter.is_surface
         ]
 
-        # Build the NetworkX graph of the other reaction component (B* + C*)
+        # 2) Build the NetworkX graph of the reaction component B* + C*
         if len(competitors) == 1:
             if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
                 nx_bc = [competitors[0].graph, competitors[0].graph]
@@ -439,25 +435,21 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 nx_bc = competitors[0].graph
             else:
                 raise ValueError("Reaction stoichiometry not supported.")
-        else:  # A* -> B* + C* (B and C are different)
+        else:  # A* -> B* + C* (B and C different)
             nx_bc = [competitors[0].graph, competitors[1].graph]
             mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
             nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
             nx_bc = nx.compose(nx_bc[0], nx_bc[1])
 
-        # Look for potential edges to break
-        def atom_symbol(idx):
-            return ts_graph.node_feats[where(ts_graph.x[idx] == 1)[0].item()]
-
         potential_edges = []
         for i in range(ts_graph.edge_index.shape[1]):
             edge_idxs = ts_graph.edge_index[:, i]
-            atom1, atom2 = atom_symbol(edge_idxs[0]), atom_symbol(edge_idxs[1])
+            atom1, atom2 = ts_graph.elem[edge_idxs[0]], ts_graph.elem[edge_idxs[1]]
             if (atom1, atom2) == bond or (atom2, atom1) == bond:
                 potential_edges.append(i)
 
+        # 3) Find TS edge via isomorphic comparison
         counter = 0
-        # Find correct one via isomorphic comparison
         while True:
             data = deepcopy(ts_graph)
             u, v = data.edge_index[:, potential_edges[counter]]
@@ -480,7 +472,96 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 break
             else:
                 counter += 1
-        return ts_graph
+
+        # 4) Assign each adsorbate node to one of the two fragments B* or C*
+        adsorbate_node_indices = [
+            i for i in range(ts_graph.x.shape[0]) if ts_graph.elem[i] in ADSORBATE_ELEMS
+        ]
+        node_indices_B, node_indices_C = [u.item()], [v.item()]
+        for adsorbate_node_index in adsorbate_node_indices:
+            if adsorbate_node_index in node_indices_B or adsorbate_node_index in node_indices_C:
+                continue
+            else:
+                # check if the node is connected to node_indices_B or node_indices_C
+                for i in range(ts_graph.edge_index.shape[1]):
+                    edge_idxs = ts_graph.edge_index[:, i]
+                    if (
+                        (edge_idxs[0] == adsorbate_node_index and edge_idxs[1] in node_indices_B)
+                        or (edge_idxs[1] == adsorbate_node_index and edge_idxs[0] in node_indices_B)
+                    ):
+                        node_indices_B.append(adsorbate_node_index)
+                        break
+                    elif (
+                        (edge_idxs[0] == adsorbate_node_index and edge_idxs[1] in node_indices_C)
+                        or (edge_idxs[1] == adsorbate_node_index and edge_idxs[0] in node_indices_C)
+                    ):
+                        node_indices_C.append(adsorbate_node_index)
+                        break
+        adsorbate_node_indices = list(set(adsorbate_node_indices))
+        node_indices_B = list(set(node_indices_B))
+        node_indices_C = list(set(node_indices_C))
+        # print("adsorbate indices:", adsorbate_node_indices)
+        # print("node_indices_B:", node_indices_B)
+        # print("node_indices_C:", node_indices_C)
+
+        # 5) Find which of the two fragments is not connected to the surface
+        connected_to_B, connected_to_C = False, False
+        for i in range(ts_graph.edge_index.shape[1]):
+            edge_idxs = ts_graph.edge_index[:, i]
+            if (
+                (edge_idxs[0] in node_indices_B and edge_idxs[1] not in adsorbate_node_indices)
+                or (edge_idxs[1] in node_indices_B and edge_idxs[0] not in adsorbate_node_indices)
+            ):
+                connected_to_B = True
+            if (
+                (edge_idxs[0] in node_indices_C and edge_idxs[1] not in adsorbate_node_indices)
+                or (edge_idxs[1] in node_indices_C and edge_idxs[0] not in adsorbate_node_indices)
+            ):
+                connected_to_C = True
+        # print("connected_to_B:", connected_to_B)
+        # print("connected_to_C:", connected_to_C)
+
+        # Find surface atom to connect to the unconnected fragment
+        # Select the 2-hop surface atom with lowest coordination number
+        min_gcn_idx = 1.0
+        min_gcn = 1.0
+        for idx in ts_graph.surf_hops[2]: # Avoid surface atoms already interacting with the adsorbate
+            if ts_graph.x[ts_graph.idx.index(idx), -1] < min_gcn:
+                min_gcn = ts_graph.x[ts_graph.idx.index(idx), -1]
+                min_gcn_idx = ts_graph.idx.index(idx)
+        # print("min_gcn_idx:", min_gcn_idx)
+
+        # 6) Add undirected edge between unconnected fragment and surface atom
+        if not connected_to_B:
+            ts_graph.edge_index = cat(
+                (ts_graph.edge_index, tensor([[u, min_gcn_idx], [min_gcn_idx, u]])), dim=1
+            )
+            ts_graph.edge_attr = cat(
+                (ts_graph.edge_attr, tensor([[0], [0]])), dim=0
+            )
+            print("added edge between fragment B and surface atom")
+        if not connected_to_C:
+            ts_graph.edge_index = cat(
+                (ts_graph.edge_index, tensor([[v, min_gcn_idx], [min_gcn_idx, v]])), dim=1
+            )
+            ts_graph.edge_attr = cat(
+                (ts_graph.edge_attr, tensor([[0], [0]])), dim=0
+            )
+            print("added edge between fragment C and surface atom")
+
+        # 7) Remove from total graph the surface atoms which are not within the 2-hop neighborhood
+        atoms_to_keep = []
+        for i in range(ts_graph.x.shape[0]):
+            if ts_graph.idx[i] in ts_graph.surf_hops[0] + ts_graph.surf_hops[1] + ts_graph.surf_hops[2]:
+                atoms_to_keep.append(i)
+        if len(atoms_to_keep) == i+1:
+            print("WARNING!!! No surface atoms in the graph.")
+        g = ts_graph.subgraph(tensor(atoms_to_keep))
+        surf_hops_keys_to_delete = list(g.surf_hops.keys())
+        for key in surf_hops_keys_to_delete:
+            if key not in [0, 1, 2]:
+                del g.surf_hops[key]  
+        return g
 
     def eval(
         self,
@@ -495,15 +576,14 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         with no_grad():
             self.calc_reaction_energy(reaction)
             if isinstance(reaction, BondBreaking):  # GNN evaluates TS from bond-breaking direction
-                try:
-                    y = self.model(self.ts_graph(reaction).to(self.device))  # scaled output
-                    y_ts = y.mean.item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale.item() * self.model.y_scale_params["std"]
-                    if y_ts[0] > reaction.e_is[0] and y_ts[0] > reaction.e_fs[0]:  # correct predicted TS between IS and FS
-                        reaction.e_ts = y_ts
-                    else: # wrong predicted TS between IS and FS, collapse to barrierless
-                        reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
-                except:
-                    print("Error in transition state for {}.".format(reaction.code))
+                ts_graph = self.ts_graph(reaction).to(self.device)  # unscaled output
+                reaction.graph = ts_graph
+                y = self.model(ts_graph)  # scaled output
+                y_ts = y.mean.item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale.item() * self.model.y_scale_params["std"]
+                if y_ts[0] > reaction.e_is[0] and y_ts[0] > reaction.e_fs[0]:  # correct predicted TS between IS and FS
+                    reaction.e_ts = y_ts
+                else: # wrong predicted TS between IS and FS, collapse to barrierless
+                    reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
             else:  # barrierless, e_ts collapses to the highest among e_is and e_ts
                 reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
             self.calc_reaction_barrier(reaction)

@@ -1,5 +1,5 @@
 """
-Node featuruzation for PyG
+Node featurization for adsorption graphs.
 """
 
 import torch
@@ -13,7 +13,6 @@ def get_gcn(
     graph: Data,
     atoms: Atoms,
     adsorbate_elements: list[str],
-    surface_neighbours: list[int],
 ) -> Data:
     """
     Return the (normalized) generalized coordination number (gcn) for each surface atom in the ASE Atoms object.
@@ -32,52 +31,45 @@ def get_gcn(
         Data: PyG Data object with the gcn as a node feature. Data.x.shape[1] increases by 1.
                 Data.node_feats is also updated.
     """
-    if all(graph.elem[i] in adsorbate_elements for i in range(len(graph.elem))):
+    if all(graph.elem[i] in adsorbate_elements for i in range(graph.num_nodes)):
         graph.x = torch.cat((graph.x, torch.zeros((graph.x.shape[0], 1))), dim=1)
-        graph.node_feats.append("gcn")
-        return graph
-    y = get_voronoi_neighbourlist(
-        atoms, 0.5, 1.0, adsorbate_elements
-    )  # only slab atoms are considered
-    adsorbate_elements_indices = [
-        graph.node_feats.index(element) for element in adsorbate_elements
-    ]
-    neighbour_dict = {}
-    for idx, atom in enumerate(atoms):
-        cn = 0
-        neighbour_list = []
-        for row in y:
-            if idx in row:
-                neighbour_index = row[0] if row[0] != idx else row[1]
-                if atoms[neighbour_index].symbol not in adsorbate_elements:
-                    cn += 1
-                    neighbour_list.append(
-                        (
-                            atoms[neighbour_index].symbol,
-                            neighbour_index,
-                            atoms[neighbour_index].position[2],
+    else:
+        y = get_voronoi_neighbourlist(
+            atoms, 0.5, 1.0, adsorbate_elements
+        )  # focus only on catalyst atoms
+        neighbour_dict = {}
+        for idx, atom in enumerate(atoms):
+            cn = 0
+            neighbour_list = []
+            for row in y:
+                if idx in row:
+                    neighbour_index = row[0] if row[0] != idx else row[1]
+                    if atoms[neighbour_index].symbol not in adsorbate_elements:
+                        cn += 1
+                        neighbour_list.append(
+                            (
+                                atoms[neighbour_index].symbol,
+                                neighbour_index,
+                                atoms[neighbour_index].position[2],
+                            )
                         )
-                    )
-            else:
+                else:
+                    continue
+            neighbour_dict[idx] = (cn, atom.symbol, neighbour_list)
+        max_cn = max([neighbour_dict[i][0] for i in neighbour_dict.keys()])
+        gcn_dict = {}
+        for idx in neighbour_dict.keys():
+            if atoms[idx].symbol in adsorbate_elements:
+                gcn_dict[idx] = (None, neighbour_dict[idx][0])
                 continue
-        neighbour_dict[idx] = (cn, atom.symbol, neighbour_list)
-    max_cn = max([neighbour_dict[i][0] for i in neighbour_dict.keys()])
-    gcn_dict = {}
-    for idx in neighbour_dict.keys():
-        if atoms[idx].symbol in adsorbate_elements:
-            gcn_dict[idx] = (None, neighbour_dict[idx][0])
-            continue
-        cn_sum = 0.0
-        for neighbour in neighbour_dict[idx][2]:
-            cn_sum += neighbour_dict[neighbour[1]][0]
-        gcn_dict[idx] = (cn_sum / max_cn**2, neighbour_dict[idx][0])
-    gcn = torch.zeros((graph.x.shape[0], 1))
-    counter = 0
-    for i, node in enumerate(graph.x):
-        index = torch.where(node == 1)[0][0].item()
-        if index not in adsorbate_elements_indices:
-            gcn[i] = gcn_dict[surface_neighbours[counter]][0]
-            counter += 1
-    graph.x = torch.cat((graph.x, gcn), dim=1)
-    graph.node_feats.append("gcn")
+            cn_sum = 0.0
+            for neighbour in neighbour_dict[idx][2]:
+                cn_sum += neighbour_dict[neighbour[1]][0]
+            gcn_dict[idx] = (cn_sum / max_cn**2, neighbour_dict[idx][0])
+
+        gcn = torch.zeros((graph.x.shape[0], 1))
+        for i, _ in enumerate(graph.x):
+            if graph.elem[i] not in adsorbate_elements:
+                gcn[i] = gcn_dict[graph.idx[i]][0]
+        graph.x = torch.cat((graph.x, gcn), dim=1)
     return graph

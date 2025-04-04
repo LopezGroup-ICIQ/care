@@ -51,12 +51,14 @@ def load_model(path: str) -> Module:
     """
     Load GAME-Net-UQ model.
     """
+    from copy import deepcopy
     with open(path + "/input.txt", "r") as f:
         config_dict = eval(f.read())
+        config_dict["graph"]["structure"]["surface_order"] = 2
     target_scaling_params = get_mean_std_from_model(path)
     model = GameNetUQ(20, 192)
     model.load_state_dict(load(path + "/GNN.pth", weights_only=True))
     model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
     model.eval()
-    model.graph_params = config_dict["graph"]
+    model.graph_params = deepcopy(config_dict["graph"])
     return model
