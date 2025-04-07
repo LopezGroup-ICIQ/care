@@ -225,54 +225,32 @@ class SevenNetReactionEvaluator(ReactionEnergyEstimator):
             reaction (ElementaryReaction): Elementary reaction.
         """
         mu_is, mu_fs = 0.0, 0.0        
-        for reactant in reaction.reactants:
-            if reactant.is_surface:
+        for species in list(reaction.reactants) + list(reaction.products):
+            if species.is_surface:
                 continue
-            elif isinstance(reactant, Electron):  # Electrochemical conditions
-                mu_is += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+            elif isinstance(species, Electron):  # Electrochemical conditions
+                mu_is += abs(min(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+                mu_fs += abs(max(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
                 continue
-            elif isinstance(reactant, (Water, Proton)):  # Electrochemical conditions
-                reactant_formula = "H2O" if isinstance(reactant, Water) else "H2"
+            elif isinstance(species, (Water, Proton)):  # Electrochemical conditions
+                species_formula = "H2O" if isinstance(species, Water) else "H2"
+                x = 0.5 if species_formula == "H2" else 1.0
                 gas_inter = [
                     inter
                     for inter in self.intermediates.values()
-                    if inter.formula == reactant_formula and inter.phase == "gas"
+                    if inter.formula == species_formula and inter.phase == "gas"
                 ][0]
-                x = 0.5 if reactant_formula == "H2" else 1.0
                 energy_list = [
                     config["mu"] * x for config in gas_inter.ads_configs.values()
                 ]
             else:
                 energy_list = [
                     config["mu"]
-                    for config in self.intermediates[reactant.code].ads_configs.values()
+                    for config in self.intermediates[species.code].ads_configs.values()
                 ]
             e_min_config = min(energy_list)
-            mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
-        for product in reaction.products:
-            if product.is_surface:       
-                continue
-            elif isinstance(product, Electron):  # Electrochemical conditions
-                mu_fs += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
-                continue
-            elif isinstance(product, (Water, Proton)):  # Electrochemical conditions
-                product_formula = "H2O" if isinstance(product, Water) else "H2"
-                gas_inter = [
-                    inter
-                    for inter in self.intermediates.values()
-                    if inter.formula == product_formula and inter.phase == "gas"
-                ][0]
-                x = 0.5 if product_formula == "H2" else 1.0
-                energy_list = [
-                    config["mu"] * x for config in gas_inter.ads_configs.values()
-                ] 
-            else:
-                energy_list = [
-                    config["mu"]
-                    for config in self.intermediates[product.code].ads_configs.values()
-                ]
-            e_min_config = min(energy_list)
-            mu_fs += abs(reaction.stoic[product.code]) * e_min_config
+            mu_is += abs(min(0, reaction.stoic[species.code])) * e_min_config
+            mu_fs += abs(max(0, reaction.stoic[species.code])) * e_min_config
         reaction.e_is = mu_is, 0.0
         reaction.e_fs = mu_fs, 0.0
         reaction.e_rxn = mu_fs - mu_is, 0.0
