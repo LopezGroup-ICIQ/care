@@ -124,6 +124,7 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
         self,
         intermediates: dict[str, Intermediate],
         T: float = 298.0,
+        electrode: str = "SHE",
         pH: float = 7.0,
         U: float = 0.0,
         **kwargs
@@ -135,6 +136,9 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
         Args:
             intermediates (dict): Dictionary of intermediates already evaluated.
             T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
+            electrode (str): Electrode potential. Required for electrochemical reactions. It can be 
+                                SHE (Standard Hydrogen Electrode) or RHE (Reversible Hydrogen Electrode).
+                                Defaults to SHE. With RHE, T and pH are not required.
             pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
             U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
         """
@@ -143,6 +147,11 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
         self.pH = pH
         self.U = U
         self.T = T
+        self.electrode = electrode
+        if self.electrode not in ["SHE", "RHE"]:
+            raise ValueError(
+                f"Electrode potential must be SHE or RHE. {self.electrode} is not supported."
+            )
 
     def __repr__(self) -> str:
         return f'Barrierless reaction evaluator (no lateral interactions)'
@@ -172,7 +181,10 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
         """
         mu_is, mu_fs = 0.0, 0.0        
         for reactant in reaction.reactants:
-            if reactant.is_surface or isinstance(reactant, Electron):
+            if reactant.is_surface:
+                continue
+            elif isinstance(reactant, Electron):
+                mu_is += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
                 continue
             elif isinstance(reactant, (Water, Proton)):  # Electrochemical conditions
                 reactant_formula = "H2O" if isinstance(reactant, Water) else "H2"
@@ -193,7 +205,10 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
             e_min_config = min(energy_list)
             mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
         for product in reaction.products:
-            if product.is_surface or isinstance(product, Electron):       
+            if product.is_surface:   
+                continue
+            elif isinstance(product, Electron):
+                mu_fs += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
                 continue
             elif isinstance(product, (Water, Proton)):  # Electrochemical conditions
                 product_formula = "H2O" if isinstance(product, Water) else "H2"
@@ -215,10 +230,7 @@ class OCPReactionEvaluator(ReactionEnergyEstimator):
             mu_fs += abs(reaction.stoic[product.code]) * e_min_config
         reaction.e_is = mu_is, 0.0
         reaction.e_fs = mu_fs, 0.0
-        mu_rxn = mu_fs - mu_is
-        if reaction.r_type == "PCET":
-            mu_rxn -= reaction.stoic["e-"] * (self.U + 2.303 * K_B * self.T * self.pH)
-        reaction.e_rxn = mu_rxn, 0.0
+        reaction.e_rxn = mu_fs - mu_is, 0.0
 
     def eval(
         self,

@@ -145,6 +145,17 @@ class ElementaryReaction:
                         + inter.molecule.get_chemical_formula()
                         + "(g)"
                     )
+                elif inter.phase == "solv":
+                    out_str = (
+                        "[{}]".format(str(abs(self.stoic[inter.code])))
+                        + inter.formula
+                        + "(solv)"
+                    )
+                elif inter.phase == "electro":
+                    out_str = (
+                        "[{}]".format(str(abs(self.stoic[inter.code])))
+                        + inter.formula
+                    )
                 else:
                     out_str = (
                         "[{}]".format(str(abs(self.stoic[inter.code])))

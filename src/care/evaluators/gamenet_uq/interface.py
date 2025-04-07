@@ -234,6 +234,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self,
         intermediates: dict[str, Intermediate],
         T: float = 298.0,
+        electrode: str = "SHE",
         pH: float = 7.0,
         U: float = 0.0,
         use_uq: bool = False,
@@ -247,8 +248,12 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Args:
                 intermediates (dict): Dictionary of intermediates already evaluated.
                 T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
+                electrode (str): Electrode potential. Required for electrochemical reactions. It can be 
+                                SHE (Standard Hydrogen Electrode) or RHE (Reversible Hydrogen Electrode).
+                                Defaults to SHE. With RHE, T and pH are not required.
                 pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
                 U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
+                           Negative values refer to reductive potential, positive values to oxidative potential.
                 use_uq (bool): Whether to use uncertainty in the evaluation. Defaults to False.
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
         """
@@ -258,6 +263,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
         self.intermediates = intermediates
+        self.electrode = electrode
+        if self.electrode not in ["SHE", "RHE"]:
+            raise ValueError(
+                f"Electrode potential must be SHE or RHE. {self.electrode} is not supported."
+            )
         self.pH = pH
         self.U = U
         self.T = T
@@ -292,7 +302,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         """
         mu_is, var_is, mu_fs, var_fs = 0.0, 0.0, 0.0, 0.0
         for reactant in reaction.reactants:
-            if reactant.is_surface or isinstance(reactant, Electron):
+            if reactant.is_surface:
+                continue
+            elif isinstance(reactant, Electron):  # Electrochemical conditions
+                mu_is += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+                var_is += 0.0
                 continue
             elif isinstance(reactant, (Water, Proton)):  # Electrochemical conditions
                 reactant_formula = "H2O" if isinstance(reactant, Water) else "H2"
@@ -329,7 +343,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             mu_is += abs(reaction.stoic[reactant.code]) * e_min_config
             var_is += abs(reaction.stoic[reactant.code]) * s_min_config**2
         for product in reaction.products:
-            if product.is_surface or isinstance(product, Electron):       
+            if product.is_surface:      
+                continue
+            elif isinstance(product, Electron):  # Electrochemical conditions
+                mu_fs += abs(reaction.stoic["e-"]) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+                var_fs += 0.0
                 continue
             elif isinstance(product, (Water, Proton)):  # Electrochemical conditions
                 product_formula = "H2O" if isinstance(product, Water) else "H2"
@@ -368,8 +386,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         reaction.e_is = mu_is, var_is ** 0.5
         reaction.e_fs = mu_fs, var_fs ** 0.5
         mu_rxn = mu_fs - mu_is
-        if reaction.r_type == "PCET":
-            mu_rxn -= reaction.stoic["e-"] * (self.U + 2.303 * K_B * self.T * self.pH)
         reaction.e_rxn = mu_rxn, (var_fs + var_is) ** 0.5
 
     def calc_reaction_barrier(self, reaction: ElementaryReaction) -> None:
