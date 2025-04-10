@@ -107,6 +107,9 @@ def main():
     dmodel = dask.delayed(inter_evaluator)
     predictions = [predict(task, dmodel) for task in tasks]
     predictions = dask.compute(*predictions)
+    client.retire_workers()
+    client.close()
+    cluster.close()
     intermediates = {inter.code: inter for inter in predictions}
 
     # REACTION EVALUATION

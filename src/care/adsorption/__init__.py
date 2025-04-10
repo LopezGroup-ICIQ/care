@@ -223,7 +223,8 @@ def place_adsorbate(
     surface : Surface
         Surface.
     num_configs : int
-        Number of configurations to generate.
+        Number of configurations to generate. If set to -1, all configurations from
+        DockOnSurf will be returned.
 
     Returns
     -------
@@ -242,6 +243,7 @@ def place_adsorbate(
             site_idx = list(set([idx for sublist in site_idx for idx in sublist]))
             ads_height = 2.0
             for site_idxs in active_sites.values():
+                site_list = []
                 if site_idxs != []:
                     try:
                         configs_to_place = intermediate.gas_configs
@@ -262,12 +264,28 @@ def place_adsorbate(
                             )
                             config_list_i = dos.dockonsurf(inp_vars)
                             ads_height += 0.2
-                            adsorptions.extend(config_list_i)
+                            site_list.extend(config_list_i)
+                adsorptions.append(site_list)
+            if num_configs == -1:
+                return [adsorption for sublist in adsorptions for adsorption in sublist]
+            new_adsorptions = []
+            index = 0
+            while len(new_adsorptions) < num_configs:
+                items_at_index = [lst[index] for lst in adsorptions if index < len(lst)]
+                if not items_at_index:
+                    break
+                new_adsorptions.extend(items_at_index)
+                if len(new_adsorptions) > num_configs:
+                    new_adsorptions = new_adsorptions[:num_configs]
+                    break
+                index += 1
+            return new_adsorptions            
         elif 2 <= len(intermediate.molecule) <= 10:
             ads_height = (
                 1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
             )
             for site_idxs in active_sites.values():
+                site_list = []
                 if site_idxs != []:
                     try:
                         configs_to_place = intermediate.gas_configs
@@ -293,7 +311,22 @@ def place_adsorbate(
                             )
                             config_list_i = dos.dockonsurf(inp_vars)
                             ads_height += 0.1
-                            adsorptions.extend(config_list_i)
+                            site_list.extend(config_list_i)
+                adsorptions.append(site_list)
+            if num_configs == -1:
+                return [adsorption for sublist in adsorptions for adsorption in sublist]
+            new_adsorptions = []
+            index = 0
+            while len(new_adsorptions) < num_configs:
+                items_at_index = [lst[index] for lst in adsorptions if index < len(lst)]
+                if not items_at_index:
+                    break
+                new_adsorptions.extend(items_at_index)
+                if len(new_adsorptions) > num_configs:
+                    new_adsorptions = new_adsorptions[:num_configs]
+                    break
+                index += 1
+            return new_adsorptions                
         else:  # C*, H*, O*
             surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
             for site in active_sites_acat:
@@ -304,8 +337,11 @@ def place_adsorbate(
                 atoms.set_cell(surface.slab.get_cell())
                 atoms.set_pbc(surface.slab.get_pbc())
                 adsorptions.append(atoms)
-        return adsorptions[:num_configs]
+            if num_configs == -1:
+                return adsorptions
+            return adsorptions[:num_configs]
     except:  # ASE (when DockOnSurf+ACAT fails on complex surfaces)
+        num_configs = max(5, num_configs)  # if -1 is provided and DockOnSurf fails
         for configuration in range(num_configs):
             adsorption = surface.slab.copy()
             x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration

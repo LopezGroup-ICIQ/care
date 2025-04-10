@@ -1,4 +1,5 @@
 import os
+from typing import Union
 
 from ase.db import connect
 from ase.build import surface
@@ -9,8 +10,41 @@ from pymatgen.io.ase import AseAtomsAdaptor
 
 from care import Surface
 
+def parse_hkl_string(hkl_str):
+    """
+    Parse an hkl or hkil string where negative signs are denoted with 'm'.
+    Examples:
+        '111'     -> (1, 1, 1)
+        '0001'    -> (0, 0, 1)
+        '10m10'   -> (1, 0, 0)
+        '10m11'   -> (1, 0, 1)
+        '2m1m12'  -> (2, -1, 2)
+    """
+    def parse_index_block(s):
+        """Convert a string like '2m1m1' into a list of integers: [2, -1, -1]"""
+        result = []
+        i = 0
+        while i < len(s):
+            if s[i] == 'm':
+                result.append(-int(s[i + 1]))
+                i += 2
+            else:
+                result.append(int(s[i]))
+                i += 1
+        return result
+
+    indices = parse_index_block(hkl_str)
+
+    if len(indices) == 3:
+        return tuple(indices)  # Standard (hkl)
+    elif len(indices) == 4:
+        h, k, _, l = indices  # Drop i index
+        return (h, k, l)
+    else:
+        raise ValueError(f"Invalid hkl string format: {hkl_str}")
+    
 def load_surface(metal: str = None,
-                 hkl: str = None,
+                 hkl: Union[str, list[int]] = None,
                  mpid: str = None,
                  path: str = None,
                  bulk_path: str = None,
@@ -26,7 +60,7 @@ def load_surface(metal: str = None,
 
     Args:
         metal (str): Metal symbol (e.g., "Ag")
-        hkl (str): Miller index (e.g., "111", "0001")
+        hkl (str or list[int]): Miller index (e.g., "111" or [1, 1, 1])
         mp_id (str): Materials Project ID (e.g., "mp-1234")
         path (str): Path to VASP CONTCAR file representing a surface.
         bulk_path (str): Path to VASP CONTCAR file representing a bulk structure.
@@ -44,27 +78,16 @@ def load_surface(metal: str = None,
         return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=False)
     if hkl is None:
         raise ValueError("Miller index hkl not provided.")
+    if isinstance(hkl, list):
+        if len(hkl) != 3 and not all(isinstance(i, int) for i in hkl):
+            raise ValueError("Miller index hkl must be a list of length 3 integers.")
+        h, k, l = hkl
+    else:
+        if not isinstance(hkl, str):
+            raise ValueError("Miller index hkl must be a string or a list of integers.")
+        h, k, l = parse_hkl_string(hkl)
     if bulk_path:
         bulk = read(bulk_path)
-        l = int(hkl[-1])
-        if len(hkl) > 3 and "m" in hkl:
-            hkil = ""
-            m_indices = []
-            for index, char in enumerate(hkl):
-                if hkl[index] != "m":
-                    hkil += char
-                else:
-                    m_indices.append(index)
-            if "0" in m_indices:
-                h = -int(hkil[0])
-            else:
-                h = int(hkil[0])
-            if "2" in m_indices:
-                k = -int(hkil[1])
-            else:
-                k = int(hkil[1])
-        else:  # fcc, bcc, and hcp with positive indices ("111", "110", "0001")
-            h, k = int(hkl[0]), int(hkl[1])
         num_layers = num_layers if num_layers else 3
         slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
         z = {atom.index:atom.position[2] for atom in slab}
@@ -85,27 +108,6 @@ def load_surface(metal: str = None,
             # bulk to ASE
             ase_adaptor = AseAtomsAdaptor()
             bulk = ase_adaptor.get_atoms(bulk)
-
-        # Generate slab from bulk
-        l = int(hkl[-1])
-        if len(hkl) > 3 and "m" in hkl:
-            hkil = ""
-            m_indices = []
-            for index, char in enumerate(hkl):
-                if hkl[index] != "m":
-                    hkil += char
-                else:
-                    m_indices.append(index)
-            if "0" in m_indices:
-                h = -int(hkil[0])
-            else:
-                h = int(hkil[0])
-            if "2" in m_indices:
-                k = -int(hkil[1])
-            else:
-                k = int(hkil[1])
-        else:  # fcc, bcc, and hcp with positive indices ("111", "110", "0001")
-            h, k = int(hkl[0]), int(hkl[1])
         num_layers = num_layers if num_layers else 3
         slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
         z = {atom.index:atom.position[2] for atom in slab}
@@ -118,7 +120,6 @@ def load_surface(metal: str = None,
         delta_vacuum = vacuum if vacuum else 10.0
         slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, delta_vacuum]], scale_atoms=False)
         return Surface(ase_atoms_slab=slab, facet=hkl, from_mp=True)
-
     elif not mpid and metal:
         metal_db = connect(DB_PATH)
         metal_structure = f"{METAL_STRUCT_DICT[metal]}({hkl})"
