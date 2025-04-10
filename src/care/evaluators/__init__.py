@@ -48,7 +48,7 @@ def load_surface(metal: str = None,
                  mpid: str = None,
                  path: str = None,
                  bulk_path: str = None,
-                 num_layers: int = 3,
+                 num_layers: Union[int, float] = 3,
                  xy_repeat: int = 1,
                  vacuum: float = 15.0) -> Surface:
     """
@@ -64,7 +64,8 @@ def load_surface(metal: str = None,
         mp_id (str): Materials Project ID (e.g., "mp-1234")
         path (str): Path to VASP CONTCAR file representing a surface.
         bulk_path (str): Path to VASP CONTCAR file representing a bulk structure.
-        num_layers (int): Number of layers in the slab
+        num_layers (int or float): If integer, refers to number of equivalent layers in the slab.
+            If float, refers to the minimum height of the material slab.
         xy_repeat (int): Number of times to repeat the slab in the x and y directions
         vacuum (float): Vacuum spacing in Angstroms. defaults to 10 Angstroms.
 
@@ -88,8 +89,18 @@ def load_surface(metal: str = None,
         h, k, l = parse_hkl_string(hkl)
     if bulk_path:
         bulk = read(bulk_path)
-        num_layers = num_layers if num_layers else 3
-        slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        if isinstance(num_layers, int):
+            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        elif isinstance(num_layers, float):
+            layers = 1
+            while True:
+                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=True)
+                highest_z = max([atom.position[2] for atom in slab])
+                if highest_z > num_layers:
+                    break
+                layers += 1
+        else:
+            raise ValueError("num_layers must be an int or float.")
         z = {atom.index:atom.position[2] for atom in slab}
         layers_z = list(set(z.values()))
         layers_z.sort()
@@ -108,8 +119,18 @@ def load_surface(metal: str = None,
             # bulk to ASE
             ase_adaptor = AseAtomsAdaptor()
             bulk = ase_adaptor.get_atoms(bulk)
-        num_layers = num_layers if num_layers else 3
-        slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        if isinstance(num_layers, int):
+            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+        elif isinstance(num_layers, float):
+            layers = 1
+            while True:
+                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=True)
+                highest_z = max([atom.position[2] for atom in slab])
+                if highest_z > num_layers:
+                    break
+                layers += 1
+        else:
+            raise ValueError("num_layers must be an int or float.")
         z = {atom.index:atom.position[2] for atom in slab}
         layers_z = list(set(z.values()))
         layers_z.sort()

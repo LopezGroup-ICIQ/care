@@ -341,7 +341,8 @@ def place_adsorbate(
                 return adsorptions
             return adsorptions[:num_configs]
     except:  # ASE (when DockOnSurf+ACAT fails on complex surfaces)
-        num_configs = max(5, num_configs)  # if -1 is provided and DockOnSurf fails
+        if num_configs == -1:
+            num_configs = 5  # hardcoded for now
         for configuration in range(num_configs):
             adsorption = surface.slab.copy()
             x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration
