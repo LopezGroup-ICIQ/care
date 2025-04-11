@@ -156,10 +156,6 @@ We currently provide three tutorials, available in the ``notebooks`` directory:
 - [Energy evaluator interface implementation](./notebooks/interface_demo.ipynb) <br/>
 - [Microkinetic simulations](./notebooks/kinetics_demo.ipynb)
 
-## ❗️Notes
-
-The DFT database in ASE format used to retrieve available CRN intermediates will be uploaded soon in Zenodo.
-
 ## ✒️ License
 
 The code is released under the [MIT](./LICENSE) license.

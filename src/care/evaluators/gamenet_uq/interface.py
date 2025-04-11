@@ -234,7 +234,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self,
         intermediates: dict[str, Intermediate],
         T: float = 298.0,
-        electrode: str = "SHE",
+        ref_electrode: str = "SHE",
         pH: float = 7.0,
         U: float = 0.0,
         use_uq: bool = False,
@@ -248,8 +248,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Args:
                 intermediates (dict): Dictionary of intermediates already evaluated.
                 T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
-                electrode (str): Electrode potential. Required for electrochemical reactions. It can be 
-                                SHE (Standard Hydrogen Electrode) or RHE (Reversible Hydrogen Electrode).
+                ref_electrode (str): Reference electrode required for electrochemical reactions. It can be 
+                                "SHE" (Standard Hydrogen Electrode) or "RHE" (Reversible Hydrogen Electrode).
                                 Defaults to SHE. With RHE, T and pH are not required.
                 pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
                 U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
@@ -263,10 +263,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
         self.intermediates = intermediates
-        self.electrode = electrode
-        if self.electrode not in ["SHE", "RHE"]:
+        self.ref_electrode = ref_electrode
+        if self.ref_electrode not in ["SHE", "RHE"]:
             raise ValueError(
-                f"Electrode potential must be SHE or RHE. {self.electrode} is not supported."
+                f"Electrode potential must be SHE or RHE. {self.ref_electrode} is not supported."
             )
         self.pH = pH
         self.U = U
@@ -305,8 +305,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             if species.is_surface:
                 continue
             elif isinstance(species, Electron):  # Electrochemical conditions
-                mu_is += abs(min(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
-                mu_fs += abs(max(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+                mu_is += abs(min(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.ref_electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
+                mu_fs += abs(max(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.ref_electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
                 var_is += 0.0
                 var_fs += 0.0
                 continue
