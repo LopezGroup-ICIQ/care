@@ -30,6 +30,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
+        device: str = "cpu",
         dft_db_path: Optional[str] = None,
         num_configs: int = 3,
         use_uq: bool = False,
@@ -39,6 +40,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
         Args:
             surface (Surface, optional): Surface of interest.
+            device (str, optional): Device to use for evaluation. Defaults to "cpu".
             dft_db_path (Optional[str], optional): Path to ASE database for retrieving
                 DFT data. Defaults to None.
             num_configs (int, optional): Number of configurations to consider for the adsorbed phase.
@@ -48,7 +50,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         """
 
         self.model = load_model(MODEL_PATH)
-        self.device = "cpu"
+        self.device = device
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.model.to(self.device)
         self.surface = surface
@@ -183,7 +185,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 config = intermediate.molecule
                 with no_grad():
                     pyg = atoms_to_data(config)
-                    pyg = pyg.to(self.device)
+                    pyg = pyg.to(self.device).to(self.device)
                     y = self.model(pyg)
                     intermediate.ads_configs = {
                         "gas": {
@@ -209,7 +211,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ads_config_dict[f"{i}"]["ase"] = adsorption
                         ads_config_dict[f"{i}"]["pyg"] = atoms_to_data(
                             adsorption
-                        )
+                        ).to(self.device)
                         y = self.model(ads_config_dict[f"{i}"]["pyg"])
                         ads_config_dict[f"{i}"]["mu"] = (
                             y.mean * self.model.y_scale_params["std"]
@@ -233,6 +235,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
     def __init__(
         self,
         intermediates: dict[str, Intermediate],
+        device: str = "cpu",
         T: float = 298.0,
         ref_electrode: str = "SHE",
         pH: float = 7.0,
@@ -247,6 +250,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         
         Args:
                 intermediates (dict): Dictionary of intermediates already evaluated.
+                device (str): Device to use for evaluation. Defaults to "cpu".
                 T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
                 ref_electrode (str): Reference electrode required for electrochemical reactions. It can be 
                                 "SHE" (Standard Hydrogen Electrode) or "RHE" (Reversible Hydrogen Electrode).
@@ -258,7 +262,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
         """
         self.model = load_model(MODEL_PATH)
-        self.device = "cuda" if cuda.is_available() else "cpu"
+        self.device = device
         self.model.to(self.device)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
