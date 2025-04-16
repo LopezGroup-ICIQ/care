@@ -90,11 +90,11 @@ def load_surface(metal: str = None,
     if bulk_path:
         bulk = read(bulk_path)
         if isinstance(num_layers, int):
-            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=False)
         elif isinstance(num_layers, float):
             layers = 1
             while True:
-                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=True)
+                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=False)
                 highest_z = max([atom.position[2] for atom in slab])
                 if highest_z > num_layers:
                     break
@@ -118,13 +118,13 @@ def load_surface(metal: str = None,
             bulk = mpr.get_structure_by_material_id(mpid, final=True, conventional_unit_cell=True)
             # bulk to ASE
             ase_adaptor = AseAtomsAdaptor()
-            bulk = ase_adaptor.get_atoms(bulk)
+            bulk = ase_adaptor.get_atoms(bulk, msonable=False)
         if isinstance(num_layers, int):
-            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=True)
+            slab = surface(bulk, (h, k, l), num_layers, vacuum=0.0, periodic=False)
         elif isinstance(num_layers, float):
             layers = 1
             while True:
-                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=True)
+                slab = surface(bulk, (h, k, l), layers, vacuum=0.0, periodic=False)
                 highest_z = max([atom.position[2] for atom in slab])
                 if highest_z > num_layers:
                     break
