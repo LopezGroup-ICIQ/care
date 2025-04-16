@@ -823,7 +823,7 @@ class ReactionNetwork:
         else:
             ELECTRO_SPECIES, ELECTRO_INTERS = [], []
 
-        if target_products is not None:
+        if target_products not in (None, []):
             count_removed_inters = 0
             count_removed_reactions = 0
             undesired_closed_shell = []
