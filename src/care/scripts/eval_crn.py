@@ -45,7 +45,8 @@ def main():
         "-o",
         type=str,
         dest="output",
-        help="output file name."
+        help="output file name.",
+        default="crn"
     )
     PARSER.add_argument(
         "-ncpu",
