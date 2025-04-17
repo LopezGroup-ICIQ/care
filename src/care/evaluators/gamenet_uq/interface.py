@@ -12,6 +12,7 @@ import networkx as nx
 import numpy as np
 from torch import no_grad, cuda, tensor, cat
 from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 
 from care import Intermediate, ElementaryReaction, Surface
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
@@ -204,24 +205,29 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 return
             else:
                 adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
+                graphs = [
+                    atoms_to_data(adsorption) for adsorption in adsorptions
+                ]
+                loader = DataLoader(
+                    graphs, batch_size=len(graphs), shuffle=False
+                )
+                with no_grad():
+                    for batch in loader:
+                        batch = batch.to(self.device)
+                        y = self.model(batch)
+                        print(y)
                 ads_config_dict = {}
                 for i, adsorption in enumerate(adsorptions):
-                    with no_grad():
                         ads_config_dict[f"{i}"] = {}
                         ads_config_dict[f"{i}"]["ase"] = adsorption
-                        ads_config_dict[f"{i}"]["pyg"] = atoms_to_data(
-                            adsorption
-                        ).to(self.device)
-                        y = self.model(ads_config_dict[f"{i}"]["pyg"])
+                        ads_config_dict[f"{i}"]["pyg"] = graphs[i]
                         ads_config_dict[f"{i}"]["mu"] = (
-                            y.mean * self.model.y_scale_params["std"]
+                            y.mean[i] * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
                         ).item()  # eV
                         ads_config_dict[f"{i}"]["s"] = (
-                            y.scale * self.model.y_scale_params["std"]
+                            y.scale[i] * self.model.y_scale_params["std"]
                         ).item()  # eV
-
-                # Select best configurations based on the mean (mu) or the uncertainty (s)
                 criterion = 's' if self.use_uq else 'mu'
                 ads_config_dict = dict(
                     sorted(ads_config_dict.items(), key=lambda item: item[1][criterion])
