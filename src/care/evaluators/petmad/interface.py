@@ -47,7 +47,7 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
         self.dtype = dtype
         self.device = device
         self.calc = PETMADCalculator(version=version, device=device)
-        self.num_params = sum([p.numel() for p in self.calc.model.parameters()])
+        self.num_params = sum([p.numel() for p in self.calc._model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs

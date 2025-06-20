@@ -58,7 +58,7 @@ mace = [
     "torch-dftd",
 ]
 petmad = [
-    "pet_mad @ git+https://github.com/lab-cosmo/pet-mad.git",
+    "pet_mad",
 ]
 orb =  [
     "orb-models == 0.4.2", 
