@@ -266,22 +266,20 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 use_uq (bool): Whether to use uncertainty in the evaluation. Defaults to False.
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
         """
+        super().__init__(
+            intermediates=intermediates,
+            T=T,
+            ref_electrode=ref_electrode,
+            pH=pH,
+            U=U,
+            **kwargs
+        )
         self.model = load_model(MODEL_PATH)
         self.device = device
         self.model.to(self.device)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
-        self.intermediates = intermediates
-        self.ref_electrode = ref_electrode
-        if self.ref_electrode not in ["SHE", "RHE"]:
-            raise ValueError(
-                f"Electrode potential must be SHE or RHE. {self.ref_electrode} is not supported."
-            )
-        self.pH = pH
-        self.U = U
-        self.T = T
         
-        # Check that intermediates have been evaluated with ads_configs attribute, if not raise Warning
         if not all([inter.ads_configs for inter in self.intermediates.values()]):
             raise Warning(
                 "Not all intermediates have been evaluated. Please evaluate all intermediates before evaluating reaction properties."
@@ -297,10 +295,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         return (
             f"GAME-Net-UQ ({int(self.num_params/1000)}K params, device={self.device})"
         )
-
-    def __call__(self,
-                 rxn: ElementaryReaction) -> None:
-        self.eval(rxn)
 
     def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
         """

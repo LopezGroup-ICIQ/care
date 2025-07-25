@@ -154,7 +154,8 @@ Examples of input .toml files can be found [here](./src/care/scripts/input_examp
 We currently provide three tutorials, available in the ``notebooks`` directory:
 - [CRN generation and manipulation](./notebooks/care_demo.ipynb) <br/>
 - [Energy evaluator interface implementation](./notebooks/interface_demo.ipynb) <br/>
-- [Microkinetic simulations](./notebooks/kinetics_demo.ipynb)
+- [Microkinetic simulations](./notebooks/kinetics_demo.ipynb) <br/>
+- [Adsorbate placement](./notebooks/adsorbate_placement.ipynb)
 
 ## ✒️ License
 

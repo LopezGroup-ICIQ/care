@@ -7,9 +7,7 @@ from copy import deepcopy
 from ase.optimize import BFGS
 from ase.data import chemical_symbols
 
-from care import Intermediate, Surface, ElementaryReaction
-from care.crn.utils.electro import Electron, Proton, Water
-from care.constants import K_B
+from care import Intermediate, Surface
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.adsorption import place_adsorbate
 
@@ -143,92 +141,21 @@ class PETMADReactionEvaluator(ReactionEnergyEstimator):
         U: float = 0.0,
         **kwargs
     ):
-        """
-        For now, thermodynamic properties are only calculated, not for electro-purposes yet.
-        Eact = Delta E for endothermic reactions, 0 for exothermic ones.
-        
-        Args:
-            intermediates (dict): Dictionary of intermediates already evaluated.
-            T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
-            ref_electrode (str): Reference electrode required for electrochemical reactions. It can be 
-                                "SHE" (Standard Hydrogen Electrode) or "RHE" (Reversible Hydrogen Electrode).
-                                Defaults to "SHE". With "RHE", T and pH are not required.
-            pH (float): pH of the system. Required for electrochemical reactions. Defaults to 7.
-            U (float): Potential of the system. Required for electrochemical reactions. Defaults to 0 V.
-        """
+        super().__init__(
+            intermediates=intermediates,
+            T=T,
+            ref_electrode=ref_electrode,
+            pH=pH,
+            U=U,
+            **kwargs
+        )
 
-        self.intermediates = intermediates
-        self.pH = pH
-        self.U = U
-        self.T = T
-        self.ref_electrode = ref_electrode
-        if self.ref_electrode not in ["SHE", "RHE"]:
-            raise ValueError(
-                f"Electrode potential must be SHE or RHE. {self.ref_electrode} is not supported."
-            )
-
-    def __repr__(self) -> str:
-        return f'Barrierless reaction evaluator (no lateral interactions)'
-
-    def __call__(self,
-                 rxn: ElementaryReaction) -> None:
-        self.eval(rxn)
-
+    @property
     def adsorbate_domain(self):
         """Returns the list of adsorbate elements that your model can handle."""
         return chemical_symbols[1:]
 
+    @property
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
         return chemical_symbols[1:]
-
-    def calc_reaction_energy(self, reaction: ElementaryReaction) -> None:
-        """
-        Get the reaction energy of the elementary reaction.
-
-        Args:
-            reaction (ElementaryReaction): Elementary reaction.
-        """
-        mu_is, mu_fs = 0.0, 0.0        
-        for species in list(reaction.reactants) + list(reaction.products):
-            if species.is_surface:
-                continue
-            elif isinstance(species, Electron):  # Electrochemical conditions
-                mu_is += abs(min(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.ref_electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
-                mu_fs += abs(max(0, reaction.stoic["e-"])) * (abs(reaction.stoic["e-"])*self.U + (1 if self.ref_electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH)
-                continue
-            elif isinstance(species, (Water, Proton)):  # Electrochemical conditions
-                species_formula = "H2O" if isinstance(species, Water) else "H2"
-                x = 0.5 if species_formula == "H2" else 1.0
-                gas_inter = [
-                    inter
-                    for inter in self.intermediates.values()
-                    if inter.formula == species_formula and inter.phase == "gas"
-                ][0]
-                energy_list = [
-                    config["mu"] * x for config in gas_inter.ads_configs.values()
-                ]
-            else:
-                energy_list = [
-                    config["mu"]
-                    for config in self.intermediates[species.code].ads_configs.values()
-                ]
-            e_min_config = min(energy_list)
-            mu_is += abs(min(0, reaction.stoic[species.code])) * e_min_config
-            mu_fs += abs(max(0, reaction.stoic[species.code])) * e_min_config
-        reaction.e_is = mu_is, 0.0
-        reaction.e_fs = mu_fs, 0.0
-        reaction.e_rxn = mu_fs - mu_is, 0.0
-
-    def eval(
-        self,
-        reaction: ElementaryReaction
-    ):
-
-        """
-        Given the reaction, return the properties of the reaction as attributes of the reaction object.
-        """
-
-        self.calc_reaction_energy(reaction)
-        reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
-        reaction.e_act = reaction.e_ts[0] - reaction.e_is[0], 0.0
