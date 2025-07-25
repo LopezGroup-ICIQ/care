@@ -129,7 +129,7 @@ class ElementaryReaction:
                 )
             rhs.append(out_str)
         lhs.sort(), rhs.sort()  # sort alphabetically
-        return " + ".join(lhs) + " <-> " + " + ".join(rhs)
+        return " + ".join(lhs) + " \u27F9 " + " + ".join(rhs)
 
     @property
     def repr_hr(self) -> str:
@@ -165,7 +165,7 @@ class ElementaryReaction:
                 inters_str.append(out_str)
             comp_str = " + ".join(inters_str)
             comps_str.append(comp_str)
-        return " <-> ".join(comps_str)
+        return " \u27F9 ".join(comps_str)
 
     def __str__(self) -> str:
         return self.__repr__()

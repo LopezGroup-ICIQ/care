@@ -159,6 +159,21 @@ class Intermediate:
             return cls(
                 code=code, molecule=ase_atoms_obj, is_surface=is_surface, phase=phase
             )
+        
+    @classmethod
+    def from_smiles(cls, 
+                smiles: str,
+                phase: str = "gas") -> "Intermediate":
+        """Create an Intermediate using a SMILES string.
+        Args:
+            smiles (str): SMILES string of the molecule.
+        Returns:
+            obj:`Intermediate` of the given SMILES.
+        """
+        phase_id = "g" if phase=="gas" else "*"    
+        rdkit_mol = Chem.MolFromSmiles(smiles)
+        inchikey = Chem.inchi.MolToInchiKey(rdkit_mol)        
+        return cls(code=inchikey+phase_id, molecule=rdkit_mol, is_surface=False, phase="gas")
 
     @property
     def graph(self):

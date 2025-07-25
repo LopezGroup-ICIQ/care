@@ -2,6 +2,7 @@
 
 from os import makedirs
 from os.path import abspath
+import re
 
 import networkx as nx
 from pydot import Subgraph
@@ -193,59 +194,47 @@ def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
     plot.write_svg("./" + filename)
 
 
-def visualize_reaction(step: ElementaryReaction, show_uncertainty: bool = True):
-    # components = rxn.split("<->")
-    # reactants, products = components[0].split("+"), components[1].split("+")
-    # for i, inter in enumerate(reactants):
-    #     if "0000000000*" in inter:
-    #         where_surface = "reactants"
-    #         surf_index = i
-    #         break
-    # for i, inter in enumerate(products):
-    #     if "0000000000*" in inter:
-    #         where_surface = "products"
-    #         surf_index = i
-    #         break
-    # v_reactants = [
-    #     re.findall(r"\[([a-zA-Z0-9])\]", reactant) for reactant in reactants
-    # ]
-    # v_products = [re.findall(r"\[([a-zA-Z0-9])\]", product) for product in products]
-    # v_reactants = [item for sublist in v_reactants for item in sublist]
-    # v_products = [item for sublist in v_products for item in sublist]
-    # reactants = [re.findall(r"\((.*?)\)", reactant) for reactant in reactants]
-    # products = [re.findall(r"\((.*?)\)", product) for product in products]
-    # reactants = [item for sublist in reactants for item in sublist]
-    # products = [item for sublist in products for item in sublist]
-    # for i, reactant in enumerate(reactants):
-    #     if v_reactants[i] != "1":
-    #         reactants[i] = v_reactants[i] + reactant
-    #     if "(g" in reactant:
-    #         reactants[i] += ")"
-    #     if where_surface == "reactants" and i == surf_index:
-    #         reactants[i] = "*"
-    # for i, product in enumerate(products):
-    #     if v_products[i] != "1":
-    #         products[i] = v_products[i] + product
-    #     if "(g" in product:
-    #         products[i] += ")"
-    #     if where_surface == "products" and i == surf_index:
-    #         products[i] = "*"
-    # rxn_string = " + ".join(reactants) + " -> " + " + ".join(products)
+def format_reaction(s):
+    subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+    def handle_stoichiometry(match):
+        coeff = int(match.group(1))
+        molecule = match.group(2)
+        return molecule if coeff == 1 else f"{coeff}{molecule}"
+
+    s = re.sub(r"\[(\d+)\]([A-Za-z0-9*]+)", handle_stoichiometry, s)
+    def subscript_replacer(match):
+        letters = match.group(1)
+        digits = match.group(2)
+        return letters + digits.translate(subscript_map)
+
+    return re.sub(r"([A-Za-z])(\d+)", subscript_replacer, s)
+
+
+def visualize_reaction(step: ElementaryReaction, 
+                       show_uncertainty: bool = True) -> ED:
+    """Visualize a reaction step with an energy diagram.
+    Based on PyEnergyDiagrams package.
+
+    Args:
+        step (ElementaryReaction): The reaction step to visualize.
+        show_uncertainty (bool): Whether to show uncertainty in the energy values.
+    Returns:        
+        ED: An energy diagram object representing the reaction step."""
     rxn_string = step.repr_hr
     where_surface = (
         "reactants" if any(inter.is_surface for inter in step.reactants) else "products"
     )
     diagram = ED()
-    diagram.add_level(0, rxn_string.split(" <-> ")[0])
+    diagram.add_level(0, format_reaction(rxn_string.split(" \u27F9 ")[0]))
     diagram.add_level(round(step.e_act[0], 2), "TS", color="r")
     diagram.add_level(
         round(step.e_rxn[0], 2),
-        rxn_string.split(" <-> ")[1],
+        format_reaction(rxn_string.split(" \u27F9 ")[1]),
     )
     diagram.add_link(0, 1)
     diagram.add_link(1, 2)
     y = diagram.plot(ylabel="Energy / eV")
-    plt.title(rxn_string, fontname="Arial", fontweight="bold", y=1.05)
+    plt.title(format_reaction(step.repr_hr), fontname="DejaVu Sans", fontweight="bold", y=1.05)
     artists = diagram.fig.get_default_bbox_extra_artists()
     size = artists[2].get_position()[0] - artists[3].get_position()[0]
     ap_reactants = (

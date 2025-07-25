@@ -10,7 +10,7 @@ from ase.db import connect
 from copy import deepcopy
 import networkx as nx
 import numpy as np
-from torch import no_grad, cuda, tensor, cat
+from torch import no_grad, tensor, cat
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
@@ -215,7 +215,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                     for batch in loader:
                         batch = batch.to(self.device)
                         y = self.model(batch)
-                        print(y)
                 ads_config_dict = {}
                 for i, adsorption in enumerate(adsorptions):
                         ads_config_dict[f"{i}"] = {}
