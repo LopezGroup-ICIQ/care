@@ -1,5 +1,21 @@
 # import juliacall  # to avoid segfaults
 from pickle import load, dump
+import re
+
+def format_reaction(s: str) -> str:
+    subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+    def handle_stoichiometry(match):
+        coeff = int(match.group(1))
+        molecule = match.group(2)
+        return molecule if coeff == 1 else f"{coeff}{molecule}"
+
+    s = re.sub(r"\[(\d+)\]([A-Za-z0-9*]+)", handle_stoichiometry, s)
+    def subscript_replacer(match):
+        letters = match.group(1)
+        digits = match.group(2)
+        return letters + digits.translate(subscript_map)
+
+    return re.sub(r"([A-Za-z])(\d+)", subscript_replacer, s)
 
 from care.constants import *
 from care.crn.surface import Surface
@@ -16,6 +32,7 @@ def load_crn(file_path: str) -> ReactionNetwork:
 def save_crn(crn: ReactionNetwork, file_path: str):
     with open(file_path, "wb") as f:
         dump(crn, f)
+        
 
 __all__ = [
     "Intermediate",
@@ -28,4 +45,4 @@ __all__ = [
     "load_crn", 
     "save_crn",
 ]
-__version__ = "1.0.0"
+__version__ = "0.1.0"

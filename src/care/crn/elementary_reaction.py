@@ -5,12 +5,12 @@ import numpy as np
 from rdkit import Chem
 from scipy.linalg import null_space
 
-from care.crn.intermediate import Intermediate
+from care import Intermediate, format_reaction
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
 
 
 class ElementaryReaction:
-    """Class for representing elementary reactions.
+    """Base class for representing elementary reactions.
 
     Attributes:
         code (str): Code associated with the elementary reaction.
@@ -165,7 +165,7 @@ class ElementaryReaction:
                 inters_str.append(out_str)
             comp_str = " + ".join(inters_str)
             comps_str.append(comp_str)
-        return " \u27F9 ".join(comps_str)
+        return format_reaction(" \u27F9 ".join(comps_str))
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -356,7 +356,7 @@ class ElementaryReaction:
 
         if self.e_act:
             self.e_act = (
-                self.e_act[0] + self.e_rxn[0], # should be minus as e_rxn is already the reverse, not the direct!
+                self.e_act[0] + self.e_rxn[0], # As e_rxn already stores the reverse rxn energy, we add, not substract!
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
 
@@ -427,27 +427,3 @@ class ReactionMechanism(ElementaryReaction):
         """
         super().__init__(components=components, r_type=r_type)
         self.r_dict = r_dict
-
-    # def get_rate_equation(self):
-    #     """
-    #     Get the rate equation of the reaction mechanism.
-
-    #     Returns:
-    #         str: Rate equation of the reaction mechanism.
-    #     """
-    #     rate_equation = ""
-    #     for reaction in self.reactions:
-    #         rate_equation += f"{reaction.get_rate_equation()} + "
-    #     return rate_equation[:-3]
-
-    # def get_rate_constant(self):
-    #     """
-    #     Get the rate constant of the reaction mechanism.
-
-    #     Returns:
-    #         float: Rate constant of the reaction mechanism.
-    #     """
-    #     rate_constant = 0
-    #     for reaction in self.reactions:
-    #         rate_constant += reaction.get_rate_constant()
-    #     return rate_constant

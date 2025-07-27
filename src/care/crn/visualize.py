@@ -2,7 +2,6 @@
 
 from os import makedirs
 from os.path import abspath
-import re
 
 import networkx as nx
 from pydot import Subgraph
@@ -11,7 +10,7 @@ from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 import matplotlib.pyplot as plt
 from ase.io import write
 
-from care import ElementaryReaction
+from care import ElementaryReaction, format_reaction
 from care.crn.graph import max_flux
 
 
@@ -194,22 +193,6 @@ def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
     plot.write_svg("./" + filename)
 
 
-def format_reaction(s):
-    subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-    def handle_stoichiometry(match):
-        coeff = int(match.group(1))
-        molecule = match.group(2)
-        return molecule if coeff == 1 else f"{coeff}{molecule}"
-
-    s = re.sub(r"\[(\d+)\]([A-Za-z0-9*]+)", handle_stoichiometry, s)
-    def subscript_replacer(match):
-        letters = match.group(1)
-        digits = match.group(2)
-        return letters + digits.translate(subscript_map)
-
-    return re.sub(r"([A-Za-z])(\d+)", subscript_replacer, s)
-
-
 def visualize_reaction(step: ElementaryReaction, 
                        show_uncertainty: bool = True) -> ED:
     """Visualize a reaction step with an energy diagram.
@@ -224,7 +207,7 @@ def visualize_reaction(step: ElementaryReaction,
     where_surface = (
         "reactants" if any(inter.is_surface for inter in step.reactants) else "products"
     )
-    diagram = ED()
+    diagram = ED()  # Energy Diagram object
     diagram.add_level(0, format_reaction(rxn_string.split(" \u27F9 ")[0]))
     diagram.add_level(round(step.e_act[0], 2), "TS", color="r")
     diagram.add_level(
