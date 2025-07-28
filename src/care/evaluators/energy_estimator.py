@@ -88,7 +88,6 @@ class ReactionEnergyEstimator(ABC):
                 f"Electrode potential must be SHE or RHE. {self.ref_electrode} is not supported."
             )
     
-    @abstractmethod
     def __call__(self, reaction: ElementaryReaction) -> None:
         self.eval(reaction)
 
@@ -149,7 +148,6 @@ class ReactionEnergyEstimator(ABC):
         reaction.e_fs = mu_fs, 0.0
         reaction.e_rxn = mu_fs - mu_is, 0.0
 
-    @abstractmethod
     def eval(self, reaction: ElementaryReaction) -> None:
         """
         Estimate reaction properties. 
