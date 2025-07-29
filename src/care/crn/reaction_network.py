@@ -579,24 +579,28 @@ class ReactionNetwork:
             raise ValueError("Reaction energetic properties are not estimated")
         return visualize_reaction(self.reactions[idx], show_uncertainty)
 
-    def get_reaction_table(self) -> pd.DataFrame:
+    def get_reaction_table(self) -> None:
         repr_hr_width = max(len(step.repr_hr) for step in self) + 2
         dhr_width = 10
         eact_width = 10
         class_width = 55
+        index_width = 5
 
-        # Print header (optional)
-        header = "{:<{}} {:<{}} {:<{}} {}".format("Step", repr_hr_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class")
+        # Print header
+        header = "{:<{}} {:<{}} {:<{}} {:<{}} {}".format(
+            "Idx", index_width, "Step", repr_hr_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class"
+        )
         print(header)
-        print("=" * (repr_hr_width + dhr_width + eact_width + class_width))
+        print("=" * (index_width + repr_hr_width + dhr_width + eact_width + class_width))
 
-        # Print each step with aligned columns
-        for step in self:
+        for idx, step in enumerate(self):
+            index_str = str(idx).ljust(index_width)
             repr_hr_str = step.repr_hr.ljust(repr_hr_width)
-            dhr_str = "{:.2f}".format(step.e_rxn[0]).ljust(dhr_width)
+            dhr_str = "{:+.2f}".format(step.e_rxn[0]).ljust(dhr_width)
             eact_str = "{:.2f}".format(step.e_act[0]).ljust(eact_width)
             class_str = str(step.__class__).ljust(class_width)
-            print(f"{repr_hr_str} {dhr_str} {eact_str} {class_str}")
+            print(f"{index_str}{repr_hr_str} {dhr_str} {eact_str} {class_str}")
+
 
     def get_num_global_reactions(
         self, reactants: list[str], products: list[str]

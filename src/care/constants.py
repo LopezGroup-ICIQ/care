@@ -1,3 +1,6 @@
+import pathlib as pl
+
+# Note: For Fe, Co, and Mn the values here refer to the high-spin state.
 CORDERO = {
     "Ac": 2.15,
     "Al": 1.21,
@@ -86,7 +89,7 @@ CORDERO = {
     "Tm": 1.90,
     "Sn": 1.39,
     "Ti": 1.60,
-    "Wf": 1.62,
+    "W": 1.62,
     "U": 1.96,
     "V": 1.53,
     "Xe": 1.40,
@@ -94,7 +97,7 @@ CORDERO = {
     "Y": 1.90,
     "Zn": 1.22,
     "Zr": 1.75,
-}
+}  
 
 BOND_ORDER = {"C": 4, "O": 2, "H": 1}
 
@@ -269,6 +272,14 @@ METAL_STRUCT_DICT = {
     "Ru": "hcp",
     "Zn": "hcp",
 }
+
+FACET_DICT = {
+    "fcc": ["111", "110", "100"],
+    "hcp": ["0001", "10m10", "10m11"],
+    "bcc": ["111", "110", "100"],
+}
+
+METAL_SURFACES_DB_PATH =  f"{pl.Path(__file__).parent}/data/metal_surfaces.db"
 
 R = 8.31439  # J/mol/K
 N_AV = 6.02283e23  # 1/mol

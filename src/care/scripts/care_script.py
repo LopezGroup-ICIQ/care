@@ -17,9 +17,9 @@ warnings.filterwarnings("ignore")
 import dask
 from dask.distributed import Client, LocalCluster
 
-from care import ReactionNetwork, gen_blueprint
+from care import ReactionNetwork, gen_blueprint, load_surface
 from care.crn.utils.electro import Electron
-from care.evaluators import load_surface, load_inter_evaluator, load_reaction_evaluator, eval_dict
+from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
 
 
 def main():

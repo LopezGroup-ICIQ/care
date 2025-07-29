@@ -1,4 +1,5 @@
 from copy import deepcopy
+import re
 from typing import Optional, Union
 
 import numpy as np
@@ -133,6 +134,15 @@ class ElementaryReaction:
 
     @property
     def repr_hr(self) -> str:
+        def sort_key(s):
+            if re.fullmatch(r"\[\d+\]\*", s):
+                return (1, 0)  # [#]* group
+            elif re.fullmatch(r"\[\d+\]H\+\(solv\)", s):
+                return (2, 0)  # [#]H+(solv) group
+            elif re.fullmatch(r"\[\d+\]e-", s):
+                return (3, 0)  # [#]e- group
+            else:
+                return (0, 0)  # normal entries
         comps_str = []
         for component in self.components:
             inters_str = []
@@ -163,7 +173,8 @@ class ElementaryReaction:
                         + "*"
                     )
                 inters_str.append(out_str)
-            comp_str = " + ".join(inters_str)
+            inters_str_sorted = sorted(inters_str, key=sort_key)
+            comp_str = " + ".join(inters_str_sorted)
             comps_str.append(comp_str)
         return format_reaction(" \u27F9 ".join(comps_str))
 

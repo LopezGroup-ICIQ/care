@@ -17,9 +17,9 @@ import dask
 from dask.distributed import Client, LocalCluster
 from rich.progress import Progress
 
-from care import ReactionNetwork
+from care import ReactionNetwork, load_surface
 from care.crn.utils.electro import Electron
-from care.evaluators import load_surface, load_inter_evaluator, load_reaction_evaluator
+from care.evaluators import load_inter_evaluator, load_reaction_evaluator
 
 def main():
     """

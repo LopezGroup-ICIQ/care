@@ -16,9 +16,9 @@ from torch_geometric.loader import DataLoader
 
 from care import Intermediate, ElementaryReaction, Surface
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS, METAL_STRUCT_DICT
+from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS
 from care.adsorption import place_adsorbate
-from care.constants import INTER_ELEMS, K_B
+from care.constants import INTER_ELEMS, K_B, METAL_STRUCT_DICT
 from care.crn.utils.electro import Proton, Electron, Water
 from care.evaluators.gamenet_uq.functions import load_model
 from care.evaluators.gamenet_uq.graph import atoms_to_data
