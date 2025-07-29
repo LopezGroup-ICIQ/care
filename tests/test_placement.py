@@ -1,8 +1,7 @@
 import random
 import unittest
 
-from care import gen_blueprint
-from care.evaluators import load_surface
+from care import gen_blueprint, load_surface
 from care.adsorption import place_adsorbate
 
 intermediates, _ = gen_blueprint(1, 1, False, False, False)
