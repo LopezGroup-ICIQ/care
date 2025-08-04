@@ -249,21 +249,27 @@ class DifferentialPFR(ReactorModel):
             try:
                 if gpu:
                     try:
+                        time0 = time()
                         results["y"] = self.integrate_jl_gpu(
                             y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
                         )
+                        results["time"] = time() - time0
                         results["status"] = 1
                     except Exception as e:
                         print(f"Error: {e}")
                         print("Switching from GPU to CPU...")
+                        time0 = time()
                         results["y"] = self.integrate_jl_cpu(
                             y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
                         )
+                        results["time"] = time() - time0
                         results["status"] = 1
                 else:
+                    time0 = time()
                     results["y"] = self.integrate_jl_cpu(
                         y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
                     )
+                    results["time"] = time() - time0
                     results["status"] = 1
             except Exception as e:
                 print(f"Error: {e}")
@@ -271,12 +277,12 @@ class DifferentialPFR(ReactorModel):
         elif solver == "Python":
             self.sum_ddt = []
             self.sstol = sstol
-            time0 = time()
             ode_events = (
                 [self.steady_state, self.gas_change_event]
                 if sstol
                 else [self.gas_change_event]
             )
+            time0 = time()
             results = solve_ivp(
                 self.ode,
                 (0, TFIN),
@@ -512,7 +518,6 @@ class DifferentialPFR(ReactorModel):
         )
         jl.seval(
             """
-        # sol = solve(prob, Rosenbrock23(autodiff=false), abstol=atol, reltol=rtol, callback=cb)
         sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
         # CUDA.allowscalar(false)
         """
@@ -520,54 +525,3 @@ class DifferentialPFR(ReactorModel):
         jl.seval("sol = Array(sol[end])")
 
         return jl.sol
-
-    # def integrate_jl_gpu2(
-    #         self,
-    #         y0: np.ndarray,
-    #         rtol: float,
-    #         atol: float,
-    #         sstol: float,
-    #         tfin: float,
-    #     ) -> np.ndarray:
-    #         """
-    #         Integrate the ODE system using the Julia-based solver on GPU.
-    #         """
-    #         import juliacall
-    #         jl = juliacall.newmodule('mkm')
-
-    #         jl.seval("""
-    #         using DifferentialEquations, CUDA, LinearAlgebra
-    #         # u0 = cu(rand(1000))
-    #         u0 = CuArray{Float64}(rand(1000))
-    #         A = CuArray{Float64}(randn(1000, 1000))
-    #         f(du, u, p, t) = mul!(du, A, u)
-    #         prob = ODEProblem(f, u0, (0.0f0, 1.0f0)) # Float32 is better on GPUs!
-    #         # function solve_ode_on_gpu()
-    #         #     function f!(du, u, p, t)
-    #         #         du[1] = u[1]
-    #         #     end
-
-    #         #     u0 = [1.0]
-    #         #     tspan = (0.0, 1.0)
-    #         #     u0_gpu = CUDA.fill(1.0, length(u0))
-    #         #     prob = ODEProblem(f!, u0_gpu, tspan)
-
-    #         #     @show typeof(u0)
-    #         #     @show typeof(u0_gpu)
-    #         #     @show typeof(prob.u0)
-
-    #         #     try
-    #         #         sol = solve(prob, FBDF(), abstol=1e-8, reltol=1e-6)
-    #         #         @show sol
-    #         #     catch e
-    #         #         @error "Error occurred" exception=(e, catch_backtrace())
-    #         #     end
-    #         # end
-    #         """)
-
-    #         # # Call the function to solve the ODE
-    #         # jl.seval("solve_ode_on_gpu()")
-    #         jl.seval("sol=solve(prob, Tsit5())")
-    #         breakpoint()
-
-    #         return jl.sol

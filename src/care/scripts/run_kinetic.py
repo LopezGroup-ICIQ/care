@@ -80,7 +80,6 @@ def main():
         )
 
     print(f"Total time: {y['time']:.2f} s")
-    # Save the blueprint
     with open(ARGS.output+'.pkl', "wb") as f:
         dump(y, f)
         print(f"MKM results saved to {ARGS.output+'.pkl'}")

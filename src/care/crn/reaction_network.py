@@ -749,6 +749,7 @@ class ReactionNetwork:
         target_products: list[str] = [],
         eapp: bool = False,
         gpu: bool = False,
+        **kwargs
     ) -> dict:
         """
         Run microkinetic simulation.
@@ -1089,8 +1090,6 @@ class ReactionNetwork:
                 gas_mask = np.append(gas_mask, True)
                 num_inerts += 1
                 inerts.append(key)
-                # inters.append(key)
-                # inters_formula.append(key)
         for key in sorted_dict_keys:
             for i, inter in enumerate(inters_formula):
                 if inter == key and gas_mask[i] == True:
@@ -1140,7 +1139,6 @@ class ReactionNetwork:
                     kf[i, run], kr[i, run] = reaction.get_kinetic_constants(
                         T, uq, thermo
                     )
-            # dataframe with all constants
             dfk = pd.DataFrame(
                 {"k_dir": kf.flatten(), "k_rev": kr.flatten()},
                 index=pd.MultiIndex.from_product(
@@ -1406,7 +1404,6 @@ class ReactionNetwork:
             results["inters"] = inters
             results["gas_mask"] = gas_mask
             results["y0"] = y0
-            # Saving the tolerance values used
             results["rtol"] = RTOL
             results["atol"] = ATOL
             results["sstol"] = SSTOL
