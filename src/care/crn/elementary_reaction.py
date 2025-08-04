@@ -173,7 +173,8 @@ class ElementaryReaction:
                         + "*"
                     )
                 inters_str.append(out_str)
-            inters_str_sorted = sorted(inters_str, key=sort_key)
+            inters_str_sorted = sorted(inters_str)
+            inters_str_sorted = sorted(inters_str_sorted, key=sort_key)
             comp_str = " + ".join(inters_str_sorted)
             comps_str.append(comp_str)
         return format_reaction(" \u27F9 ".join(comps_str))

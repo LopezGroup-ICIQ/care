@@ -585,21 +585,23 @@ class ReactionNetwork:
         eact_width = 10
         class_width = 55
         index_width = 5
+        r_type_width = 15
 
         # Print header
-        header = "{:<{}} {:<{}} {:<{}} {:<{}} {}".format(
-            "Idx", index_width, "Step", repr_hr_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class"
+        header = "{:<{}} {:<{}} {:<{}} {:<{}} {:<{}} {}".format(
+            "Idx", index_width, "Step", repr_hr_width, "r-type", r_type_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class"
         )
         print(header)
-        print("=" * (index_width + repr_hr_width + dhr_width + eact_width + class_width))
+        print("=" * (index_width + repr_hr_width + r_type_width + dhr_width + eact_width + class_width))
 
         for idx, step in enumerate(self):
             index_str = str(idx).ljust(index_width)
             repr_hr_str = step.repr_hr.ljust(repr_hr_width)
+            r_type_str = step.r_type.ljust(r_type_width) if "-" in step.r_type else "-".ljust(r_type_width)
             dhr_str = "{:+.2f}".format(step.e_rxn[0]).ljust(dhr_width)
             eact_str = "{:.2f}".format(step.e_act[0]).ljust(eact_width)
             class_str = str(step.__class__).ljust(class_width)
-            print(f"{index_str}{repr_hr_str} {dhr_str} {eact_str} {class_str}")
+            print(f"{index_str}{repr_hr_str} {r_type_str} {dhr_str} {eact_str} {class_str}")
 
 
     def get_num_global_reactions(

@@ -123,7 +123,7 @@ def main():
         # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
         surface = load_surface(**config["surface"])
         print(
-            f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface.metal}) ━━━━━━━━━━━┓\n"
+            f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface}) ━━━━━━━━━━━┓\n"
         )
 
         # Check correct energy evaluator definition

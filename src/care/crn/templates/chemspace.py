@@ -33,39 +33,31 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool, show_progress: bool=Fal
         raise ValueError(
             "The number of oxygen atoms must be smaller or equal than 2 * ncc + 2."
         )
+    relev_species = ["O", "O=O", "[H][H]"]
 
     if show_progress:
         with Progress() as progress:
             task_desc = format_description("[green]Generating Chemical Space...")
-            task = progress.add_task(task_desc, total=6)
-
-            # Step 0: Generate relevant species
-            relev_species = ["[C-]#[O+]", "C(=O)=O", "O", "O=O", "[H][H]"]
-            progress.update(task, advance=1)
+            task = progress.add_task(task_desc, total=5)
 
             # Step 1: Generate Alkanes
             alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
             progress.update(task, advance=1)
-
+            
             if noc > 0:
-                relev_species = (
-                    ["C(=O)=O", "O", "O=O", "[H][H]"]
-                    if noc == 1
-                    else ["O", "O=O", "[H][H]"]
-                )
-                # Step 2: Generate Ethers
+                # Generate Ethers
                 ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
                 progress.update(task, advance=1)
 
                 if cyclic:
-                    # Step 3: Generate Epoxides
+                    # Generate Epoxides
                     epox_smiles, mol_epox = gen_epoxides(mol_alkanes, noc)
                     progress.update(task, advance=1)
                 else:
                     epox_smiles, mol_epox = [], []
                     progress.update(task, advance=1)
 
-                # Step 4: Add Oxygens
+                # Add Oxygens
                 alkanes_oxy_smiles = [add_oxygens(mol, noc) for mol in mol_alkanes]
                 ethers_epox_oxy_smiles = [
                     add_oxygens(mol, noc - 1) for mol in mol_ethers + mol_epox
@@ -74,24 +66,15 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool, show_progress: bool=Fal
                 cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
                 progress.update(task, advance=1)
 
-                # Step 5: Finalize the Species List
                 cho_smiles += epox_smiles + ethers_smiles
-                chemical_space = list(set(alkanes_smiles + cho_smiles + relev_species))
                 progress.update(task, advance=1)
-            else:
-                # Step 2: Finalize the Species List
-                chemical_space = alkanes_smiles + relev_species
+                return list(set(alkanes_smiles + cho_smiles + relev_species))
+            else: 
                 progress.update(task, advance=1)
-    else:
-        relev_species = ["[C-]#[O+]", "C(=O)=O", "O", "O=O", "[H][H]"]
+                return alkanes_smiles + ["[H][H]"]
+    else:        
         alkanes_smiles, mol_alkanes = gen_alkanes(ncc)
-
         if noc > 0:
-            relev_species = (
-                ["C(=O)=O", "O", "O=O", "[H][H]"]
-                if noc == 1
-                else ["O", "O=O", "[H][H]"]
-            )
             ethers_smiles, mol_ethers = gen_ethers(mol_alkanes, noc)
 
             if cyclic:
@@ -106,11 +89,9 @@ def gen_chemical_space(ncc: int, noc: int, cyclic: bool, show_progress: bool=Fal
             cho_smiles = alkanes_oxy_smiles + ethers_epox_oxy_smiles
             cho_smiles = [smiles for smiles_set in cho_smiles for smiles in smiles_set]
             cho_smiles += epox_smiles + ethers_smiles
-            chemical_space = list(set(alkanes_smiles + cho_smiles + relev_species))
+            return list(set(alkanes_smiles + cho_smiles + relev_species))
         else:
-            chemical_space = alkanes_smiles + relev_species
-
-    return chemical_space
+            return alkanes_smiles + ["[H][H]"]
 
 
 def generate_alkanes_recursive(n_carbon: int, main_chain="") -> list[str]:
