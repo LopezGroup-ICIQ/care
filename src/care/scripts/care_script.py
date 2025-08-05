@@ -10,10 +10,13 @@ import cpuinfo
 import psutil
 import time
 import logging
-logging.basicConfig(level=logging.ERROR)
 import warnings
-warnings.filterwarnings("ignore")
-
+warnings.filterwarnings(
+    "ignore",
+    message=r".*torch.load.*weights_only=False.*",
+    category=FutureWarning,
+)
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*ExpCellFilter.*")
 import dask
 from dask.distributed import Client, LocalCluster
 
@@ -21,6 +24,46 @@ from care import ReactionNetwork, gen_blueprint, load_surface
 from care.crn.utils.electro import Electron
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
 
+def setup_logging(log_file=None):
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        file_handler.setFormatter(formatter)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.ERROR)
+        # Remove ALL pre-existing handlers
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        root_logger.addHandler(file_handler)
+
+        # Redirect warnings through logging
+        logging.captureWarnings(True)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+
+        # Clean and redirect specific noisy loggers (like bokeh)
+        for name in [
+            "acat"
+            "distributed",
+            "bokeh",
+            "tornado",
+            "ase",
+            "torch",
+            "asyncio",
+            "torch._dynamo",
+            "mace"
+        ]:           
+            logger = logging.getLogger(name)
+            logger.setLevel(logging.ERROR)
+            # Remove all their handlers
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+            logger.addHandler(file_handler)
+            logger.propagate = False  # ensure they don't write to parent stdout handlers
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
 def main():
     """
@@ -48,7 +91,14 @@ def main():
         help="Number of CPU cores to use for the CRN generation.",
         default=mp.cpu_count(),
     )
+    PARSER.add_argument(
+        '--log', 
+        type=str, 
+        help='Path to run log file', 
+        default="care.log"
+    )
     ARGS = PARSER.parse_args()
+    setup_logging(ARGS.log)
 
     if not ARGS.input:
         raise ValueError("Input .toml file not provided.")
@@ -120,10 +170,10 @@ def main():
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
         )
 
-        # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
+        # 2. Evaluation of the adsorbed intermediates in the CRN
         surface = load_surface(**config["surface"])
         print(
-            f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface}) ━━━━━━━━━━━┓\n"
+            f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface} ━━━━━━━━━━━┓\n"
         )
 
         # Check correct energy evaluator definition
@@ -146,9 +196,11 @@ def main():
         print(" Intermediates energy calculator: ", inter_evaluator)
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
-                           threads_per_worker=1)
+                           threads_per_worker=1, 
+                           ip='127.0.0.1', 
+                           scheduler_port=0, 
+                           dashboard_address=None)
         client = Client(address=cluster)
-        print(client.dashboard_link)
         @dask.delayed
         def load_inter(inter):
             return inter
@@ -162,6 +214,10 @@ def main():
         predictions = [predict(task, dmodel) for task in tasks]
         predictions = dask.compute(*predictions)
         intermediates = {inter.code: inter for inter in predictions}
+        client.shutdown()
+        client.close()
+        cluster.close()
+        time.sleep(1)
 
         # REACTION EVALUATION
         print("\n Energy estimation of the reactions...")

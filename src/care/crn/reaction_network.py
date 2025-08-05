@@ -1,6 +1,7 @@
 from typing import Union
 from collections import defaultdict
 from copy import deepcopy
+from tqdm import tqdm
 
 import networkx as nx
 import numpy as np
@@ -583,11 +584,9 @@ class ReactionNetwork:
         repr_hr_width = max(len(step.repr_hr) for step in self) + 2
         dhr_width = 10
         eact_width = 10
-        class_width = 55
+        class_width = 20
         index_width = 5
-        r_type_width = 15
-
-        # Print header
+        r_type_width = 10
         header = "{:<{}} {:<{}} {:<{}} {:<{}} {:<{}} {}".format(
             "Idx", index_width, "Step", repr_hr_width, "r-type", r_type_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class"
         )
@@ -599,8 +598,8 @@ class ReactionNetwork:
             repr_hr_str = step.repr_hr.ljust(repr_hr_width)
             r_type_str = step.r_type.ljust(r_type_width) if "-" in step.r_type else "-".ljust(r_type_width)
             dhr_str = "{:+.2f}".format(step.e_rxn[0]).ljust(dhr_width)
-            eact_str = "{:.2f}".format(step.e_act[0]).ljust(eact_width)
-            class_str = str(step.__class__).ljust(class_width)
+            eact_str = "{:+.2f}".format(step.e_act[0]).ljust(eact_width)
+            class_str = str(type(step)).split(".")[-1].strip("'>").ljust(class_width)
             print(f"{index_str}{repr_hr_str} {r_type_str} {dhr_str} {eact_str} {class_str}")
 
 
@@ -1006,17 +1005,14 @@ class ReactionNetwork:
         # BUILD THE MICROKINETIC MODEL
         inters = sorted(
             MKM_INTERS.keys(), key=lambda x: MKM_INTERS[x].code
-        )  # order of y vector defined here!
-        inters_formula = [MKM_INTERS[x].formula for x in inters]
+        ) + ["*"] # order of y vector defined here!
+        inters_formula = [MKM_INTERS[x].formula for x in inters] + ["*"]
         gas_mask = np.array(
-            [MKM_INTERS[inter].phase == "gas" for inter in inters], dtype=bool
+            [MKM_INTERS[inter].phase == "gas" for inter in inters] + [False], dtype=bool
         )
         MKM_INTERS["*"] = Intermediate(
             "*", molecule=Atoms(), is_surface=True, phase="surf"
         )
-        inters.append("*")
-        inters_formula.append("*")
-        gas_mask = np.append(gas_mask, False)
 
         inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]
         for reaction in MKM_RXNS:
@@ -1071,7 +1067,7 @@ class ReactionNetwork:
 
         v = np.zeros((len(MKM_INTERS), len(MKM_RXNS)), dtype=np.int8)
 
-        for i, reaction in enumerate(MKM_RXNS):
+        for i, reaction in tqdm(enumerate(MKM_RXNS), desc="Building stoichiometric matrix"):
             for inter, stoic in reaction.stoic.items():
                 if inter not in ELECTRO_SPECIES:
                     v[inters.index(inter), i] = stoic

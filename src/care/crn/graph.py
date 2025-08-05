@@ -1,5 +1,7 @@
 """Helper functions for CRN representation in NetworX format."""
 
+from tqdm import tqdm
+
 import networkx as nx
 from rdkit import Chem
 from networkx.algorithms import shortest_path
@@ -34,7 +36,7 @@ def gen_graph(
     """
     graph = nx.DiGraph()
 
-    for inter in inters.values():
+    for inter in tqdm(inters.values(), desc="Adding intermediates to nx graph"):
         graph.add_node(
             inter.code,
             category="intermediate",
@@ -57,7 +59,7 @@ def gen_graph(
         closed_shell=False,
     )
 
-    for idx, reaction in enumerate(rxns):
+    for idx, reaction in tqdm(enumerate(rxns), desc="Adding reactions to nx graph"):
         r_type = (
             reaction.r_type
             if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")

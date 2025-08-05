@@ -65,13 +65,13 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def get_slab_energy(self):
         self.surface.slab.calc = self.calc
-        opt = BFGS(self.surface.slab)
+        opt = BFGS(self.surface.slab, 
+                   logfile=None)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
         if self.del_traj:
             self.surface.slab.calc = None
         self.surface.energy = self.slab_energy
-        print('self.slab_energy: ', self.slab_energy)
 
     @property
     def adsorbate_domain(self):
@@ -101,7 +101,8 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
             molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
 
             molec_eval.calc = self.calc
-            opt = BFGS(molec_eval)
+            opt = BFGS(molec_eval, 
+                       logfile=None)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             intermediate.ads_configs = {
                 intermediate.phase: {
@@ -112,14 +113,14 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
             }
             if self.del_traj:
                 molec_eval.calc = None
-            print(intermediate.ads_configs)
         elif intermediate.phase == "ads":  # adsorbed
             ads_config_dict = {}
             adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
             for i, adsorption in enumerate(adsorptions):
                 ads_config_dict[str(i)] = {}
                 adsorption.calc = self.calc
-                opt = BFGS(adsorption)
+                opt = BFGS(adsorption, 
+                           logfile=None)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 ads_config_dict[str(i)]['ase'] = adsorption
                 ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
