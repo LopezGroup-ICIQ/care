@@ -87,7 +87,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                 f'OCP models can only evaluate adsorbates/molecules with {", ".join(self.adsorbate_domain)} elements.'
             )
         
-        gas_energy = intermediate['C']*self.eref['C'] + intermediate['H']*self.eref['H'] + intermediate['O']*self.eref['O'] + intermediate['N']*self.eref['N']
+        gas_energy = sum(intermediate[el] * self.eref[el] for el in ['C', 'H', 'O', 'N'])
 
         if intermediate.phase == "gas":  # gas phase
             intermediate.ads_configs = {
@@ -113,7 +113,6 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                 if self.del_traj:
                     adsorption.calc = None
             intermediate.ads_configs = ads_config_dict
-            print(intermediate.ads_configs)
         else:
             raise ValueError("Phase not supported by the current estimator.")
 

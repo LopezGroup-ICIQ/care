@@ -17,6 +17,11 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 warnings.filterwarnings("ignore", category=FutureWarning, message=".*ExpCellFilter.*")
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    message=r".*torch\.cuda\.amp\.autocast.*deprecated.*"
+)
 import dask
 from dask.distributed import Client, LocalCluster
 
@@ -199,19 +204,26 @@ def main():
                            threads_per_worker=1, 
                            ip='127.0.0.1', 
                            scheduler_port=0, 
-                           dashboard_address=None)
+                           dashboard_address=":0")
         client = Client(address=cluster)
+        print(f"Dask dashboard available at: {cluster.dashboard_link}")
         @dask.delayed
         def load_inter(inter):
             return inter
-        tasks = [load_inter(intermediate) for intermediate in intermediates.values()]
+        tasks = [
+            dask.delayed(load_inter, name=f"load-{intermediate.code}")(intermediate)
+            for intermediate in intermediates.values()
+        ]
         @dask.delayed
         def predict(inter, dmodel):
             dmodel(inter)
             return inter
         dask.utils.format_bytes(len(dumps(inter_evaluator)))
         dmodel = dask.delayed(inter_evaluator)
-        predictions = [predict(task, dmodel) for task in tasks]
+        predictions = [
+            dask.delayed(predict, name=f"predict-{intermediate.code}")(task, dmodel)
+            for task, intermediate in zip(tasks, intermediates.values())
+        ]
         predictions = dask.compute(*predictions)
         intermediates = {inter.code: inter for inter in predictions}
         client.shutdown()
