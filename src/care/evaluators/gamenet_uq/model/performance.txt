@@ -1,78 +1,22 @@
-11-Mar-2024, 13:43:34
-Device = NVIDIA RTX A2000 12GB
-Training time = 14.26 min
----------------------------------------------------------
 GRAPH REPRESENTATION PARAMETERS
 Voronoi tolerance = 0.25 Angstrom
-Atomic radius scaling factor = 1.25
-Second order metal neighbours inclusion = True
+Atomic radii scaling factor = 1.25
+Surface order metal neighbours inclusion = 2
 Node adsorbate/surface descriptor = False
 Node radical descriptor = False
----------------------------------------------------------
-GNN ARCHITECTURE
-Activation function = ReLU
-Number of convolutional layers = 3
-Number of fully connected layers = 0
-Depth of the layers = 192
-Bias presence in the layers = False
----------------------------------------------------------
 TRAINING PROCESS
-Dataset Size = 13589
-Data Split (Train/Val/Test) = 60-20-20 %
+01-Aug-2025, 16:39:15
+Dataset Size = 13644
+Data Split (Train/Val) = 80-20 %
 Target scaling = std
-Target (train+val) mean = -47.607414 eV
-Target (train+val) standard deviation = 28.602310 eV
+Dataset (train+val) mean = -48.414165 eV
+Dataset (train+val) standard deviation = 29.050852 eV
 Epochs = 250
-Batch size = 32
+Batch Size = 32
 Optimizer = Adam
 Learning Rate scheduler = Reduce Loss On Plateau
-Initial learning rate = 0.001
-Minimum learning rate = 1e-07
+Initial Learning Rate = 0.001
+Minimum Learning Rate = 1e-07
 Patience (lr-scheduler) = 5
 Factor (lr-scheduler) = 0.7
 Loss function = mae
----------------------------------------------------------
-GNN PERFORMANCE
-Test set size = 2521
-Mean Bias Error (MBE) = -0.009 eV
-Mean Absolute Error (MAE) = 0.239 eV
-Root Mean Square Error (RMSE) = 0.410 eV
-Mean Absolute Percentage Error (MAPE) = 1.515 %
-Error Standard Deviation = 0.410 eV
-R2 = 1.000 
-Sharpness = 0.285 eV
-Coefficient of variation = 0.000 [-]
-Miscalibration area = 0.009 [-]
----------------------------------------------------------
-OUTLIERS (TEST SET)
-01) Zn48C2H    Error: 1.50 eV    (index=10)
-02) Fe48HO    Error: -1.93 eV    (index=32)
-03) Ni48C2O    Error: 1.24 eV    (index=489)
-04) Os72HS    Error: 1.45 eV    (index=530)
-05) Ag72C    Error: -1.44 eV    (index=614)
-06) Ni48C2H2O    Error: -2.68 eV    (index=630)
-07) Pt48C4H6    Error: -1.27 eV    (index=856)
-08) Cd48C2HO    Error: -2.02 eV    (index=898)
-09) Ni48C2HO    Error: -2.19 eV    (index=1144)
-10) Pt72C    Error: -1.82 eV    (index=1162)
-11) Cd72N    Error: 1.96 eV    (index=1163)
-12) Fe48H    Error: -2.09 eV    (index=1204)
-13) Pd48S    Error: -1.54 eV    (index=1218)
-14) Fe48C2H5    Error: -2.60 eV    (index=1224)
-15) Cd72HO    Error: 2.19 eV    (index=1284)
-16) Cd48S    Error: -2.66 eV    (index=1304)
-17) Co72S    Error: -1.26 eV    (index=1310)
-18) Zn48O2    Error: -1.57 eV    (index=1350)
-19) Zn48H    Error: -1.30 eV    (index=1352)
-20) Co48H    Error: -7.62 eV    (index=1359)
-21) Rh48HS    Error: 1.60 eV    (index=1371)
-22) Cd48C6H14O    Error: 6.51 eV    (index=1662)
-23) Fe48C3H6S    Error: -1.26 eV    (index=1686)
-24) Fe48H    Error: -2.09 eV    (index=1760)
-25) Co72HO    Error: 1.60 eV    (index=1855)
-26) Fe48C4H4S    Error: -2.30 eV    (index=2020)
-27) Ni48C2H    Error: -2.20 eV    (index=2029)
-28) Pt48S    Error: -1.45 eV    (index=2064)
-29) Cd48C2HO    Error: -1.24 eV    (index=2260)
-30) Ni48C2    Error: 1.67 eV    (index=2317)
-31) Cu36C2H5O2    Error: 1.53 eV    (index=2429)
