@@ -450,7 +450,7 @@ class Intermediate:
             )
         ase_atoms.set_cell([20, 20, 20])
         ase_atoms.set_pbc(True)
-
+        ase_atoms.new_array("atom_tags", [1] * len(ase_atoms), dtype=int)
         return ase_atoms
 
     def ase_to_rdkit(self):

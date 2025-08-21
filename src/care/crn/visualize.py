@@ -3,12 +3,14 @@
 from os import makedirs
 from os.path import abspath
 
-import networkx as nx
-from pydot import Subgraph
+from ase.io import write
 from energydiagram import ED
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 import matplotlib.pyplot as plt
-from ase.io import write
+import networkx as nx
+import numpy as np
+from pydot import Subgraph
+from scipy.interpolate import CubicSpline
 
 from care import ElementaryReaction, format_reaction
 from care.crn.graph import max_flux
@@ -427,3 +429,39 @@ def build_energy_profile(graph: nx.DiGraph, path: list[str]):
             counter += 1
             ed.add_link(counter - 1, counter)
     return ed
+
+
+def plot_reaction_profile(energies, title="", num_points=100):
+    """
+    Plots a smooth reaction energy profile using cubic spline interpolation,
+    ensuring the curve starts and ends with a zero slope (stationary points).
+
+    Args:
+        energies (list or np.array): A list of energy values for key points.
+        num_points (int): The number of points for the smooth curve.
+    """
+    energies = [x - energies[0] for x in energies]  # reference wrt IS
+    x_data = np.arange(len(energies))
+    
+    # Create the cubic spline interpolation function with boundary conditions
+    cs = CubicSpline(x_data, energies, bc_type=((1, 0.0), (1, 0.0)))
+    
+    x_smooth = np.linspace(0, len(energies) - 1, num_points)
+    
+    y_smooth = cs(x_smooth)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Plot the smooth curve on the axes
+    ax.plot(x_smooth, y_smooth, label='Smooth Curve', color='blue')
+    
+    # Plot the original data points on the axes
+    ax.plot(x_data, energies, 'o', label='Images', color='red')
+    
+    # Set labels and other properties using the axes object
+    ax.set_xlabel('Reaction Coordinate')
+    ax.set_ylabel('Energy / eV')
+    ax.set_title(title)
+    ax.grid(True)
+    ax.legend()
+    plt.close(fig)
+    return fig

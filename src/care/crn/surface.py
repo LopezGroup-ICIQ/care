@@ -89,6 +89,7 @@ class Surface:
         self.num_atoms = len(ase_atoms_slab)
         self.mp_id = mp_id 
         self.energy = None
+        self.slab.new_array("atom_tags", [0] * len(self.slab), dtype=int)  # 0=surface atom, 1=adsorbate atom
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
@@ -144,7 +145,7 @@ class Surface:
                 layers += 1
         else:
             raise ValueError("num_layers must be an int or float.")
-        z = {atom.index:atom.position[2] for atom in slab}
+        z = {atom.index: atom.position[2] for atom in slab}
         layers_z = list(set(z.values()))
         layers_z.sort()
         slab.set_constraint(FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(len(layers_z)/2)]]))
@@ -177,6 +178,10 @@ class Surface:
             surface_ase = metal_db.get_atoms(
                 calc_type="surface", metal=metal, facet=metal_structure, add_additional_information=True
             )
+            z = {atom.index: atom.position[2] for atom in surface_ase}
+            layers_z = list(set(z.values()))
+            layers_z.sort()
+            surface_ase.set_constraint(FixAtoms(indices=[atom.index for atom in surface_ase if atom.position[2] in layers_z[:int(len(layers_z)/2)]]))
         except:
             raise ValueError(f"{metal} surface {metal_structure} not in the database. Generate it from the Materials Project with Surface.from_mp().")
         return cls(ase_atoms_slab=surface_ase, facet=hkl)

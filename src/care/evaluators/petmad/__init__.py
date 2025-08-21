@@ -1,6 +1,5 @@
-from care.evaluators.petmad.interface import PETMADIntermediateEvaluator, PETMADReactionEvaluator
+from care.evaluators.petmad.interface import PETMADIntermediateEvaluator
 
 __all__ = [
-    "PETMADIntermediateEvaluator",
-    "PETMADReactionEvaluator"
+    "PETMADIntermediateEvaluator"
 ]

@@ -3,12 +3,14 @@ Interface to PET-MAD potential.
 """
 
 from copy import deepcopy
+from typing import Union
 
+from ase import Atoms
 from ase.optimize import BFGS
 from ase.data import chemical_symbols
 
 from care import Intermediate, Surface
-from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
+from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 
 class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
@@ -50,6 +52,7 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
         self.max_steps = max_steps
         self.num_configs = num_configs
         self.del_traj = del_traj
+        self.is_mlp = True
         self.get_slab_energy()
 
     def __repr__(self) -> str:
@@ -85,78 +88,55 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def eval(
         self,
-        intermediate: Intermediate,
+        intermediate: Union[Intermediate, Atoms],
     ):
 
         """
         Given the surface and the intermediate, return the properties of the intermediate as attributes of the intermediate object.
         """
+        if isinstance(intermediate, Intermediate):
+            if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
+                raise ValueError(
+                    f'MACE can only evaluate molecules with {", ".join(self.adsorbate_domain)} elements.'
+                )
+            if intermediate.phase == 'gas':  # gas
+                molec_eval = deepcopy(intermediate.molecule)
+                molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
 
-        if not all([elem in self.adsorbate_domain for elem in intermediate.molecule.get_chemical_symbols()]):
-            raise ValueError(
-                f'MACE can only evaluate molecules with {", ".join(self.adsorbate_domain)} elements.'
-            )
-        if intermediate.phase == 'gas':  # gas
-            molec_eval = deepcopy(intermediate.molecule)
-            molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
-
-            molec_eval.calc = self.calc
-            opt = BFGS(molec_eval, 
+                molec_eval.calc = self.calc
+                opt = BFGS(molec_eval, 
+                        logfile=None)
+                opt.run(fmax=self.fmax, steps=self.max_steps)
+                intermediate.ads_configs = {
+                    intermediate.phase: {
+                        "ase": molec_eval,
+                        "mu": molec_eval.get_potential_energy(),  # eV
+                        "s": 0.0,  # eV
+                    }
+                }
+                if self.del_traj:
+                    molec_eval.calc = None
+            elif intermediate.phase == "ads":  # adsorbed
+                ads_config_dict = {}
+                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
+                for i, adsorption in enumerate(adsorptions):
+                    ads_config_dict[str(i)] = {}
+                    adsorption.calc = self.calc
+                    opt = BFGS(adsorption, 
+                            logfile=None)
+                    opt.run(fmax=self.fmax, steps=self.max_steps)
+                    ads_config_dict[str(i)]['ase'] = adsorption
+                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
+                    ads_config_dict[str(i)]['s'] = 0.0
+                    if self.del_traj:
+                        adsorption.calc = None
+                intermediate.ads_configs = ads_config_dict
+            else:
+                raise ValueError("Phase not supported by the current estimator.")
+        else:
+            intermediate.calc = self.calc
+            opt = BFGS(intermediate,
                        logfile=None)
             opt.run(fmax=self.fmax, steps=self.max_steps)
-            intermediate.ads_configs = {
-                intermediate.phase: {
-                    "ase": molec_eval,
-                    "mu": molec_eval.get_potential_energy(),  # eV
-                    "s": 0.0,  # eV
-                }
-            }
             if self.del_traj:
-                molec_eval.calc = None
-        elif intermediate.phase == "ads":  # adsorbed
-            ads_config_dict = {}
-            adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
-            for i, adsorption in enumerate(adsorptions):
-                ads_config_dict[str(i)] = {}
-                adsorption.calc = self.calc
-                opt = BFGS(adsorption, 
-                           logfile=None)
-                opt.run(fmax=self.fmax, steps=self.max_steps)
-                ads_config_dict[str(i)]['ase'] = adsorption
-                ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                ads_config_dict[str(i)]['s'] = 0.0
-                if self.del_traj:
-                    adsorption.calc = None
-            intermediate.ads_configs = ads_config_dict
-        else:
-            raise ValueError("Phase not supported by the current estimator.")
-
-
-class PETMADReactionEvaluator(ReactionEnergyEstimator):
-    def __init__(
-        self,
-        intermediates: dict[str, Intermediate], 
-        T: float = 298.0,
-        ref_electrode: str = "SHE",
-        pH: float = 7.0,
-        U: float = 0.0,
-        **kwargs
-    ):
-        super().__init__(
-            intermediates=intermediates,
-            T=T,
-            ref_electrode=ref_electrode,
-            pH=pH,
-            U=U,
-            **kwargs
-        )
-
-    @property
-    def adsorbate_domain(self):
-        """Returns the list of adsorbate elements that your model can handle."""
-        return chemical_symbols[1:]
-
-    @property
-    def surface_domain(self):
-        """Returns the list of surface elements that your model can handle."""
-        return chemical_symbols[1:]
+                intermediate.calc = None

@@ -1,18 +1,19 @@
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
-from care.evaluators.ocp import OCPIntermediateEvaluator, OCPReactionEvaluator
-from care.evaluators.mace import MACEIntermediateEvaluator, MACEReactionEvaluator
-from care.evaluators.petmad import PETMADIntermediateEvaluator, PETMADReactionEvaluator
-from care.evaluators.orb import ORBIntermediateEvaluator, ORBReactionEvaluator
-from care.evaluators.sevennet import SevenNetIntermediateEvaluator, SevenNetReactionEvaluator
+from care.evaluators.ocp import OCPIntermediateEvaluator
+from care.evaluators.mace import MACEIntermediateEvaluator
+from care.evaluators.petmad import PETMADIntermediateEvaluator
+from care.evaluators.orb import ORBIntermediateEvaluator
+from care.evaluators.sevennet import SevenNetIntermediateEvaluator
+from care.evaluators.reaction_estimators import BarrierlessReactionEnergyEstimator, NEBReactionEnergyEstimator
 
 eval_dict = {
     "gamenetuq": (GameNetUQInter, GameNetUQRxn),
-    "ocp": (OCPIntermediateEvaluator, OCPReactionEvaluator),
-    "mace": (MACEIntermediateEvaluator, MACEReactionEvaluator),
-    "petmad": (PETMADIntermediateEvaluator, PETMADReactionEvaluator),
-    "orb": (ORBIntermediateEvaluator, ORBReactionEvaluator),
-    "sevennet": (SevenNetIntermediateEvaluator, SevenNetReactionEvaluator),
+    "ocp": (OCPIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
+    "mace": (MACEIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
+    "petmad": (PETMADIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
+    "orb": (ORBIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
+    "sevennet": (SevenNetIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
 }
 
 def get_available_evaluators():

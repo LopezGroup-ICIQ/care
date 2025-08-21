@@ -153,10 +153,10 @@ def atoms_to_nx(
             ads_graph.add_edge(missing_edge[0], missing_edge[1])
             components = list(connected_components(ads_graph))
 
-    if surface_order == -1:
-        surface_order = 100    
     adsorption_ensemble  = {atom.index for atom in atoms if atom.symbol in adsorbate_elements}
     surf_hops = {0: list(adsorption_ensemble)}
+    if surface_order == -1:
+        surface_order = 100    
     for _ in range(surface_order):
         surface_ensemble = {
             pair[1] if pair[0] in adsorption_ensemble else pair[0]
@@ -238,6 +238,7 @@ def atoms_to_pyg(
 def atoms_to_data(
     structure: Atoms, 
     surface_order: int = 2,
+    filter: bool = True
 ) -> Data:
     """
     Convert ASE Atoms object to PyG Data graph based on the input parameters.
@@ -271,12 +272,13 @@ def atoms_to_data(
     graph.formula = structure.get_chemical_formula()
 
     # GRAPH FILTERING
-    if not H_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(graph.formula))
-    if not C_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Wrong C connectivity in the adsorbate".format(graph.formula))
-    if not fragment_filter(graph, ADSORBATE_ELEMS):
-        raise ValueError("{}: Fragmented adsorbate.".format(graph.formula))
+    if filter:
+        if not H_filter(graph, ADSORBATE_ELEMS):
+            raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(graph.formula))
+        if not C_filter(graph, ADSORBATE_ELEMS):
+            raise ValueError("{}: Wrong C connectivity in the adsorbate".format(graph.formula))
+        if not fragment_filter(graph, ADSORBATE_ELEMS):
+            raise ValueError("{}: Fragmented adsorbate.".format(graph.formula))
 
     # NODE FEATURIZATION
     graph_new = get_gcn(graph, structure, ADSORBATE_ELEMS)

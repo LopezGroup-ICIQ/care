@@ -279,6 +279,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.model.to(self.device)
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
+        self.is_mlp = False
         
         if not all([inter.ads_configs for inter in self.intermediates.values()]):
             raise Warning(
@@ -371,7 +372,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
     
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
-        Generate transition state graph representing the surface bon-breaking
+        Generate transition state graph representing the surface bond-breaking
         elementary reaction A* + * -> B* + C*.
 
         Args:
@@ -394,7 +395,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             key=lambda x: self.intermediates[A_code].ads_configs[x]['s' if self.use_uq else 'mu'],
         )
         ts_graph = atoms_to_data(self.intermediates[A_code].ads_configs[idx]["ase"], 
-                                 surface_order=-1)  # whole graph
+                                 surface_order=-1, 
+                                 filter=False)  # whole graph
         competitors = [
             inter
             for inter in list(step.products)

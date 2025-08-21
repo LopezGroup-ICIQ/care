@@ -106,6 +106,12 @@ class ElementaryReaction:
         if self.r_type != "pseudo" and self.stoic is None:
             self.stoic = self.solve_stoichiometry()
 
+        self.neb_images = None
+        self.neb_energies = None
+        self.neb_figure = None
+        self.is_graph = None
+        self.fs_graph = None
+
     def __lt__(self, other):
         return self.code < other.code
 

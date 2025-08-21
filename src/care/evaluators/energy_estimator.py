@@ -1,9 +1,11 @@
 """
 Base class for energy estimators.
 """
-
 from typing import Optional
 from abc import ABC, abstractmethod
+from typing import Union
+
+from ase import Atoms
 
 from care import Intermediate, Surface, ElementaryReaction
 from care.crn.utils.electro import Electron, Proton, Water
@@ -41,7 +43,7 @@ class IntermediateEnergyEstimator(ABC):
 
 
     @abstractmethod
-    def eval(self, inter: Intermediate, surf: Optional[Surface] = None) -> None:
+    def eval(self, inter: Union[Atoms, Intermediate], surf: Optional[Surface] = None) -> None:
         """
         Estimate the energy of a state.
 
@@ -92,7 +94,7 @@ class ReactionEnergyEstimator(ABC):
         self.eval(reaction)
 
     def __repr__(self) -> str:
-        return f"Barrierless reaction evaluator (no lateral interactions)"
+        return f"Base-class reaction evaluator"
 
     @property
     @abstractmethod
