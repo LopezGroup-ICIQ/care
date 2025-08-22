@@ -46,6 +46,15 @@ def parse_hkl_string(hkl_str):
     else:
         raise ValueError(f"Invalid hkl string format: {hkl_str}")
     
+
+def bottom_half_indices(slab):
+    z = slab.positions[:, 2]
+    sorted_indices = np.argsort(z)
+    n = len(slab)
+    bottom_half = sorted_indices[: n // 2]
+    return bottom_half
+
+    
 def load_surface(metal: str = None,
                  hkl: Union[str, list[int]] = None,
                  mp_id: str = None,
@@ -145,10 +154,7 @@ class Surface:
                 layers += 1
         else:
             raise ValueError("num_layers must be an int or float.")
-        z = {atom.index: atom.position[2] for atom in slab}
-        layers_z = list(set(z.values()))
-        layers_z.sort()
-        slab.set_constraint(FixAtoms(indices=[atom.index for atom in slab if atom.position[2] in layers_z[:int(len(layers_z)/2)]]))
+        slab.set_constraint(FixAtoms(indices=bottom_half_indices(slab)))  # Fix bottom half of the slab
         slab = slab.repeat((xy_repeat, xy_repeat, 1))
         slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, vacuum]], scale_atoms=False)
         return cls(ase_atoms_slab=slab, facet=hkl, mp_id=mp_id)
@@ -178,17 +184,14 @@ class Surface:
             surface_ase = metal_db.get_atoms(
                 calc_type="surface", metal=metal, facet=metal_structure, add_additional_information=True
             )
-            z = {atom.index: atom.position[2] for atom in surface_ase}
-            layers_z = list(set(z.values()))
-            layers_z.sort()
-            surface_ase.set_constraint(FixAtoms(indices=[atom.index for atom in surface_ase if atom.position[2] in layers_z[:int(len(layers_z)/2)]]))
+            surface_ase.set_constraint(FixAtoms(indices=bottom_half_indices(surface_ase)))
         except:
             raise ValueError(f"{metal} surface {metal_structure} not in the database. Generate it from the Materials Project with Surface.from_mp().")
         return cls(ase_atoms_slab=surface_ase, facet=hkl)
 
     @property
     def num_layers(self) -> int:
-        z = {atom.index: round(atom.position[2], 2) for atom in self.slab}
+        z = {atom.index: round(atom.position[2], 1) for atom in self.slab}
         layers_z = list(set(z.values()))
         return len(layers_z)
 
