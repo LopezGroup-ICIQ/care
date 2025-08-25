@@ -12,6 +12,7 @@ from ase.data import chemical_symbols
 from care import Intermediate, Surface
 from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
+from care.evaluators.utils import atoms_to_data
 
 class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -118,13 +119,18 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
                     molec_eval.calc = None
             elif intermediate.phase == "ads":  # adsorbed
                 ads_config_dict = {}
-                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
+                adsorptions = place_adsorbate(intermediate, self.surface, -1)
                 for i, adsorption in enumerate(adsorptions):
-                    ads_config_dict[str(i)] = {}
+                    if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
+                        break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption, 
                             logfile=None)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
+                    if g is None:
+                        continue
+                    ads_config_dict[str(i)] = {}
                     ads_config_dict[str(i)]['ase'] = adsorption
                     ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                     ads_config_dict[str(i)]['s'] = 0.0

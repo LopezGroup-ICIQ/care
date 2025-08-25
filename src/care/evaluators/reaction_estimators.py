@@ -4,16 +4,15 @@ from typing import Union
 from ase.data import chemical_symbols
 from ase.mep import NEB
 from ase.optimize import BFGS
-from ase.visualize.plot import plot_atoms
-from ase.visualize import view
 import networkx as nx
 import numpy as np
+from torch.cuda import empty_cache
 
 from care.crn.templates.dissociation import BondBreaking, BondFormation
 from care import Intermediate, ElementaryReaction
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
 from care.crn.visualize import plot_reaction_profile
-from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, fragment_filter
+from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented
 from care.constants import CORDERO
 
 
@@ -56,14 +55,14 @@ class BarrierlessReactionEnergyEstimator(ReactionEnergyEstimator):
 
 class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
     """
-    Class for estimating the transition state energy of reactions using the NEB method with 
+    Class for estimating the transition state energy of surface reactions using the NEB method with 
     ML potentials within ASE calculators.
     """
 
     def __init__(
         self,
         intermediates: dict[str, Intermediate],
-        mlp: IntermediateEnergyEstimator,
+        mlp: IntermediateEnergyEstimator = None,
         num_images: int = 5,
         climb: bool = True,
         interpolation_method: str = "linear",
@@ -117,7 +116,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
     def __repr__(self) -> str:
         return f"NEB-based reaction energy estimator (MLP: {self.mlp})"
 
-    def run_neb(self, reaction: ElementaryReaction) -> None:
+    def get_fs(self, reaction: ElementaryReaction) -> None:
+        """
+        Get the final state (FS) geometry for the given reaction.
+        """
         reaction.bb()  # ensure starting always from reaction in bond-breaking direction (A* -> B* + C*)
         bond = tuple(reaction.r_type.split("-"))
 
@@ -125,18 +127,16 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         IS_code = [
             inter.code for inter in list(reaction.reactants) if not inter.is_surface
         ][0]
-        idx = min(
-            self.intermediates[IS_code].ads_configs,
-            key=lambda x: self.intermediates[IS_code].ads_configs[x]['mu'],
-        )
         try:            
+            idx = min(
+                self.intermediates[IS_code].ads_configs,
+                key=lambda x: self.intermediates[IS_code].ads_configs[x]['mu'],
+            )
             IS = self.intermediates[IS_code].ads_configs[idx]["ase"]
-            # energy_IS = self.intermediates[IS_code].ads_configs[idx]["mu"] + self.mlp.surface.energy
             is_graph = atoms_to_data(IS, IS.get_array("atom_tags"), surface_order=-1, filter=True)
             reaction.is_graph = is_graph
-        except: # weird relaxation
-            print(f"Weird initial state for {reaction.repr_hr}. Check intermediate {IS_code}, adsorption configuration {idx}. Skip TS evaluation (assumed barrierless)")
-            reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
+            reaction.is_atoms = IS.copy()
+        except:
             return
         competitors = [
             inter
@@ -168,37 +168,39 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             if (atom1, atom2) == bond or (atom2, atom1) == bond:
                 potential_edges.append(i)
 
-        print(f"Potential edges: {len(potential_edges)}")
         # 3) Find broken bond in the graph of the IS via isomorphic comparison
-        counter = 0
-        while True:
-            g = deepcopy(is_graph)
-            u, v = g.edge_index[:, potential_edges[counter]]
-            mask = ~(
-                (g.edge_index[0] == u) & (g.edge_index[1] == v)
-                | (g.edge_index[0] == v) & (g.edge_index[1] == u)
-            )
-            g.edge_index = g.edge_index[:, mask]
-            adsorbate = extract_adsorbate(g, IS.get_array("atom_tags"))
-            nx_graph = pyg_to_nx(adsorbate)
-            if nx.is_isomorphic(
-                nx_bc, nx_graph, node_match=lambda x, y: x["elem"] == y["elem"]
-            ):
-                u, v = u.item(), v.item()
-                break
-            else:
-                counter += 1
+        if len(potential_edges) == 0 and len(nx_bc) == 2: # edge case: H2, O2 not showing unique potential bond in the graph
+            uvs = [is_graph.idx[i] for i in range(is_graph.num_nodes) if IS.get_array("atom_tags")[i] == 1]
+            u, v = uvs[0], uvs[1]
+        else:
+            counter = 0
+            while True:
+                g = deepcopy(is_graph)
+                u, v = g.edge_index[:, potential_edges[counter]]
+                mask = ~(
+                    (g.edge_index[0] == u) & (g.edge_index[1] == v)
+                    | (g.edge_index[0] == v) & (g.edge_index[1] == u)
+                )
+                g.edge_index = g.edge_index[:, mask]
+                adsorbate = extract_adsorbate(g, IS.get_array("atom_tags"))
+                nx_graph = pyg_to_nx(adsorbate)
+                if nx.is_isomorphic(
+                    nx_bc, nx_graph, node_match=lambda x, y: x["elem"] == y["elem"]
+                ):
+                    u, v = u.item(), v.item()
+                    break
+                else:
+                    counter += 1
 
         # 4) Assign each adsorbate atom to one of the two fragments (B* or C*)
         adsorbate_node_indices = [
-            i for i in range(is_graph.num_nodes) if IS.get_array("atom_tags")[i] == 1
+            i for i in range(len(IS)) if IS.get_array("atom_tags")[i] == 1
         ]
         node_indices_B, node_indices_C = [u], [v]
         for adsorbate_node_index in adsorbate_node_indices:
             if adsorbate_node_index in node_indices_B or adsorbate_node_index in node_indices_C:
                 continue
             else:
-                # check if the node is connected to node_indices_B or node_indices_C
                 for i in range(is_graph.edge_index.shape[1]):
                     edge_idxs = is_graph.edge_index[:, i]
                     if (
@@ -213,7 +215,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                     ):
                         node_indices_C.append(adsorbate_node_index)
                         break
-        # adsorbate_node_indices = list(set(adsorbate_node_indices))
         node_indices_B, node_indices_C = list(set(node_indices_B)), list(set(node_indices_C))
 
         # 5) Get center of mass of fragments B and C and their distance from surface to choose which fragment to move
@@ -223,10 +224,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         cm_C = IS.get_center_of_mass(indices=node_indices_C)
         dist_Bz = abs(z_max - cm_B[2])
         dist_Cz = abs(z_max - cm_C[2])
-        FS = deepcopy(IS)
         atoms_to_move = node_indices_C if dist_Bz <= dist_Cz else node_indices_B
 
         # 6) construct displacement vector (direction: from fragment not moved to fragment moved)
+        FS = deepcopy(IS)
         min_z = min(IS.positions[atoms_to_move, 2])
         z_vector = [0, 0, 2.0 + z_max - min_z]
         FS.positions[atoms_to_move] += z_vector
@@ -241,7 +242,8 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         increment = 0
         while True:  # if B* + C* relaxation results in connected adsorbate graph, increase increment
             if increment >= 3.0:
-                raise ValueError("Maximum increment reached")
+                print(f"{reaction.repr_hr}: Maximum increment reached ({increment}); displacement vector: {direction}")
+                return
             FS.positions[atoms_to_move] += (self.dx + increment) * direction
             FS.wrap()
             # 7) Relax final state structure (B* + C*)
@@ -249,17 +251,20 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             opt = BFGS(FS, 
                     logfile=None)
             opt.run(fmax=0.05, steps=self.mlp.max_steps)
+            empty_cache()
             fs_graph = atoms_to_data(FS, FS.get_array("atom_tags"), surface_order=-1, filter=False)
             reaction.fs_graph = fs_graph
-            if not fragment_filter(fs_graph, FS.get_array("atom_tags")):
+            reaction.fs_atoms = FS.copy()
+            if is_adsorbate_fragmented(fs_graph, FS.get_array("atom_tags")):
                 break
             else:
                 increment += 0.5
 
-        # energy_FS = FS.get_potential_energy()
-
-        # 8) Set up NEB simulation
-        images = [IS] + [IS.copy() for _ in range(self.num_images)] + [FS]
+    def run_neb(self, reaction: ElementaryReaction):
+        if reaction.fs_atoms is None or reaction.is_atoms is None:
+            reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
+            return
+        images = [reaction.is_atoms] + [reaction.is_atoms.copy() for _ in range(self.num_images)] + [reaction.fs_atoms]
         neb = NEB(images, 
                 k= self.k, 
                 climb=self.climb, 
@@ -275,10 +280,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         optimizer = BFGS(neb, logfile=None)
         optimizer.run(fmax=0.05, steps=self.max_steps)
 
-        # 9) Collect final NEB frames and energies
         final_NEB_frames = []
         final_NEB_energies = []
-        for idx, image in enumerate(neb.images):
+        for _, image in enumerate(neb.images):
             final_NEB_frames.append(image)
             image.calc = deepcopy(self.mlp.calc)
             energy_image = image.get_potential_energy()
@@ -288,11 +292,18 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         reaction.neb_energies = final_NEB_energies
         title = reaction.repr_hr + f" on {self.mlp.surface} ({reaction.r_type})"
         reaction.neb_figure = plot_reaction_profile(final_NEB_energies, title=title)
-        referenced_ts_energy = energy_TS - self.mlp.surface.energy if type(self.mlp).__name__ != "OCPIntermediateEvaluator" else energy_TS + sum(IS[el] * self.mlp.eref[el] for el in ['C', 'H', 'O', 'N'])
+        if type(self.mlp).__name__ != "OCPIntermediateEvaluator":
+            referenced_ts_energy = energy_TS - self.mlp.surface.energy
+        else:
+            referenced_ts_energy = energy_TS + sum(
+                reaction.is_atoms.get_chemical_symbols().count(el) * self.mlp.eref[el]
+                for el in ['C', 'H', 'O', 'N']
+            )
         if referenced_ts_energy > reaction.e_is[0] and referenced_ts_energy > reaction.e_fs[0]:
             reaction.e_ts = referenced_ts_energy, 0.0
         else:
             reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
+        empty_cache()
 
     def eval(self, reaction: ElementaryReaction) -> None:
         """
@@ -304,6 +315,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         """
         self.calc_reaction_energy(reaction)
         if isinstance(reaction, (BondBreaking, BondFormation)):
+            self.get_fs(reaction)
             self.run_neb(reaction)
         else:
             reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs

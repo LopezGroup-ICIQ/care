@@ -142,10 +142,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     opt = BFGS(adsorption, 
                             logfile=None)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
-                    try:
-                        g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
-                    except:
-                        print(f"Relaxation ending up into dissociated adsorbate. Skipping")
+                    g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
+                    if g is None:
                         continue
                     ads_config_dict[str(i)] = {}
                     ads_config_dict[str(i)]['ase'] = adsorption

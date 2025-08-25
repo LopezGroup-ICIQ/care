@@ -111,6 +111,8 @@ class ElementaryReaction:
         self.neb_figure = None
         self.is_graph = None
         self.fs_graph = None
+        self.is_atoms = None
+        self.fs_atoms = None
 
     def __lt__(self, other):
         return self.code < other.code

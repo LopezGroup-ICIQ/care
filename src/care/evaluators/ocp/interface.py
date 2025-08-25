@@ -10,6 +10,7 @@ from ase.data import chemical_symbols
 from care import Intermediate, Surface
 from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
+from care.evaluators.utils import atoms_to_data
 
 class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -48,6 +49,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
         self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
+        self.device = "cpu" if cpu else "cuda"
         self.num_params = sum([p.numel() for p in self.calc.trainer.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
@@ -103,12 +105,17 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                 }
             elif intermediate.phase == "ads":  # adsorbed
                 ads_config_dict = {}
-                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
+                adsorptions = place_adsorbate(intermediate, self.surface, -1)
                 for i, adsorption in enumerate(adsorptions):
+                    if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
+                        break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption, 
                             logfile=None)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
+                    if g is None:
+                        continue
                     ads_config_dict[str(i)] = {}
                     ads_config_dict[str(i)]['ase'] = adsorption
                     # Note: OCP output is Eads, so to get Etot - Eslab, we need to add the gas-phase energy of the adsorbate

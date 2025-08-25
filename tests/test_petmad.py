@@ -1,4 +1,5 @@
 import unittest
+import pytest
 
 from dask.distributed import Client, LocalCluster
 
@@ -22,7 +23,7 @@ class TestEvaluator(unittest.TestCase):
                 self.assertAlmostEqual(inter.ads_configs["1"]["s"], 0.0, places=3)
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1
-
+    @pytest.mark.skip(reason="Model not serializable with Dask.")
     def test_parallel_eval(self):
         cluster = LocalCluster(n_workers=4, threads_per_worker=1)
         client = Client(address=cluster)

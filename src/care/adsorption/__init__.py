@@ -10,6 +10,7 @@ from acat.adsorption_sites import SlabAdsorptionSites
 from acat.settings import CustomSurface
 from ase import Atoms
 from ase.build import add_adsorbate
+from ase.constraints import FixAtoms
 import networkx as nx
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -17,6 +18,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care.crn.utils.species import atoms_to_graph
 from care import Intermediate, Surface, BOND_ORDER, CORDERO
+from care.crn.surface import bottom_half_indices
 
 
 def connectivity_analysis(graph: nx.Graph) -> list[int]:
@@ -232,6 +234,8 @@ def place_adsorbate(
         List of Atoms objects with the initial adsorption structures.
     """
     adsorptions = []
+    n_slab = len(surface.slab)
+    n_adsorbate = len(intermediate.molecule)
     try:  # DockOnSurf + ACAT
         slab = adapt_surface(intermediate.molecule, surface)
         active_sites_acat = get_active_sites(surface)
@@ -265,6 +269,9 @@ def place_adsorbate(
                             config_list_i = dos.dockonsurf(inp_vars)
                             ads_height += 0.2
                             site_list.extend(config_list_i)
+                            for ad in config_list_i:
+                                ad.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
+                                ad.set_constraint(FixAtoms(indices=bottom_half_indices(surface.slab)))
                 adsorptions.append(site_list)
             if num_configs == -1:
                 return [adsorption for sublist in adsorptions for adsorption in sublist]
@@ -310,6 +317,9 @@ def place_adsorbate(
                                 sites=site_idxs,
                             )
                             config_list_i = dos.dockonsurf(inp_vars)
+                            for ad in config_list_i:
+                                ad.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
+                                ad.set_constraint(FixAtoms(indices=bottom_half_indices(surface.slab)))
                             ads_height += 0.1
                             site_list.extend(config_list_i)
                 adsorptions.append(site_list)
@@ -334,6 +344,8 @@ def place_adsorbate(
                 atoms.append(intermediate.molecule[0])
                 site_pos = site["position"] + [0, 0, surface_atom_radii]
                 atoms.positions[-1] = site_pos
+                atoms.set_array('atom_tags', list(atoms.get_array('atom_tags')) + [1])
+                atoms.set_constraint(FixAtoms(indices=bottom_half_indices(surface.slab)))
                 atoms.set_cell(surface.slab.get_cell())
                 atoms.set_pbc(surface.slab.get_pbc())
                 adsorptions.append(atoms)
@@ -348,6 +360,8 @@ def place_adsorbate(
             x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration
             y_pos = adsorption.get_cell()[1, 1] / (num_configs+1) * configuration
             add_adsorbate(adsorption, intermediate.molecule, 2.0, position=(x_pos, y_pos))
+            adsorption.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
+            adsorption.set_constraint(FixAtoms(indices=bottom_half_indices(surface.slab)))
             adsorptions.append(adsorption)
         return adsorptions
     

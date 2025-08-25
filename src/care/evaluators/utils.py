@@ -12,7 +12,6 @@ from ase.data import atomic_numbers
 from networkx import (
     Graph,
     cycle_basis,
-    connected_components,
     get_node_attributes,
     is_connected,
     set_node_attributes,
@@ -26,7 +25,6 @@ from torch_geometric.utils import to_networkx
 
 from care.constants import CORDERO, RGB_COLORS
 import matplotlib.pyplot as plt
-import torch_geometric
 
 
 def get_voronoi_neighbourlist(
@@ -172,6 +170,7 @@ def atoms_to_data(
     atom_tags: list[int],
     surface_order: int = -1,
     filter: bool = True,
+    tol: float = 0.50
 ) -> Data:
     """
     Convert ASE Atoms object to PyG Data graph based on the input parameters.
@@ -190,7 +189,7 @@ def atoms_to_data(
         graph (Data): PyG Data object.
     """
     nx, surf_hops = atoms_to_nx(
-            structure, 0.25, 1.25, surface_order, atom_tags
+            structure, tol, 1.25, surface_order, atom_tags
     )
     elem_list = list(get_node_attributes(nx, "elem").values())
     idx_list = list(get_node_attributes(nx, "elem").keys())
@@ -213,35 +212,15 @@ def atoms_to_data(
     # CONNECTIVITY CHECKS
     if filter:
         if not H_filter(graph, atom_tags):
-            raise ValueError("{}: Wrong H connectivity in the adsorbate.".format(graph.formula))
+            return None
         if not C_filter(graph, atom_tags):
-            raise ValueError("{}: Wrong C connectivity in the adsorbate".format(graph.formula))
-        if not fragment_filter(graph, atom_tags):
-            raise ValueError("{}: Fragmented adsorbate.".format(graph.formula))
+            return None
+        if is_adsorbate_fragmented(graph, atom_tags):
+            return None
     return graph
 
 
-def fragment_filter(graph: Data, atom_tags: list[int]) -> bool:
-    """Check adsorbate fragmentation in the graph.
-    Args:
-        graph(Data): Adsorption graph.
-        atom_tags (list[int]): list of tags defining whether an atom is part of the adsorbate or the surface.
-    Returns:
-        (bool): True = Adsorbate not fragmented in the graph
-                False = Adsorbate fragmented in the graph
-    """
-    adsorbate = extract_adsorbate(graph, atom_tags)
-    graph_nx = to_networkx(adsorbate, to_undirected=True)
-    if adsorbate.num_nodes != 1 and adsorbate.num_edges != 0:
-        if is_connected(graph_nx):
-            return True
-        else:
-            return False
-    else:
-        return True
-
-
-def extract_adsorbate(graph: Data, atom_tags: list[int]) -> bool:
+def extract_adsorbate(graph: Data, atom_tags: list[int]) -> Data:
     """Extract adsorbate from the graph."""
     adsorbate_nodes = [
         node_idx
@@ -251,14 +230,29 @@ def extract_adsorbate(graph: Data, atom_tags: list[int]) -> bool:
     return graph.subgraph(tensor(adsorbate_nodes))
 
 
+def is_adsorbate_fragmented(graph: Data, atom_tags: list[int]) -> bool:
+    """Check adsorbate fragmentation in the graph.
+    Args:
+        graph(Data): Adsorption graph.
+        atom_tags (list[int]): list of tags defining whether an atom is part of the adsorbate or the surface.
+    Returns:
+        (bool): True = Fragmented adsorbate
+                False = Connected adsorbate
+    """
+    adsorbate = extract_adsorbate(graph, atom_tags)
+    graph_nx = to_networkx(adsorbate, to_undirected=True, remove_self_loops=True)
+    if adsorbate.num_nodes == 1 and adsorbate.num_edges == 0:
+        return False
+    return not is_connected(graph_nx)
+
+
 def is_ring(graph: Data, atom_tags: list[int]) -> bool:
     """Check if the graph contains a ring."""
     adsorbate = extract_adsorbate(graph, atom_tags)
-    graph_nx = to_networkx(adsorbate, to_undirected=True)
+    graph_nx = to_networkx(adsorbate, to_undirected=True, remove_self_loops=True)
     cycles = list(cycle_basis(graph_nx))
     ring_nodes = set(node for cycle in cycles for node in cycle)
     if len(ring_nodes) > 0:
-        print(f"{graph.formula}: Ring detected.\n".format(graph.formula))
         return True
     else:
         return False
@@ -276,14 +270,13 @@ def H_filter(graph: Data, atom_tags: list[int]) -> bool:
         (bool): True = Correct connectivity for all H atoms in the adsorbate
                 False = Bad connectivity for at least one H atom in the adsorbate
     """
-    H_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "H"]
+    H_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "H" and atom_tags[graph.idx[i]] == 1]
     for node_index in H_nodes_indices:
         counter = 0  # bonds between H and other adsorbate atoms
         for j in range(graph.num_edges):
             if graph.edge_index[0, j] == node_index:
                 counter += 1 if atom_tags[graph.idx[graph.edge_index[1, j]]] == 1 else 0
         if counter > 1:
-            print("H connectivity filter failed for {}".format(graph.formula))
             return False
     return True
 
@@ -300,14 +293,13 @@ def C_filter(graph: Data, atom_tags: list[int]) -> bool:
         (bool): True = Correct connectivity for all C atoms in the molecule
                 False = Bad connectivity for at least one C atom in the molecule
     """
-    C_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "C"]
+    C_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "C" and atom_tags[graph.idx[i]] == 1]
     for node_index in C_nodes_indices:
         counter = 0  # nbonds between C and other adsorbate atoms
         for j in range(graph.num_edges):
             if graph.edge_index[0, j] == node_index:
                 counter += 1 if atom_tags[graph.idx[graph.edge_index[1, j]]] == 1 else 0
         if counter > 4:
-            print("C connectivity filter failed for {}".format(graph.formula))
             return False
     return True
 
@@ -346,9 +338,6 @@ def ase_adsorption_filter(atoms: Atoms, atom_tags: list[int]) -> bool:
         [atom.position[2] for atom in atoms if atom_tags[atom.index] == 0]
     )
     if min_adsorbate_z < 0.8 * max_surface_z:
-        print(
-            f"{atoms.get_chemical_formula(mode='metal')}: Adsorbate incorporated in the bulk."
-        )
         return False
     else:
         return True

@@ -9,11 +9,11 @@ from care.evaluators.reaction_estimators import BarrierlessReactionEnergyEstimat
 
 eval_dict = {
     "gamenetuq": (GameNetUQInter, GameNetUQRxn),
-    "ocp": (OCPIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
-    "mace": (MACEIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
-    "petmad": (PETMADIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
-    "orb": (ORBIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
-    "sevennet": (SevenNetIntermediateEvaluator, BarrierlessReactionEnergyEstimator),
+    "ocp": (OCPIntermediateEvaluator, NEBReactionEnergyEstimator),
+    "mace": (MACEIntermediateEvaluator, NEBReactionEnergyEstimator),
+    "petmad": (PETMADIntermediateEvaluator, NEBReactionEnergyEstimator),
+    "orb": (ORBIntermediateEvaluator, NEBReactionEnergyEstimator),
+    "sevennet": (SevenNetIntermediateEvaluator, NEBReactionEnergyEstimator),
 }
 
 def get_available_evaluators():
@@ -34,7 +34,7 @@ def load_inter_evaluator(model: str, surface, **kwargs) -> IntermediateEnergyEst
     """
     return eval_dict[model][0](surface, **kwargs)
 
-def load_reaction_evaluator(model: str, intermediates, **kwargs) -> ReactionEnergyEstimator:
+def load_reaction_evaluator(model: str, intermediates, ts_eval: bool = True, **kwargs) -> ReactionEnergyEstimator:
     """
     Load the reaction evaluator.
 
@@ -44,7 +44,7 @@ def load_reaction_evaluator(model: str, intermediates, **kwargs) -> ReactionEner
     Returns:
         ReactionEnergyEstimator: The reaction evaluator.
     """
-    return eval_dict[model][1](intermediates, **kwargs)
+    return NEBReactionEnergyEstimator(intermediates, **kwargs) if ts_eval else BarrierlessReactionEnergyEstimator(intermediates, **kwargs)
 
 __all__ = [
     "IntermediateEnergyEstimator",
