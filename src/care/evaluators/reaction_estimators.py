@@ -11,7 +11,6 @@ from torch.cuda import empty_cache
 from care.crn.templates.dissociation import BondBreaking, BondFormation
 from care import Intermediate, ElementaryReaction
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
-from care.crn.visualize import plot_reaction_profile
 from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented
 from care.constants import CORDERO
 
@@ -291,7 +290,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         reaction.neb_images = final_NEB_frames
         reaction.neb_energies = final_NEB_energies
         title = reaction.repr_hr + f" on {self.mlp.surface} ({reaction.r_type})"
-        reaction.neb_figure = plot_reaction_profile(final_NEB_energies, title=title)
         if type(self.mlp).__name__ != "OCPIntermediateEvaluator":
             referenced_ts_energy = energy_TS - self.mlp.surface.energy
         else:

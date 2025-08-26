@@ -4,71 +4,18 @@ import tomllib
 import multiprocessing as mp
 from pickle import dump, load, dumps
 import resource
-from rich.progress import Progress
 from prettytable import PrettyTable
 import cpuinfo
 import psutil
 import time
-import logging
-import warnings
-warnings.filterwarnings(
-    "ignore",
-    message=r".*torch.load.*weights_only=False.*",
-    category=FutureWarning,
-)
-warnings.filterwarnings("ignore", category=FutureWarning, message=".*ExpCellFilter.*")
-warnings.filterwarnings(
-    "ignore",
-    category=FutureWarning,
-    message=r".*torch\.cuda\.amp\.autocast.*deprecated.*"
-)
+
 import dask
 from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, gen_blueprint, load_surface
 from care.crn.utils.electro import Electron
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
-
-def setup_logging(log_file=None):
-    if log_file:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.ERROR)
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        file_handler.setFormatter(formatter)
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.ERROR)
-        # Remove ALL pre-existing handlers
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-        root_logger.addHandler(file_handler)
-
-        # Redirect warnings through logging
-        logging.captureWarnings(True)
-        warnings.filterwarnings("ignore", category=FutureWarning)
-
-        # Clean and redirect specific noisy loggers (like bokeh)
-        for name in [
-            "acat"
-            "distributed",
-            "bokeh",
-            "tornado",
-            "ase",
-            "torch",
-            "asyncio",
-            "torch._dynamo",
-            "mace"
-        ]:           
-            logger = logging.getLogger(name)
-            logger.setLevel(logging.ERROR)
-            # Remove all their handlers
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-            logger.addHandler(file_handler)
-            logger.propagate = False  # ensure they don't write to parent stdout handlers
-    else:
-        logging.basicConfig(level=logging.WARNING)
+from care.scripts import setup_logging, load_x, predict
 
 def main():
     """
@@ -195,10 +142,10 @@ def main():
         model_name = config["evaluator"]["model"]
 
         # 2.1 Intermediate evaluator
-        print(" Energy estimation of the intermediates...")
+        print(f"Energy estimation of the {len(intermediates)} intermediates...")
         del config["evaluator"]["model"]
         inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
-        print(" Intermediates energy calculator: ", inter_evaluator)
+        print("Intermediates energy calculator: ", inter_evaluator)
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
                            threads_per_worker=1, 
@@ -207,17 +154,10 @@ def main():
                            dashboard_address=":0")
         client = Client(address=cluster)
         print(f"Dask dashboard available at: {cluster.dashboard_link}")
-        @dask.delayed
-        def load_inter(inter):
-            return inter
         tasks = [
-            dask.delayed(load_inter, name=f"load-{intermediate.code}")(intermediate)
+            dask.delayed(load_x, name=f"load-{intermediate.code}")(intermediate)
             for intermediate in intermediates.values()
         ]
-        @dask.delayed
-        def predict(inter, dmodel):
-            dmodel(inter)
-            return inter
         dask.utils.format_bytes(len(dumps(inter_evaluator)))
         dmodel = dask.delayed(inter_evaluator)
         predictions = [
@@ -226,27 +166,22 @@ def main():
         ]
         predictions = dask.compute(*predictions)
         intermediates = {inter.code: inter for inter in predictions}
+        
+
+        # REACTION EVALUATION
+        print(f"\nEnergy estimation of the {len(reactions)} reactions...")
+        rxn_evaluator = load_reaction_evaluator(model_name, intermediates, inter_evaluator, **config["evaluator"])
+        print("Reaction properties calculator: ", rxn_evaluator)
+        tasks = [load_x(reaction) for reaction in reactions]
+        dask.utils.format_bytes(len(dumps(rxn_evaluator)))
+        dmodel = dask.delayed(rxn_evaluator)
+        predictions = [predict(task, dmodel) for task in tasks]
+        predictions = dask.compute(*predictions)
+        reactions = sorted(reactions)
         client.shutdown()
         client.close()
         cluster.close()
         time.sleep(1)
-
-        # REACTION EVALUATION
-        print("\n Energy estimation of the reactions...")
-        rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["evaluator"])
-        print(" Reaction properties calculator: ", rxn_evaluator)
-        with Progress() as progress:
-            task = progress.add_task(" [green]Processing...", total=len(reactions))
-            processed_items = 0
-            for reaction in reactions:
-                rxn_evaluator.eval(reaction)
-                processed_items += 1
-                progress.update(
-                    task,
-                    advance=1,
-                    description=f" [green]Processing {processed_items}/{len(reactions)}...",
-                )
-        reactions = sorted(reactions)
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"

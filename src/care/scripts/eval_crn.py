@@ -4,22 +4,18 @@ Evaluate chemical reaction network blueprint with CARE.
 
 import argparse
 import os
-from time import time
+from time import time, sleep
 import tomllib
 from pickle import dump, dumps, load
-import logging
-logging.basicConfig(level=logging.ERROR)
-import warnings
-warnings.filterwarnings("ignore")
-
 
 import dask
 from dask.distributed import Client, LocalCluster
-from rich.progress import Progress
 
 from care import ReactionNetwork, load_surface
 from care.crn.utils.electro import Electron
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator
+from care.scripts import setup_logging, load_x, predict
+
 
 def main():
     """
@@ -55,8 +51,15 @@ def main():
         help="Number of CPU cores to use for parallelizing intermediate evaluation. Default is the number of CPU cores available.",
         default=os.cpu_count(),
     )
+    PARSER.add_argument(
+        '--log', 
+        type=str, 
+        help='Path to run log file', 
+        default="care.log"
+    )
 
     ARGS = PARSER.parse_args()
+    setup_logging(ARGS.log)
 
     # Load CRN blueprint
     with open(ARGS.bp, "rb") as f:
@@ -90,46 +93,40 @@ def main():
     )
     t0 = time()
     # INTERMEDIATE EVALUATION
-    print(" Energy estimation of the intermediates...")
-    print(" Intermediates energy calculator: ", inter_evaluator)    
-    cluster = LocalCluster(n_workers=ARGS.num_cpu, 
-                           threads_per_worker=1)
+    print(f"Energy estimation of the {len(inters)} intermediates...")
+    print("Intermediates energy calculator: ", inter_evaluator)
+    cluster = LocalCluster(n_workers=ARGS.num_cpu,
+                           threads_per_worker=1, 
+                           ip='127.0.0.1', 
+                           scheduler_port=0, 
+                           dashboard_address=":0")
     client = Client(address=cluster)
-    print(client.dashboard_link)
-    @dask.delayed
-    def load_inter(inter):
-        return inter
-    tasks = [load_inter(intermediate) for intermediate in inters.values()]
-    @dask.delayed
-    def predict(inter, dmodel):
-        dmodel(inter)
-        return inter
+    print(f"Dask dashboard available at: {cluster.dashboard_link}")
+    tasks = [load_x(intermediate) for intermediate in inters.values()]
     dask.utils.format_bytes(len(dumps(inter_evaluator)))
     dmodel = dask.delayed(inter_evaluator)
     predictions = [predict(task, dmodel) for task in tasks]
     predictions = dask.compute(*predictions)
-    client.retire_workers()
-    client.close()
-    cluster.close()
     intermediates = {inter.code: inter for inter in predictions}
+    ti = time()
+    print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
     # REACTION EVALUATION
-    print("\n Energy estimation of the reactions...")
-    rxn_evaluator = load_reaction_evaluator(model_name, intermediates, **config["evaluator"])
-    print(" Reaction properties calculator: ", rxn_evaluator)
-    with Progress() as progress:
-        task = progress.add_task(" [green]Processing...", total=len(rxns))
-        processed_items = 0
-        for reaction in rxns:
-            rxn_evaluator.eval(reaction)
-            processed_items += 1
-            progress.update(
-                task,
-                advance=1,
-                description=f" [green]Processing {processed_items}/{len(rxns)}...",
-            )
-    rxns = sorted(rxns)
-    t = time() - t0
+    print(f"\nEnergy estimation of the {len(rxns)} reactions...")
+    rxn_evaluator = load_reaction_evaluator(model_name, intermediates, inter_evaluator, **config["evaluator"])
+    print("Reaction properties calculator: ", rxn_evaluator)
+    tasks = [load_x(reaction) for reaction in rxns]
+    dask.utils.format_bytes(len(dumps(rxn_evaluator)))
+    dmodel = dask.delayed(rxn_evaluator)
+    predictions = [predict(task, dmodel) for task in tasks]
+    predictions = dask.compute(*predictions)
+    client.shutdown()  #retire_workers()
+    client.close()
+    cluster.close()
+    sleep(1)
+    rxns = sorted(predictions)
+    tr = time()
+    print(f"Total reaction evaluation time: {tr - ti:.2f} s")
 
     print(
                 "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
@@ -151,7 +148,7 @@ def main():
             type=crn_type,
         )
 
-    print(f"Total time: {t:.2f} s")
+    print(f"Total time: {(time() - t0):.2f} s")
     # Save the blueprint
     with open(ARGS.output+'.pkl', "wb") as f:
         dump(crn, f)

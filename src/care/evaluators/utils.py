@@ -70,36 +70,30 @@ def get_voronoi_neighbourlist(
     pairs_corr = np.delete(
         pairs_corr, np.argwhere(pairs_corr[:, 0] == pairs_corr[:, 1]), axis=0
     )
-
-    increment = 0
+    increment = 0.0
+    pairs = []
     while True:
-        pairs = []
-        for pair in pairs_corr:
-            atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
-            threshold = CORDERO[atom1] + CORDERO[atom2] + tol
-            distance = atoms.get_distance(pair[0], pair[1], mic=True)
-            if atom_tags[pair[0]] == 1 and atom_tags[pair[1]] == 0:
-                threshold += max(scaling_factor + increment - 1.0, 0) * CORDERO[atom2]
-            if atom_tags[pair[0]] == 0 and atom_tags[pair[1]] == 1:
-                threshold += max(scaling_factor + increment - 1.0, 0) * CORDERO[atom1]
+        pairs.clear()
+        for i, j in pairs_corr:
+            a1, a2 = atoms[i].symbol, atoms[j].symbol
+            d = atoms.get_distance(i, j, mic=True)
 
-            if distance <= threshold:
-                pairs.append(pair)
+            # base threshold
+            thresh = CORDERO[a1] + CORDERO[a2] + tol
 
-        c1 = any(
-            atom_tags[pair[0]] == 1 and atom_tags[pair[1]] == 0
-            for pair in pairs
-        )
-        c2 = any(
-            atom_tags[pair[0]] == 0 and atom_tags[pair[1]] == 1
-            for pair in pairs
-        )
-        if c1 or c2:
-            break
-        else:
-            increment += 0.2
+            # scaling correction if crossing adsorbate ↔ substrate boundary
+            if atom_tags[i] != atom_tags[j]:
+                corr = max(scaling_factor + increment - 1.0, 0)
+                if atom_tags[i] == 1:  # i is adsorbate
+                    thresh += corr * CORDERO[a2]
+                else:  # j is adsorbate
+                    thresh += corr * CORDERO[a1]
 
-    return np.sort(np.array(pairs), axis=1)
+            if d <= thresh:
+                pairs.append((i, j))
+        if any(atom_tags[i] != atom_tags[j] for i, j in pairs):
+            return np.sort(np.array(pairs, dtype=int), axis=1)
+        increment += 0.2
 
 
 def atoms_to_nx(
@@ -122,21 +116,9 @@ def atoms_to_nx(
     Returns:
         Graph: NetworkX graph representing the adsorbate-metal system.
     """
-    # 1) Get adsorbate atoms and neighbours
-    adsorbate_idxs = {atom.index for atom in atoms if atom_tags[atom.index] == 1}
     neighbour_list = get_voronoi_neighbourlist(
         atoms, voronoi_tolerance, scaling_factor, atom_tags
     )
-
-    # Check connectivity of adsorbate
-    neighbour_list_adsorbate = [
-        (pair[0], pair[1])
-        for pair in neighbour_list
-        if (pair[0] in adsorbate_idxs) and (pair[1] in adsorbate_idxs)
-    ]
-    ads_graph = Graph()
-    ads_graph.add_edges_from(neighbour_list_adsorbate)
-    ads_graph.add_nodes_from(adsorbate_idxs)
     adsorption_ensemble = {atom.index for atom in atoms if atom_tags[atom.index] == 1}
     surf_hops = {0: list(adsorption_ensemble)}
     if surface_order == -1:
@@ -152,7 +134,6 @@ def atoms_to_nx(
         adsorption_ensemble = adsorption_ensemble.union(surface_ensemble)
         if len(adsorption_ensemble) == len(atoms):
             break
-    # 3) Construct graph with the atoms in the ensemble
     graph = Graph()
     graph.add_nodes_from(list(adsorption_ensemble))
     set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "elem")

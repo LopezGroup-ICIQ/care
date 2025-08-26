@@ -185,7 +185,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             else:
                 config = intermediate.molecule
                 with no_grad():
-                    pyg = atoms_to_data(config)
+                    pyg = atoms_to_data(config, filter=False)
                     pyg = pyg.to(self.device).to(self.device)
                     y = self.model(pyg)
                     intermediate.ads_configs = {
@@ -206,7 +206,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
             else:
                 adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
                 graphs = [
-                    atoms_to_data(adsorption) for adsorption in adsorptions
+                    atoms_to_data(adsorption, filter=False) for adsorption in adsorptions
                 ]
                 loader = DataLoader(
                     graphs, batch_size=len(graphs), shuffle=False

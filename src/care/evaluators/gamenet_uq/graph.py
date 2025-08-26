@@ -68,8 +68,9 @@ def get_voronoi_neighbourlist(
     )
 
     increment = 0
+    pairs = []
     while True:
-        pairs = []
+        pairs.clear()
         for pair in pairs_corr:
             atom1, atom2 = atoms[pair[0]].symbol, atoms[pair[1]].symbol
             threshold = CORDERO[atom1] + CORDERO[atom2] + tol
@@ -81,23 +82,13 @@ def get_voronoi_neighbourlist(
 
             if distance <= threshold:
                 pairs.append(pair)
-
-        c1 = any(
-            atoms[pair[0]].symbol in adsorbate_elems
-            and atoms[pair[1]].symbol not in adsorbate_elems
-            for pair in pairs
-        )
-        c2 = any(
-            atoms[pair[0]].symbol not in adsorbate_elems
-            and atoms[pair[1]].symbol in adsorbate_elems
-            for pair in pairs
-        )
-        if c1 or c2:
-            break
+        for i, j in pairs:
+            in_ads_i = atoms[i].symbol in adsorbate_elems
+            in_ads_j = atoms[j].symbol in adsorbate_elems
+            if in_ads_i ^ in_ads_j:
+                return np.sort(np.array(pairs, dtype=int), axis=1)
         else:
             increment += 0.2
-
-    return np.sort(np.array(pairs), axis=1)
 
 
 def atoms_to_nx(

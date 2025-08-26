@@ -26,7 +26,6 @@ def fragment_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
         if is_connected(graph_nx):
             return True
         else:
-            print(f"{graph.formula}: Fragmented adsorbate.\n".format(graph.formula))
             return False
     else:
         return True
@@ -49,7 +48,6 @@ def is_ring(graph: Data, adsorbate_elems: list[str]) -> bool:
     cycles = list(cycle_basis(graph_nx))
     ring_nodes = set(node for cycle in cycles for node in cycle)
     if len(ring_nodes) > 0:
-        print(f"{graph.formula}: Ring detected.\n".format(graph.formula))
         return True
     else:
         return False
@@ -74,7 +72,6 @@ def H_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
             if graph.edge_index[0, j] == node_index:
                 counter += 1 if graph.elem[graph.edge_index[1, j]] in adsorbate_elems else 0
         if counter > 1:
-            print("H connectivity filter failed for {}".format(graph.formula))
             return False
     return True
 
@@ -98,7 +95,6 @@ def C_filter(graph: Data, adsorbate_elems: list[str]) -> bool:
             if graph.edge_index[0, j] == node_index:
                 counter += 1 if graph.elem[graph.edge_index[1, j]] in adsorbate_elems else 0
         if counter > 4:
-            print("C connectivity filter failed for {}".format(graph.formula))
             return False
     return True
 
