@@ -11,7 +11,7 @@ from torch.cuda import empty_cache
 from care.crn.templates.dissociation import BondBreaking, BondFormation
 from care import Intermediate, ElementaryReaction
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
-from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented
+from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented, connectivity_signature
 from care.constants import CORDERO
 
 
@@ -114,6 +114,35 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
 
     def __repr__(self) -> str:
         return f"NEB-based reaction energy estimator (MLP: {self.mlp})"
+    
+    def _build_product_nx(self, step: ElementaryReaction) -> nx.Graph:
+        """Return a NetworkX graph representing the product fragments B* + C*."""
+        competitors = [
+            inter
+            for inter in list(step.products)
+            if not inter.is_surface
+        ]
+        if len(competitors) == 1:
+            if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
+                nx0 = competitors[0].graph.copy()
+                nx1 = competitors[0].graph.copy()
+                offset = nx0.number_of_nodes()
+                mapping = {n: n + offset for n in nx1.nodes()}
+                nx1 = nx.relabel_nodes(nx1, mapping)
+                return nx.compose(nx0, nx1)
+            elif abs(step.stoic[competitors[0].code]) == 1:  # A* -> B* (ring opening)
+                return competitors[0].graph.copy()
+            else:
+                raise ValueError("Reaction stoichiometry not supported.")
+        elif len(competitors) == 2:  # A* -> B* + C* (B and C different)
+            nx0 = competitors[0].graph.copy()
+            nx1 = competitors[1].graph.copy()
+            offset = nx0.number_of_nodes()
+            mapping = {n: n + offset for n in nx1.nodes()}
+            nx1 = nx.relabel_nodes(nx1, mapping)
+            return nx.compose(nx0, nx1)
+        else:
+            raise ValueError("Reaction stoichiometry not supported.")
 
     def get_fs(self, reaction: ElementaryReaction) -> None:
         """
@@ -137,28 +166,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             reaction.is_atoms = IS.copy()
         except:
             return
-        competitors = [
-            inter
-            for inter in list(reaction.products)
-            if not inter.is_surface
-        ]
 
         # 2) Build the NetworkX graph of the final state (B* + C*)
-        if len(competitors) == 1:
-            if abs(reaction.stoic[competitors[0].code]) == 2:  # A* -> 2B*
-                nx_bc = [competitors[0].graph, competitors[0].graph]
-                mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
-                nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
-                nx_bc = nx.compose(nx_bc[0], nx_bc[1])
-            elif abs(reaction.stoic[competitors[0].code]) == 1:  # A* -> B* (ring opening)
-                nx_bc = competitors[0].graph
-            else:
-                raise ValueError("Reaction stoichiometry not supported.")
-        else:  # A* -> B* + C* (B and C different)
-            nx_bc = [competitors[0].graph, competitors[1].graph]
-            mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
-            nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
-            nx_bc = nx.compose(nx_bc[0], nx_bc[1])
+        nx_bc = self._build_product_nx(reaction)
 
         potential_edges = []
         for i in range(is_graph.edge_index.shape[1]):
@@ -183,9 +193,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 g.edge_index = g.edge_index[:, mask]
                 adsorbate = extract_adsorbate(g, IS.get_array("atom_tags"))
                 nx_graph = pyg_to_nx(adsorbate)
-                if nx.is_isomorphic(
-                    nx_bc, nx_graph, node_match=lambda x, y: x["elem"] == y["elem"]
-                ):
+                if connectivity_signature(nx_graph) == connectivity_signature(nx_bc):
                     u, v = u.item(), v.item()
                     break
                 else:
@@ -273,7 +281,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 allow_shared_calculator=self.allow_shared_calculator)
         neb.interpolate(method=self.interpolation_method, 
                         mic=True, 
-                        apply_constraint=None)
+                        apply_constraint=True)
         for image in images[1:self.num_images + 1]:
             image.calc = deepcopy(self.mlp.calc)
         optimizer = BFGS(neb, logfile=None)
@@ -289,7 +297,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         energy_TS = max(final_NEB_energies)
         reaction.neb_images = final_NEB_frames
         reaction.neb_energies = final_NEB_energies
-        title = reaction.repr_hr + f" on {self.mlp.surface} ({reaction.r_type})"
         if type(self.mlp).__name__ != "OCPIntermediateEvaluator":
             referenced_ts_energy = energy_TS - self.mlp.surface.energy
         else:

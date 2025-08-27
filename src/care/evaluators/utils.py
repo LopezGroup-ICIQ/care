@@ -419,3 +419,12 @@ def graph_plotter(
         plt.text(0.03, 0.9, text, fontsize=10)
     plt.axis("off")
     plt.draw()
+
+def connectivity_signature(nx_g):
+    """Return a sorted list of (element, sorted neighbor elements) for each node."""
+    sig = []
+    for n in nx_g.nodes():
+        elem = nx_g.nodes[n]['elem']
+        neighbor_elems = sorted([nx_g.nodes[neigh]['elem'] for neigh in nx_g.neighbors(n)])
+        sig.append((elem, tuple(neighbor_elems)))
+    return sorted(sig)

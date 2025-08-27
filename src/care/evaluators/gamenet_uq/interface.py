@@ -7,7 +7,6 @@ from typing import Optional
 
 from ase import Atoms
 from ase.db import connect
-from copy import deepcopy
 import networkx as nx
 import numpy as np
 from torch import no_grad, tensor, cat
@@ -24,6 +23,7 @@ from care.evaluators.gamenet_uq.functions import load_model
 from care.evaluators.gamenet_uq.graph import atoms_to_data
 from care.evaluators.gamenet_uq.graph_filters import extract_adsorbate
 from care.evaluators.gamenet_uq.graph_tools import pyg_to_nx
+from care.evaluators.utils import connectivity_signature
 from care.crn.templates import BondBreaking
 
 
@@ -191,7 +191,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                     intermediate.ads_configs = {
                         "gas": {
                             "ase": config,
-                            "pyg": pyg,
                             "mu": (
                                 y.mean * self.model.y_scale_params["std"]
                                 + self.model.y_scale_params["mean"]
@@ -219,7 +218,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 for i, adsorption in enumerate(adsorptions):
                         ads_config_dict[f"{i}"] = {}
                         ads_config_dict[f"{i}"]["ase"] = adsorption
-                        ads_config_dict[f"{i}"]["pyg"] = graphs[i]
                         ads_config_dict[f"{i}"]["mu"] = (
                             y.mean[i] * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
@@ -369,7 +367,45 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         else:  # with barrier
             e_act_var = (reaction.e_ts[1] ** 2 + reaction.e_is[1] ** 2) ** 0.5
         reaction.e_act = e_act_mu, e_act_var
-    
+
+    def _build_product_nx(self, step: ElementaryReaction) -> nx.Graph:
+        """Return a NetworkX graph representing the product fragments B* + C*."""
+        competitors = [
+            inter
+            for inter in list(step.products)
+            if not inter.is_surface
+        ]
+        if len(competitors) == 1:
+            if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
+                nx0 = competitors[0].graph.copy()
+                nx1 = competitors[0].graph.copy()
+                offset = nx0.number_of_nodes()
+                mapping = {n: n + offset for n in nx1.nodes()}
+                nx1 = nx.relabel_nodes(nx1, mapping)
+                return nx.compose(nx0, nx1)
+            elif abs(step.stoic[competitors[0].code]) == 1:  # A* -> B* (ring opening)
+                return competitors[0].graph.copy()
+            else:
+                raise ValueError("Reaction stoichiometry not supported.")
+        elif len(competitors) == 2:  # A* -> B* + C* (B and C different)
+            nx0 = competitors[0].graph.copy()
+            nx1 = competitors[1].graph.copy()
+            offset = nx0.number_of_nodes()
+            mapping = {n: n + offset for n in nx1.nodes()}
+            nx1 = nx.relabel_nodes(nx1, mapping)
+            return nx.compose(nx0, nx1)
+        else:
+            raise ValueError("Reaction stoichiometry not supported.")
+
+    def _find_potential_edges(self, graph: Data, bond: tuple[str, str]) -> list[int]:
+        potential_edges = []
+        for i in range(graph.num_edges):
+            edge_idxs = graph.edge_index[:, i]
+            atom1, atom2 = graph.elem[edge_idxs[0]], graph.elem[edge_idxs[1]]
+            if (atom1, atom2) == bond or (atom2, atom1) == bond:
+                potential_edges.append(i)
+        return potential_edges
+
     def ts_graph(self, step: ElementaryReaction) -> Data:
         """
         Generate transition state graph representing the surface bond-breaking
@@ -381,12 +417,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Returns:
             Data: graph representing the TS graph
         """
-
-        if not isinstance(step, BondBreaking):
-            raise ValueError("Input reaction must be a bond-breaking reaction.")
         bond = tuple(step.r_type.split("-"))
 
-        # 1) Select unfragmented adsorbate A*
+        # 1) Select initial state A*, convert to full adsorption graph, and find potential edges
         A_code = [
             inter.code for inter in list(step.reactants) if not inter.is_surface
         ][0]
@@ -395,74 +428,47 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             key=lambda x: self.intermediates[A_code].ads_configs[x]['s' if self.use_uq else 'mu'],
         )
         ts_graph = atoms_to_data(self.intermediates[A_code].ads_configs[idx]["ase"], 
-                                 surface_order=-1, 
-                                 filter=False)  # whole graph
-        competitors = [
-            inter
-            for inter in list(step.products)
-            if not inter.is_surface
-        ]
+                                 surface_order=-1, filter=False)  
+        n_nodes = ts_graph.num_nodes
+        n_edges = ts_graph.num_edges
+        potential_edges = self._find_potential_edges(ts_graph, bond)
+        if len(potential_edges) == 0:
+            raise RuntimeError(f"No edges found matching bond {bond} in ts_graph.")
 
-        # 2) Build the NetworkX graph of the reaction component B* + C*
-        if len(competitors) == 1:
-            if abs(step.stoic[competitors[0].code]) == 2:  # A* -> 2B*
-                nx_bc = [competitors[0].graph, competitors[0].graph]
-                mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
-                nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
-                nx_bc = nx.compose(nx_bc[0], nx_bc[1])
-            elif abs(step.stoic[competitors[0].code]) == 1:  # A* -> B* (ring opening)
-                nx_bc = competitors[0].graph
-            else:
-                raise ValueError("Reaction stoichiometry not supported.")
-        else:  # A* -> B* + C* (B and C different)
-            nx_bc = [competitors[0].graph, competitors[1].graph]
-            mapping = {n: n + nx_bc[0].number_of_nodes() for n in nx_bc[1].nodes()}
-            nx_bc[1] = nx.relabel_nodes(nx_bc[1], mapping)
-            nx_bc = nx.compose(nx_bc[0], nx_bc[1])
-
-        potential_edges = []
-        for i in range(ts_graph.edge_index.shape[1]):
-            edge_idxs = ts_graph.edge_index[:, i]
-            atom1, atom2 = ts_graph.elem[edge_idxs[0]], ts_graph.elem[edge_idxs[1]]
-            if (atom1, atom2) == bond or (atom2, atom1) == bond:
-                potential_edges.append(i)
-
-        # 3) Find TS edge via isomorphic comparison
-        counter = 0
-        while True:
-            data = deepcopy(ts_graph)
-            u, v = data.edge_index[:, potential_edges[counter]]
+        # 2) Find TS edge to label via isomorphic comparison
+        nx_bc = self._build_product_nx(step)
+        for _, e_idx in enumerate(potential_edges):
+            u = ts_graph.edge_index[0, e_idx].item()
+            v = ts_graph.edge_index[1, e_idx].item()
             mask = ~(
-                (data.edge_index[0] == u) & (data.edge_index[1] == v)
-                | (data.edge_index[0] == v) & (data.edge_index[1] == u)
+                ((ts_graph.edge_index[0] == u) & (ts_graph.edge_index[1] == v)) |
+                ((ts_graph.edge_index[0] == v) & (ts_graph.edge_index[1] == u))
             )
-            data.edge_index = data.edge_index[:, mask]
-            data.edge_attr = data.edge_attr[mask]
+            edge_index_new = ts_graph.edge_index[:, mask]
+            edge_attr_new = ts_graph.edge_attr[mask]
+            data = ts_graph.clone()
+            data.edge_index = edge_index_new
+            data.edge_attr = edge_attr_new
             adsorbate = extract_adsorbate(data, ["C", "H", "O", "N", "S"])
-            nx_graph = pyg_to_nx(adsorbate)
-            if nx.is_isomorphic(
-                nx_bc, nx_graph, node_match=lambda x, y: x["elem"] == y["elem"]
-            ):
-                ts_graph.edge_attr[potential_edges[counter]] = 1
-                idx = np.where(
-                    (ts_graph.edge_index[0] == v) & (ts_graph.edge_index[1] == u)
-                )[0].item()
+            nx_adsorbate = pyg_to_nx(adsorbate)
+
+            if connectivity_signature(nx_adsorbate) == connectivity_signature(nx_bc):
+                ts_graph.edge_attr[e_idx] = 1
+                idx = ((ts_graph.edge_index[0] == v) & (ts_graph.edge_index[1] == u)).nonzero(as_tuple=True)[0].item()
                 ts_graph.edge_attr[idx] = 1
                 break
-            else:
-                counter += 1
 
-        # 4) Assign each adsorbate node to one of the two fragments B* or C*
+        # 3) Assign each adsorbate node to one of the two fragments B* or C*
         adsorbate_node_indices = [
-            i for i in range(ts_graph.x.shape[0]) if ts_graph.elem[i] in ADSORBATE_ELEMS
+            i for i in range(n_nodes) if ts_graph.elem[i] in ADSORBATE_ELEMS
         ]
-        node_indices_B, node_indices_C = [u.item()], [v.item()]
+        node_indices_B, node_indices_C = [u], [v]
         for adsorbate_node_index in adsorbate_node_indices:
             if adsorbate_node_index in node_indices_B or adsorbate_node_index in node_indices_C:
                 continue
             else:
                 # check if the node is connected to node_indices_B or node_indices_C
-                for i in range(ts_graph.edge_index.shape[1]):
+                for i in range(n_edges):
                     edge_idxs = ts_graph.edge_index[:, i]
                     if (
                         (edge_idxs[0] == adsorbate_node_index and edge_idxs[1] in node_indices_B)
@@ -476,13 +482,12 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     ):
                         node_indices_C.append(adsorbate_node_index)
                         break
-        adsorbate_node_indices = list(set(adsorbate_node_indices))
         node_indices_B = list(set(node_indices_B))
         node_indices_C = list(set(node_indices_C))
 
-        # 5) Find which of the two fragments is not connected to the surface
+        # 4) Find which of the two fragments is not connected to the surface
         connected_to_B, connected_to_C = False, False
-        for i in range(ts_graph.edge_index.shape[1]):
+        for i in range(n_edges):
             edge_idxs = ts_graph.edge_index[:, i]
             if (
                 (edge_idxs[0] in node_indices_B and edge_idxs[1] not in adsorbate_node_indices)
@@ -495,7 +500,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             ):
                 connected_to_C = True
 
-        # 6) Find surface atom to connect to the unconnected fragment
+        # 5) Find surface atom to connect to the unconnected fragment
         # Select the 2-hop surface atom with lowest coordination number
         min_gcn_idx, min_gcn = 1, 1.0
         for idx in ts_graph.surf_hops[2]: # Avoid surface atoms already interacting with the adsorbate
@@ -503,7 +508,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 min_gcn = ts_graph.x[ts_graph.idx.index(idx), -1]
                 min_gcn_idx = ts_graph.idx.index(idx)
 
-        # 7) Add undirected edge between unconnected fragment and surface atom
+        # 6) Add undirected edge between unconnected fragment and surface atom
         if not connected_to_B:
             ts_graph.edge_index = cat(
                 (ts_graph.edge_index, tensor([[u, min_gcn_idx], [min_gcn_idx, u]])), dim=1
@@ -519,16 +524,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 (ts_graph.edge_attr, tensor([[0], [0]])), dim=0
             )
 
-        # 8) Remove from total graph the surface atoms which are not within the 2-hop neighborhood
-        atoms_to_keep = []
-        for i in range(ts_graph.x.shape[0]):
-            if ts_graph.idx[i] in ts_graph.surf_hops[0] + ts_graph.surf_hops[1] + ts_graph.surf_hops[2]:
-                atoms_to_keep.append(i)
+        # 7) Remove from total graph the surface atoms which are not within the 2-hop neighborhood
+        atoms_to_keep = [i for i in range(n_nodes) if i in ts_graph.surf_hops[0] + ts_graph.surf_hops[1] + ts_graph.surf_hops[2]]
         g = ts_graph.subgraph(tensor(atoms_to_keep))
-        surf_hops_keys_to_delete = list(g.surf_hops.keys())
-        for key in surf_hops_keys_to_delete:
-            if key not in [0, 1, 2]:
-                del g.surf_hops[key]  
+        del g.surf_hops
         return g
 
     def eval(
