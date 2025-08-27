@@ -34,7 +34,7 @@ def load_inter_evaluator(model: str, surface, **kwargs) -> IntermediateEnergyEst
     """
     return eval_dict[model][0](surface, **kwargs)
 
-def load_reaction_evaluator(model: str, intermediates: dict, mlp: IntermediateEnergyEstimator = None, ts_eval: bool = True, **kwargs) -> ReactionEnergyEstimator:
+def load_reaction_evaluator(model: str, mlp: IntermediateEnergyEstimator = None, ts_eval: bool = True, **kwargs) -> ReactionEnergyEstimator:
     """
     Load the reaction evaluator.
 
@@ -45,8 +45,8 @@ def load_reaction_evaluator(model: str, intermediates: dict, mlp: IntermediateEn
         ReactionEnergyEstimator: The reaction evaluator.
     """
     if model == "gamenetuq":
-        return eval_dict[model][1](intermediates, **kwargs) if ts_eval else BarrierlessReactionEnergyEstimator(intermediates, **kwargs)
-    return eval_dict[model][1](intermediates, mlp=mlp, **kwargs) if ts_eval else BarrierlessReactionEnergyEstimator(intermediates, **kwargs)
+        return eval_dict[model][1](**kwargs) if ts_eval else BarrierlessReactionEnergyEstimator(**kwargs)
+    return eval_dict[model][1](mlp=mlp, **kwargs) if ts_eval else BarrierlessReactionEnergyEstimator(**kwargs)
 
 __all__ = [
     "IntermediateEnergyEstimator",

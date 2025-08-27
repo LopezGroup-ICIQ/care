@@ -2,7 +2,7 @@ import argparse
 import os
 import tomllib
 import multiprocessing as mp
-from pickle import dump, load, dumps
+from pickle import dump, load
 import resource
 from prettytable import PrettyTable
 import cpuinfo
@@ -145,6 +145,7 @@ def main():
         print(f"Energy estimation of the {len(intermediates)} intermediates...")
         del config["evaluator"]["model"]
         inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
+        rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
         print("Intermediates energy calculator: ", inter_evaluator)
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
@@ -158,7 +159,6 @@ def main():
             dask.delayed(load_x, name=f"load-{intermediate.code}")(intermediate)
             for intermediate in intermediates.values()
         ]
-        dask.utils.format_bytes(len(dumps(inter_evaluator)))
         dmodel = dask.delayed(inter_evaluator)
         predictions = [
             dask.delayed(predict, name=f"predict-{intermediate.code}")(task, dmodel)
@@ -166,14 +166,13 @@ def main():
         ]
         predictions = dask.compute(*predictions)
         intermediates = {inter.code: inter for inter in predictions}
-        
+        for rxn in reactions:
+            rxn.update_intermediates(intermediates)       
 
         # REACTION EVALUATION
         print(f"\nEnergy estimation of the {len(reactions)} reactions...")
-        rxn_evaluator = load_reaction_evaluator(model_name, intermediates, inter_evaluator, **config["evaluator"])
         print("Reaction properties calculator: ", rxn_evaluator)
         tasks = [load_x(reaction) for reaction in reactions]
-        dask.utils.format_bytes(len(dumps(rxn_evaluator)))
         dmodel = dask.delayed(rxn_evaluator)
         predictions = [predict(task, dmodel) for task in tasks]
         predictions = dask.compute(*predictions)

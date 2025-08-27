@@ -237,7 +237,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 class GameNetUQRxn(ReactionEnergyEstimator):
     def __init__(
         self,
-        intermediates: dict[str, Intermediate],
         device: str = "cpu",
         T: float = 298.0,
         ref_electrode: str = "SHE",
@@ -252,7 +251,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Properties evaluated are transition state energy, reaction energy, and activation energy in eV.
         
         Args:
-                intermediates (dict): Dictionary of intermediates already evaluated.
                 device (str): Device to use for evaluation. Defaults to "cpu".
                 T (float): Temperature in Kelvin. Required for electrochemical reactions. Defaults to 298 K.
                 ref_electrode (str): Reference electrode required for electrochemical reactions. It can be 
@@ -265,7 +263,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
         """
         super().__init__(
-            intermediates=intermediates,
             T=T,
             ref_electrode=ref_electrode,
             pH=pH,
@@ -278,11 +275,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.use_uq = use_uq
         self.is_mlp = False
-        
-        if not all([inter.ads_configs for inter in self.intermediates.values()]):
-            raise Warning(
-                "Not all intermediates have been evaluated. Please evaluate all intermediates before evaluating reaction properties."
-            )
 
     def adsorbate_domain(self):
         return ADSORBATE_ELEMS
@@ -317,7 +309,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 x = 0.5 if species_formula == "H2" else 1.0
                 gas_inter = [
                     inter
-                    for inter in self.intermediates.values()
+                    for inter in reaction.extra_intermediates.values()
                     if inter.formula == species_formula and inter.phase == "gas"
                 ][0]
                 energy_list = [
@@ -325,18 +317,16 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 ]
                 s_list = [
                     config["s"] * x
-                    for config in self.intermediates[
-                        gas_inter.code
-                    ].ads_configs.values()
+                    for config in gas_inter.ads_configs.values()
                 ]
             else:
                 energy_list = [
                     config["mu"]
-                    for config in self.intermediates[species.code].ads_configs.values()
+                    for config in species.ads_configs.values()
                 ]
                 s_list = [
                     config["s"]
-                    for config in self.intermediates[species.code].ads_configs.values()
+                    for config in species.ads_configs.values()
                 ]
             if not self.use_uq:  # Select configuration with lowest energy
                 e_min_config = min(energy_list)
@@ -420,14 +410,15 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         bond = tuple(step.r_type.split("-"))
 
         # 1) Select initial state A*, convert to full adsorption graph, and find potential edges
-        A_code = [
-            inter.code for inter in list(step.reactants) if not inter.is_surface
+        A = [
+            inter for inter in list(step.reactants) if not inter.is_surface
         ][0]
+
         idx = min(
-            self.intermediates[A_code].ads_configs,
-            key=lambda x: self.intermediates[A_code].ads_configs[x]['s' if self.use_uq else 'mu'],
+            A.ads_configs,
+            key=lambda x: A.ads_configs[x]['s' if self.use_uq else 'mu'],
         )
-        ts_graph = atoms_to_data(self.intermediates[A_code].ads_configs[idx]["ase"], 
+        ts_graph = atoms_to_data(A.ads_configs[idx]["ase"], 
                                  surface_order=-1, filter=False)  
         n_nodes = ts_graph.num_nodes
         n_edges = ts_graph.num_edges
@@ -540,6 +531,9 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Args:
             reaction (ElementaryReaction): The elementary reaction.
         """
+        for species in list(reaction.reactants) + list(reaction.products):
+            if not species.is_surface and species.ads_configs == {}:
+                raise ValueError(f"Species in {reaction.repr_hr} ElementaryReaction are not evaluated.")
         with no_grad():
             self.calc_reaction_energy(reaction)
             if isinstance(reaction, BondBreaking):  # GNN evaluates TS from bond-breaking direction

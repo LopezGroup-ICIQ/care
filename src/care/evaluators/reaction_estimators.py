@@ -9,7 +9,7 @@ import numpy as np
 from torch.cuda import empty_cache
 
 from care.crn.templates.dissociation import BondBreaking, BondFormation
-from care import Intermediate, ElementaryReaction
+from care import ElementaryReaction
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
 from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented, connectivity_signature
 from care.constants import CORDERO
@@ -21,8 +21,7 @@ class BarrierlessReactionEnergyEstimator(ReactionEnergyEstimator):
     No transition state evaluation is performed here.
     """
     def __init__(
-        self,
-        intermediates: dict[str, Intermediate], 
+        self, 
         T: float = 298.0,
         ref_electrode: str = "SHE",
         pH: float = 7.0,
@@ -30,7 +29,6 @@ class BarrierlessReactionEnergyEstimator(ReactionEnergyEstimator):
         **kwargs
     ):
         super().__init__(
-            intermediates=intermediates,
             T=T,
             ref_electrode=ref_electrode,
             pH=pH,
@@ -60,7 +58,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
 
     def __init__(
         self,
-        intermediates: dict[str, Intermediate],
         mlp: IntermediateEnergyEstimator = None,
         num_images: int = 5,
         climb: bool = True,
@@ -80,7 +77,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         **kwargs
     ):
         super().__init__(
-            intermediates=intermediates,
             T=T,
             ref_electrode=ref_electrode,
             pH=pH,
@@ -152,15 +148,15 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         bond = tuple(reaction.r_type.split("-"))
 
         # 1) Get most stable configuration of initial state (A*)
-        IS_code = [
-            inter.code for inter in list(reaction.reactants) if not inter.is_surface
+        IS_intermediate = [
+            inter for inter in list(reaction.reactants) if not inter.is_surface
         ][0]
         try:            
             idx = min(
-                self.intermediates[IS_code].ads_configs,
-                key=lambda x: self.intermediates[IS_code].ads_configs[x]['mu'],
+                IS_intermediate.ads_configs,
+                key=lambda x: IS_intermediate.ads_configs[x]['mu'],
             )
-            IS = self.intermediates[IS_code].ads_configs[idx]["ase"]
+            IS = IS_intermediate.ads_configs[idx]["ase"]
             is_graph = atoms_to_data(IS, IS.get_array("atom_tags"), surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
@@ -318,6 +314,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         Args:
             reaction (ElementaryReaction): The reaction.
         """
+        for species in list(reaction.reactants) + list(reaction.products):
+            if not species.is_surface and species.ads_configs == {}:
+                raise ValueError(f"Species in {reaction.repr_hr} ElementaryReaction are not evaluated.")
         self.calc_reaction_energy(reaction)
         if isinstance(reaction, (BondBreaking, BondFormation)):
             self.get_fs(reaction)

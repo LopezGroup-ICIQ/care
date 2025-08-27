@@ -73,14 +73,12 @@ class ReactionEnergyEstimator(ABC):
     @abstractmethod
     def __init__(
         self, 
-        intermediates: dict[str, Intermediate],
         T: float = 298.0,
         ref_electrode: str = "SHE",
         pH: float = 7.0,
         U: float = 0.0,
         **kwargs
     ):
-        self.intermediates = intermediates
         self.pH = pH
         self.U = U
         self.T = T
@@ -132,7 +130,7 @@ class ReactionEnergyEstimator(ABC):
                 x = 0.5 if species_formula == "H2" else 1.0
                 gas_inter = [
                     inter
-                    for inter in self.intermediates.values()
+                    for inter in reaction.extra_intermediates.values()
                     if inter.formula == species_formula and inter.phase == "gas"
                 ][0]
                 energy_list = [
@@ -141,7 +139,7 @@ class ReactionEnergyEstimator(ABC):
             else:
                 energy_list = [
                     config["mu"]
-                    for config in self.intermediates[species.code].ads_configs.values()
+                    for config in species.ads_configs.values()
                 ]
             e_min_config = min(energy_list)
             mu_is += abs(min(0, reaction.stoic[species.code])) * e_min_config
@@ -158,6 +156,9 @@ class ReactionEnergyEstimator(ABC):
         Args:
             reaction (ElementaryReaction): The reaction.
         """
+        for species in list(reaction.reactants) + list(reaction.products):
+            if not species.is_surface and species.ads_configs == {}:
+                raise ValueError(f"Species in {reaction.repr_hr} ElementaryReaction are not evaluated.")
         self.calc_reaction_energy(reaction)
         reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
         reaction.e_act = reaction.e_ts[0] - reaction.e_is[0], 0.0

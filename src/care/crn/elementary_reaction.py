@@ -112,6 +112,7 @@ class ElementaryReaction:
         self.fs_graph = None
         self.is_atoms = None
         self.fs_atoms = None
+        self.extra_intermediates = {}
 
     def __lt__(self, other):
         return self.code < other.code
@@ -429,6 +430,30 @@ class ElementaryReaction:
 
         return k_dir, k_dir / k_eq
 
+    def update_intermediates(self, evaluated_dict: dict[str, Intermediate]):
+        """
+        Update the intermediates of the elementary reaction with evaluated ones.
+
+        Args:
+            evaluated_dict (dict): Dictionary mapping Intermediate codes to
+                                evaluated Intermediate objects.
+        """
+        updated_components = []
+        for component in self.components:
+            new_component = []
+            for inter in component:
+                if inter.code in evaluated_dict:
+                    new_component.append(evaluated_dict[inter.code])
+                else:
+                    new_component.append(inter)
+            updated_components.append(frozenset(new_component))
+        
+        self._components = tuple(updated_components)
+        self.reactants = self.components[0]
+        self.products = self.components[1]
+        if self.r_type == "PCET":
+            self.extra_intermediates["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"] = evaluated_dict["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"]  # H2O
+            self.extra_intermediates["UFHFLCQGNIYNRP-UHFFFAOYSA-N"] = evaluated_dict["UFHFLCQGNIYNRP-UHFFFAOYSA-Ng"]  # H2
 
 class ReactionMechanism(ElementaryReaction):
     """

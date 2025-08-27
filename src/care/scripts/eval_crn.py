@@ -80,7 +80,7 @@ def main():
     model_name = config["evaluator"]["model"]
     del config["evaluator"]["model"]
     inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
-
+    rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
     current_dir = os.path.dirname(__file__)
     logo_path = current_dir + "/../logo.txt"
     with open(logo_path, "r") as file:
@@ -108,12 +108,13 @@ def main():
     predictions = [predict(task, dmodel) for task in tasks]
     predictions = dask.compute(*predictions)
     intermediates = {inter.code: inter for inter in predictions}
+    for rxn in rxns:
+        rxn.update_intermediates(intermediates)
     ti = time()
     print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
     # REACTION EVALUATION
     print(f"\nEnergy estimation of the {len(rxns)} reactions...")
-    rxn_evaluator = load_reaction_evaluator(model_name, intermediates, inter_evaluator, **config["evaluator"])
     print("Reaction properties calculator: ", rxn_evaluator)
     tasks = [load_x(reaction) for reaction in rxns]
     dask.utils.format_bytes(len(dumps(rxn_evaluator)))
