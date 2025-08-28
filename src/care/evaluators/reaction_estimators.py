@@ -262,6 +262,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 break
             else:
                 increment += 0.5
+        FS.calc = None
 
     def run_neb(self, reaction: ElementaryReaction):
         if reaction.fs_atoms is None or reaction.is_atoms is None:
@@ -286,10 +287,11 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         final_NEB_frames = []
         final_NEB_energies = []
         for _, image in enumerate(neb.images):
-            final_NEB_frames.append(image)
             image.calc = deepcopy(self.mlp.calc)
             energy_image = image.get_potential_energy()
             final_NEB_energies.append(energy_image)
+            image.calc = None
+            final_NEB_frames.append(image)
         energy_TS = max(final_NEB_energies)
         reaction.neb_images = final_NEB_frames
         reaction.neb_energies = final_NEB_energies
