@@ -9,7 +9,9 @@ from ase import Atoms
 from ase.db import connect
 import networkx as nx
 import numpy as np
-from torch import no_grad, tensor, cat
+import torch
+torch.set_float32_matmul_precision('high')
+from torch import no_grad, tensor, cat, compile
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
@@ -35,6 +37,7 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         dft_db_path: Optional[str] = None,
         num_configs: int = 3,
         use_uq: bool = False,
+        torch_compile: bool = False,
         **kwargs
     ):
         """Interface for GAME-Net-UQ for intermediates.
@@ -48,9 +51,12 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 Defaults to 3.
             use_uq (bool, optional): Whether to use uncertainty in the evaluation. Defaults to False.
                 if True, the configurations will be sorted in ascending order of uncertainty in the ads_configs attribute.
+            torch_compile (bool, optional): Whether to compile the model using Torch. Defaults to False.
         """
 
         self.model = load_model(MODEL_PATH)
+        if torch_compile:
+            self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
         self.num_params = sum(p.numel() for p in self.model.parameters())
         self.model.to(self.device)
@@ -192,10 +198,10 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         "gas": {
                             "ase": config,
                             "mu": (
-                                y.mean * self.model.y_scale_params["std"]
+                                y[0] * self.model.y_scale_params["std"]
                                 + self.model.y_scale_params["mean"]
                             ).item(),  # eV
-                            "s": (y.scale * self.model.y_scale_params["std"]).item(),  # eV
+                            "s": (y[1] * self.model.y_scale_params["std"]).item(),  # eV
                         }
                     }
 
@@ -219,11 +225,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                         ads_config_dict[f"{i}"] = {}
                         ads_config_dict[f"{i}"]["ase"] = adsorption
                         ads_config_dict[f"{i}"]["mu"] = (
-                            y.mean[i] * self.model.y_scale_params["std"]
+                            y[0][i] * self.model.y_scale_params["std"]
                             + self.model.y_scale_params["mean"]
                         ).item()  # eV
                         ads_config_dict[f"{i}"]["s"] = (
-                            y.scale[i] * self.model.y_scale_params["std"]
+                            y[1][i] * self.model.y_scale_params["std"]
                         ).item()  # eV
                 criterion = 's' if self.use_uq else 'mu'
                 ads_config_dict = dict(
@@ -243,6 +249,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         pH: float = 7.0,
         U: float = 0.0,
         use_uq: bool = False,
+        torch_compile: bool = False,
         **kwargs
     ):
         """
@@ -261,6 +268,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                            Negative values refer to reductive potential, positive values to oxidative potential.
                 use_uq (bool): Whether to use uncertainty in the evaluation. Defaults to False.
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
+                torch_compile (bool, optional): Whether to compile the model using Torch. Defaults to False.
         """
         super().__init__(
             T=T,
@@ -270,6 +278,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             **kwargs
         )
         self.model = load_model(MODEL_PATH)
+        if torch_compile:
+            self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
         self.model.to(self.device)
         self.num_params = sum(p.numel() for p in self.model.parameters())
@@ -538,9 +548,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 self.calc_reaction_energy(x)
                 if isinstance(x, BondBreaking):  # GNN evaluates TS from bond-breaking direction
                     ts_graph = self.ts_graph(x).to(self.device)  # unscaled output
-                    x.ts_graph = ts_graph
                     y = self.model(ts_graph)  # scaled output
-                    y_ts = y.mean.item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale.item() * self.model.y_scale_params["std"]
+                    y_ts = y[0].item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y[1].item() * self.model.y_scale_params["std"]
                     if y_ts[0] > x.e_is[0] and y_ts[0] > x.e_fs[0]:  # correct predicted TS between IS and FS
                         x.e_ts = y_ts
                     else: # wrong predicted TS between IS and FS, collapse to barrierless
@@ -549,10 +558,11 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     x.e_ts = x.e_is if x.e_is[0] > x.e_fs[0] else x.e_fs
                 self.calc_reaction_barrier(x)
         elif isinstance(x, list):
+            ts_graphs = []
             for rxn in x:
                 self.calc_reaction_energy(rxn)
-                rxn.ts_graph = self.ts_graph(rxn).to(self.device)
-            ts_graphs = [rxn.ts_graph for rxn in x]
+                ts_graph = self.ts_graph(rxn).to(self.device)
+                ts_graphs.append(ts_graph)
             loader = DataLoader(ts_graphs, batch_size=len(ts_graphs), shuffle=False)
             with no_grad():
                 for batch in loader:
@@ -560,7 +570,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     y = self.model(batch)
                     for i, rxn in enumerate(x):
                         if isinstance(rxn, BondBreaking):
-                            y_ts = y.mean[i].item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y.scale[i].item() * self.model.y_scale_params["std"]
+                            y_ts = y[0][i].item() * self.model.y_scale_params["std"] + self.model.y_scale_params["mean"], y[1][i].item() * self.model.y_scale_params["std"]
                             if y_ts[0] > rxn.e_is[0] and y_ts[0] > rxn.e_fs[0]:  # correct predicted TS between IS and FS
                                 rxn.e_ts = y_ts
                             else:  # wrong predicted TS between IS and FS, collapse to barrierless

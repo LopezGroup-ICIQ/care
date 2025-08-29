@@ -5,7 +5,6 @@ from typing import Optional
 
 import torch
 from torch import Tensor
-from torch.distributions import Normal
 from torch.nn import Linear, Softplus
 from torch_geometric.nn.conv import SAGEConv, TAGConv
 from torch_geometric.utils import to_dense_batch
@@ -108,6 +107,11 @@ class GameNetUQ(torch.nn.Module):
             bias (bool, optional): Whether to use bias in the linear layers. Defaults to False.
             conv (torch.nn.Module, optional): Convolutional layer. Defaults to SAGEConv.
             pool_heads (int, optional): Number of heads in the pooling layer. Defaults to 1.
+
+        Note:
+            This implementation differs from the original one just by the output. 
+            Originally the output was a Torch normal distribution (mean and std) over the target variable.
+            Here the output is simply the mean and the positive std (via Softplus) without the distribution.
         """
         super(GameNetUQ, self).__init__()
         self.sigma = torch.nn.ReLU()
@@ -151,6 +155,4 @@ class GameNetUQ(torch.nn.Module):
         mask = (~mask).unsqueeze(1).to(dtype=out.dtype) * -1e9
         out = self.pma(x=batch_x, mask=mask)
         out = self.lin_b(out.squeeze(1))
-        return Normal(
-            out[:, 0], Softplus()(out[:, 1])
-        )  # Softplus to enforce positive std
+        return out[:, 0], Softplus()(out[:, 1])  # Softplus to enforce positive std
