@@ -83,6 +83,7 @@ class ReactionEnergyEstimator(ABC):
         self.U = U
         self.T = T
         self.ref_electrode = ref_electrode
+        self.supports_batching = False
         if self.ref_electrode not in ["SHE", "RHE"]:
             raise ValueError(
                 f"Electrode potential must be SHE or RHE. {self.ref_electrode} is not supported."

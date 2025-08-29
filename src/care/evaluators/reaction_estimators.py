@@ -7,6 +7,7 @@ from ase.optimize import BFGS
 import networkx as nx
 import numpy as np
 from torch.cuda import empty_cache
+from torch_geometric.data import Data
 
 from care.crn.templates.dissociation import BondBreaking, BondFormation
 from care import ElementaryReaction
@@ -59,14 +60,14 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
     def __init__(
         self,
         mlp: IntermediateEnergyEstimator = None,
-        num_images: int = 5,
+        num_images: int = 3,
         climb: bool = True,
         interpolation_method: str = "linear",
         neb_method: str = "aseneb",
-        remove_rotation_and_translation: bool = False,
-        allow_shared_calculator: bool = True,
+        remove_rotation_and_translation: bool = True,
+        allow_shared_calculator: bool = False,
         k: Union[float, list[float]] = 0.1,
-        parallel: bool = False,
+        parallel: bool = True,
         dx: float = 1.5, 
         tol: float = 0.0, 
         max_steps: int = 100,
@@ -97,6 +98,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         self.allow_shared_calculator = allow_shared_calculator
         self.k = k
         self.parallel = parallel
+        self.supports_batching = False
 
     @property
     def adsorbate_domain(self):
@@ -139,6 +141,15 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             return nx.compose(nx0, nx1)
         else:
             raise ValueError("Reaction stoichiometry not supported.")
+        
+    def _find_potential_edges(self, graph: Data, bond: tuple[str, str]) -> list[int]:
+        potential_edges = []
+        for i in range(graph.num_edges):
+            edge_idxs = graph.edge_index[:, i]
+            atom1, atom2 = graph.elem[edge_idxs[0]], graph.elem[edge_idxs[1]]
+            if (atom1, atom2) == bond or (atom2, atom1) == bond:
+                potential_edges.append(i)
+        return potential_edges
 
     def get_fs(self, reaction: ElementaryReaction) -> None:
         """
@@ -160,67 +171,67 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             is_graph = atoms_to_data(IS, IS.get_array("atom_tags"), surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
+            n_nodes = is_graph.num_nodes
+            n_edges = is_graph.num_edges
         except:
             return
 
-        # 2) Build the NetworkX graph of the final state (B* + C*)
-        nx_bc = self._build_product_nx(reaction)
+        potential_edges = self._find_potential_edges(is_graph, bond)        
 
-        potential_edges = []
-        for i in range(is_graph.edge_index.shape[1]):
-            edge_idxs = is_graph.edge_index[:, i]
-            atom1, atom2 = is_graph.elem[edge_idxs[0]], is_graph.elem[edge_idxs[1]]
-            if (atom1, atom2) == bond or (atom2, atom1) == bond:
-                potential_edges.append(i)
-
-        # 3) Find broken bond in the graph of the IS via isomorphic comparison
-        if len(potential_edges) == 0 and len(nx_bc) == 2: # edge case: H2, O2 not showing unique potential bond in the graph
+        # 2) Find broken bond in the graph of the IS via isomorphic comparison
+        if len(potential_edges) == 0 and len(nx_bc) == 2: # edge case: H2, O2 not showing bond in the graph
             uvs = [is_graph.idx[i] for i in range(is_graph.num_nodes) if IS.get_array("atom_tags")[i] == 1]
             u, v = uvs[0], uvs[1]
+        elif len(potential_edges) == 0 and len(nx_bc) != 2:
+            return
         else:
-            counter = 0
-            while True:
-                g = deepcopy(is_graph)
-                u, v = g.edge_index[:, potential_edges[counter]]
+            nx_bc = self._build_product_nx(reaction)
+            nx_bc_signature = connectivity_signature(nx_bc)
+            for _, e_idx in enumerate(potential_edges):
+                u = is_graph.edge_index[0, e_idx].item()
+                v = is_graph.edge_index[1, e_idx].item()
                 mask = ~(
-                    (g.edge_index[0] == u) & (g.edge_index[1] == v)
-                    | (g.edge_index[0] == v) & (g.edge_index[1] == u)
+                    ((is_graph.edge_index[0] == u) & (is_graph.edge_index[1] == v)) |
+                    ((is_graph.edge_index[0] == v) & (is_graph.edge_index[1] == u))
                 )
-                g.edge_index = g.edge_index[:, mask]
-                adsorbate = extract_adsorbate(g, IS.get_array("atom_tags"))
-                nx_graph = pyg_to_nx(adsorbate)
-                if connectivity_signature(nx_graph) == connectivity_signature(nx_bc):
-                    u, v = u.item(), v.item()
+                edge_index_new = is_graph.edge_index[:, mask]
+                data = is_graph.clone()
+                data.edge_index = edge_index_new
+                adsorbate = extract_adsorbate(data, IS.get_array("atom_tags"))
+                nx_adsorbate = pyg_to_nx(adsorbate)
+                if connectivity_signature(nx_adsorbate) == nx_bc_signature:
                     break
-                else:
-                    counter += 1
+                if _ == len(potential_edges) - 1:
+                    return
 
-        # 4) Assign each adsorbate atom to one of the two fragments (B* or C*)
+        # 3) Assign each adsorbate atom to one of the two fragments (B* or C*)
         adsorbate_node_indices = [
-            i for i in range(len(IS)) if IS.get_array("atom_tags")[i] == 1
+            i for i in range(n_nodes) if IS.get_array("atom_tags")[i] == 1
         ]
-        node_indices_B, node_indices_C = [u], [v]
-        for adsorbate_node_index in adsorbate_node_indices:
-            if adsorbate_node_index in node_indices_B or adsorbate_node_index in node_indices_C:
-                continue
-            else:
-                for i in range(is_graph.edge_index.shape[1]):
-                    edge_idxs = is_graph.edge_index[:, i]
-                    if (
-                        (edge_idxs[0] == adsorbate_node_index and edge_idxs[1] in node_indices_B)
-                        or (edge_idxs[1] == adsorbate_node_index and edge_idxs[0] in node_indices_B)
-                    ):
-                        node_indices_B.append(adsorbate_node_index)
-                        break
-                    elif (
-                        (edge_idxs[0] == adsorbate_node_index and edge_idxs[1] in node_indices_C)
-                        or (edge_idxs[1] == adsorbate_node_index and edge_idxs[0] in node_indices_C)
-                    ):
-                        node_indices_C.append(adsorbate_node_index)
-                        break
-        node_indices_B, node_indices_C = list(set(node_indices_B)), list(set(node_indices_C))
+        node_indices_B, node_indices_C = {u}, {v}
+        neighbors = {i: set() for i in range(n_nodes)}
+        for i in range(n_edges):
+            a, b = is_graph.edge_index[:, i].tolist()
+            neighbors[a].add(b)
+            neighbors[b].add(a)
+        queue_B, queue_C = [u], [v]
+        while queue_B or queue_C:
+            new_queue_B, new_queue_C = [], []
+            for node in queue_B:
+                for nbr in neighbors[node]:
+                    if nbr in adsorbate_node_indices and nbr not in node_indices_B and nbr not in node_indices_C:
+                        node_indices_B.add(nbr)
+                        new_queue_B.append(nbr)
+            for node in queue_C:
+                for nbr in neighbors[node]:
+                    if nbr in adsorbate_node_indices and nbr not in node_indices_B and nbr not in node_indices_C:
+                        node_indices_C.add(nbr)
+                        new_queue_C.append(nbr)
+            queue_B, queue_C = new_queue_B, new_queue_C
+        node_indices_B = list(node_indices_B)
+        node_indices_C = list(node_indices_C)
 
-        # 5) Get center of mass of fragments B and C and their distance from surface to choose which fragment to move
+        # 4) Get center of mass of fragments B and C and their distance from surface to choose which fragment to move
         slab_atoms = [idx for idx in is_graph.idx if idx not in node_indices_B and idx not in node_indices_C]
         z_max = max(IS.positions[i][2] for i in slab_atoms)
         cm_B = IS.get_center_of_mass(indices=node_indices_B)
@@ -229,7 +240,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         dist_Cz = abs(z_max - cm_C[2])
         atoms_to_move = node_indices_C if dist_Bz <= dist_Cz else node_indices_B
 
-        # 6) construct displacement vector (direction: from fragment not moved to fragment moved)
+        # 5) construct displacement vector (direction: from fragment not moved to fragment moved)
         FS = deepcopy(IS)
         min_z = min(IS.positions[atoms_to_move, 2])
         z_vector = [0, 0, 2.0 + z_max - min_z]

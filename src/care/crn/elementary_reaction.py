@@ -109,6 +109,7 @@ class ElementaryReaction:
         self.neb_images = None
         self.neb_energies = None
         self.is_graph = None
+        self.ts_graph = None
         self.fs_graph = None
         self.is_atoms = None
         self.fs_atoms = None
