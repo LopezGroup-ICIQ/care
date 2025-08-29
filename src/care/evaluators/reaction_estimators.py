@@ -176,7 +176,8 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         except:
             return
 
-        potential_edges = self._find_potential_edges(is_graph, bond)        
+        potential_edges = self._find_potential_edges(is_graph, bond)
+        nx_bc = self._build_product_nx(reaction)        
 
         # 2) Find broken bond in the graph of the IS via isomorphic comparison
         if len(potential_edges) == 0 and len(nx_bc) == 2: # edge case: H2, O2 not showing bond in the graph
@@ -185,7 +186,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         elif len(potential_edges) == 0 and len(nx_bc) != 2:
             return
         else:
-            nx_bc = self._build_product_nx(reaction)
             nx_bc_signature = connectivity_signature(nx_bc)
             for _, e_idx in enumerate(potential_edges):
                 u = is_graph.edge_index[0, e_idx].item()
