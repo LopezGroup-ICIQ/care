@@ -13,12 +13,12 @@ class Electron(Intermediate):
         super().__init__(code="e-", molecule=Atoms(), phase="electro")
         self.is_surface = False
         self.closed_shell = False
-        self.mass = 9.10938356e-31  # kg
-        self.electrons = 1
-        self.charge = (
+        self._mass = 9.10938356e-31  # kg
+        self._electrons = 1
+        self._charge = (
             -1
         )  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self.formula = "e-"
+        self._formula = "e-"
 
     def __str__(self) -> str:
         return "Electron(e-)"
@@ -35,10 +35,10 @@ class Proton(Intermediate):
         )
         self.is_surface = False
         self.closed_shell = False
-        self.mass = 1.6726219e-27  # kg
-        self.electrons = 0
-        self.charge = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self.formula = "H+"
+        self._mass = 1.6726219e-27  # kg
+        self._electrons = 0
+        self._charge = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self._formula = "H+"
 
     def __str__(self) -> str:
         return "Proton(H+)"
@@ -57,12 +57,12 @@ class Hydroxide(Intermediate):
         )
         self.is_surface = False
         self.closed_shell = False
-        self.mass = 3.3496e-26  # kg
-        self.electrons = 0
-        self.charge = (
+        self._mass = 3.3496e-26  # kg
+        self._electrons = 0
+        self._charge = (
             -1
         )  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self.formula = "OH-"
+        self._formula = "OH-"
 
     def __str__(self) -> str:
         return "Hydroxide(OH-)"
@@ -81,10 +81,10 @@ class Water(Intermediate):
         )
         self.is_surface = False
         self.closed_shell = False
-        self.mass = 2.991e-26  # kg
-        self.electrons = 0
-        self.charge = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self.formula = "H2O"
+        self._mass = 2.991e-26  # kg
+        self._electrons = 0
+        self._charge = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
+        self._formula = "H2O"
 
     def __str__(self) -> str:
         return "Water(H2O)"

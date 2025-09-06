@@ -4,11 +4,11 @@ import numpy as np
 
 from ase import Atom, Atoms
 from ase.io import read, write
-from networkx import Graph, cycle_basis
+from networkx import cycle_basis
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-from care.constants import INTER_ELEMS, INTER_PHASES
+from care.constants import INTER_PHASES, BOND_ORDER
 from care.crn.utils.species import atoms_to_graph, get_voronoi_neighbourlist
 
 
@@ -23,58 +23,51 @@ class Intermediate:
         is_surface (bool): Defines if the intermediate corresponds to the empty surface.
         phase (str): Phase of the intermediate.
     """
+    __slots__ = [
+        "code",
+    "molecule",
+    "_graph",
+    "_formula",
+    "_electrons",
+    "_charge",
+    "_mass",
+    "_smiles",
+    "_cyclic",
+    "_rdkit",
+    "ads_configs",
+    "is_surface",
+    "phase",
+    "charge",
+    "closed_shell",
+    "_gas_configs",
+    ]
+    phases = INTER_PHASES
 
     def __init__(
         self,
         code: str = None,
         molecule: Union[Atoms, Chem.rdchem.Mol] = None,
-        graph: Graph = None,
-        ads_configs: dict[str, dict] = {},
         is_surface: bool = False,
         phase: str = None,
     ):
-        self.phases = INTER_PHASES
-        self.elements = INTER_ELEMS
         self.code = code
-        self.molecule = molecule
-
-        if isinstance(self.molecule, Chem.rdchem.Mol):
-            self.rdkit = molecule
-        elif isinstance(self.molecule, Atoms) and len(self.molecule) != 0:
-            self.rdkit = self.ase_to_rdkit()
-        else:
-            self.rdkit = None
-
-        if isinstance(self.molecule, Chem.Mol):
-            self.molecule = self.rdkit_to_ase()
-
         self.is_surface = is_surface
-        if (
-            not all(
-                elem in self.elements for elem in self.molecule.get_chemical_symbols()
-            )
-            and not self.is_surface
-        ):
-            raise ValueError(
-                f"Molecule {self.molecule} contains elements other than {self.elements}"
-            )
-        self.formula = (
-            self.molecule.get_chemical_formula() if not self.is_surface else "surface"
-        )
-
-        self.gas_configs = self.gen_gas_configs()
-        self._graph = graph
-        self.ads_configs = ads_configs
-        self.electrons = self.get_num_electrons()
-        self.charge = 0
-        self.mass = self.molecule.get_masses().sum()
-
-        if not self.is_surface and len(self.molecule) != 0:
-            self.smiles = self.get_smiles()
-            self.cyclic = self.is_cyclic()
+        self._graph = None
+        self._formula = None
+        self._electrons = None
+        self._charge = None
+        self._mass = None
+        self._smiles = None
+        self._cyclic = None
+        if isinstance(molecule, Chem.rdchem.Mol):
+            self._rdkit = molecule
+            self.molecule = self.rdkit_to_ase(molecule)
         else:
-            self.smiles = None
-            self.cyclic = None
+            self._rdkit = None
+            self.molecule = molecule
+
+        self.ads_configs = {}
+        self.charge = 0
 
         if self.is_surface:
             self.phase = "surf"
@@ -84,6 +77,22 @@ class Intermediate:
             if phase not in self.phases:
                 raise ValueError(f"Phase must be one of {self.phases}")
             self.phase = phase
+        self._gas_configs = None
+
+    @property
+    def formula(self):
+        if self._formula is None:
+            if len(self.molecule) == 0 and self.is_surface:
+                self._formula = "surface"
+            else:
+                self._formula = self.molecule.get_chemical_formula()
+        return self._formula
+    
+    @property
+    def mass(self):
+        if self._mass is None:
+            self._mass = self.molecule.get_masses().sum()
+        return self._mass
 
     def __getitem__(self, key: str):
         if key == "*":
@@ -122,9 +131,6 @@ class Intermediate:
         cls,
         ase_atoms_obj: Atoms,
         code=None,
-        energy=None,
-        std_energy=None,
-        entropy=None,
         is_surface=False,
         phase=None,
     ):
@@ -147,11 +153,9 @@ class Intermediate:
             new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(
                 new_mol, 0.25, 1, ["C", "H", "O"]
             )
-            new_graph = atoms_to_graph(new_mol, coords=False)
             return cls(
                 code=code,
                 molecule=new_mol,
-                graph=new_graph,
                 is_surface=is_surface,
                 phase=phase,
             )
@@ -174,31 +178,41 @@ class Intermediate:
         rdkit_mol = Chem.MolFromSmiles(smiles)
         inchikey = Chem.inchi.MolToInchiKey(rdkit_mol)        
         return cls(code=inchikey+phase_id, molecule=rdkit_mol, is_surface=False, phase="gas")
-
+    
     @property
     def graph(self):
         if self._graph is None:
-            self._graph = self.gen_graph()
+            self._graph = atoms_to_graph(self.molecule)
         return self._graph
+    
+    @property
+    def rdkit(self):
+        if self._rdkit is None and len(self.molecule) != 0:
+            x = self.ase_to_rdkit()
+            self._rdkit = x
+        return self._rdkit
 
     @graph.setter
     def graph(self, other):
         self._graph = other
 
-    def gen_graph(self):
-        """Generate a graph of the molecule.
-
-        Returns:
-            obj:`nx.DiGraph` Of the associated molecule.
-        """
-        return atoms_to_graph(self.molecule, coords=False)
-
-    def is_cyclic(self):
+    @property
+    def cyclic(self):
         """
         Check if a molecule is cyclic or not.
         """
-        cycles = list(cycle_basis(self.graph))
-        return True if len(cycles) != 0 else False
+        if self.is_surface:
+            self._cyclic = None
+        if self._cyclic is None:            
+            cycles = list(cycle_basis(self.graph))
+            self._cyclic = True if len(cycles) != 0 else False
+        return self._cyclic
+
+    @property
+    def gas_configs(self):
+        if self._gas_configs is None:
+            self._gas_configs = self.gen_gas_configs()
+        return self._gas_configs
 
     def is_closed_shell(self):
         """
@@ -207,30 +221,22 @@ class Intermediate:
         or not from the surface.
         """
         graph = self.graph
-        molecule = self.molecule
-        valence_electrons = {"C": 4, "H": 1, "O": 2}
-        mol_composition = molecule.get_chemical_symbols()
-        mol = {
-            "C": mol_composition.count("C"),
-            "H": mol_composition.count("H"),
-            "O": mol_composition.count("O"),
-        }  # CxHyOz
 
-        if mol["C"] != 0 and mol["H"] == 0 and mol["O"] == 0:  # Cx
+        if self["C"] != 0 and self["H"] == 0 and self["O"] == 0:  # Cx
             return False
-        elif mol["C"] == 0 and mol["H"] != 0 and mol["O"] == 0:  # Hy
-            return True if mol["H"] == 2 else False
-        elif mol["C"] == 0 and mol["H"] == 0 and mol["O"] != 0:  # Oz
-            return True if mol["O"] == 2 else False
-        elif mol["C"] != 0 and mol["H"] == 0 and mol["O"] != 0:  # CxOz
-            return True if mol["C"] == 1 and mol["O"] in (1, 2) else False
-        elif mol["C"] == 0 and mol["H"] != 0 and mol["O"] != 0:  # HyOz
-            return True if mol["H"] == 2 and mol["O"] in (1, 2) else False
-        elif mol["C"] != 0 and mol["H"] != 0:  # CxHyOz (z can be zero)
+        elif self["C"] == 0 and self["H"] != 0 and self["O"] == 0:  # Hy
+            return True if self["H"] == 2 else False
+        elif self["C"] == 0 and self["H"] == 0 and self["O"] != 0:  # Oz
+            return True if self["O"] == 2 else False
+        elif self["C"] != 0 and self["H"] == 0 and self["O"] != 0:  # CxOz
+            return True if self["C"] == 1 and self["O"] in (1, 2) else False
+        elif self["C"] == 0 and self["H"] != 0 and self["O"] != 0:  # HyOz
+            return True if self["H"] == 2 and self["O"] in (1, 2) else False
+        elif self["C"] != 0 and self["H"] != 0:  # CxHyOz (z can be zero)
             node_val = lambda graph: {
                 node: [
                     graph.degree(node),
-                    valence_electrons.get(graph.nodes[node]["elem"], 0),
+                    BOND_ORDER.get(graph.nodes[node]["elem"], 0),
                 ]
                 for node in graph.nodes()
             }
@@ -296,97 +302,57 @@ class Intermediate:
                                 0
                             ] += 1
                 return True
-            
-    def gen_gas_configs(self) -> list[Atoms, list[Atoms]]:
+
+    def gen_gas_configs(self) -> list[Atoms]:
         """
         Generate a list of gas-phase ASE Atoms object from an RDKit molecule.
         Needed for adsorbate placement (if a better scan is preferred)
 
         """
         rdkit_molecule = self.rdkit
-
-        # If there are no atoms in the molecule, return an empty ASE Atoms object (Surface)
         if rdkit_molecule is None:
-            return Atoms(), [Atoms()]
+            return Atoms()
 
         rdkit_molecule = Chem.AddHs(
             rdkit_molecule
         ) 
+        num_C = num_O = num_H = 0
+        for atom in rdkit_molecule.GetAtoms():
+            sym = atom.GetSymbol()
+            if sym == "C":
+                num_C += 1
+            elif sym == "O":
+                num_O += 1
+            elif sym == "H":
+                num_H += 1
 
-        num_C = sum(
-            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "C"]
-        )
-
-        num_O = sum(
-            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "O"]
-        )
-
-        num_H = sum(
-            [1 for atom in rdkit_molecule.GetAtoms() if atom.GetSymbol() == "H"]
-        )
+        def conformer_to_ase(mol, confId):
+            conf = mol.GetConformer(confId)
+            symbols = [a.GetSymbol() for a in mol.GetAtoms()]
+            positions = np.array([list(conf.GetAtomPosition(i)) for i in range(mol.GetNumAtoms())])
+            ase_atoms = Atoms(symbols=symbols, positions=positions)
+            ase_atoms.set_cell([20, 20, 20])
+            ase_atoms.set_pbc(True)
+            return ase_atoms
 
         num_conformers = 50 * (1+num_C) + 10 * num_O + 2 * num_H
         randomseed = 42
-
-
         if rdkit_molecule.GetNumAtoms() > 2:
             AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
-
-            energies = []
-            for conf in rdkit_molecule.GetConformers():
-                confId = conf.GetId()
-                result = AllChem.MMFFOptimizeMolecule(rdkit_molecule, confId=confId)
-                if result == 0:
-                    mmff_props = AllChem.MMFFGetMoleculeProperties(rdkit_molecule)
-                    ff = AllChem.MMFFGetMoleculeForceField(rdkit_molecule, mmff_props, confId=confId)
-                    energy = ff.CalcEnergy()
-                    energies.append((confId, energy))
-                else:
-                    energies.append((confId, float('inf')))
-
-            energies.sort(key=lambda x: x[1])
-
-            lowest_N_confIds = [confId for confId, _ in energies[:3]]
-            gas_configs_list = []
-            for confId in lowest_N_confIds:
-                xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule, confId=confId)
-                ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
-                ase_atoms.set_cell([20, 20, 20])
-                ase_atoms.set_pbc(True)
-                gas_configs_list.append(ase_atoms)
-
+            results = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule, numThreads=1)
+            # results = [(status, energy), ...]
+            sorted_confs = sorted(enumerate(results), key=lambda x: x[1][1])
+            lowest_confIds = [confId for confId, _ in sorted_confs[:3]]
+            return [conformer_to_ase(rdkit_molecule, confId) for confId in lowest_confIds]
         else:
             AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
+            return [conformer_to_ase(rdkit_molecule, 0)]
 
-            num_atoms = rdkit_molecule.GetNumAtoms()
-
-            positions = []
-            symbols = []
-
-            for atom_idx in range(num_atoms):
-                atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
-                atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
-                positions.append(atom_position)
-                symbols.append(atom_symbol)
-
-            ase_atoms = Atoms(
-                [
-                    Atom(symbol=symbol, position=position)
-                    for symbol, position in zip(symbols, positions)
-                ]
-            )
-            ase_atoms.set_cell([20, 20, 20])
-            ase_atoms.set_pbc(True)
-            gas_configs_list = [ase_atoms]
-
-        return gas_configs_list
-
-    def rdkit_to_ase(self) -> list[Atoms, list[Atoms]]:
+    def rdkit_to_ase(self, rdkit_molecule) -> Atoms:
         """
         Generate an ASE Atoms object from an RDKit molecule.
 
         """
-        rdkit_molecule = self.molecule
 
         # If there are no atoms in the molecule, return an empty ASE Atoms object (Surface)
         if rdkit_molecule.GetNumAtoms() == 0:
@@ -468,16 +434,23 @@ class Intermediate:
         pdb_string = buffer.read()
 
         rdkit_mol = Chem.MolFromPDBBlock(pdb_string, removeHs=False)
+        if rdkit_mol is None:
+            raise ValueError(f"RDKit failed to parse PDB from {self.code}")
         return rdkit_mol
 
+    @property
+    def smiles(self):
+        if not self.is_surface and len(self.molecule) != 0:
+            self._smiles = Chem.MolToSmiles(self.rdkit, allHsExplicit=False)
+        else:
+            self._smiles = None
+        return self._smiles
+
     def get_smiles(self, allHsExplicit=False):
-        """
-        Get the SMILES string of a molecule.
-        """
         return Chem.MolToSmiles(self.rdkit, allHsExplicit=allHsExplicit)
 
-    def get_num_electrons(self):
-        """
-        Get the number of valence electrons of the intermediate.
-        """
-        return 4 * self["C"] + 1 * self["H"] - 6 * self["O"]
+    @property
+    def electrons(self):
+        if self._electrons is None:
+            self._electrons = 4 * self["C"] + 1 * self["H"] - 6 * self["O"]
+        return self._electrons

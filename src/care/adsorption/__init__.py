@@ -250,7 +250,7 @@ def place_adsorbate(
                 site_list = []
                 if site_idxs != []:
                     try:
-                        configs_to_place = intermediate.gas_configs
+                        configs_to_place = intermediate.gen_gas_configs()
                     except AttributeError:
                         configs_to_place = [intermediate.molecule]
                     for config in configs_to_place:
@@ -295,7 +295,7 @@ def place_adsorbate(
                 site_list = []
                 if site_idxs != []:
                     try:
-                        configs_to_place = intermediate.gas_configs
+                        configs_to_place = intermediate.gen_gas_configs()
                     except AttributeError:
                         configs_to_place = [intermediate.molecule]
                         
