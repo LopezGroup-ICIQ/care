@@ -7,8 +7,8 @@ from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, Bond
 from care.constants import INTER_ELEMS
 
 
-inters, steps = gen_blueprint(3, 2, False, True, True)
-net = ReactionNetwork(inters, steps, type="electrochemical")
+inters, steps = gen_blueprint(2, 2, False, True, True)
+net = ReactionNetwork(steps)
 
 
 class TestElementaryReaction(unittest.TestCase):
@@ -169,7 +169,6 @@ class TestElementaryReaction(unittest.TestCase):
             self.assertEqual(reactants, step.products)
             self.assertEqual(step.e_rxn[0], -e_rxn_mu_dir)
             self.assertEqual(step.e_act[0], e_act_mu_dir - e_rxn_mu_dir)
-            # TODO: test of uncertainty propagation
 
 
 class TestIntermediate(unittest.TestCase):

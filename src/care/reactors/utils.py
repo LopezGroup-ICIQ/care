@@ -6,17 +6,30 @@ from care.constants import R
 
 
 @njit
-def net_rate(y, kd, kr, sf, sb):
+def net_rate(y, kd, kr,
+             sf_data, sf_indices, sf_indptr,
+             sb_data, sb_indices, sb_indptr):
     rates = np.empty_like(kd)
-    for i in range(kd.shape[0]):  # Assuming kd and kr have the same shape
+    n_reactions = kd.shape[0]
+
+    for i in range(n_reactions):  # loop over reactions
         forward_product = 1.0
         backward_product = 1.0
-        for j in range(
-            sf.shape[1]
-        ):  # Assuming sf and sb have the same shape [reactions, species]
-            forward_product *= y[j] ** sf[i, j]
-            backward_product *= y[j] ** sb[i, j]
+
+        # forward exponents (row i of sf)
+        for idx in range(sf_indptr[i], sf_indptr[i+1]):
+            j = sf_indices[idx]        # species index
+            exp = sf_data[idx]         # exponent
+            forward_product *= y[j] ** exp
+
+        # backward exponents (row i of sb)
+        for idx in range(sb_indptr[i], sb_indptr[i+1]):
+            j = sb_indices[idx]
+            exp = sb_data[idx]
+            backward_product *= y[j] ** exp
+
         rates[i] = kd[i] * forward_product - kr[i] * backward_product
+
     return rates
 
 

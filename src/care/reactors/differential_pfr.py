@@ -8,11 +8,88 @@ can be computed, as well as apparent activation energy and reaction orders.
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from scipy.sparse import csr_matrix
+from scipy.sparse import issparse
 from time import time
 
 from care.reactors.reactor import ReactorModel
 from care.reactors.utils import net_rate
+
+import juliacall
+
+jl = juliacall.newmodule("mkm")
+
+jl.seval(
+    """
+    module SparsePFR
+    using CUDA
+    using DifferentialEquations
+
+    struct SparsePFRParams
+        kd::Vector{Float64}
+        kr::Vector{Float64}
+        gas_mask::BitVector
+        v_data::Vector{Int8}
+        v_indices::Vector{Int}
+        v_indptr::Vector{Int}
+        vf_data::Vector{Int8}
+        vf_indices::Vector{Int}
+        vf_indptr::Vector{Int}
+        vb_data::Vector{Int8}
+        vb_indices::Vector{Int}
+        vb_indptr::Vector{Int}
+    end
+
+    export SparsePFRParams, sparse_net_rate, ode_pfr!
+
+    function sparse_net_rate(u, p::SparsePFRParams)
+        nr = length(p.kd)
+        rates = zeros(Float64, nr)
+        for r in 1:nr
+            fprod = 1.0
+            start_f = p.vf_indptr[r] + 1        # convert 0-based → 1-based
+            stop_f  = p.vf_indptr[r+1]          # already exclusive in SciPy
+            for idx in start_f:stop_f
+                s = p.vf_indices[idx] + 1       # species index → 1-based
+                exp = p.vf_data[idx]
+                fprod *= u[s]^exp
+            end
+
+            bprod = 1.0
+            start_b = p.vb_indptr[r] + 1
+            stop_b  = p.vb_indptr[r+1]
+            for idx in start_b:stop_b
+                s = p.vb_indices[idx] + 1
+                exp = p.vb_data[idx]
+                bprod *= u[s]^exp
+            end
+
+            rates[r] = p.kd[r]*fprod - p.kr[r]*bprod
+        end
+        return rates
+    end
+
+    function ode_pfr!(du, u, p::SparsePFRParams, t::Float64)
+        rates = sparse_net_rate(u, p)
+        fill!(du, 0.0)
+        for r in 1:length(rates)
+            start_v = p.v_indptr[r]     # Python 0-based
+            stop_v  = p.v_indptr[r+1]   # exclusive
+            for idx in (start_v+1):stop_v   # Julia 1-based, inclusive
+                s = p.v_indices[idx] + 1   # Python→Julia for species index
+                du[s] += p.v_data[idx] * rates[r]
+            end
+        end
+        for i in 1:length(p.gas_mask)
+            if p.gas_mask[i] == 1
+                du[i] = 0.0
+            end
+        end
+    end
+    end # module
+    """
+)
+
+SparsePFR = jl.SparsePFR
 
 
 class DifferentialPFR(ReactorModel):
@@ -43,22 +120,26 @@ class DifferentialPFR(ReactorModel):
             pressure(float): Pressure of the reactor in Pascal.
             temperature(float): Temperature of the reactor in Kelvin.
         """
+        if not issparse(v):
+            raise ValueError("Stoichiometric matrix v must be a scipy sparse matrix (e.g., lil_matrix or csr_matrix)")
+        self.v_sparse = v.tocsr()
 
-        self.v_dense = v
-        self.sparsity = (1 - (np.count_nonzero(v) / (v.shape[0] * v.shape[1]))) * 100 if v.shape != np.array([[]]).shape else None
-        self.v_forward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
-        self.v_forward_dense[self.v_dense < 0] = -self.v_dense[self.v_dense < 0]
-        self.v_forward_dense = self.v_forward_dense.T
-        self.v_backward_dense = np.zeros_like(self.v_dense, dtype=np.int8)
-        self.v_backward_dense[self.v_dense > 0] = self.v_dense[self.v_dense > 0]
-        self.v_backward_dense = self.v_backward_dense.T
+        # Sparsity calculation (use .count_nonzero())
+        self.sparsity = (1 - (self.v_sparse.count_nonzero() / (self.v_sparse.shape[0] * self.v_sparse.shape[1]))) * 100
 
-        self.v_sparse = csr_matrix(v, dtype=np.int8)
-        self.v_forward_sparse = csr_matrix(self.v_forward_dense, dtype=np.int8)
-        self.v_backward_sparse = csr_matrix(self.v_backward_dense, dtype=np.int8)
+        # Build forward/backward stoichiometry
+        self.v_forward_sparse = self.v_sparse.copy()
+        self.v_forward_sparse.data = np.where(self.v_forward_sparse.data < 0, -self.v_forward_sparse.data, 0)
+        self.v_forward_sparse.eliminate_zeros()
+        self.v_forward_sparse = self.v_forward_sparse.T.tocsr()
 
-        self.nr = self.v_dense.shape[1]  # number of reactions
-        self.nc = self.v_dense.shape[0]  # number of species
+        self.v_backward_sparse = self.v_sparse.copy()
+        self.v_backward_sparse.data = np.where(self.v_backward_sparse.data > 0, self.v_backward_sparse.data, 0)
+        self.v_backward_sparse.eliminate_zeros()
+        self.v_backward_sparse = self.v_backward_sparse.T.tocsr()
+
+        self.nr = self.v_sparse.shape[1]  # number of reactions
+        self.nc = self.v_sparse.shape[0]  # number of species
 
         self.kd = kd  # Forward kinetic constants
         self.kr = kr  # Backward kinetic constants
@@ -77,26 +158,29 @@ class DifferentialPFR(ReactorModel):
         y += f"Pressure: {self.P} Pa, Temperature: {self.T} K\n"
 
         return y
-
+    
     def forward_rate(self, y: np.ndarray) -> np.ndarray:
-        """
-        Returns the forward reaction rate for each elementary reaction.
-        Args:
-            y(ndarray): surface coverage + partial pressures array [-/Pa].
-        Returns:
-            (ndarray): forward reaction rate of the elementary reactions [1/s].
-        """
-        return self.kd * np.prod(y**self.v_forward_dense, axis=1)
+        rates = np.empty(self.nr, dtype=np.float64)  # num reactions
+        v = self.v_forward_sparse.tocsr()  # shape: (num_reactions, num_species)
+
+        for j in range(v.shape[0]):
+            start, end = v.indptr[j], v.indptr[j+1]
+            idx = v.indices[start:end]
+            exps = v.data[start:end]
+            rates[j] = self.kd[j] * np.prod(y[idx] ** exps)
+        return rates
 
     def backward_rate(self, y: np.ndarray) -> np.ndarray:
-        """
-        Returns the backward reaction rate for each elementary reaction.
-        Args:
-            y(ndarray): surface coverage + partial pressures array [-/Pa].
-        Returns:
-            (ndarray): backward reaction rate of the elementary reactions [1/s].
-        """
-        return self.kr * np.prod(y**self.v_backward_dense, axis=1)
+        rates = np.empty(self.nr, dtype=np.float64)
+        v = self.v_backward_sparse.tocsr()
+
+        for j in range(v.shape[0]):
+            start, end = v.indptr[j], v.indptr[j+1]
+            idx = v.indices[start:end]
+            exps = v.data[start:end]
+            rates[j] = self.kr[j] * np.prod(y[idx] ** exps)
+
+        return rates
 
     def net_rate(self, y: np.ndarray) -> np.ndarray:
         """
@@ -106,76 +190,27 @@ class DifferentialPFR(ReactorModel):
         Returns:
             (ndarray): Net reaction rate of the elementary reactions [1/s].
         """
-        return self.kd * np.prod(y**self.v_forward_dense, axis=1) - self.kr * np.prod(
-            y**self.v_backward_dense, axis=1
-        )
+        return self.forward_rate(y) - self.backward_rate(y)
 
     def ode(
         self,
         _: float,
         y: np.ndarray,
     ) -> np.ndarray:
-        dydt = self.v_sparse.dot(
-            net_rate(y, self.kd, self.kr, self.v_forward_dense, self.v_backward_dense)
+        # compute net rates using sparse-aware Numba kernel
+        rates = net_rate(
+            y,
+            self.kd, self.kr,
+            self.v_forward_sparse.data, self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
+            self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
         )
+
+        # apply stoichiometry to get species rate of change
+        dydt = self.v_sparse.dot(rates)
+
+        # zero out gas-phase species
         dydt[self.gas_mask] = 0.0
-        # print(_)
         return dydt
-
-    def jacobian(
-        self,
-        t: float,
-        y: np.ndarray,
-    ) -> np.ndarray:
-        """
-        Jacobian matrix of DifferentialPFR model.
-        Considers elementary reactions with stoichiometric coefficients of 1 or 2.
-        Not really helpful as its computation is very expensive.
-        """
-        Jg = np.zeros((self.nr, self.nc), dtype=np.float64)
-        Jh = np.zeros((self.nr, self.nc), dtype=np.float64)
-        vf = self.v_forward_dense.T.copy()
-        vb = self.v_backward_dense.T.copy()
-        for r in range(self.nr):
-            for s in range(self.nc):
-                if vf[s, r] == 1:
-                    vf[s, r] -= 1
-                    Jg[r, s] = self.kd[r] * np.prod(y ** vf[:, r])
-                    vf[s, r] += 1
-                elif vf[s, r] == 2:
-                    vf[s, r] -= 1
-                    Jg[r, s] = 2 * self.kd[r] * np.prod(y ** vf[:, r])
-                    vf[s, r] += 1
-                if vb[s, r] == 1:
-                    vb[s, r] -= 1
-                    Jh[r, s] = self.kr[r] * np.prod(y ** vb[:, r])
-                    vb[s, r] += 1
-                elif vb[s, r] == 2:
-                    vb[s, r] -= 1
-                    Jh[r, s] = 2 * self.kr[r] * np.prod(y ** vb[:, r])
-                    vb[s, r] += 1
-        J = self.v_dense @ (Jg - Jh)
-        J[self.gas_mask, :] = 0
-        return J
-
-    @property
-    def jac_sparsity(self) -> np.ndarray:
-        """
-        Matrix defining where the jacobian is non-zero.
-        Not useful as the jacobian is not used in the integration.
-        """
-        J = np.zeros((self.nc, self.nc), dtype=np.float64)
-        Jg = np.zeros((self.nr, self.nc), dtype=np.float64)
-        Jh = np.zeros((self.nr, self.nc), dtype=np.float64)
-        for r in range(self.nr):
-            for s in range(self.nc):
-                if self.v_forward_dense.T[s, r] != 0:
-                    Jg[r, s] = 10
-                if self.v_backward_dense.T[s, r] != 0:
-                    Jh[r, s] = 17
-        J = self.v_dense @ (Jg - Jh)
-        J[self.gas_mask, :] = 0
-        return J
 
     def steady_state(
         self,
@@ -266,9 +301,9 @@ class DifferentialPFR(ReactorModel):
                         results["status"] = 1
                 else:
                     time0 = time()
-                    results["y"] = self.integrate_jl_cpu(
+                    results["y"] = np.array(self.integrate_jl_cpu(
                         y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
-                    )
+                    ))
                     results["time"] = time() - time0
                     results["status"] = 1
             except Exception as e:
@@ -306,10 +341,10 @@ class DifferentialPFR(ReactorModel):
         results["forward_rate"] = self.forward_rate(results["y"])
         results["backward_rate"] = self.backward_rate(results["y"])
         results["net_rate"] = self.net_rate(results["y"])
-        consumption_rate = np.zeros_like(self.v_dense, dtype=np.float64)
-        for i in range(self.v_dense.shape[0]):
-            for j in range(self.v_dense.shape[1]):
-                consumption_rate[i, j] = self.v_dense[i, j] * results["net_rate"][j]
+        consumption_rate = np.zeros((self.nc, self.nr), dtype=np.float64)
+        for i in range(self.v_sparse.shape[0]):
+            for j in range(self.v_sparse.shape[1]):
+                consumption_rate[i, j] = self.v_sparse[i, j] * results["net_rate"][j]
         results["consumption_rate"] = consumption_rate
         results["total_consumption_rate"] = np.sum(consumption_rate, axis=1)
         return results
@@ -360,7 +395,7 @@ class DifferentialPFR(ReactorModel):
         X = self.conversion(reactant_idx)
         S = self.selectivity(target_idx, product_idxs, consumption_rate)
         return X * S
-
+    
     def integrate_jl_cpu(
         self,
         y0: np.ndarray,
@@ -370,73 +405,115 @@ class DifferentialPFR(ReactorModel):
         tfin: float,
     ) -> np.ndarray:
         """
-        Integrate the ODE system using the Julia-based solver on CPU.
+        Integrate the ODE system using the Julia-based solver on CPU, sparse-aware.
         """
-        import juliacall
-        jl = juliacall.newmodule('mkm')
-
+        v_transposed = self.v_sparse.T.tocsr()
+        jl.p = SparsePFR.SparsePFRParams(
+            self.kd, self.kr, self.gas_mask,
+            v_transposed.data, v_transposed.indices, v_transposed.indptr,
+            self.v_forward_sparse.data, self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
+            self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
+        )
         jl.y0 = y0
-        jl.v = self.v_dense
-        jl.vf = self.v_forward_dense
-        jl.vb = self.v_backward_dense
-        jl.kd, jl.kr = self.kd, self.kr
-        jl.gas_mask = self.gas_mask
-        jl.atol = atol
-        jl.rtol = rtol
-        jl.sstol = sstol
-        jl.J_sparsity = self.jac_sparsity
-        jl.tfin = tfin
-        jl.seval(
-            """
-        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vf =  vf, vb = vb)
-        using DifferentialEquations
-        """
-        )
-        jl.seval(
-            """
-        function ode_pfr!(du, u, p, t)
-            net_rate = p.kd .* prod((u .^ p.vf')', dims=2) .- p.kr .* prod((u .^ p.vb')', dims=2)
-            du .= p.v * net_rate
-            du[p.gas_mask] .= 0.0
-            println(t,"    ", sum(abs.(du)))
-        end
-        """
-        )
-        jl.seval(
-            """
-        f = ODEFunction(ode_pfr!)
-        """
-        )
-        jl.seval(
-            """
-        prob = ODEProblem(f, y0, (0, tfin), p)
-        """
-        )
-        jl.seval(
-            """
-        function condition(u, t, integrator)
-            du = similar(u)
-            ode_pfr!(du, u, integrator.p, t)
-            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-            return sum_abs_du <= sstol
-        end
+        jl.atol, jl.rtol, jl.sstol, jl.tfin = atol, rtol, sstol, tfin
 
-        function affect!(integrator)
-            println("STEADY-STATE CONDITIONS REACHED!")
-            terminate!(integrator)
-        end
-        cb = DiscreteCallback(condition, affect!)
-        """
-        )
         jl.seval(
             """
-        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
-        """
+            using DifferentialEquations
+            f = ODEFunction(SparsePFR.ode_pfr!)
+            prob = ODEProblem(f, y0, (0, tfin), p)
+            
+            function condition(u, t, integrator)
+                du = similar(u)
+                SparsePFR.ode_pfr!(du, u, integrator.p, t)
+                sum_abs_du = sum(abs.(du))
+                return sum_abs_du <= sstol
+            end
+
+            function affect!(integrator)
+                println("STEADY-STATE CONDITIONS REACHED!")
+                terminate!(integrator)
+            end
+            cb_steady_state = DiscreteCallback(condition, affect!)
+            function nonnegativity_condition(u, t, integrator)
+                true
+            end
+            function nonnegativity_affect!(integrator)
+                # Zero out any negative concentrations after a step is complete
+                integrator.u[integrator.u .< 0.0] .= 0.0
+            end
+            cb_nonnegativity = DiscreteCallback(nonnegativity_condition, nonnegativity_affect!)
+
+            # Combine the two callbacks into a single CallbackSet
+            cb_set = CallbackSet(cb_steady_state, cb_nonnegativity)
+            sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_set)
+            sol = Array(sol[end])
+            """
         )
-        jl.seval("sol = Array(sol[end])")
+
+        return jl.sol
+    
+    def integrate_jl_gpu(
+        self,
+        y0: np.ndarray,
+        rtol: float,
+        atol: float,
+        sstol: float,
+        tfin: float,
+    ) -> np.ndarray:
+        """
+        Integrate the ODE system using the Julia-based solver on CPU, sparse-aware.
+        """
+        v_transposed = self.v_sparse.T.tocsr()
+        jl.p = SparsePFR.SparsePFRParams(
+            self.kd, self.kr, self.gas_mask,
+            v_transposed.data, v_transposed.indices, v_transposed.indptr,
+            self.v_forward_sparse.data, self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
+            self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
+        )
+        jl.y0 = y0
+        jl.atol, jl.rtol, jl.sstol, jl.tfin = atol, rtol, sstol, tfin
+
+        jl.seval(
+            """
+            using CUDA
+            y0 = CuArray{Float64}(y0)
+            CUDA.allowscalar(true)
+            using DifferentialEquations
+            f = ODEFunction(SparsePFR.ode_pfr!)
+            prob = ODEProblem(f, y0, (0, tfin), p)
+            
+            function condition(u, t, integrator)
+                du = similar(u)
+                SparsePFR.ode_pfr!(du, u, integrator.p, t)  # sparse-aware
+                sum_abs_du = sum(abs.(du))
+                println("Condition check at time $t: $sum_abs_du")
+                return sum_abs_du <= sstol
+            end
+
+            function affect!(integrator)
+                println("STEADY-STATE CONDITIONS REACHED!")
+                terminate!(integrator)
+            end
+            cb_steady_state = DiscreteCallback(condition, affect!)
+            function nonnegativity_condition(u, t, integrator)
+                true
+            end
+            function nonnegativity_affect!(integrator)
+                integrator.u[integrator.u .< 0.0] .= 0.0
+            end
+            cb_nonnegativity = DiscreteCallback(nonnegativity_condition, nonnegativity_affect!)
+
+            # Combine the two callbacks into a single CallbackSet
+            cb_set = CallbackSet(cb_steady_state, cb_nonnegativity)
+            sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_set)
+            sol = Array(sol[end])
+            """
+        )
+
         return jl.sol
 
-    def integrate_jl_gpu(
+    def integrate_jl_gpu_old(
         self,
         y0: np.ndarray,
         rtol: float,
@@ -447,8 +524,6 @@ class DifferentialPFR(ReactorModel):
         """
         Integrate the ODE system using the Julia-based solver on GPU.
         """
-        import juliacall
-        jl = juliacall.newmodule('mkm')
 
         jl.y0 = y0
         jl.v = self.v_dense

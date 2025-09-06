@@ -20,15 +20,15 @@ class ReactorModel(ABC):
         """
         ...
 
-    @abstractmethod
-    def jacobian(self):
-        """
-        Provides the Jacobian matrix of the ODE system for the
-        defined reactor model. J is a sparse square matrix.
-        self.ode, self.jacobian, self.steady_state should have the same
-        signature if scipy.solve_ivp is used to integrate the ODE system.
-        """
-        ...
+    # @abstractmethod
+    # def jacobian(self):
+    #     """
+    #     Provides the Jacobian matrix of the ODE system for the
+    #     defined reactor model. J is a sparse square matrix.
+    #     self.ode, self.jacobian, self.steady_state should have the same
+    #     signature if scipy.solve_ivp is used to integrate the ODE system.
+    #     """
+    #     ...
 
     @abstractmethod
     def steady_state(self):
