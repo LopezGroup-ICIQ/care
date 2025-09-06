@@ -4,13 +4,15 @@ import multiprocessing as mp
 
 from ase import Atoms
 from numpy import array_split
+import numpy as np
 from rich.progress import Progress
 
 from care import ElementaryReaction, Intermediate
+from care.constants import K_B, K_BU
 
 
 class Adsorption(ElementaryReaction):
-    """Class for adsorption reactions."""
+    __slots__ = ("adsorbate_mass",)
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
@@ -23,7 +25,6 @@ class Adsorption(ElementaryReaction):
         for k, v in self.stoic.items():
             self.stoic[k] = -v
         self.r_type = "desorption"
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -33,7 +34,24 @@ class Adsorption(ElementaryReaction):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
+    
+    def get_kinetic_constants(
+        self, t: float, uq: bool = False
+    ) -> tuple:
+        """
+        Evaluate the kinetic constants of the reactions in the network
+        with transition state theory and Hertz-Knudsen equation.
+
+        Args:
+            t (float): Temperature in Kelvin.
+            uq (bool, optional): If True, the uncertainty of the activation
+                energy and the reaction energy will be considered. Defaults to
+                False.
+        """
+        e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
+        k_eq = np.exp(-e_rxn / t / K_B)
+        k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
+        return k_dir, k_dir / k_eq
 
     def bb_order(self):
         """
@@ -44,7 +62,7 @@ class Adsorption(ElementaryReaction):
 
 
 class Desorption(ElementaryReaction):
-    """Class for desorption reactions."""
+    __slots__ = ("adsorbate_mass",)
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
@@ -57,7 +75,6 @@ class Desorption(ElementaryReaction):
         for k, v in self.stoic.items():
             self.stoic[k] = -v
         self.r_type = "adsorption"
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -67,7 +84,6 @@ class Desorption(ElementaryReaction):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
     def bb_order(self):
         """

@@ -23,7 +23,6 @@ class BondBreaking(ElementaryReaction):
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -33,7 +32,6 @@ class BondBreaking(ElementaryReaction):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
     def bb_order(self):
         """
@@ -54,7 +52,6 @@ class BondFormation(ElementaryReaction):
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -64,7 +61,6 @@ class BondFormation(ElementaryReaction):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
     def bb_order(self):
         """
@@ -435,8 +431,6 @@ def gen_intermediates_dict(
         defining if its adsorbed or in gas-phase,
         and each value the Intermediate instance.
     """
-
-    # Splitting the dictionary into chunks
     keys = list(inter_dict.keys())
     chunk_size = 1 if len(keys) < ncpu else len(keys) // ncpu
     chunks = [
@@ -469,7 +463,6 @@ def gen_intermediates_dict(
         else:
             result_async.wait()
 
-    # Combine the results from all chunks
     combined_result = {}
     for result in result_async.get():
         combined_result.update(result)
@@ -491,18 +484,12 @@ def process_inter_objs_chunk(chunk, progress_queue) -> dict[str, Intermediate]:
     dict
         A dictionary with the generated Intermediate objects for the given chunk.
     """
-
     inter_dict_chunk = {}
     for key, value in chunk.items():
-        code = key + "*"
-        inter_ads = Intermediate(code=code, molecule=value, phase="ads")
-        inter_dict_chunk[code] = inter_ads
-
-        if inter_ads.closed_shell:  # closed-shell also appear in gas phase
-            code = key + "g"
-            inter_dict_chunk[code] = Intermediate(
-                code=code, molecule=value, phase="gas"
+        inter_dict_chunk[key + "*"] = Intermediate(code=key+"*", molecule=value, phase="ads")
+        if inter_dict_chunk[key + "*"].closed_shell:
+            inter_dict_chunk[key + "g"] = Intermediate(
+                code=key + "g", molecule=value, phase="gas"
             )
     progress_queue.put(1)
-
     return inter_dict_chunk

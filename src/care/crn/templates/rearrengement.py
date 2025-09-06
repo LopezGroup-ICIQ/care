@@ -22,7 +22,6 @@ class Rearrangement(ElementaryReaction):
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn != None:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -32,7 +31,6 @@ class Rearrangement(ElementaryReaction):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
     def bb_order(self):
         """
@@ -76,7 +74,6 @@ def gen_rearrangement_reactions(
     subgroup_pairs_dict = {}
     index = 0
     for formula_group in formula_groups.values():
-        # Subgroup each formula group by isomers
         isomer_subgroups = subgroup_by_isomers(formula_group)
 
         # Generate combinations within each isomer subgroup and store in dictionary
@@ -173,7 +170,7 @@ def group_by_formula(
     """
     formula_groups = defaultdict(list)
     for inter in intermediates:
-        formula_groups[inter.molecule.get_chemical_formula()].append(inter)
+        formula_groups[inter.formula].append(inter)
     return formula_groups
 
 

@@ -15,7 +15,6 @@ class AssociativeAdsorption(Adsorption):
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn != None:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -25,7 +24,6 @@ class AssociativeAdsorption(Adsorption):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
 
 class DissociativeDesorption(Desorption):
@@ -42,7 +40,6 @@ class DissociativeDesorption(Desorption):
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
         if self.e_rxn != None:
             self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
             self.e_is, self.e_fs = self.e_fs, self.e_is
@@ -52,7 +49,6 @@ class DissociativeDesorption(Desorption):
                 self.e_act[0] + self.e_rxn[0],
                 (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
             )
-        self.code = self.__repr__()
 
 
 def gen_eleyrideal(gas_inters: list[Intermediate],

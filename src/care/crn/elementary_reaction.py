@@ -1,75 +1,42 @@
 from copy import deepcopy
 import re
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
-from rdkit import Chem
 from scipy.linalg import null_space
 
 from care import Intermediate, format_reaction
-from care.constants import INTER_ELEMS, R_TYPES, K_B, H, K_BU
+from care.constants import INTER_ELEMS, R_TYPES, K_B, H
 
 
 class ElementaryReaction:
     """Base class for representing elementary reactions.
 
     Attributes:
-        code (str): Code associated with the elementary reaction.
         components (list of frozensets): List containing the frozensets.
             with the components of the reaction.
         r_type (str): Elementary reaction type.
     """
-
+    __slots__ = (
+        "_components", "r_type", "stoic",
+        "e_is", "e_ts", "e_fs", "e_rxn", "e_act",
+        "k_dir", "k_rev", "k_eq", "rate",
+        "_repr_str", "extra_intermediates",
+        "neb_images", "neb_energies",
+        "is_graph", "ts_graph", "fs_graph",
+        "is_atoms", "fs_atoms", "_code", "_repr_hr"
+    )
     r_types: list[str] = R_TYPES
 
     def __init__(
         self,
-        code: str = None,
-        components: Union[
-            tuple[frozenset[Chem.rdchem.Mol]], tuple[frozenset[Intermediate]]
-        ] = None,
+        components: tuple[frozenset[Intermediate]] = None,
         r_type: str = None,
         stoic: dict[str, float] = None,
     ):
-        self._code = code
         self._components = None
         self.components = components
-
-        type_component = type(list(self.components[0])[0])
-
-        if type_component == Chem.rdchem.Mol:
-            self.components = (
-                [
-                    Intermediate(
-                        code=(
-                            "*"
-                            if comp.GetNumAtoms() == 0
-                            else Chem.inchi.MolToInchiKey(comp)
-                        ),
-                        molecule=comp,
-                        phase="surf" if comp.GetNumAtoms() == 0 else "ads",
-                        is_surface=True if comp.GetNumAtoms() == 0 else False,
-                    )
-                    for comp in self.components[0]
-                ],
-                [
-                    Intermediate(
-                        code=(
-                            "*"
-                            if comp.GetNumAtoms() == 0
-                            else Chem.inchi.MolToInchiKey(comp)
-                        ),
-                        molecule=comp,
-                        phase="surf" if comp.GetNumAtoms() == 0 else "ads",
-                        is_surface=True if comp.GetNumAtoms() == 0 else False,
-                    )
-                    for comp in self.components[1]
-                ],
-            )
-        elif type_component == Intermediate:
-            self.components = components
-        self.reactants = self.components[0]
-        self.products = self.components[1]
+        self._code = None
 
         # enthalpy attributes (mu, std)
         self.e_is: Optional[tuple[float, float]] = None  # initial state
@@ -78,27 +45,11 @@ class ElementaryReaction:
         self.e_rxn: Optional[tuple[float, float]] = None  # reaction energy
         self.e_act: Optional[tuple[float, float]] = None  # activation energy
 
-        # entropy attributes (mu, std)
-        self.s_is: Optional[tuple[float, float]] = 0, 0
-        self.s_ts: Optional[tuple[float, float]] = 0, 0
-        self.s_fs: Optional[tuple[float, float]] = 0, 0
-        self.s_rxn: Optional[tuple[float, float]] = 0, 0
-        self.s_act: Optional[tuple[float, float]] = 0, 0
-
-        # Gibbs free energy attributes (mu, std)
-        self.g_is: Optional[tuple[float, float]] = None
-        self.g_ts: Optional[tuple[float, float]] = None
-        self.g_fs: Optional[tuple[float, float]] = None
-        self.g_rxn: Optional[tuple[float, float]] = None
-        self.g_act: Optional[tuple[float, float]] = None
-
         # Kinetic constants
         self.k_dir: Optional[float] = None  # direct rate constant
         self.k_rev: Optional[float] = None  # reverse rate constant
         self.k_eq: Optional[float] = None  # equilibrium constant
 
-        # Reaction rate
-        self.rate: Optional[float] = None
         self.r_type: str = r_type
         if self.r_type not in self.r_types:
             raise ValueError(f"Invalid reaction type: {self.r_type}")
@@ -114,6 +65,14 @@ class ElementaryReaction:
         self.is_atoms = None
         self.fs_atoms = None
         self.extra_intermediates = {}
+
+    @property
+    def reactants(self):
+        return self.components[0] if self.components else []
+
+    @property
+    def products(self):
+        return self.components[1] if self.components else []
 
     def __lt__(self, other):
         return self.code < other.code
@@ -141,8 +100,7 @@ class ElementaryReaction:
         lhs.sort(), rhs.sort()  # sort alphabetically
         return " + ".join(lhs) + " \u27F9 " + " + ".join(rhs)
 
-    @property
-    def repr_hr(self) -> str:
+    def get_repr_hr(self) -> str:
         def sort_key(s):
             if re.fullmatch(r"\[\d+\]\*", s):
                 return (1, 0)  # [#]* group
@@ -161,7 +119,7 @@ class ElementaryReaction:
                 elif inter.phase == "gas":
                     out_str = (
                         "[{}]".format(str(abs(self.stoic[inter.code])))
-                        + inter.molecule.get_chemical_formula()
+                        + inter.formula
                         + "(g)"
                     )
                 elif inter.phase == "solv":
@@ -178,7 +136,7 @@ class ElementaryReaction:
                 else:
                     out_str = (
                         "[{}]".format(str(abs(self.stoic[inter.code])))
-                        + inter.molecule.get_chemical_formula()
+                        + inter.formula
                         + "*"
                     )
                 inters_str.append(out_str)
@@ -197,13 +155,156 @@ class ElementaryReaction:
         return False
 
     def __hash__(self):
-        return hash((self.components))
+        return id(self)
 
     def __getitem__(self, key):
         pass
 
     def __iter__(self):
         return iter(list(self.reactants) + list(self.products))
+
+
+    @property
+    def components(self):
+        return self._components
+
+    @components.setter
+    def components(self, other):
+        if other is None:
+            self._components = []
+        else:
+            _ = []
+            for item in other:
+                _.append(frozenset(item))
+            self._components = tuple(_)
+        self._code = None
+        self._repr_hr = None
+
+    @property
+    def code(self):
+        if not hasattr(self, "_code") or self._code is None:
+            self._code = self.__repr__()
+        return self._code
+    
+    @property
+    def repr_hr(self):
+        if not hasattr(self, "_repr_hr") or self._repr_hr is None:
+            self._repr_hr = self.get_repr_hr()
+        return self._repr_hr
+    
+    def solve_stoichiometry(self) -> dict[str, float]:
+        """Solve the stoichiometry of the elementary reaction.
+        sum_i nu_i * S_i = 0 (nu_i are the stoichiometric coefficients and S_i are the species)
+
+        Returns:
+            dict containing the stoichiometry of the elementary reaction.
+        """
+        reactants = [specie for specie in self.reactants]
+        products = [specie for specie in self.products]
+        species = reactants + products
+        stoic_dict = {
+            specie.code: -1 if specie in reactants else 1 for specie in species
+        }  # initial guess (correct for most of the steps)
+        matrix = np.zeros((len(species), len(INTER_ELEMS)), dtype=np.int8)
+        for i, inter in enumerate(species):
+            for j, element in enumerate(INTER_ELEMS):
+                if element == "*" and inter.phase not in ("gas", "solv", "electro"):
+                    matrix[i, j] = 1
+                elif element == "q":
+                    matrix[i, j] = species[i].charge
+                else:
+                    matrix[i, j] = species[i][element]
+        y = np.zeros((len(INTER_ELEMS), 1))
+        for i, _ in enumerate(INTER_ELEMS):
+            y[i] = np.dot(
+                matrix[:, i], np.array([stoic_dict[specie.code] for specie in species])
+            )
+        if np.all(y == 0):
+            return stoic_dict
+        else:
+            stoic = null_space(matrix.T)
+            stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
+            min_abs = min([abs(x) for x in stoic])
+            stoic = np.round(stoic / min_abs).astype(int)
+            if stoic[0] > 0:
+                stoic = [-x for x in stoic]
+            stoic = [int(x[0]) for x in stoic]
+            for i, specie in enumerate(species):
+                stoic_dict[specie.code] = stoic[i]
+        return stoic_dict
+
+    def reverse(self):
+        """
+        Reverse the elementary reaction in-place.
+        Example: A + B <-> C + D becomes C + D <-> A + B
+        """
+        self.components = self.components[::-1]
+        for k, v in self.stoic.items():
+            self.stoic[k] = -v
+        if self.e_rxn:
+            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
+            self.e_is, self.e_fs = self.e_fs, self.e_is
+
+        if self.e_act:
+            self.e_act = (
+                self.e_act[0] + self.e_rxn[0], # As e_rxn already stores the reverse rxn energy, we add, not substract!
+                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
+            )
+
+        self.code = self.__repr__()
+
+    def bb_order(self):
+        """
+        Set the elementary reaction in the bond-breaking direction, e.g.:
+        CH4 + * -> CH3 + H*
+        """
+        pass
+
+    def bb(self):
+        """Set reaction to bond-breaking direction."""
+        self.bb_order()
+
+    def bf(self):
+        """
+        Set reaction to bond-forming direction.
+        """
+        self.bb_order()
+        self.reverse()
+
+    def get_kinetic_constants(
+        self, t: float, uq: bool = False
+    ) -> tuple:
+        """
+        Evaluate the kinetic constants of the reactions in the network
+        with transition state theory and Hertz-Knudsen equation.
+
+        Args:
+            t (float): Temperature in Kelvin.
+            uq (bool, optional): If True, the uncertainty of the activation
+                energy and the reaction energy will be considered. Defaults to
+                False.
+        """
+        e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
+        e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
+        k_eq = np.exp(-e_rxn / t / K_B)
+        k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
+        return k_dir, k_dir / k_eq
+
+    def update_intermediates(self, evaluated_dict: dict[str, Intermediate]):
+        """
+        Update the intermediates of the elementary reaction with evaluated ones.
+
+        Args:
+            evaluated_dict (dict): Dictionary mapping Intermediate codes to
+                                evaluated Intermediate objects.
+        """
+        for component in self.components:
+            for inter in component:
+                if inter.code in evaluated_dict:
+                    inter.ads_configs = evaluated_dict[inter.code].ads_configs
+        if self.r_type == "PCET":
+            self.extra_intermediates["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"] = evaluated_dict.get("XLYOFNOQVPJJNP-UHFFFAOYSA-Ng")  # H2O
+            self.extra_intermediates["UFHFLCQGNIYNRP-UHFFFAOYSA-N"] = evaluated_dict.get("UFHFLCQGNIYNRP-UHFFFAOYSA-Ng")  # H2
 
     def __add__(self, other) -> "ReactionMechanism":
         """
@@ -296,165 +397,6 @@ class ElementaryReaction:
         else:
             raise TypeError("The object is not an ElementaryReaction")
 
-    @property
-    def components(self):
-        return self._components
-
-    @components.setter
-    def components(self, other):
-        if other is None:
-            self._components = []
-        else:
-            _ = []
-            for item in other:
-                _.append(frozenset(item))
-            self._components = tuple(_)
-
-    @property
-    def code(self):
-        if self._code is None:
-            self._code = self.__repr__()
-        return self._code
-
-    @code.setter
-    def code(self, other):
-        self._code = other
-
-    def solve_stoichiometry(self) -> dict[str, float]:
-        """Solve the stoichiometry of the elementary reaction.
-        sum_i nu_i * S_i = 0 (nu_i are the stoichiometric coefficients and S_i are the species)
-
-        Returns:
-            dict containing the stoichiometry of the elementary reaction.
-        """
-        reactants = [specie for specie in self.reactants]
-        products = [specie for specie in self.products]
-        species = reactants + products
-        stoic_dict = {
-            specie.code: -1 if specie in reactants else 1 for specie in species
-        }  # initial guess (correct for most of the steps)
-        matrix = np.zeros((len(species), len(INTER_ELEMS)), dtype=np.int8)
-        for i, inter in enumerate(species):
-            for j, element in enumerate(INTER_ELEMS):
-                if element == "*" and inter.phase not in ("gas", "solv", "electro"):
-                    matrix[i, j] = 1
-                elif element == "q":
-                    matrix[i, j] = species[i].charge
-                else:
-                    matrix[i, j] = species[i][element]
-        y = np.zeros((len(INTER_ELEMS), 1))
-        for i, _ in enumerate(INTER_ELEMS):
-            y[i] = np.dot(
-                matrix[:, i], np.array([stoic_dict[specie.code] for specie in species])
-            )
-        if np.all(y == 0):
-            return stoic_dict
-        else:
-            stoic = null_space(matrix.T)
-            stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
-            min_abs = min([abs(x) for x in stoic])
-            stoic = np.round(stoic / min_abs).astype(int)
-            if stoic[0] > 0:
-                stoic = [-x for x in stoic]
-            stoic = [int(x[0]) for x in stoic]
-            for i, specie in enumerate(species):
-                stoic_dict[specie.code] = stoic[i]
-        return stoic_dict
-
-    def reverse(self):
-        """
-        Reverse the elementary reaction in-place.
-        Example: A + B <-> C + D becomes C + D <-> A + B
-        """
-
-        self.components = self.components[::-1]
-        for k, v in self.stoic.items():
-            self.stoic[k] = -v
-        self.reactants, self.products = self.products, self.reactants
-        if self.e_rxn:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
-
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0], # As e_rxn already stores the reverse rxn energy, we add, not substract!
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
-
-        self.code = self.__repr__()
-
-    def bb_order(self):
-        """
-        Set the elementary reaction in the bond-breaking direction, e.g.:
-        CH4 + * -> CH3 + H*
-        """
-        pass
-
-    def bb(self):
-        """Set reaction to bond-breaking direction."""
-        self.bb_order()
-
-    def bf(self):
-        """
-        Set reaction to bond-forming direction.
-        """
-        self.bb_order()
-        self.reverse()
-
-    def get_kinetic_constants(
-        self, t: float, uq: bool = False, thermo: bool = False
-    ) -> tuple:
-        """
-        Evaluate the kinetic constants of the reactions in the network
-        with transition state theory and Hertz-Knudsen equation.
-
-        Args:
-            t (float): Temperature in Kelvin.
-            uq (bool, optional): If True, the uncertainty of the activation
-                energy and the reaction energy will be considered. Defaults to
-                False.
-            thermo (bool, optional): If True, the activation barriers will be
-                neglected and only the thermodynamic path is considered. Defaults
-                to False.
-        """
-        if thermo:
-            e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
-            e_act = max(0, e_rxn)
-        else:
-            e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
-            e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
-        k_eq = np.exp(-e_rxn / t / K_B)
-        if self.r_type == "adsorption":
-            k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
-        else:
-            k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
-
-        return k_dir, k_dir / k_eq
-
-    def update_intermediates(self, evaluated_dict: dict[str, Intermediate]):
-        """
-        Update the intermediates of the elementary reaction with evaluated ones.
-
-        Args:
-            evaluated_dict (dict): Dictionary mapping Intermediate codes to
-                                evaluated Intermediate objects.
-        """
-        updated_components = []
-        for component in self.components:
-            new_component = []
-            for inter in component:
-                if inter.code in evaluated_dict:
-                    new_component.append(evaluated_dict[inter.code])
-                else:
-                    new_component.append(inter)
-            updated_components.append(frozenset(new_component))
-        
-        self._components = tuple(updated_components)
-        self.reactants = self.components[0]
-        self.products = self.components[1]
-        if self.r_type == "PCET":
-            self.extra_intermediates["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"] = evaluated_dict["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"]  # H2O
-            self.extra_intermediates["UFHFLCQGNIYNRP-UHFFFAOYSA-N"] = evaluated_dict["UFHFLCQGNIYNRP-UHFFFAOYSA-Ng"]  # H2
 
 class ReactionMechanism(ElementaryReaction):
     """

@@ -3,16 +3,10 @@ import warnings
 import multiprocessing as mp
 
 from prettytable import PrettyTable
-from rdkit import RDLogger
 from rdkit.Chem import MolFromSmiles
 
 from care import ElementaryReaction, Intermediate
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
-
-
-# warnings.filterwarnings("ignore")
-# RDLogger.DisableLog("rdApp.*")
-
 
 def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""
