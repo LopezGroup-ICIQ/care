@@ -1,12 +1,8 @@
 """Helper functions for CRN representation in NetworX format."""
 
-from tqdm import tqdm
-
 import networkx as nx
 from rdkit import Chem
 from networkx.algorithms import shortest_path
-
-from care import ElementaryReaction, Intermediate
 
 
 def iupac_to_inchikey(iupac_name: str) -> str:
@@ -15,104 +11,6 @@ def iupac_to_inchikey(iupac_name: str) -> str:
         return Chem.inchi.MolToInchiKey(mol)
     else:
         return "Invalid IUPAC name"
-
-
-def gen_graph(
-    inters: dict[str, Intermediate], rxns: list[ElementaryReaction]
-) -> nx.DiGraph:
-    """
-    Generate a network graph representation.
-
-    Returns:
-        graph (obj:`nx.DiGraph`): Network graph. Nodes represent species and elementary reactions.
-        Species nodes can only be linked to reaction nodes and vice versa.
-
-    Notes:
-        The returned graph is correctly directed at the elementary reaction level,
-        i.e. if A + B -> C + D is a reaction, the species on the same side (A and B)
-        are linked to the reaction node in the same way (both entering or exiting).
-        However, at the global level, the graph is ill-defined and further processing
-        (kinetic modeling) is needed to obtain a correct representation of the network.
-    """
-    graph = nx.DiGraph()
-
-    for inter in tqdm(inters.values(), desc="Adding intermediates to nx graph"):
-        graph.add_node(
-            inter.code,
-            category="intermediate",
-            phase=inter.phase,
-            formula=inter.formula,
-            nC=inter["C"],
-            nH=inter["H"],
-            nO=inter["O"],
-            closed_shell=inter.closed_shell,
-        )
-
-    graph.add_node(
-        "*",
-        category="intermediate",
-        phase="surf",
-        formula="*",
-        nC=0,
-        nH=0,
-        nO=0,
-        closed_shell=False,
-    )
-
-    for idx, reaction in tqdm(enumerate(rxns), desc="Adding reactions to nx graph"):
-        r_type = (
-            reaction.r_type
-            if reaction.r_type in ("adsorption", "desorption", "eley_rideal", "PCET")
-            else "surface_reaction"
-        )
-        graph.add_node(
-            reaction.code,
-            category="reaction",
-            r_type=r_type,
-            rr=reaction.r_type,
-            idx=idx,
-        )
-
-        for inter in reaction.components[0]:
-            if inter.phase in ("solv", "electro"):
-                if not graph.has_node(inter.code):
-                    graph.add_node(
-                        inter.code,
-                        category="intermediate",
-                        phase=inter.phase,
-                        formula=inter.formula,
-                        nC=inter["C"],
-                        nH=inter["H"],
-                        nO=inter["O"],
-                    )
-                graph.add_edge(
-                    inter.code, reaction.code, dir="in", v=reaction.stoic[inter.code]
-                )
-            else:
-                graph.add_edge(
-                    inter.code, reaction.code, dir="in", v=reaction.stoic[inter.code]
-                )
-        for inter in reaction.components[1]:
-            if inter.phase in ("solv", "electro"):
-                if not graph.has_node(inter.code):
-                    graph.add_node(
-                        inter.code,
-                        category="intermediate",
-                        phase=inter.phase,
-                        formula=inter.formula,
-                        nC=inter["C"],
-                        nH=inter["H"],
-                        nO=inter["O"],
-                    )
-                graph.add_edge(
-                    reaction.code, inter.code, dir="out", v=reaction.stoic[inter.code]
-                )
-            else:
-                graph.add_edge(
-                    reaction.code, inter.code, dir="out", v=reaction.stoic[inter.code]
-                )
-
-    return graph
 
 
 def max_flux(graph: nx.DiGraph, source: str) -> list:
