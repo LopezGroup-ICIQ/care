@@ -1,5 +1,6 @@
 import argparse
 import os
+import gc
 import tomllib
 import multiprocessing as mp
 from pickle import dump, load
@@ -8,6 +9,7 @@ from prettytable import PrettyTable
 import cpuinfo
 import psutil
 import time
+from tqdm import tqdm
 
 import dask
 from dask.distributed import Client, LocalCluster
@@ -48,6 +50,13 @@ def main():
         type=str, 
         help='Path to run log file', 
         default="care.log"
+    )
+    PARSER.add_argument(
+        "-bs_rxn",
+        type=int,
+        dest="batch_size_rxn",
+        help="Batch size for reaction evaluation. Default is 256.",
+        default=512,
     )
     ARGS = PARSER.parse_args()
     setup_logging(ARGS.log)
@@ -141,12 +150,13 @@ def main():
 
         model_name = config["evaluator"]["model"]
 
+        t0 = time.time()
         # 2.1 Intermediate evaluator
         print(f"Energy estimation of the {len(intermediates)} intermediates...")
+        print("Intermediates energy calculator: ", inter_evaluator)
         del config["evaluator"]["model"]
         inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
-        print("Intermediates energy calculator: ", inter_evaluator)
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
                            threads_per_worker=1, 
@@ -155,52 +165,73 @@ def main():
                            dashboard_address=":0")
         client = Client(address=cluster)
         print(f"Dask dashboard available at: {cluster.dashboard_link}")
-        tasks = [
-            dask.delayed(load_x, name=f"load-{intermediate.code}")(intermediate)
-            for intermediate in intermediates.values()
-        ]
-        dmodel = dask.delayed(inter_evaluator)
-        predictions = [
-            dask.delayed(predict, name=f"predict-{intermediate.code}")(task, dmodel)
-            for task, intermediate in zip(tasks, intermediates.values())
-        ]
-        predictions = dask.compute(*predictions)
-        intermediates = {inter.code: inter for inter in predictions}
+        if os.path.exists(ARGS.output + "_intermediates.pkl"):
+            with open(ARGS.output + "_intermediates.pkl", "rb") as f:
+                print("Loading intermediates from disk...")
+                intermediates = load(f)
+        else:
+            tasks = [load_x(intermediate)
+                for intermediate in intermediates.values()
+            ]
+            dmodel = dask.delayed(inter_evaluator)
+            predictions = [predict(task, dmodel)
+                for task in tasks
+            ]
+            predictions = dask.compute(*predictions)
+            intermediates = {inter.code: inter for inter in predictions}
+            with open(ARGS.output+'_intermediates.pkl', "wb") as f:
+                print("Saving intermediates to disk...")
+                dump(intermediates, f)
         for rxn in reactions:
-            rxn.update_intermediates(intermediates)       
+            rxn.update_intermediates(intermediates)
+        ti = time.time()
+        print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
         # REACTION EVALUATION
         print(f"\nEnergy estimation of the {len(reactions)} reactions...")
         print("Reaction properties calculator: ", rxn_evaluator)
-        tasks = [load_x(reaction) for reaction in reactions]
-        dmodel = dask.delayed(rxn_evaluator)
-        predictions = [predict(task, dmodel) for task in tasks]
-        predictions = dask.compute(*predictions)
-        reactions = sorted(reactions)
+        if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
+            print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
+            batches = [reactions[i:i + ARGS.batch_size_rxn] for i in range(0, len(reactions), ARGS.batch_size_rxn)]
+            for batch in tqdm(batches):
+                rxn_evaluator(batch)
+        else:
+            results  = []
+            tasks = [load_x(reaction) for reaction in reactions]
+            dmodel = dask.delayed(rxn_evaluator)
+            for i in range(0, len(tasks), ARGS.batch_size_rxn):
+                batch_tasks = tasks[i:i+ARGS.batch_size_rxn]
+                batch_predictions = [predict(t, dmodel) for t in batch_tasks]
+                batch_results = dask.compute(*batch_predictions)
+                with open(ARGS.output + '_reactions.pkl', 'ab') as f:
+                    for result in batch_results:
+                        dump(result, f)
+                del batch_predictions, batch_results
+                gc.collect()
+                print(f"Finalized batch {i//ARGS.batch_size_rxn + 1}/{(len(tasks)-1)//ARGS.batch_size_rxn + 1}")
         client.shutdown()
         client.close()
         cluster.close()
-        time.sleep(1)
+        results = []
+        try:
+            with open(ARGS.output + '_reactions.pkl', 'rb') as f:
+                while True:
+                    results.append(load(f))
+        except EOFError:
+            pass
+        reactions = sorted(results)
+        tr = time()
+        print(f"Total reaction evaluation time: {tr - ti:.2f} s")
+
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
         )
 
-        for r in reactions:
-            if Electron in r.reactants or Electron in r.products:
-                crn_type = "electrochemical"
-                break
-        else:
-            crn_type = "thermal"
-
         crn = ReactionNetwork(
-            intermediates=intermediates,
             reactions=reactions,
             surface=surface,
-            ncc=ncc,
-            noc=noc,
             oc={"T": T, "P": P, "U": U, "pH": PH},
-            type=crn_type,
         )
 
         print("\nSaving the CRN...")
@@ -217,7 +248,7 @@ def main():
         print("\nRunning the microkinetic simulation...")
         results = crn.run_microkinetic(
             iv=config["initial_conditions"],
-            oc={"T": T, "P": P, "U": U, "pH": PH},
+            oc=config["operating_conditions"],
             **config["mkm"]
         )
 

@@ -7,6 +7,8 @@ import os
 from pickle import dump, load
 import tomllib
 
+from care import ReactionNetwork
+
 def main():
     """
     Parse .toml configuration file and run the CARE pipeline.
@@ -49,6 +51,9 @@ def main():
     # Load CRN blueprint
     with open(ARGS.crn, "rb") as f:
         crn = load(f)
+
+    if not isinstance(crn, ReactionNetwork):
+        raise TypeError("The input CRN file does not contain a valid ReactionNetwork object.")
 
     # Load evaluation settings
     with open(ARGS.input, "rb") as f:

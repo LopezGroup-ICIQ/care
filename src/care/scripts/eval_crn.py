@@ -3,16 +3,17 @@ Evaluate chemical reaction network blueprint with CARE.
 """
 
 import argparse
+import gc
 import os
-from time import time, sleep
+from time import time
 import tomllib
-from pickle import dump, dumps, load
+from pickle import dump, load
+from tqdm import tqdm
 
 import dask
 from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, load_surface
-from care.crn.utils.electro import Electron
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator
 from care.scripts import setup_logging, load_x, predict
 
@@ -50,6 +51,13 @@ def main():
         dest="num_cpu",
         help="Number of CPU cores to use for parallelizing intermediate evaluation. Default is the number of CPU cores available.",
         default=os.cpu_count(),
+    )
+    PARSER.add_argument(
+        "-bs_rxn",
+        type=int,
+        dest="batch_size_rxn",
+        help="Batch size for reaction evaluation. Default is 256.",
+        default=512,
     )
     PARSER.add_argument(
         '--log', 
@@ -102,12 +110,19 @@ def main():
                            dashboard_address=":0")
     client = Client(address=cluster)
     print(f"Dask dashboard available at: {cluster.dashboard_link}")
-    tasks = [load_x(intermediate) for intermediate in inters.values()]
-    dask.utils.format_bytes(len(dumps(inter_evaluator)))
-    dmodel = dask.delayed(inter_evaluator)
-    predictions = [predict(task, dmodel) for task in tasks]
-    predictions = dask.compute(*predictions)
-    intermediates = {inter.code: inter for inter in predictions}
+    if os.path.exists(ARGS.output + "_intermediates.pkl"):
+        with open(ARGS.output + "_intermediates.pkl", "rb") as f:
+            print("Loading intermediates from disk...")
+            intermediates = load(f)
+    else:
+        tasks = [load_x(intermediate) for intermediate in inters.values()]
+        dmodel = dask.delayed(inter_evaluator)
+        predictions = [predict(task, dmodel) for task in tasks]
+        predictions = dask.compute(*predictions)
+        intermediates = {inter.code: inter for inter in predictions}
+        with open(ARGS.output+'_intermediates.pkl', "wb") as f:
+            print("Saving intermediates to disk...")
+            dump(intermediates, f)
     for rxn in rxns:
         rxn.update_intermediates(intermediates)
     ti = time()
@@ -116,44 +131,52 @@ def main():
     # REACTION EVALUATION
     print(f"\nEnergy estimation of the {len(rxns)} reactions...")
     print("Reaction properties calculator: ", rxn_evaluator)
-    tasks = [load_x(reaction) for reaction in rxns]
-    dask.utils.format_bytes(len(dumps(rxn_evaluator)))
-    dmodel = dask.delayed(rxn_evaluator)
-    predictions = [predict(task, dmodel) for task in tasks]
-    predictions = dask.compute(*predictions)
-    client.shutdown()  #retire_workers()
+    if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
+        print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
+        batches = [rxns[i:i + ARGS.batch_size_rxn] for i in range(0, len(rxns), ARGS.batch_size_rxn)]
+        for batch in tqdm(batches):
+            rxn_evaluator(batch)
+    else:
+        results  = []
+        tasks = [load_x(reaction) for reaction in rxns]
+        dmodel = dask.delayed(rxn_evaluator)
+        for i in range(0, len(tasks), ARGS.batch_size_rxn):
+            batch_tasks = tasks[i:i+ARGS.batch_size_rxn]
+            batch_predictions = [predict(t, dmodel) for t in batch_tasks]
+            batch_results = dask.compute(*batch_predictions)
+            with open(ARGS.output + '_reactions.pkl', 'ab') as f:
+                for result in batch_results:
+                    dump(result, f)
+            del batch_predictions, batch_results
+            gc.collect()
+            print(f"Finalized batch {i//ARGS.batch_size_rxn + 1}/{(len(tasks)-1)//ARGS.batch_size_rxn + 1}")
+    client.shutdown()
     client.close()
     cluster.close()
-    sleep(1)
-    rxns = sorted(predictions)
+    results = []
+    try:
+        with open(ARGS.output + '_reactions.pkl', 'rb') as f:
+            while True:
+                results.append(load(f))
+    except EOFError:
+        pass
+    rxns = sorted(results)
     tr = time()
     print(f"Total reaction evaluation time: {tr - ti:.2f} s")
 
     print(
                 "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
             )
-
-    for r in rxns:
-        if Electron in r.reactants or Electron in r.products:
-            crn_type = "electrochemical"
-            break
-    else:
-        crn_type = "thermal"
-
-    crn = ReactionNetwork(
-            intermediates=intermediates,
-            reactions=rxns,
-            surface=surface,
-            ncc=max([i['C'] for i in inters.values()]),
-            noc=max([i['O'] for i in inters.values()]),
-            type=crn_type,
-        )
+    crn = ReactionNetwork(reactions=rxns, surface=surface)
 
     print(f"Total time: {(time() - t0):.2f} s")
-    # Save the blueprint
     with open(ARGS.output+'.pkl', "wb") as f:
         dump(crn, f)
         print(f"CRN saved to {ARGS.output+'.pkl'}")
+    if os.path.exists(ARGS.output + '_intermediates.pkl'):
+        os.remove(ARGS.output + '_intermediates.pkl')
+    if os.path.exists(ARGS.output + '_reactions.pkl'):
+        os.remove(ARGS.output + '_reactions.pkl')
 
 if __name__ == '__main__':
     main()
