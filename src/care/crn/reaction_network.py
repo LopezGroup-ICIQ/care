@@ -243,7 +243,7 @@ class ReactionNetwork(nx.DiGraph):
                 of reactions in which they are involved, sorted in descending
                 order.
         """
-        hubs ={node.code: self.degree(node) for node in self.nodes(data=True) if isinstance(node[0], Intermediate)}
+        hubs ={node.formula + f"{"*" if node.phase == "ads" else ""}": self.degree(node) for node in self.nodes if isinstance(node, Intermediate)}
         if n is not None:
             return dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True)[:n])
         else:   
