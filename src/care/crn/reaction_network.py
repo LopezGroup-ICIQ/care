@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 import networkx as nx
 import numpy as np
-from scipy.sparse import lil_matrix, vstack
+from scipy.sparse import vstack, coo_matrix
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import OC_KEYS
@@ -58,17 +58,15 @@ class ReactionNetwork(nx.DiGraph):
                 self.add_edge(
                     inter,
                     rxn,
-                    v=abs(rxn.stoic[inter.code]),
                 )
             for inter in list(rxn.products):
                 self.add_edge(
                     rxn,
                     inter,
-                    v=abs(rxn.stoic[inter.code]),
                 )
-            self._intermediates = self.get_intermediates()
-            self._reactions = self.get_reactions()
-            self._v = self.build_stoichiometry()
+        self._intermediates = self.get_intermediates()
+        self._reactions = self.get_reactions()
+        self._v = self.build_stoichiometry()
 
     def get_intermediates(self):
         return {x.code: x for x in self.nodes if isinstance(x, Intermediate) and x.phase in ("ads", "gas")}
@@ -87,6 +85,14 @@ class ReactionNetwork(nx.DiGraph):
         if self._reactions is None:
             self._reactions = self.get_reactions()
         return self._reactions
+    
+    @property
+    def adsorptions(self):
+        return [x for x in self.reactions if isinstance(x, ElementaryReaction) and x.r_type == "adsorption"]
+    
+    @property
+    def desorptions(self):
+        return [x for x in self.reactions if isinstance(x, ElementaryReaction) and x.r_type == "desorption"]    
 
     @property
     def num_intermediates(self):
@@ -139,20 +145,40 @@ class ReactionNetwork(nx.DiGraph):
     @property
     def v(self):
         return self._v
-    
+
     def build_stoichiometry(self):
         inters = list(self.intermediates.keys()) + ["*"]
         index_map = {code: idx for idx, code in enumerate(inters)}
-        v = lil_matrix((self.num_intermediates + 1, self.num_reactions), dtype=np.int8)
-        for i, reaction in enumerate(self.reactions):
+
+        max_edges = 8
+        n_reactions = len(self.reactions)
+        n_species = self.num_intermediates + 1
+
+        rows = np.empty(max_edges * n_reactions, dtype=np.int32)
+        cols = np.empty(max_edges * n_reactions, dtype=np.int32)
+        data = np.empty(max_edges * n_reactions, dtype=np.int8)
+
+        k = 0
+        for i, reaction in tqdm(enumerate(self.reactions)):
             for reactant in self.predecessors(reaction):
                 if reactant.phase in ("ads", "gas", "surf"):
-                    v[index_map[reactant.code], i] = -self.edges[reactant, reaction]['v']
+                    rows[k] = index_map[reactant.code]
+                    cols[k] = i
+                    data[k] = reaction.stoic[reactant.code]
+                    k += 1
             for product in self.successors(reaction):
                 if product.phase in ("ads", "gas", "surf"):
-                    v[index_map[product.code], i] = self.edges[reaction, product]['v']
-        v = v.tocsr()
+                    rows[k] = index_map[product.code]
+                    cols[k] = i
+                    data[k] = reaction.stoic[product.code]
+                    k += 1
+        rows = rows[:k]
+        cols = cols[:k]
+        data = data[:k]
+
+        v = coo_matrix((data, (rows, cols)), shape=(n_species, n_reactions)).tocsr()
         return v
+
 
     @property
     def ncc(self):
@@ -168,9 +194,9 @@ class ReactionNetwork(nx.DiGraph):
         rxn.reverse()
         self.add_node(rxn)
         for r in rxn.reactants:
-            self.add_edge(r, rxn, v=abs(rxn.stoic[r.code]))
+            self.add_edge(r, rxn)
         for p in rxn.products:
-            self.add_edge(rxn, p, v=abs(rxn.stoic[p.code]))
+            self.add_edge(rxn, p)
         self._v[:, i] *= -1
 
     def __getitem__(self, other: Union[str, int]):
@@ -294,50 +320,20 @@ class ReactionNetwork(nx.DiGraph):
         inters_formula = [intermediates[x].formula for x in inters] + ["*"]
         gas_mask = np.array([inter.phase == "gas" for inter in intermediates.values()] + [False])
         inters.append("*")
-            
+
         inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
-        for i, reaction in tqdm(enumerate(self.reactions), desc="Reversing reactions"):
-            if reaction.r_type == "adsorption":
-                reactants_formulas = [inter.formula for inter in self.predecessors(reaction)]
-                if not any(
-                    inlet_molecule in reactants_formulas for inlet_molecule in inlet_molecules
-                ):
-                    self.reverse_reaction(i)
-            elif reaction.r_type == "desorption":
-                products_formulas = [inter.formula for inter in self.successors(reaction)]
-                if any(
-                    inlet_molecule in products_formulas for inlet_molecule in inlet_molecules
-                ):
-                    self.reverse_reaction(i)
-            elif reaction.r_type == "PCET":
-                if U < 0:
-                    if (Electron(), reaction) not in self.edges:
-                        self.reverse_reaction(i)
-                else:
-                    if (Electron(), reaction) not in self.edges:
-                        self.reverse_reaction(i)
-            else:
-                if any(
-                    [
-                        inter.closed_shell and inter.formula not in inlet_molecules
-                        for inter in self.predecessors(reaction)
-                    ]
-                ):
-                    self.reverse_reaction(i)
-                elif any(
-                    [
-                        inter.closed_shell and inter.formula in inlet_molecules
-                        for inter in self.successors(reaction)
-                    ]
-                ):
-                    self.reverse_reaction(i)
-                else:
-                    pass
-        print("done")
+        inlet_molecules = set(inlet_molecules)        
+
+        for i, reaction in enumerate(self.adsorptions):
+            if not any(inter.formula in inlet_molecules for inter in self.predecessors(reaction)):
+                self.reverse_reaction(i)
+        for i, reaction in enumerate(self.desorptions):
+            if any(inter.formula in inlet_molecules for inter in self.successors(reaction)):
+                self.reverse_reaction(i)
 
         v = self.v.copy()
         y0 = np.zeros(len(inters), dtype=np.float64)
-        y0[-1] = 1.0  # empty surface
+        y0[-1] = 1.0
 
         inerts, inert_idx, inert_y0 = [], [], []
         formula_set = set(inters_formula)
@@ -365,11 +361,12 @@ class ReactionNetwork(nx.DiGraph):
         else:
             kf = np.zeros(n_reactions)
             kr = np.zeros(n_reactions)
-            for j, rxn in enumerate(reactions):
+            for j, rxn in tqdm(enumerate(reactions), desc="Getting kinetic constants..."):
                 kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
                                 inters=inters, pressure=P, temperature=T)
+        print(reactor)
 
         if uq:
             results_runs = []

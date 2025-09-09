@@ -1,4 +1,3 @@
-# import juliacall  # to avoid segfaults
 from pickle import load, dump
 import re
 

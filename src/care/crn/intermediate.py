@@ -213,95 +213,121 @@ class Intermediate:
         if self._gas_configs is None:
             self._gas_configs = self.gen_gas_configs()
         return self._gas_configs
-
-    def is_closed_shell(self):
+    
+    def is_closed_shell(self) -> bool:
         """
-        Check if a molecule is closed-shell or not. 
-        This function defines whether an intermediate can desorb
-        or not from the surface.
+        Check if molecule is a neutral closed-shell species using RDKit.
+        Returns True if neutral and no unpaired electrons, False otherwise.
         """
-        graph = self.graph
+        use_old = True if self["N"] == 0 else False
+        if use_old:
+            graph = self.graph
 
-        if self["C"] != 0 and self["H"] == 0 and self["O"] == 0:  # Cx
-            return False
-        elif self["C"] == 0 and self["H"] != 0 and self["O"] == 0:  # Hy
-            return True if self["H"] == 2 else False
-        elif self["C"] == 0 and self["H"] == 0 and self["O"] != 0:  # Oz
-            return True if self["O"] == 2 else False
-        elif self["C"] != 0 and self["H"] == 0 and self["O"] != 0:  # CxOz
-            return True if self["C"] == 1 and self["O"] in (1, 2) else False
-        elif self["C"] == 0 and self["H"] != 0 and self["O"] != 0:  # HyOz
-            return True if self["H"] == 2 and self["O"] in (1, 2) else False
-        elif self["C"] != 0 and self["H"] != 0:  # CxHyOz (z can be zero)
-            node_val = lambda graph: {
-                node: [
-                    graph.degree(node),
-                    BOND_ORDER.get(graph.nodes[node]["elem"], 0),
-                ]
-                for node in graph.nodes()
-            }
-            num_unsaturated_nodes = lambda dict: len(
-                [node for node in dict.keys() if dict[node][0] < dict[node][1]]
-            )
-            node_valence_dict = node_val(graph)
-            if num_unsaturated_nodes(node_valence_dict) == 0:  # all atoms are saturated
-                return True
-            elif (
-                num_unsaturated_nodes(node_valence_dict) == 1
-            ):  # only one unsaturated atom
+            if self["C"] != 0 and self["H"] == 0 and self["O"] == 0:  # Cx
                 return False
-            else:  # more than one unsaturated atom
-                saturation_condition = lambda dict: all(
-                    dict[node][0] == dict[node][1] for node in dict.keys()
-                )
-                while not saturation_condition(node_valence_dict):
-                    unsat_nodes = [
-                        node
-                        for node in node_valence_dict.keys()
-                        if node_valence_dict[node][0] < node_valence_dict[node][1]
+            elif self["C"] == 0 and self["H"] != 0 and self["O"] == 0:  # Hy
+                return True if self["H"] == 2 else False
+            elif self["C"] == 0 and self["H"] == 0 and self["O"] != 0:  # Oz
+                return True if self["O"] == 2 else False
+            elif self["C"] != 0 and self["H"] == 0 and self["O"] != 0:  # CxOz
+                return True if self["C"] == 1 and self["O"] in (1, 2) else False
+            elif self["C"] == 0 and self["H"] != 0 and self["O"] != 0:  # HyOz
+                return True if self["H"] == 2 and self["O"] in (1, 2) else False
+            elif self["C"] != 0 and self["H"] != 0:  # CxHyOz (z can be zero)
+                node_val = lambda graph: {
+                    node: [
+                        graph.degree(node),
+                        BOND_ORDER.get(graph.nodes[node]["elem"], 0),
                     ]
-                    O_unsat_nodes = [
-                        node for node in unsat_nodes if graph.nodes[node]["elem"] == "O"
-                    ]  # all oxygens unsaturated
-                    if len(O_unsat_nodes) != 0:  # unsaturated oxygen atoms
-                        for oxygen in O_unsat_nodes:
-                            node_valence_dict[oxygen][0] += 1
-                            # increase the valence of the oxygen neighbour by 1
-                            for neighbour in graph.neighbors(
-                                oxygen
-                            ):  # only one neighbour
-                                if (
-                                    node_valence_dict[neighbour][0]
-                                    < node_valence_dict[neighbour][1]
-                                ):
-                                    node_valence_dict[neighbour][0] += 1
-                                else:
-                                    return False  # O neighbour is saturated already
-                    else:  # CxHy
-                        # select node with the highest degree
-                        max_degree = max(
-                            [node_valence_dict[node][0] for node in unsat_nodes]
-                        )
-                        max_degree_node = [
+                    for node in graph.nodes()
+                }
+                num_unsaturated_nodes = lambda dict: len(
+                    [node for node in dict.keys() if dict[node][0] < dict[node][1]]
+                )
+                node_valence_dict = node_val(graph)
+                if num_unsaturated_nodes(node_valence_dict) == 0:  # all atoms are saturated
+                    return True
+                elif (
+                    num_unsaturated_nodes(node_valence_dict) == 1
+                ):  # only one unsaturated atom
+                    return False
+                else:  # more than one unsaturated atom
+                    saturation_condition = lambda dict: all(
+                        dict[node][0] == dict[node][1] for node in dict.keys()
+                    )
+                    while not saturation_condition(node_valence_dict):
+                        unsat_nodes = [
                             node
-                            for node in unsat_nodes
-                            if node_valence_dict[node][0] == max_degree
-                        ][0]
-                        max_degree_node_unsat_neighbours = [
-                            neighbour
-                            for neighbour in graph.neighbors(max_degree_node)
-                            if neighbour in unsat_nodes
+                            for node in node_valence_dict.keys()
+                            if node_valence_dict[node][0] < node_valence_dict[node][1]
                         ]
-                        if (
-                            len(max_degree_node_unsat_neighbours) == 0
-                        ):  # all neighbours are saturated
-                            return False
-                        else:
-                            node_valence_dict[max_degree_node][0] += 1
-                            node_valence_dict[max_degree_node_unsat_neighbours[0]][
-                                0
-                            ] += 1
-                return True
+                        O_unsat_nodes = [
+                            node for node in unsat_nodes if graph.nodes[node]["elem"] == "O"
+                        ]  # all oxygens unsaturated
+                        if len(O_unsat_nodes) != 0:  # unsaturated oxygen atoms
+                            for oxygen in O_unsat_nodes:
+                                node_valence_dict[oxygen][0] += 1
+                                # increase the valence of the oxygen neighbour by 1
+                                for neighbour in graph.neighbors(
+                                    oxygen
+                                ):  # only one neighbour
+                                    if (
+                                        node_valence_dict[neighbour][0]
+                                        < node_valence_dict[neighbour][1]
+                                    ):
+                                        node_valence_dict[neighbour][0] += 1
+                                    else:
+                                        return False  # O neighbour is saturated already
+                        else:  # CxHy
+                            # select node with the highest degree
+                            max_degree = max(
+                                [node_valence_dict[node][0] for node in unsat_nodes]
+                            )
+                            max_degree_node = [
+                                node
+                                for node in unsat_nodes
+                                if node_valence_dict[node][0] == max_degree
+                            ][0]
+                            max_degree_node_unsat_neighbours = [
+                                neighbour
+                                for neighbour in graph.neighbors(max_degree_node)
+                                if neighbour in unsat_nodes
+                            ]
+                            if (
+                                len(max_degree_node_unsat_neighbours) == 0
+                            ):  # all neighbours are saturated
+                                return False
+                            else:
+                                node_valence_dict[max_degree_node][0] += 1
+                                node_valence_dict[max_degree_node_unsat_neighbours[0]][
+                                    0
+                                ] += 1
+                    return True
+        else:
+            if self.is_surface or len(self.molecule) == 0:
+                return None 
+            def get_valence_corrected_mol(smiles: str):
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is None:
+                    return None
+                inchi = Chem.MolToInchi(mol)
+                return Chem.MolFromInchi(inchi)
+            
+            mol = get_valence_corrected_mol(self.smiles)
+            if mol is None:
+                return False
+
+            try:
+                Chem.SanitizeMol(mol)
+            except Exception:
+                return False
+            n_radicals = sum(atom.GetNumRadicalElectrons() for atom in mol.GetAtoms())
+            if n_radicals != 0:
+                return False
+            if Chem.GetFormalCharge(mol) != 0:
+                return False
+
+            return True
 
     def gen_gas_configs(self) -> list[Atoms]:
         """
@@ -340,7 +366,6 @@ class Intermediate:
         if rdkit_molecule.GetNumAtoms() > 2:
             AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
             results = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule, numThreads=1)
-            # results = [(status, energy), ...]
             sorted_confs = sorted(enumerate(results), key=lambda x: x[1][1])
             lowest_confIds = [confId for confId, _ in sorted_confs[:3]]
             return [conformer_to_ase(rdkit_molecule, confId) for confId in lowest_confIds]
@@ -353,12 +378,9 @@ class Intermediate:
         Generate an ASE Atoms object from an RDKit molecule.
 
         """
-
-        # If there are no atoms in the molecule, return an empty ASE Atoms object (Surface)
         if rdkit_molecule.GetNumAtoms() == 0:
             return Atoms()
 
-        # Generate 3D coordinates for the molecule
         rdkit_molecule = Chem.AddHs(
             rdkit_molecule
         )  # Add hydrogens if not already added
@@ -378,36 +400,26 @@ class Intermediate:
         num_conformers = 100 * (1+num_C) + 10 * num_O + 2 * num_H
         randomseed = 42
 
-        # If the molecule has more than 2 atom, generate multiple conformers and optimize them
         if rdkit_molecule.GetNumAtoms() > 2:
-
             AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
             confs = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule)
             conf_energies = [item[1] for item in confs]
             lowest_conf = int(np.argmin(conf_energies))
             lowest_conf = AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
             xyz_coordinates = AllChem.MolToXYZBlock(rdkit_molecule, confId=lowest_conf)
-
-            # Generating the ASE atoms object from the XYZ coordinates string
             ase_atoms = read(StringIO(xyz_coordinates), format="xyz")
         else:
             AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
-
-            # Get the number of atoms in the molecule
             num_atoms = rdkit_molecule.GetNumAtoms()
-
-            # Initialize lists to store positions and symbols
             positions = []
             symbols = []
 
-            # Extract atomic positions and symbols
             for atom_idx in range(num_atoms):
                 atom_position = rdkit_molecule.GetConformer().GetAtomPosition(atom_idx)
                 atom_symbol = rdkit_molecule.GetAtomWithIdx(atom_idx).GetSymbol()
                 positions.append(atom_position)
                 symbols.append(atom_symbol)
 
-            # Create an ASE Atoms object
             ase_atoms = Atoms(
                 [
                     Atom(symbol=symbol, position=position)

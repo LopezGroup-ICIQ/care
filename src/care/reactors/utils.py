@@ -54,3 +54,98 @@ def calc_eapp(t, r, gas_mask):
         else:
             eapp[i] = None
     return eapp
+
+@njit
+def jacobian_fill_numba(y, kd, kr,
+                        sf_data, sf_indices, sf_indptr,
+                        sb_data, sb_indices, sb_indptr,
+                        vT_data, vT_indices, vT_indptr,
+                        rows, cols, values):
+    """
+    Fill preallocated triplet arrays (rows, cols, values).
+    Returns number of entries written.
+    All arrays are 0-based (SciPy's CSR layout).
+    vT_* corresponds to v_sparse.T (shape: n_reactions x n_species).
+    """
+    nr = kd.shape[0]
+    pos = 0
+
+    for r in range(nr):
+        # forward/backward index ranges for reaction r
+        sf_start = sf_indptr[r]
+        sf_stop  = sf_indptr[r+1]
+        sb_start = sb_indptr[r]
+        sb_stop  = sb_indptr[r+1]
+
+        # compute forward product and backward product (full)
+        fprod = 1.0
+        for idx in range(sf_start, sf_stop):
+            j = sf_indices[idx]
+            e = sf_data[idx]
+            if e != 0:
+                fprod *= y[j] ** e
+
+        bprod = 1.0
+        for idx in range(sb_start, sb_stop):
+            j = sb_indices[idx]
+            e = sb_data[idx]
+            if e != 0:
+                bprod *= y[j] ** e
+
+        # contributions from forward participants
+        for idx in range(sf_start, sf_stop):
+            s = sf_indices[idx]
+            exp = sf_data[idx]
+            if exp == 0:
+                continue
+            # product of forward terms excluding species s:
+            prod_except_s = 1.0
+            for k in range(sf_start, sf_stop):
+                j = sf_indices[k]
+                ej = sf_data[k]
+                if j == s:
+                    # multiply by y[s]^(ej-1) if ej>1, else multiply by 1 (ej==1)
+                    if ej - 1 > 0:
+                        prod_except_s *= y[j] ** (ej - 1)
+                    else:
+                        prod_except_s *= 1.0
+                else:
+                    prod_except_s *= y[j] ** ej
+            dfr = kd[r] * exp * prod_except_s
+
+            # distribute to stoichiometric rows (vT: reaction-row CSR)
+            for jdx in range(vT_indptr[r], vT_indptr[r+1]):
+                i = vT_indices[jdx]     # species row index
+                coeff = vT_data[jdx]
+                rows[pos] = i
+                cols[pos] = s
+                values[pos] = coeff * dfr
+                pos += 1
+
+        for idx in range(sb_start, sb_stop):
+            s = sb_indices[idx]
+            exp = sb_data[idx]
+            if exp == 0:
+                continue
+            prod_except_s = 1.0
+            for k in range(sb_start, sb_stop):
+                j = sb_indices[k]
+                ej = sb_data[k]
+                if j == s:
+                    if ej - 1 > 0:
+                        prod_except_s *= y[j] ** (ej - 1)
+                    else:
+                        prod_except_s *= 1.0
+                else:
+                    prod_except_s *= y[j] ** ej
+            dbr = -kr[r] * exp * prod_except_s
+
+            for jdx in range(vT_indptr[r], vT_indptr[r+1]):
+                i = vT_indices[jdx]
+                coeff = vT_data[jdx]
+                rows[pos] = i
+                cols[pos] = s
+                values[pos] = coeff * dbr
+                pos += 1
+
+    return pos

@@ -158,16 +158,17 @@ def gen_adsorption_reactions(
         set([rxn for sublist in result_async.get() for rxn in sublist])
     )
 
-    # Dissociative adsorptions (H2 and O2)
-    for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N"]:
+    # Dissociative adsorptions (H2, O2, N2)
+    for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N", "IJGRMHOSHXDMSA-UHFFFAOYSA-N"]:
         if molecule+'*' not in intermediates.keys():
             continue
         else:
-            gas_code = molecule + "g"
             if molecule == "UFHFLCQGNIYNRP-UHFFFAOYSA-N":  # H2
                 ads_code = "YZCKVEUIGOORGS-UHFFFAOYSA-N*"  # H
-            else:  # O2
+            elif molecule == "MYMOFIZGZYHOMD-UHFFFAOYSA-N":  # O2
                 ads_code = "QVGXLLKOCUKJST-UHFFFAOYSA-N*"  # O
+            else:  # N2
+                ads_code = "QJGQUHMNIGDVPM-UHFFFAOYSA-N*"  # N
             adsorption_steps.append(
                 Adsorption(
                     components=(

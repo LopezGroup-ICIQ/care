@@ -99,13 +99,13 @@ CORDERO = {
     "Zr": 1.75,
 }  
 
-BOND_ORDER = {"C": 4, "O": 2, "H": 1}
+BOND_ORDER = {"C": 4, "O": 2, "H": 1, "N": 3}
 
-ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16}
+ELEM_WEIGTHS = {"H": 1.0, "C": 12, "O": 16, "N":14}
 
-INTER_ELEMS = ["C", "H", "O", "*", "q"]
+INTER_ELEMS = ["C", "H", "O", "N", "*", "q"]
 
-BOND_TYPES = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1)]
+BOND_TYPES = [(6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1), (6,7), (7,7), (7,1), (7,8)]
 
 INTER_PHASES = ["gas", "ads", "surf", "solv", "electro"]
 
@@ -113,6 +113,7 @@ COORD_DICT = {
     "C": 3,
     "H": 1,
     "O": 3,
+    "N": 3
 }
 
 R_TYPES = [
@@ -123,6 +124,10 @@ R_TYPES = [
     "O-O",
     "C-C",
     "H-O",
+    "C-N",
+    "N-N", 
+    "H-N",
+    "N-O",
     "eley_rideal",
     "adsorption",
     "pseudo",
