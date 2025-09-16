@@ -153,9 +153,9 @@ def main():
         t0 = time.time()
         # 2.1 Intermediate evaluator
         print(f"Energy estimation of the {len(intermediates)} intermediates...")
+        inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         print("Intermediates energy calculator: ", inter_evaluator)
         del config["evaluator"]["model"]
-        inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
