@@ -634,7 +634,7 @@ class DifferentialPFR(ReactorModel):
 
             # Combine the two callbacks into a single CallbackSet
             cb_set = CallbackSet(cb_steady_state, cb_nonnegativity)
-            sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_steady_state)
+            sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_set)
             sol = Array(sol[end])
             """
         )

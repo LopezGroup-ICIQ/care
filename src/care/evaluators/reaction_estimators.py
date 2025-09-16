@@ -328,8 +328,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             reaction (ElementaryReaction): The reaction.
         """
         for species in list(reaction.reactants) + list(reaction.products):
-            if not species.is_surface and species.ads_configs == {}:
-                raise ValueError(f"Species in {reaction.repr_hr} ElementaryReaction are not evaluated.")
+            if species.phase in ("gas", "ads") and species.ads_configs == {}:
+                print(f"Species {species.formula} in {reaction.repr_hr} ElementaryReaction is not evaluated.")
+                return
         self.calc_reaction_energy(reaction)
         if isinstance(reaction, (BondBreaking, BondFormation)):
             self.get_fs(reaction)

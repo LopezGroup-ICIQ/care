@@ -127,7 +127,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                     Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
                     ads_config_dict["0"] = {}
                     ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
+                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() + gas_energy
                     ads_config_dict["0"]['s'] = 0.0
                     ads_config_dict["0"]['converged'] = opt.converged()
                     ads_config_dict["0"]['connectivity'] = False
