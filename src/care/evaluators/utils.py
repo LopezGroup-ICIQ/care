@@ -148,7 +148,7 @@ def atoms_to_nx(
 
 def atoms_to_data(
     structure: Atoms, 
-    atom_tags: list[int],
+    atom_tags: list[int] = None,
     surface_order: int = -1,
     filter: bool = True,
     tol: float = 0.50
@@ -162,13 +162,21 @@ def atoms_to_data(
     Args:
         structure (Atoms): ASE atoms object.
         atom_tags (list[int]): list of tags defining whether an atom is part of the adsorbate or the surface.
-                               0 for surface atoms, 1 for adsorbate atoms.
+                               0 for surface atoms, 1 for adsorbate atoms. If not provided, the function tries to extract this info 
+                               from the ASE input structure metadata
         surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
                             all surface slab is included.
         filter (bool): whether to apply connectivity checks on final graph.
     Returns:
         graph (Data): PyG Data object.
     """
+    if atom_tags == None:
+        if "atom_tags" in structure.arrays:
+            atom_tags = structure.get_array("atom_tags").tolist()
+        else:
+            raise ValueError(
+                "No atom_tags provided and ASE structure has no 'atom_tags' array"
+            )
     nx, surf_hops = atoms_to_nx(
             structure, tol, 1.25, surface_order, atom_tags
     )

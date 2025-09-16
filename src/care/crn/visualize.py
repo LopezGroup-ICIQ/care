@@ -4,6 +4,8 @@ from os import makedirs
 from os.path import abspath
 
 from ase.io import write
+from ase import Atoms
+from ase.visualize import view
 from energydiagram import ED
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ import numpy as np
 from pydot import Subgraph
 from scipy.interpolate import CubicSpline
 
-from care import ElementaryReaction, format_reaction
+from care import ElementaryReaction, format_reaction, Intermediate
 from care.crn.graph import max_flux
 
 
@@ -465,3 +467,18 @@ def plot_reaction_profile(energies, title="", num_points=100):
     ax.legend()
     plt.close(fig)
     return fig
+
+def visualize_intermediate(x: Intermediate):
+    """Visualize the molecule of an intermediate.
+
+    Args:
+        inter_code (str): Code of the intermediate.
+    """
+    configs = [
+        config["ase"]
+        for config in x.ads_configs.values()
+    ]
+    if len(configs) == 0 and type(configs[0]) == Atoms:
+        view(x.molecule)
+    else:
+        view(configs)
