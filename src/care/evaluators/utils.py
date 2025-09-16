@@ -170,7 +170,7 @@ def atoms_to_data(
     Returns:
         graph (Data): PyG Data object.
     """
-    if atom_tags == None:
+    if atom_tags is None or len(atom_tags) == 0:
         if "atom_tags" in structure.arrays:
             atom_tags = structure.get_array("atom_tags").tolist()
         else:
