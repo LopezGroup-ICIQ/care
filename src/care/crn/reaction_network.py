@@ -159,7 +159,7 @@ class ReactionNetwork(nx.DiGraph):
         data = np.empty(max_edges * n_reactions, dtype=np.int8)
 
         k = 0
-        for i, reaction in tqdm(enumerate(self.reactions)):
+        for i, reaction in enumerate(self.reactions):
             for reactant in self.predecessors(reaction):
                 if reactant.phase in ("ads", "gas", "surf"):
                     rows[k] = index_map[reactant.code]
@@ -198,6 +198,65 @@ class ReactionNetwork(nx.DiGraph):
         for p in rxn.products:
             self.add_edge(rxn, p)
         self._v[:, i] *= -1
+
+    def remove_intermediate(self, intermediate: Union[Intermediate, list[Intermediate]]):
+        reactions_to_remove = []
+        if isinstance(intermediate, Intermediate):
+            reactions_to_remove += list(self.pred[intermediate]) 
+            reactions_to_remove += list(self.succ[intermediate])
+            self.remove_node(intermediate)
+        elif isinstance(intermediate, list):
+            for x in intermediate:
+                reactions_to_remove += list(self.pred[x])
+                reactions_to_remove += list(self.succ[x])
+            self.remove_nodes_from(intermediate)        
+        self.remove_reaction(reactions_to_remove)
+
+    def remove_reaction(self, reaction: Union[ElementaryReaction, list[ElementaryReaction]]):
+        """
+        Removes reaction nodes and then any resulting isolated species nodes.
+
+        Args:
+            threshold (float): The value to compare against.
+        """
+        if isinstance(reaction, ElementaryReaction):
+            self.remove_node(reaction)
+        elif isinstance(reaction, list):
+            self.remove_nodes_from(reaction)
+
+        num_removed_in_pass = 1
+        tot_gas_removed, tot_ads_removed, tot_rxns_removed = 0, 0, len(reaction)
+        while num_removed_in_pass > 0:
+            num_removed_in_pass = 0
+            deg_dict = self.degree()
+            isolated_species_gas, isolated_species_surf, isolated_rxns = [], [], []
+            for x, deg in deg_dict:
+                if isinstance(x, Intermediate):
+                    if x.phase == "gas" and deg == 0:
+                        isolated_species_gas.append(x)
+                    if x.phase == "ads":
+                        if deg < 2:
+                            isolated_species_surf.append(x)
+                else:
+                    if deg < len(x.reactants) + len(x.products):
+                        isolated_rxns.append(x)
+            if isolated_species_gas:
+                self.remove_nodes_from(isolated_species_gas)
+                num_removed_in_pass += len(isolated_species_gas)
+                tot_gas_removed += len(isolated_species_gas)
+            if isolated_species_surf:
+                self.remove_nodes_from(isolated_species_surf)
+                num_removed_in_pass += len(isolated_species_surf)
+                tot_ads_removed += len(isolated_species_surf)
+            if isolated_rxns:
+                self.remove_nodes_from(isolated_rxns)
+                num_removed_in_pass += len(isolated_rxns)
+                tot_rxns_removed += len(isolated_rxns)
+                
+        self._intermediates = self.get_intermediates()
+        self._reactions = self.get_reactions()
+        self._v = self.build_stoichiometry()
+        print(f"Removed {tot_rxns_removed} reactions, {tot_gas_removed} gas species, and {tot_ads_removed} adsorbed intermediates")
 
     def __getitem__(self, other: Union[str, int]):
         if isinstance(other, str):
