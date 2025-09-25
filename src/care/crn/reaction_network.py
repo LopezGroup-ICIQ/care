@@ -420,7 +420,7 @@ class ReactionNetwork(nx.DiGraph):
         else:
             kf = np.zeros(n_reactions)
             kr = np.zeros(n_reactions)
-            for j, rxn in tqdm(enumerate(reactions), desc="Getting kinetic constants..."):
+            for j, rxn in enumerate(reactions):
                 kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,

@@ -3,7 +3,7 @@ from typing import Union
 
 from ase.data import chemical_symbols
 from ase.mep import NEB
-from ase.optimize import BFGS
+from ase.optimize import BFGS, LBFGS
 import networkx as nx
 import numpy as np
 from torch.cuda import empty_cache
@@ -71,6 +71,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         dx: float = 1.5, 
         tol: float = 0.0, 
         max_steps: int = 100,
+        optimizer: str = "BFGS",
         T: float = 298.0,
         ref_electrode: str = "SHE",
         pH: float = 7.0,
@@ -99,6 +100,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         self.k = k
         self.parallel = parallel
         self.supports_batching = False
+        self.optimizer = optimizer
 
     @property
     def adsorbate_domain(self):
@@ -292,7 +294,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                         apply_constraint=True)
         for image in images[1:self.num_images + 1]:
             image.calc = deepcopy(self.mlp.calc)
-        optimizer = BFGS(neb, logfile=None)
+        if self.optimizer == "LBFGS":
+            optimizer = LBFGS(neb, logfile=None)
+        elif self.optimizer == "BFGS":
+            optimizer = BFGS(neb, logfile=None)
         optimizer.run(fmax=0.05, steps=self.max_steps)
 
         final_NEB_frames = []
