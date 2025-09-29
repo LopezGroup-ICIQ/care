@@ -393,9 +393,9 @@ class ReactionNetwork(nx.DiGraph):
                     gas_mask = inputs["gas_mask"]
                     inters = inputs["inters"]
                     inters_formula = inputs["formulas"]
-                    sstol = inputs.get("sstol", sstol)
-                    rtol = inputs.get("rtol", rtol)
-                    atol = inputs.get("atol", atol)
+                    sstol = sstol
+                    rtol = rtol
+                    atol = atol
                     tfin = tfin
                 print(f"...Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
