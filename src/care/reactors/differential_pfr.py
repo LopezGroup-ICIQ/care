@@ -286,8 +286,8 @@ class DifferentialPFR(ReactorModel):
         return y
     
     def forward_rate(self, y: np.ndarray) -> np.ndarray:
-        rates = np.empty(self.nr, dtype=np.float64)  # num reactions
-        v = self.v_forward_sparse.tocsr()  # shape: (num_reactions, num_species)
+        rates = np.empty(self.nr, dtype=np.float64)
+        v = self.v_forward_sparse.tocsr()
 
         for j in range(v.shape[0]):
             start, end = v.indptr[j], v.indptr[j+1]
@@ -323,18 +323,13 @@ class DifferentialPFR(ReactorModel):
         _: float,
         y: np.ndarray,
     ) -> np.ndarray:
-        # compute net rates using sparse-aware Numba kernel
         rates = net_rate(
             y,
             self.kd, self.kr,
             self.v_forward_sparse.data, self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
             self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
         )
-
-        # apply stoichiometry to get species rate of change
         dydt = self.v_sparse.dot(rates)
-
-        # zero out gas-phase species
         dydt[self.gas_mask] = 0.0
         return dydt
 
@@ -411,7 +406,6 @@ class DifferentialPFR(ReactorModel):
         self.time.append(t)
         self.sum_ddt.append(sum_ddt)
         if sum_ddt <= self.sstol:
-            print("STEADY-STATE CONDITIONS REACHED!")
             return 0
         return 1
 
@@ -526,12 +520,8 @@ class DifferentialPFR(ReactorModel):
         results["forward_rate"] = self.forward_rate(results["y"])
         results["backward_rate"] = self.backward_rate(results["y"])
         results["net_rate"] = self.net_rate(results["y"])
-        consumption_rate = np.zeros((self.nc, self.nr), dtype=np.float64)
-        for i in range(self.v_sparse.shape[0]):
-            for j in range(self.v_sparse.shape[1]):
-                consumption_rate[i, j] = self.v_sparse[i, j] * results["net_rate"][j]
-        results["consumption_rate"] = consumption_rate
-        results["total_consumption_rate"] = np.sum(consumption_rate, axis=1)
+        results["consumption_rate"] = self.v_sparse.multiply(results["net_rate"])
+        results["total_consumption_rate"] = results["consumption_rate"].sum(axis=1)
         return results
 
     def conversion(self, reactant_idx: int, y: np.ndarray) -> float:
@@ -619,7 +609,6 @@ class DifferentialPFR(ReactorModel):
             end
 
             function affect!(integrator)
-                println("STEADY-STATE CONDITIONS REACHED!")
                 terminate!(integrator)
             end
             cb_steady_state = DiscreteCallback(condition, affect!)
@@ -680,7 +669,6 @@ class DifferentialPFR(ReactorModel):
             end
 
             function affect!(integrator)
-                println("STEADY-STATE CONDITIONS REACHED!")
                 terminate!(integrator)
             end
             cb_steady_state = DiscreteCallback(condition, affect!)
@@ -774,7 +762,6 @@ class DifferentialPFR(ReactorModel):
         end
 
         function affect!(integrator)
-            println("STEADY-STATE CONDITIONS REACHED!")
             terminate!(integrator)
         end
         cb = DiscreteCallback(condition, affect!)

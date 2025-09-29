@@ -1,3 +1,5 @@
+import os
+from pickle import load
 from typing import Union, Optional
 from tqdm import tqdm
 
@@ -336,12 +338,12 @@ class ReactionNetwork(nx.DiGraph):
         
     def run_microkinetic(
         self,
-        iv: dict[str, float],
-        oc: dict[str, float],
-        uq: bool = False,
-        nruns: int = 100,
+        iv: dict[str, float] = None,
+        oc: dict[str, float] = None,
+        mkm_path: Optional[str] = None,
+        nruns: int = 1,
         solver: str = "Julia",
-        ss_tol: float = 1e-10,
+        sstol: float = 1e-10,
         tfin: float = 1e6,
         gpu: bool = False,
         atol: float = 1e-20,
@@ -349,104 +351,149 @@ class ReactionNetwork(nx.DiGraph):
         **kwargs
     ) -> dict:
         """
-        Optimized microkinetic simulation runner.
+        Run microkinetic simulation on the CRN.
+        Args:
+            iv (dict of str: float): Dictionary containing the inlet molar
+                fractions of gas phase species. Keys are the chemical formulas
+                of the species, values are the molar fractions. Sum of all
+                values must be 1.0.
+            oc (dict of str: float): Dictionary containing the operating
+                conditions. Keys must be in OC_KEYS. e.g. {"T": 600,
+                "P": 1.0, "U": 0.0, "pH": 0.0}. If the network is thermal,
+                U and pH are ignored.
+            mkm_path (str, optional): Path to a pickle file containing checkpoint from previous
+                MKM results. If provided, iv and oc are ignored.
+            nruns (int, optional): Number of runs for uncertainty quantification.
+                If > 1, uncertainty quantification is performed. Default to 1,
+            solver (str, optional): Solver to use. Default is "Julia".
+            sstol (float, optional): Steady state termination threshold. Default is 1e-10.
+            tfin (float, optional): Final time for integration in seconds. Default is 1e6 [s].
+            gpu (bool, optional): Whether to use GPU acceleration. Default is
+                False.
+            atol (float, optional): Absolute tolerance for ODE integration.
+                Default is 1e-20.
+            rtol (float, optional): Relative tolerance for ODE integration.
+                Default is 1e-8.
         """
         from care.reactors import DifferentialPFR
+        from care.reactors.utils import analyze_elemental_balance
         from scipy.sparse import csr_matrix
-
         reactions = self.reactions
         intermediates = self.intermediates
-        n_reactions = len(reactions)
-
-        if not np.isclose(sum(iv.values()), 1.0):
-            raise ValueError("Sum of molar fractions is not 1.0")
-
-        T = oc.get("T", self.temperature)
-        if T is None:
-            raise ValueError("temperature not specified")
-
-        P = oc.get("P", self.pressure)
-        if P is None:
-            raise ValueError("pressure not specified")
-
-        if self.crn_type == "electro":
-            U = oc.get("U")
-            PH = oc.get("pH")
-            if U is None or PH is None:
-                raise ValueError("electrochemical conditions require U and pH")
-            
-        inters = list(intermediates.keys())
-        inters_formula = [intermediates[x].formula for x in inters] + ["*"]
-        gas_mask = np.array([inter.phase == "gas" for inter in intermediates.values()] + [False])
-        inters.append("*")
-
-        inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
-        inlet_molecules = set(inlet_molecules)        
-
-        for i, reaction in enumerate(self.adsorptions):
-            if not any(inter.formula in inlet_molecules for inter in self.predecessors(reaction)):
-                self.reverse_reaction(i)
-        for i, reaction in enumerate(self.desorptions):
-            if any(inter.formula in inlet_molecules for inter in self.successors(reaction)):
-                self.reverse_reaction(i)
-
-        v = self.v.copy()
-        y0 = np.zeros(len(inters), dtype=np.float64)
-        y0[-1] = 1.0
-
-        inerts, inert_idx, inert_y0 = [], [], []
-        formula_set = set(inters_formula)
-        for k, val in iv.items():
-            if k not in formula_set:
-                inerts.append(k)
-                inert_idx.append(len(y0))
-                inert_y0.append(P * val)
+        if mkm_path is not None:
+            if os.path.isfile(mkm_path):
+                with open(mkm_path, "rb") as f:
+                    inputs = load(f)
+                    v = inputs["v"]
+                    kf = inputs["kf"]
+                    kr = inputs["kr"]
+                    T = inputs["T"]
+                    P = inputs["P"]
+                    y0 = inputs["y"]
+                    gas_mask = inputs["gas_mask"]
+                    inters = inputs["inters"]
+                    inters_formula = inputs["formulas"]
+                    sstol = inputs.get("sstol", sstol)
+                    rtol = inputs.get("rtol", rtol)
+                    atol = inputs.get("atol", atol)
+                    tfin = tfin
+                print(f"...Starting integration from loaded MKM checkpoint {mkm_path}")
+                uq = True if nruns > 1 else False
+                n_reactions = v.shape[1]
+                
             else:
-                idx = next(i for i, (_, formula) in enumerate(zip(inters, inters_formula)) if formula == k and gas_mask[i])
-                y0[idx] = P * val
-
-        if inerts:
-            y0 = np.concatenate([y0, inert_y0])
-            gas_mask = np.concatenate([gas_mask, np.ones(len(inerts), dtype=bool)])
-            inters += inerts
-            v = vstack([v, csr_matrix((len(inerts), n_reactions), dtype=np.int8)]).tocsr()
-
-        if uq:
-            kf = np.zeros((n_reactions, nruns))
-            kr = np.zeros((n_reactions, nruns))
-            for j, rxn in enumerate(reactions):
-                for run in range(nruns):
-                    kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True)
+                raise ValueError("mkm_path does not point to a valid file")
+        elif oc is None:
+            raise ValueError("Either mkm_path or both iv and oc must be provided")
         else:
-            kf = np.zeros(n_reactions)
-            kr = np.zeros(n_reactions)
-            for j, rxn in enumerate(reactions):
-                kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False)
+            n_reactions = len(reactions)
+            uq = True if nruns > 1 else False
+
+            if not np.isclose(sum(iv.values()), 1.0):
+                raise ValueError("Sum of molar fractions is not 1.0")
+
+            T = oc.get("T", self.temperature)
+            if T is None:
+                raise ValueError("temperature not specified")
+
+            P = oc.get("P", self.pressure)
+            if P is None:
+                raise ValueError("pressure not specified")
+
+            if self.crn_type == "electro":
+                U = oc.get("U")
+                PH = oc.get("pH")
+                if U is None or PH is None:
+                    raise ValueError("electrochemical conditions require U and pH")
+                
+            inters = list(intermediates.keys())
+            inters_formula = [intermediates[x].formula for x in inters] + ["*"]
+            gas_mask = np.array([inter.phase == "gas" for inter in intermediates.values()] + [False])
+            inters.append("*")
+
+            inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
+            inlet_molecules = set(inlet_molecules)        
+
+            for i, reaction in enumerate(self.adsorptions):
+                if not any(inter.formula in inlet_molecules for inter in self.predecessors(reaction)):
+                    self.reverse_reaction(i)
+            for i, reaction in enumerate(self.desorptions):
+                if any(inter.formula in inlet_molecules for inter in self.successors(reaction)):
+                    self.reverse_reaction(i)
+
+            v = self.v.copy()
+            y0 = np.zeros(len(inters), dtype=np.float64)
+            y0[-1] = 1.0
+
+            inerts, inert_idx, inert_y0 = [], [], []
+            formula_set = set(inters_formula)
+            for k, val in iv.items():
+                if k not in formula_set:
+                    inerts.append(k)
+                    inert_idx.append(len(y0))
+                    inert_y0.append(P * val)
+                else:
+                    idx = next(i for i, (_, formula) in enumerate(zip(inters, inters_formula)) if formula == k and gas_mask[i])
+                    y0[idx] = P * val
+
+            if inerts:
+                y0 = np.concatenate([y0, inert_y0])
+                gas_mask = np.concatenate([gas_mask, np.ones(len(inerts), dtype=bool)])
+                inters += inerts
+                v = vstack([v, csr_matrix((len(inerts), n_reactions), dtype=np.int8)]).tocsr()
+
+            if uq:
+                kf = np.zeros((n_reactions, nruns))
+                kr = np.zeros((n_reactions, nruns))
+                for j, rxn in enumerate(reactions):
+                    for run in range(nruns):
+                        kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True)
+            else:
+                kf = np.zeros(n_reactions)
+                kr = np.zeros(n_reactions)
+                for j, rxn in enumerate(reactions):
+                    kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
                                 inters=inters, pressure=P, temperature=T)
         print(reactor)
+        RTOL, ATOL, SSTOL, TFIN = rtol, atol, sstol, tfin
+        print(f"MKM settings: rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s")
+        results = {}
 
         if uq:
             results_runs = []
             for run in range(nruns):
                 reactor.kd = kf[:, run]
                 reactor.kr = kr[:, run]
-                results_runs.append(reactor.integrate(y0, solver, rtol, atol, ss_tol, tfin, gpu))
+                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu))
             keys = results_runs[0].keys()
             results = {k: np.mean([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)}
             results.update({k+"_std": np.std([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)})
             results["runs"] = results_runs
-            results["inters"] = inters
-            results["formulas"] = inters_formula
-            results["gas_mask"] = gas_mask
-            results["y0"] = y0
-            return results
-
         else:
-            RTOL, ATOL = rtol, atol
             for _ in range(20):  # max attempts
-                results = reactor.integrate(y0, solver, RTOL, ATOL, ss_tol, tfin, gpu)
+                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu)
                 if results["status"] in (0, 1):
                     break
                 ATOL /= 10
@@ -454,9 +501,24 @@ class ReactionNetwork(nx.DiGraph):
                     RTOL /= 10
             else:
                 raise RuntimeError("Failed to reach steady state")
-
-            results["inters"] = inters
-            results["formulas"] = inters_formula
-            results["gas_mask"] = gas_mask
-            results["y0"] = y0
-            return results
+        results["inters"] = inters
+        results["formulas"] = inters_formula
+        results["gas_mask"] = gas_mask
+        results["y0"] = y0
+        results["T"] = T
+        results["P"] = P
+        results["U"] = oc.get("U", None)
+        results["pH"] = oc.get("pH", None)
+        results["kf"] = kf
+        results["kr"] = kr
+        results["v"] = v
+        results["rtol"] = RTOL
+        results["atol"] = ATOL
+        results["ss_tol"] = SSTOL
+        results["tfin"] = TFIN
+        balance_dict = analyze_elemental_balance(results, intermediates)
+        print("Elemental balances (in/out): ", balance_dict)
+        for k, v in balance_dict.items():
+            results[f"in_div_out_{k}"] = v
+        
+        return results

@@ -1,4 +1,8 @@
+from pickle import load
+from typing import Union
+
 import numpy as np
+import pandas as pd
 from numba import njit
 from sklearn.linear_model import LinearRegression
 
@@ -149,3 +153,37 @@ def jacobian_fill_numba(y, kd, kr,
                 pos += 1
 
     return pos
+
+def analyze_elemental_balance(mkm_results: Union[dict, str], inters):
+    """
+    Analyze that balances of C, H, O are correct in the MKM results.
+    Returns ratio of in/out flow for each element.
+    """
+    if isinstance(mkm_results, str):
+        with open(mkm_results, "rb") as f:
+            mkm_results = load(f)
+
+    rows = []
+    for k, inter in inters.items():
+        if inter.phase == "gas" and k in mkm_results["inters"]:
+            idx = mkm_results["inters"].index(k)
+            rows.append({
+                "formula": inter.formula,
+                "code": inter.code,
+                "consumption_rate": mkm_results["total_consumption_rate"][idx],
+                "C": inter["C"],
+                "H": inter["H"],
+                "O": inter["O"],
+            })
+
+    df = pd.DataFrame(rows)
+
+    # Separate positive (outflow) and negative (inflow) contributions
+    outflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(lower=0), axis=0)).sum()
+    inflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(upper=0), axis=0)).sum()
+
+    # Compute in/out ratio
+    in_div_out = (inflow.abs() / outflow).round(2).astype(float).to_dict()
+
+    return in_div_out
+
