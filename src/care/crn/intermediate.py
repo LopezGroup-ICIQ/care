@@ -100,6 +100,8 @@ class Intermediate:
                 return 1
             else:
                 return 0
+        elif key == "q":
+            return self.charge
         return self.molecule.get_chemical_symbols().count(key)
 
     def __hash__(self):

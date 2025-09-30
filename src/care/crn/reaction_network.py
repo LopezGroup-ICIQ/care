@@ -8,7 +8,7 @@ import numpy as np
 from scipy.sparse import vstack, coo_matrix
 
 from care import ElementaryReaction, Intermediate, Surface
-from care.constants import OC_KEYS
+from care.constants import OC_KEYS, INTER_ELEMS
 from care.crn.utils.electro import Electron
 
 class ReactionNetwork(nx.DiGraph):
@@ -69,6 +69,7 @@ class ReactionNetwork(nx.DiGraph):
         self._intermediates = self.get_intermediates()
         self._reactions = self.get_reactions()
         self._v = self.build_stoichiometry()
+        self._es = self.build_es_matrix()
 
     def get_intermediates(self):
         return {x.code: x for x in self.nodes if isinstance(x, Intermediate) and x.phase in ("ads", "gas")}
@@ -147,6 +148,10 @@ class ReactionNetwork(nx.DiGraph):
     @property
     def v(self):
         return self._v
+    
+    @property
+    def es(self):
+        return self._es
 
     def build_stoichiometry(self):
         inters = list(self.intermediates.keys()) + ["*"]
@@ -180,7 +185,16 @@ class ReactionNetwork(nx.DiGraph):
 
         v = coo_matrix((data, (rows, cols)), shape=(n_species, n_reactions)).tocsr()
         return v
-
+    
+    def build_es_matrix(self):
+        """get element-species dense matrix"""
+        m = np.zeros((len(INTER_ELEMS), self.num_intermediates+1), dtype=np.int8)
+        for j, inter in enumerate(self.intermediates.values()):
+            for i, elem in enumerate(INTER_ELEMS):
+                m[i, j] = inter[elem]
+        m[-2, -1] = 1  # surface site
+        m = m[:-1, :]  # delete charge row
+        return m
 
     @property
     def ncc(self):
@@ -258,6 +272,7 @@ class ReactionNetwork(nx.DiGraph):
         self._intermediates = self.get_intermediates()
         self._reactions = self.get_reactions()
         self._v = self.build_stoichiometry()
+        self._es = self.build_es_matrix()
         print(f"Removed {tot_rxns_removed} reactions, {tot_gas_removed} gas species, and {tot_ads_removed} adsorbed intermediates")
 
     def __getitem__(self, other: Union[str, int]):
@@ -374,6 +389,14 @@ class ReactionNetwork(nx.DiGraph):
                 Default is 1e-20.
             rtol (float, optional): Relative tolerance for ODE integration.
                 Default is 1e-8.
+            jac (bool, optional): Whether to use analytical Jacobian in ODE integration.
+                Default is True.
+            nonnegative (bool, optional): Whether to enforce non-negative concentrations with Julia.
+                Default is True.
+            **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
+        Returns:
+            results (dict): Dictionary containing the results of the
+                microkinetic simulation.
         """
         from care.reactors import DifferentialPFR
         from care.reactors.utils import analyze_elemental_balance
@@ -486,14 +509,14 @@ class ReactionNetwork(nx.DiGraph):
             for run in range(nruns):
                 reactor.kd = kf[:, run]
                 reactor.kr = kr[:, run]
-                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu))
+                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu, **kwargs))
             keys = results_runs[0].keys()
             results = {k: np.mean([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)}
             results.update({k+"_std": np.std([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)})
             results["runs"] = results_runs
         else:
             for _ in range(20):  # max attempts
-                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu)
+                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu, **kwargs)
                 if results["status"] in (0, 1):
                     break
                 ATOL /= 10

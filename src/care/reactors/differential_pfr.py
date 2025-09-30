@@ -435,6 +435,8 @@ class DifferentialPFR(ReactorModel):
         sstol: float,
         tfin: float,
         gpu: bool = False,
+        analytical_jacobian: bool = True,
+        impose_nonnegativity: bool = True,
     ) -> dict:
         """
         Integrate the ODE system up to steady-state.
@@ -447,7 +449,8 @@ class DifferentialPFR(ReactorModel):
             sstol(float): Tolerance for steady-state conditions.
             tfin(float): Final time for the integration.
             gpu(bool): Flag to use GPU for the integration (only for Julia).
-
+            analytical_jacobian(bool): Flag to use analytical Jacobian (only for Python).
+            impose_nonnegativity(bool): Flag to impose non-negativity on the solution.
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
 
@@ -455,9 +458,6 @@ class DifferentialPFR(ReactorModel):
             The integration is stopped when the sum of the absolute values of the derivatives reaches
             the steady-state tolerance 'sstol'.
         """
-
-        TFIN = tfin if tfin else 1e6
-
         if solver == "Julia":
             results = {}
             try:
@@ -465,7 +465,7 @@ class DifferentialPFR(ReactorModel):
                     try:
                         time0 = time()
                         results["y"] = self.integrate_jl_gpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
                         )
                         results["time"] = time() - time0
                         results["status"] = 1
@@ -474,14 +474,14 @@ class DifferentialPFR(ReactorModel):
                         print("Switching from GPU to CPU...")
                         time0 = time()
                         results["y"] = self.integrate_jl_cpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
                         )
                         results["time"] = time() - time0
                         results["status"] = 1
                 else:
                     time0 = time()
                     results["y"] = np.array(self.integrate_jl_cpu(
-                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=TFIN
+                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
                     ))
                     results["time"] = time() - time0
                     results["status"] = 1
@@ -499,11 +499,11 @@ class DifferentialPFR(ReactorModel):
             time0 = time()
             results = solve_ivp(
                 self.ode,
-                (0, TFIN),
+                (0, tfin),
                 y0,
                 method="BDF",
                 events=ode_events,
-                jac=self.jacobian,
+                jac=self.jacobian if analytical_jacobian else None,
                 atol=atol,
                 rtol=rtol,
                 jac_sparsity=None,
@@ -578,6 +578,8 @@ class DifferentialPFR(ReactorModel):
         atol: float,
         sstol: float,
         tfin: float,
+        analytical_jacobian: bool = True,
+        impose_nonnegativity: bool = True,
     ) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver on CPU, sparse-aware.
@@ -590,6 +592,8 @@ class DifferentialPFR(ReactorModel):
             self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
         )
         jl.y0 = y0
+        jl.analytical_jacobian = analytical_jacobian
+        jl.impose_nonnegativity = impose_nonnegativity
         jl.atol, jl.rtol, jl.sstol, jl.tfin = atol, rtol, sstol, tfin
 
         jl.seval(
@@ -597,9 +601,13 @@ class DifferentialPFR(ReactorModel):
             using DifferentialEquations
             using SparseArrays
             J = spzeros(Float64, length(y0), length(y0))
-            f = ODEFunction(SparsePFR.ode_pfr!, jac=(J,u,p,t)->SparsePFR.sparse_jacobian!(J,u,p,t), jac_prototype=J)
+            if analytical_jacobian
+                f = ODEFunction(SparsePFR.ode_pfr!, jac=(J,u,p,t)->SparsePFR.sparse_jacobian!(J,u,p,t), jac_prototype=J)
+            else
+                f = ODEFunction(SparsePFR.ode_pfr!)
+            end
             prob = ODEProblem(f, y0, (0, tfin), p)
-            
+
             function condition(u, t, integrator)
                 du = similar(u)
                 SparsePFR.ode_pfr!(du, u, integrator.p, t)
@@ -621,8 +629,11 @@ class DifferentialPFR(ReactorModel):
             end
             cb_nonnegativity = DiscreteCallback(nonnegativity_condition, nonnegativity_affect!)
 
-            # Combine the two callbacks into a single CallbackSet
-            cb_set = CallbackSet(cb_steady_state, cb_nonnegativity)
+            if impose_nonnegativity
+                cb_set = CallbackSet(cb_steady_state, cb_nonnegativity)
+            else
+                cb_set = CallbackSet(cb_steady_state)
+            end
             sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_set)
             sol = Array(sol[end])
             """
@@ -659,7 +670,7 @@ class DifferentialPFR(ReactorModel):
             using DifferentialEquations
             f = ODEFunction(SparsePFR.ode_pfr!)
             prob = ODEProblem(f, y0, (0, tfin), p)
-            
+
             function condition(u, t, integrator)
                 du = similar(u)
                 SparsePFR.ode_pfr!(du, u, integrator.p, t)  # sparse-aware
@@ -687,92 +698,5 @@ class DifferentialPFR(ReactorModel):
             sol = Array(sol[end])
             """
         )
-
-        return jl.sol
-
-    def integrate_jl_gpu_old(
-        self,
-        y0: np.ndarray,
-        rtol: float,
-        atol: float,
-        sstol: float,
-        tfin: float,
-    ) -> np.ndarray:
-        """
-        Integrate the ODE system using the Julia-based solver on GPU.
-        """
-
-        jl.y0 = y0
-        jl.v = self.v_dense
-        jl.vf = self.v_forward_dense
-        jl.vb = self.v_backward_dense
-        jl.kd, jl.kr = self.kd, self.kr
-        jl.gas_mask = self.gas_mask
-        jl.atol = atol
-        jl.rtol = rtol
-        jl.sstol = sstol
-        jl.J_sparsity = self.jac_sparsity
-        jl.tfin = tfin
-        jl.seval(
-            """
-        using CUDA
-
-        using SparseArrays
-        # CUDA.allowscalar(true)
-        y0 = CuArray{Float64}(y0)
-        v = CuArray{Int8}(sparse(v))
-        vf = CuArray{Int8}(sparse(vf))
-        vb = CuArray{Int8}(sparse(vb))
-        vft = vf'
-        vbt = vb'
-        kd = CuArray{Float64}(kd)
-        kr = CuArray{Float64}(kr)
-        gas_mask = CuArray{Bool}(gas_mask)
-        p = (v = v, kd = kd, kr = kr, gas_mask = gas_mask, vft = vft, vbt = vbt)
-        using DifferentialEquations
-        """
-        )
-        jl.seval(
-            """
-        function ode_pfr!(du, u, p, t)
-            net_rate = p.kd .* prod((u .^ p.vft)', dims=2) .- p.kr .* prod((u .^ p.vbt)', dims=2)
-            du .= p.v * net_rate
-            du[p.gas_mask] .= 0.0
-            println(t,"    ", sum(abs.(du)))
-        end
-        """
-        )
-        jl.seval(
-            """
-        f = ODEFunction(ode_pfr!)
-        """
-        )
-        jl.seval(
-            """
-        prob = ODEProblem(f, y0, (0, tfin), p)
-        """
-        )
-        jl.seval(
-            """
-        function condition(u, t, integrator)
-            du = similar(u)
-            ode_pfr!(du, u, integrator.p, t)
-            sum_abs_du = sum(abs.(du))  # Calculate the absolute sum of du
-            return sum_abs_du <= sstol
-        end
-
-        function affect!(integrator)
-            terminate!(integrator)
-        end
-        cb = DiscreteCallback(condition, affect!)
-        """
-        )
-        jl.seval(
-            """
-        sol = solve(prob, FBDF(), abstol=atol, reltol=rtol, callback=cb)
-        # CUDA.allowscalar(false)
-        """
-        )
-        jl.seval("sol = Array(sol[end])")
 
         return jl.sol
