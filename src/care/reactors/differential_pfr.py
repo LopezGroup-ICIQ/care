@@ -87,6 +87,13 @@ jl.seval(
         end
     end
 
+    function log_ode_pfr!(dx, x, p::SparsePFRParams, t::Float64)
+        u = exp.(x)  # log-space -> physical space conversion
+        du_physical = similar(u)
+        ode_pfr!(du_physical, u, p, t)
+        dx .= du_physical ./ u  # convert back to log-space with chain-rule
+    end
+
     function sparse_jacobian!(J::SparseMatrixCSC{Float64,Int}, u, p::SparsePFRParams, t)
         # Compute out-of-place
         Jtmp = sparse_jacobian_outplace(u, p)
@@ -437,6 +444,8 @@ class DifferentialPFR(ReactorModel):
         gpu: bool = False,
         analytical_jacobian: bool = True,
         impose_nonnegativity: bool = True,
+        log_transform: bool = False,
+        **kwargs,
     ) -> dict:
         """
         Integrate the ODE system up to steady-state.
@@ -449,8 +458,10 @@ class DifferentialPFR(ReactorModel):
             sstol(float): Tolerance for steady-state conditions.
             tfin(float): Final time for the integration.
             gpu(bool): Flag to use GPU for the integration (only for Julia).
-            analytical_jacobian(bool): Flag to use analytical Jacobian (only for Python).
+            analytical_jacobian(bool): Flag to use analytical Jacobian.
             impose_nonnegativity(bool): Flag to impose non-negativity on the solution.
+            log_transform(bool): Flag to use log-transform on the concentrations. If set to True, 
+                                    analytical_jacobian and impose_nonnegativity are ignored.
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
 
@@ -465,7 +476,10 @@ class DifferentialPFR(ReactorModel):
                     try:
                         time0 = time()
                         results["y"] = self.integrate_jl_gpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                            analytical_jacobian=analytical_jacobian, 
+                            impose_nonnegativity=impose_nonnegativity,
+                            log_transform=log_transform
                         )
                         results["time"] = time() - time0
                         results["status"] = 1
@@ -474,14 +488,20 @@ class DifferentialPFR(ReactorModel):
                         print("Switching from GPU to CPU...")
                         time0 = time()
                         results["y"] = self.integrate_jl_cpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
+                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                            analytical_jacobian=analytical_jacobian, 
+                            impose_nonnegativity=impose_nonnegativity, 
+                            log_transform=log_transform
                         )
                         results["time"] = time() - time0
                         results["status"] = 1
                 else:
                     time0 = time()
                     results["y"] = np.array(self.integrate_jl_cpu(
-                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, analytical_jacobian=analytical_jacobian, impose_nonnegativity=impose_nonnegativity
+                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                        analytical_jacobian=analytical_jacobian, 
+                        impose_nonnegativity=impose_nonnegativity,
+                        log_transform=log_transform
                     ))
                     results["time"] = time() - time0
                     results["status"] = 1
@@ -580,6 +600,7 @@ class DifferentialPFR(ReactorModel):
         tfin: float,
         analytical_jacobian: bool = True,
         impose_nonnegativity: bool = True,
+        log_transform: bool = False,
     ) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver on CPU, sparse-aware.
@@ -592,25 +613,38 @@ class DifferentialPFR(ReactorModel):
             self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
         )
         jl.y0 = y0
-        jl.analytical_jacobian = analytical_jacobian
-        jl.impose_nonnegativity = impose_nonnegativity
+        jl.log_transform = log_transform
+        jl.analytical_jacobian = False if log_transform else analytical_jacobian
+        jl.impose_nonnegativity = False if log_transform else impose_nonnegativity
         jl.atol, jl.rtol, jl.sstol, jl.tfin = atol, rtol, sstol, tfin
 
         jl.seval(
             """
-            using DifferentialEquations
-            using SparseArrays
-            J = spzeros(Float64, length(y0), length(y0))
+            using DifferentialEquations, SparseArrays
             if analytical_jacobian
+                J = spzeros(Float64, length(y0), length(y0))
                 f = ODEFunction(SparsePFR.ode_pfr!, jac=(J,u,p,t)->SparsePFR.sparse_jacobian!(J,u,p,t), jac_prototype=J)
             else
-                f = ODEFunction(SparsePFR.ode_pfr!)
+                if log_transform
+                    floor_value = 1e-70  # to avoid log(0)
+                    y0 = log.(y0)
+                    y0 = max.(y0, log(floor_value))
+                    f = ODEFunction(SparsePFR.log_ode_pfr!)
+                else
+                    f = ODEFunction(SparsePFR.ode_pfr!)
+                end
             end
+
             prob = ODEProblem(f, y0, (0, tfin), p)
 
             function condition(u, t, integrator)
                 du = similar(u)
-                SparsePFR.ode_pfr!(du, u, integrator.p, t)
+                if log_transform
+                    SparsePFR.log_ode_pfr!(du, u, integrator.p, t)
+                    du .= du .* exp.(u)  # convert back to physical space
+                else
+                    SparsePFR.ode_pfr!(du, u, integrator.p, t)
+                end
                 sum_abs_du = sum(abs.(du))
                 println("$t: $sum_abs_du")
                 return sum_abs_du <= sstol
@@ -619,14 +653,25 @@ class DifferentialPFR(ReactorModel):
             function affect!(integrator)
                 terminate!(integrator)
             end
+
             cb_steady_state = DiscreteCallback(condition, affect!)
+
             function nonnegativity_condition(u, t, integrator)
                 true
             end
+
             function nonnegativity_affect!(integrator)
-                # Zero out any negative concentrations after a step is complete
                 integrator.u[integrator.u .< 0.0] .= 0.0
             end
+
+            function element_condition(u, t, integrator)
+                true
+            end
+
+            function element_affect!(integrator)
+                terminate!(integrator)
+            end
+
             cb_nonnegativity = DiscreteCallback(nonnegativity_condition, nonnegativity_affect!)
 
             if impose_nonnegativity
@@ -634,8 +679,14 @@ class DifferentialPFR(ReactorModel):
             else
                 cb_set = CallbackSet(cb_steady_state)
             end
+
             sol = solve(prob, FBDF(autodiff=false), abstol=atol, reltol=rtol, callback=cb_set)
-            sol = Array(sol[end])
+            
+            if log_transform
+                sol = exp.(Array(sol[end]))
+            else
+                sol = Array(sol[end])
+            end
             """
         )
 

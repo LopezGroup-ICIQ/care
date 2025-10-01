@@ -314,8 +314,10 @@ class ReactionNetwork(nx.DiGraph):
         else:
             raise TypeError("Index must be str, Intermediate or ElementaryReaction")
 
-    def get_reaction_table(self) -> None:
-        repr_hr_width = max(len(step.repr_hr) for step in self.reactions) + 2
+    def get_reaction_table(self, rxns: list = None) -> None:
+        if rxns is None:
+            rxns = self.reactions
+        repr_hr_width = max(len(step.repr_hr) for step in rxns) + 2
         dhr_width = 10
         eact_width = 10
         class_width = 20
@@ -327,7 +329,7 @@ class ReactionNetwork(nx.DiGraph):
         print(header)
         print("=" * (index_width + repr_hr_width + r_type_width + dhr_width + eact_width + class_width))
 
-        for idx, step in enumerate(self.reactions):
+        for idx, step in enumerate(rxns):
             index_str = str(idx).ljust(index_width)
             repr_hr_str = step.repr_hr.ljust(repr_hr_width)
             r_type_str = step.r_type.ljust(r_type_width) if "-" in step.r_type else "-".ljust(r_type_width)
@@ -420,7 +422,7 @@ class ReactionNetwork(nx.DiGraph):
                     rtol = rtol
                     atol = atol
                     tfin = tfin
-                print(f"...Starting integration from loaded MKM checkpoint {mkm_path}")
+                print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
                 n_reactions = v.shape[1]
                 
