@@ -280,7 +280,7 @@ module SparsePFR
         # --- 5. Solve the Problem ---
         solver = if T == BigFloat
             linsolve = KrylovJL_GMRES()
-            Rodas5(autodiff=false, linsolve=linsolve)
+            Rodas5(autodiff=false, linsolve=linsolve)  # TODO: consider KenCarp4, TRBDF2, Rodas5P, RadauIIA5
         else
             FBDF(autodiff=false)
         end

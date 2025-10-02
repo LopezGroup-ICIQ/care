@@ -272,7 +272,7 @@ class ElementaryReaction:
         self.reverse()
 
     def get_kinetic_constants(
-        self, t: float, uq: bool = False
+        self, t: float, uq: bool = False, clip_eact: float = -1.0
     ) -> tuple:
         """
         Evaluate the kinetic constants of the reactions in the network
@@ -283,9 +283,22 @@ class ElementaryReaction:
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
+            clip_eact (float, optional): If > 0.0, the activation energy will be clipped, only if 
+                both the forward and reverse activation energies are > clip_eact.
         """
         e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
         e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
+        e_act_rev = e_act - e_rxn
+
+        if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
+            if e_act > clip_eact and e_act_rev > clip_eact:
+                if e_act > e_act_rev:
+                    e_act_rev = clip_eact
+                    e_act = clip_eact + e_rxn
+                else:
+                    e_act = clip_eact
+                    e_act_rev = clip_eact - e_rxn
+
         k_eq = np.exp(-e_rxn / t / K_B)
         k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
         return k_dir, k_dir / k_eq

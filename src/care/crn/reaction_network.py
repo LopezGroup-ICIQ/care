@@ -365,6 +365,7 @@ class ReactionNetwork(nx.DiGraph):
         gpu: bool = False,
         atol: float = 1e-20,
         rtol: float = 1e-8,
+        clip_eact: float = -1,
         **kwargs
     ) -> dict:
         """
@@ -391,6 +392,8 @@ class ReactionNetwork(nx.DiGraph):
                 Default is 1e-20.
             rtol (float, optional): Relative tolerance for ODE integration.
                 Default is 1e-8.
+            clip_eact (float, optional): If positive, reactions with eact > clip_eact
+                in both directions will be clipped. Useful to reduce stiffness of the ODEs.
             **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
         Returns:
             results (dict): Dictionary containing the results of the
@@ -421,7 +424,6 @@ class ReactionNetwork(nx.DiGraph):
                 print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
                 n_reactions = v.shape[1]
-                
             else:
                 raise ValueError("mkm_path does not point to a valid file")
         elif oc is None:
@@ -488,12 +490,12 @@ class ReactionNetwork(nx.DiGraph):
                 kr = np.zeros((n_reactions, nruns))
                 for j, rxn in enumerate(reactions):
                     for run in range(nruns):
-                        kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True)
+                        kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True, clip_eact=clip_eact)
             else:
                 kf = np.zeros(n_reactions)
                 kr = np.zeros(n_reactions)
                 for j, rxn in enumerate(reactions):
-                    kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False)
+                    kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False, clip_eact=clip_eact)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
                                 inters=inters, pressure=P, temperature=T)
@@ -532,8 +534,7 @@ class ReactionNetwork(nx.DiGraph):
         results["kf"] = kf
         results["kr"] = kr
         balance_dict = analyze_elemental_balance(results, intermediates)
-        print("Elemental balances (in/out): ", balance_dict)
+        print(f"Elemental balances (in/out): C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}")
         for k, v in balance_dict.items():
             results[f"in_div_out_{k}"] = v
-        
         return results
