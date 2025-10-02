@@ -181,9 +181,11 @@ def analyze_elemental_balance(mkm_results: Union[dict, str], inters):
     # Separate positive (outflow) and negative (inflow) contributions
     outflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(lower=0), axis=0)).sum()
     inflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(upper=0), axis=0)).sum()
-
-    # Compute in/out ratio
     in_div_out = (inflow.abs() / outflow).round(2).astype(float).to_dict()
+
+    for elem in ["C", "H", "O"]:
+        if inflow[elem] == 0 and outflow[elem] == 0:
+            in_div_out[elem] = 1.0
 
     return in_div_out
 

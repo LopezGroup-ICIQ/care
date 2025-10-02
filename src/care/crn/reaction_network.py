@@ -391,10 +391,6 @@ class ReactionNetwork(nx.DiGraph):
                 Default is 1e-20.
             rtol (float, optional): Relative tolerance for ODE integration.
                 Default is 1e-8.
-            jac (bool, optional): Whether to use analytical Jacobian in ODE integration.
-                Default is True.
-            nonnegative (bool, optional): Whether to enforce non-negative concentrations with Julia.
-                Default is True.
             **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
         Returns:
             results (dict): Dictionary containing the results of the
@@ -503,7 +499,11 @@ class ReactionNetwork(nx.DiGraph):
                                 inters=inters, pressure=P, temperature=T)
         print(reactor)
         RTOL, ATOL, SSTOL, TFIN = rtol, atol, sstol, tfin
-        print(f"MKM settings: rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s")
+        settings_str = f"rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s"
+        if "precision" in kwargs:
+            settings_str += f", precision={kwargs['precision']} bits ({int(np.floor(kwargs['precision']*0.301))} significant digits)"
+
+        print(f"Integrating ODE with settings: {settings_str}")
         results = {}
 
         if uq:
@@ -526,21 +526,11 @@ class ReactionNetwork(nx.DiGraph):
                     RTOL /= 10
             else:
                 raise RuntimeError("Failed to reach steady state")
-        results["inters"] = inters
         results["formulas"] = inters_formula
-        results["gas_mask"] = gas_mask
-        results["y0"] = y0
-        results["T"] = T
-        results["P"] = P
         results["U"] = oc.get("U", None)
         results["pH"] = oc.get("pH", None)
         results["kf"] = kf
         results["kr"] = kr
-        results["v"] = v
-        results["rtol"] = RTOL
-        results["atol"] = ATOL
-        results["ss_tol"] = SSTOL
-        results["tfin"] = TFIN
         balance_dict = analyze_elemental_balance(results, intermediates)
         print("Elemental balances (in/out): ", balance_dict)
         for k, v in balance_dict.items():

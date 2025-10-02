@@ -1,22 +1,36 @@
 import pytest
 import unittest
 
+from ase import Atoms
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from care import Intermediate
 from care.reactors import DifferentialPFR
 from care.reactors.differential_pfr import SparsePFR
-
+from care.reactors.utils import analyze_elemental_balance
 
 # Test reaction mechanism
-# R1) A(g) + * -> A*
-# R2) B(g) + * -> B*
-# R3) A* + B* -> C* + *
-# R4) C* -> C(g) + *
+# R1) CO(g) + * -> CO*
+# R2) O2(g) + 2* -> 2O*
+# R3) CO* + O* -> CO2* + *
+# R4) CO2* -> CO2(g) + *
 # ----------------------
-#  A(g) + B(g) -> C(g)
+#  CO(g) + 0.5O2(g) -> CO2(g)
 # ----------------------
 
+inters = ['CO(g)', 'O2(g)', 'CO2(g)', 'CO*', 'O*', 'CO2*', '*']
+gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
+y0 = np.array([1e6, 3e6, 0.0, 0.5, 0.05, 0.2, 0.25])
+pCO, pO2, pCO2, thetaCO, thetaO, thetaCO2, thetastar = y0
+intermediates = [Intermediate("CO(g)", Atoms("CO"), is_surface=False, phase="gas"), 
+                 Intermediate("O2(g)", Atoms("O2"), is_surface=False, phase="gas"), 
+                 Intermediate("CO2(g)", Atoms("CO2"), is_surface=False, phase="gas"), 
+                 Intermediate("CO*", Atoms("CO"), is_surface=False, phase="ads"), 
+                 Intermediate("O*", Atoms("O"), is_surface=False, phase="ads"), 
+                 Intermediate("CO2*", Atoms("CO2"), is_surface=False, phase="ads"), 
+                 Intermediate("*", Atoms(), is_surface=True, phase="surf")]
+intermediates = {inter.code: inter for inter in intermediates}
 
 v_matrix = np.array(
     [
@@ -24,9 +38,9 @@ v_matrix = np.array(
         [0, -1, 0, 0],
         [0, 0, 0, 1],
         [1, 0, -1, 0],
-        [0, 1, -1, 0],
+        [0, 2, -1, 0],
         [0, 0, 1, -1],
-        [-1, -1, 1, 1],
+        [-1, -2, 1, 1],
     ]
 )
 v_matrix = csr_matrix(v_matrix)
@@ -34,13 +48,9 @@ kd = np.array([1e-2, 2e-3, 3e-2, 5e-2])
 kr = np.array([1e-4, 1e-5, 1e-1, 1e-1])
 k1d, k2d, k3d, k4d = kd[0], kd[1], kd[2], kd[3]
 k1r, k2r, k3r, k4r = kr[0], kr[1], kr[2], kr[3]
-gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
-inters = ['A(g)', 'B(g)', 'C(g)', 'A*', 'B*', 'C*', '*']
-pfr = DifferentialPFR(v=v_matrix, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5)
-y0 = np.array([1e6, 3e6, 0.0, 0.5, 0.05, 0.2, 0.25])
-pA, pB, pC, thetaA, thetaB, thetaC, theta_star = y0
-rf_correct = np.array([1e-2*1e6*0.25, 2e-3*3e6*0.25, 3e-2*0.5*0.05, 5e-2*0.2])
-rb_correct = np.array([1e-4*0.5, 1e-5*0.05, 1e-1*0.2*0.25, 0.0])
+pfr = DifferentialPFR(v=v_matrix, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
+rf_correct = np.array([k1d*pCO*thetastar, k2d*pO2*thetastar**2, k3d*thetaCO*thetaO, k4d*thetaCO2])
+rb_correct = np.array([k1r*thetaCO, k2r*thetaO**2, k3r*thetaCO2*thetastar, k4r*pCO2*thetastar])
 rn_correct = rf_correct - rb_correct
 v_forward_correct = csr_matrix(np.array([[1, 0, 0, 0],
                                          [0, 1, 0, 0],
@@ -48,59 +58,60 @@ v_forward_correct = csr_matrix(np.array([[1, 0, 0, 0],
                                          [0, 0, 1, 0],
                                          [0, 0, 1, 0],
                                          [0, 0, 0, 1],
-                                         [1, 1, 0, 0]])).T
+                                         [1, 2, 0, 0]])).T
 v_backward_correct = csr_matrix(np.array([[0, 0, 0, 0],
                                           [0, 0, 0, 0],
                                           [0, 0, 0, 1],
                                           [1, 0, 0, 0],
-                                          [0, 1, 0, 0],
+                                          [0, 2, 0, 0],
                                           [0, 0, 1, 0],
                                           [0, 0, 1, 1]])).T
 dydt0_correct = np.zeros_like(y0)
-dydt0_correct[3] = 1*(1e-2*1e6*0.25 - 1e-4*0.5) - 1*(3e-2*0.5*0.05 - 1e-1*0.2*0.25)
-dydt0_correct[4] = 1*(2e-3*3e6*0.25 - 1e-5*0.05) - 1*(3e-2*0.5*0.05 - 1e-1*0.2*0.25)
-dydt0_correct[5] = 1*(3e-2*0.5*0.05 - 1e-1*0.2*0.25) - 1*(5e-2*0.2 - 0.0)
-dydt0_correct[6] = -1*(1e-2*1e6*0.25 - 1e-4*0.5) -1*(2e-3*3e6*0.25 - 1e-5*0.05) + 1*(3e-2*0.5*0.05 - 1e-1*0.2*0.25) + 1*(5e-2*0.2 - 0.0)
+dydt0_correct[3] = rn_correct[0] - rn_correct[2]  # dCO*dt
+dydt0_correct[4] = 2 * rn_correct[1] - rn_correct[2]  # dO*dt
+dydt0_correct[5] = rn_correct[2] - rn_correct[3]  # dCO2*dt
+dydt0_correct[6] = -rn_correct[0] - 2 * rn_correct[1] + rn_correct[2] + rn_correct[3]  # d*dt
 Jy0_correct = np.zeros((7, 7))
-# d(dA*dt)/dx
-Jy0_correct[3, 0] = k1d * theta_star  # d(dA*dt)/dA(g)
-Jy0_correct[3, 1] = 0.0  # d(dA*dt)/dB(g)
-Jy0_correct[3, 2] = 0.0  # d(dA*dt)/dC(g)
-Jy0_correct[3, 3] = -k1r - k3d*thetaB  # d(dA*dt)/dA*
-Jy0_correct[3, 4] = -k3d*thetaA  # d(dA*dt)/dB*
-Jy0_correct[3, 5] = k3r*theta_star  # d(dA*dt)/dC*
-Jy0_correct[3, 6] = k1d*pA + k3r*thetaC # d(dA*dt)/d*
-# d(dB*dt)/dx
-Jy0_correct[4, 0] = 0.0  # d(dB*dt)/dA(g)
-Jy0_correct[4, 1] = k2d*theta_star  # d(dB*dt)/dB(g)
-Jy0_correct[4, 2] = 0.0  # d(dB*dt)/dC(g)
-Jy0_correct[4, 3] = -k3d*thetaB  # d(dB*dt)/dA*
-Jy0_correct[4, 4] = -k2r - k3d*thetaA  # d(dB*dt)/dB*
-Jy0_correct[4, 5] = k3r*theta_star  # d(dB*dt)/dC*
-Jy0_correct[4, 6] = k2d*pB + k3r*thetaC  # d(dB*dt)/d*
-# d(dC*dt)/dx
-Jy0_correct[5, 0] = 0.0  # d(dC*dt)/dA(g)
-Jy0_correct[5, 1] = 0.0  # d(dC*dt)/dB(g)
-Jy0_correct[5, 2] = k4r*theta_star  # d(dC*dt)/dC(g)
-Jy0_correct[5, 3] = k3d*thetaB  # d(dC*dt)/dA*
-Jy0_correct[5, 4] = k3d*thetaA  # d(dC*dt)/dB*
-Jy0_correct[5, 5] = -k3r*theta_star - k4d  # d(dC*dt)/dC*
-Jy0_correct[5, 6] = -k3r*thetaC + k4r*pC  # d(dC*dt)/d*
+# d(dCO*dt)/dx
+Jy0_correct[3, 0] = k1d * thetastar  # d(dCO*dt)/dpCO
+Jy0_correct[3, 1] = 0.0  # d(dCO*dt)/dpO2
+Jy0_correct[3, 2] = 0.0  # d(dCO*dt)/dpCO2
+Jy0_correct[3, 3] = -k1r - k3d*thetaO  # d(dCO*dt)/dCO*
+Jy0_correct[3, 4] = -k3d*thetaCO  # d(dCO*dt)/dB*
+Jy0_correct[3, 5] = k3r*thetastar  # d(dCO*dt)/dC*
+Jy0_correct[3, 6] = k1d*pCO + k3r*thetaCO2 # d(dCO*dt)/d*
+# d(dO*dt)/dx
+Jy0_correct[4, 0] = 0.0  # d(dO*dt)/dpCO
+Jy0_correct[4, 1] = 2*k2d*thetastar**2  # d(dO*dt)/dpO2
+Jy0_correct[4, 2] = 0.0  # d(dO*dt)/dpCO2
+Jy0_correct[4, 3] = -k3d*thetaO  # d(dO*dt)/dCO*
+Jy0_correct[4, 4] = -2*2*k2r*thetaO - k3d*thetaCO  # d(dO*dt)/dO*
+Jy0_correct[4, 5] = k3r*thetastar  # d(dO*dt)/dCO2*
+Jy0_correct[4, 6] = 2*2*k2d*pO2*thetastar + k3r*thetaCO2  # d(dO*dt)/d*
+# d(dCO2*dt)/dx
+Jy0_correct[5, 0] = 0.0  # d(dCO2*dt)/dpCO
+Jy0_correct[5, 1] = 0.0  # d(dCO2*dt)/dpO2
+Jy0_correct[5, 2] = k4r*thetastar  # d(dCO2*dt)/dpCO2
+Jy0_correct[5, 3] = k3d*thetaO  # d(dCO2*dt)/dCO*
+Jy0_correct[5, 4] = k3d*thetaCO  # d(dCO2*dt)/dO*
+Jy0_correct[5, 5] = -k3r*thetastar - k4d  # d(dCO2*dt)/dCO2*
+Jy0_correct[5, 6] = -k3r*thetaCO2 + k4r*pCO2  # d(dCO2*dt)/d*
 # d(d*dt)/dx
-Jy0_correct[6, 0] = -k1d*theta_star  # d(d*dt)/dA(g)
-Jy0_correct[6, 1] = -k2d*theta_star  # d(d*dt)/dB(g)
-Jy0_correct[6, 2] = -k4r*theta_star  # d(d*dt)/dC(g)
-Jy0_correct[6, 3] = k1r + k3d*thetaB  # d(d*dt)/dA*
-Jy0_correct[6, 4] = k2r + k3d*thetaA  # d(d*dt)/dB*
-Jy0_correct[6, 5] = -k3r*theta_star + k4d  # d(d*dt)/dC*
-Jy0_correct[6, 6] = -k1d*pA - k2d*pB - k3r*thetaC - k4r*pC  # d(d*dt)/d*
+Jy0_correct[6, 0] = -k1d*thetastar  # d(d*dt)/dpCO
+Jy0_correct[6, 1] = -2*k2d*thetastar**2  # d(d*dt)/dpO2
+Jy0_correct[6, 2] = -k4r*thetastar  # d(d*dt)/dpCO2
+Jy0_correct[6, 3] = k1r + k3d*thetaO  # d(d*dt)/dCO*
+Jy0_correct[6, 4] = 2*2*k2r*thetaO + k3d*thetaCO  # d(d*dt)/dO*
+Jy0_correct[6, 5] = -k3r*thetastar + k4d  # d(d*dt)/dCO2*
+Jy0_correct[6, 6] = -k1d*pCO - 2*2*k2d*pO2*thetastar - k3r*thetaCO2 - k4r*pCO2  # d(d*dt)/d*
 
 v = v_matrix.T.tocsr()
+jvec = lambda arr: SparsePFR.Base.Vector(arr)  # shorthand to call Julia Vector
 p = SparsePFR.SparsePFRParams(
-    kd, kr, gas_mask,
-    v.data, v.indices, v.indptr,
-    pfr.v_forward_sparse.data, pfr.v_forward_sparse.indices, pfr.v_forward_sparse.indptr,
-    pfr.v_backward_sparse.data, pfr.v_backward_sparse.indices, pfr.v_backward_sparse.indptr,
+    jvec(kd), jvec(kr), SparsePFR.Base.BitVector(gas_mask),
+    jvec(v.data.astype('int8')), jvec(v.indices.astype('int64')), jvec(v.indptr.astype('int64')),
+    jvec(pfr.v_forward_sparse.data.astype('int8')), jvec(pfr.v_forward_sparse.indices.astype('int64')), jvec(pfr.v_forward_sparse.indptr.astype('int64')),
+    jvec(pfr.v_backward_sparse.data.astype('int8')), jvec(pfr.v_backward_sparse.indices.astype('int64')), jvec(pfr.v_backward_sparse.indptr.astype('int64')),
 )
 
 class TestDifferentialPFR(unittest.TestCase):
@@ -165,12 +176,23 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         Check that the integration with scipy is correctly implemented
         """
-        y = pfr.integrate(y0=y0, solver='Python', rtol=1e-6, atol=1e-12, sstol=1e-7, tfin=1e6)
+        y = pfr.integrate(y0=y0, 
+                          solver='Python', 
+                          rtol=1e-9, 
+                          atol=1e-12, 
+                          sstol=1e-25, 
+                          tfin=1e20)
+        balance = analyze_elemental_balance(y, intermediates)
         self.assertTrue(isinstance(y, dict))
         self.assertTrue(y['y'].shape == (7,))
         self.assertTrue(y['forward_rate'].shape == (4,))
         self.assertTrue(y['backward_rate'].shape == (4,))
         self.assertTrue(y['net_rate'].shape == (4,))
+        self.assertTrue(y["consumption_rate"].shape == (7,4))
+        self.assertTrue(y["total_consumption_rate"].shape == (7,1))
+        for elem, ratio in balance.items():
+            self.assertIsInstance(ratio, float)
+            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
 
     def test_ode_jl(self):
         dydt0 = np.zeros_like(y0)
@@ -183,32 +205,40 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         y = pfr.integrate(y0=y0, 
                           solver='Julia', 
-                          rtol=1e-6, 
+                          rtol=1e-9, 
                           atol=1e-12, 
-                          sstol=1e-7, 
-                          tfin=1e6, 
+                          sstol=1e-25, 
+                          tfin=1e20, 
                           gpu=False)
+        balance = analyze_elemental_balance(y, intermediates)
         self.assertTrue(isinstance(y, dict))
         self.assertTrue(y['y'].shape == (7,))
         self.assertTrue(y['forward_rate'].shape == (4,))
         self.assertTrue(y['backward_rate'].shape == (4,))
         self.assertTrue(y['net_rate'].shape == (4,))
+        self.assertTrue(y["consumption_rate"].shape == (7,4))
+        self.assertTrue(y["total_consumption_rate"].shape == (7,1))
+        for elem, ratio in balance.items():
+            self.assertIsInstance(ratio, float)
+            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
+        y_prec128 = pfr.integrate(y0=y0, 
+                          solver='Julia', 
+                          rtol=1e-9, 
+                          atol=1e-12, 
+                          sstol=1e-25, 
+                          tfin=1e20, 
+                          gpu=False, 
+                          precision=128)
+        balance_prec128 = analyze_elemental_balance(y_prec128, intermediates)
+        self.assertTrue(isinstance(y_prec128, dict))
+        self.assertTrue(y_prec128['y'].shape == (7,))
+        self.assertTrue(y_prec128['forward_rate'].shape == (4,))
+        self.assertTrue(y_prec128['backward_rate'].shape == (4,))
+        self.assertTrue(y_prec128['net_rate'].shape == (4,))
+        self.assertTrue(y_prec128["consumption_rate"].shape == (7,4))
+        self.assertTrue(y_prec128["total_consumption_rate"].shape == (7,1))
+        for elem, ratio in balance_prec128.items():
+            self.assertIsInstance(ratio, float)
+            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
+        np.testing.assert_allclose(y['y'], y_prec128['y'], rtol=1e-7, atol=1e-10)
 
-    # @pytest.mark.skip(reason="GPU unavailable on GitHub Actions")
-    # def test_integration_jl_gpu(self):
-    #     """
-    #     Check that the integration with Julia is correctly implemented
-    #     when integration is performed on GPU.
-    #     """
-    #     y = pfr.integrate(y0=y0, 
-    #                       solver='Julia', 
-    #                       rtol=1e-6, 
-    #                       atol=1e-12, 
-    #                       sstol=1e-7, 
-    #                       tfin=1e6, 
-    #                       gpu=True)
-    #     self.assertTrue(isinstance(y, dict))
-    #     self.assertTrue(y['y'].shape == (7,))
-    #     self.assertTrue(y['forward_rate'].shape == (4,))
-    #     self.assertTrue(y['backward_rate'].shape == (4,))
-    #     self.assertTrue(y['net_rate'].shape == (4,))
