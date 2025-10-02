@@ -76,7 +76,7 @@ both evaluators should work correctly if the installation order shown above is f
 ```bash
 curl -fsSL https://install.julialang.org | sh
 python3 -m pip install juliacall  # Python-Julia bridge
-julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("DiffEqGPU"); Pkg.add("CUDA");'
+julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("LinearSolve");'
 ```
 
 ⏲ 13min (Ubuntu), 9min (macOS)
