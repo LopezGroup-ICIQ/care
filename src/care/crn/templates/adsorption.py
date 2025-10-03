@@ -36,7 +36,7 @@ class Adsorption(ElementaryReaction):
             )
     
     def get_kinetic_constants(
-        self, t: float, uq: bool = False
+        self, t: float, uq: bool = False, clip_eact: float = -1.0
     ) -> tuple:
         """
         Evaluate the kinetic constants of the reactions in the network

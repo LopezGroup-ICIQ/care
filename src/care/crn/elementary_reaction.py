@@ -292,12 +292,10 @@ class ElementaryReaction:
 
         if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
             if e_act > clip_eact and e_act_rev > clip_eact:
-                if e_act > e_act_rev:
-                    e_act_rev = clip_eact
+                if e_act >= e_act_rev:
                     e_act = clip_eact + e_rxn
                 else:
                     e_act = clip_eact
-                    e_act_rev = clip_eact - e_rxn
 
         k_eq = np.exp(-e_rxn / t / K_B)
         k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
