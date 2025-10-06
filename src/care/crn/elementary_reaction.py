@@ -285,6 +285,7 @@ class ElementaryReaction:
                 False.
             clip_eact (float, optional): If > 0.0, the activation energy will be clipped, only if 
                 both the forward and reverse activation energies are > clip_eact.
+                if zero, the reaction will be assumed to be barrierless.
         """
         e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
         e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
@@ -296,9 +297,11 @@ class ElementaryReaction:
                     e_act = clip_eact + e_rxn
                 else:
                     e_act = clip_eact
+        if clip_eact == 0.0:
+            e_act = max(0.0, e_rxn)
 
-        k_eq = np.exp(-e_rxn / t / K_B)
         k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
+        k_eq = np.exp(-e_rxn / t / K_B)
         return k_dir, k_dir / k_eq
 
     def update_intermediates(self, evaluated_dict: dict[str, Intermediate]):

@@ -71,7 +71,7 @@ class DifferentialPFR(ReactorModel):
         self.kr = kr  # Backward kinetic constants
 
         self.gas_mask = gas_mask  # Boolean array indicating which species are in the gas phase
-        self.inters = inters or []  # List of intermediate species codes
+        self.inters = inters["codes"] or []  # List of intermediate species codes
 
         self.P = pressure  # Pressure of the reactor in Pascal
         self.T = temperature  # Temperature of the reactor in Kelvin
@@ -240,6 +240,9 @@ class DifferentialPFR(ReactorModel):
         impose_nonnegativity: bool = True,
         log_transform: bool = False,
         precision: int = 64,
+        jl_solver: str = "FBDF", 
+        maxiters: int = 1000000,
+        show_progress: bool = False,
         **kwargs,
     ) -> dict:
         """
@@ -289,7 +292,10 @@ class DifferentialPFR(ReactorModel):
                             analytical_jacobian=analytical_jacobian, 
                             impose_nonnegativity=impose_nonnegativity, 
                             log_transform=log_transform, 
-                            precision=precision
+                            precision=precision, 
+                            jl_solver=jl_solver,
+                            maxiters=maxiters,
+                            show_progress=show_progress
                         )
                         results["time"] = time() - time0
                         results["status"] = 1
@@ -300,7 +306,10 @@ class DifferentialPFR(ReactorModel):
                         analytical_jacobian=analytical_jacobian, 
                         impose_nonnegativity=impose_nonnegativity,
                         log_transform=log_transform, 
-                        precision=precision
+                        precision=precision, 
+                        jl_solver=jl_solver,
+                        maxiters=maxiters,
+                        show_progress=show_progress
                     ))
                     results["time"] = time() - time0
                     results["status"] = 1
@@ -351,6 +360,10 @@ class DifferentialPFR(ReactorModel):
         results["ss_tol"] = sstol
         results["tfin"] = tfin
         results["v"] = self.v_sparse
+        results["solver"] = solver
+        results["jl_solver"] = jl_solver if solver == "Julia" else "Python"
+        results["precision"] = precision if solver == "Julia" else 64
+        results["maxiters"] = maxiters if solver == "Julia" else None
         return results
 
     def conversion(self, reactant_idx: int, y: np.ndarray) -> float:
@@ -411,6 +424,9 @@ class DifferentialPFR(ReactorModel):
         impose_nonnegativity: bool = True,
         log_transform: bool = False,
         precision: int = 64,
+        jl_solver: str = "FBDF",
+        maxiters: int = 1000000,
+        show_progress: bool = False,
     ) -> np.ndarray:
         """
         Integrate the ODE system using the Julia-based solver on CPU, supporting Float64 or BigFloat.
@@ -432,6 +448,6 @@ class DifferentialPFR(ReactorModel):
             self.v_forward_sparse.data.astype(np.int8), self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
             self.v_backward_sparse.data.astype(np.int8), self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
             atol, rtol, sstol, tfin,
-            analytical_jacobian, impose_nonnegativity, log_transform, precision
+            analytical_jacobian, impose_nonnegativity, log_transform, precision, jl_solver, maxiters, show_progress
         )
         return np.array(solution, dtype=np.float64)

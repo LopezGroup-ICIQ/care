@@ -1,7 +1,6 @@
 import os
 from pickle import load
 from typing import Union, Optional
-from tqdm import tqdm
 
 import networkx as nx
 import numpy as np
@@ -361,10 +360,10 @@ class ReactionNetwork(nx.DiGraph):
         nruns: int = 1,
         solver: str = "Julia",
         sstol: float = 1e-10,
-        tfin: float = 1e6,
+        tfin: float = 1e10,
         gpu: bool = False,
-        atol: float = 1e-20,
-        rtol: float = 1e-8,
+        atol: float = 1e-12,
+        rtol: float = 1e-9,
         clip_eact: float = -1,
         **kwargs
     ) -> dict:
@@ -379,10 +378,10 @@ class ReactionNetwork(nx.DiGraph):
                 conditions. Keys must be in OC_KEYS. e.g. {"T": 600,
                 "P": 1.0, "U": 0.0, "pH": 0.0}. If the network is thermal,
                 U and pH are ignored.
-            mkm_path (str, optional): Path to a pickle file containing checkpoint from previous
-                MKM results. If provided, iv and oc are ignored.
+            mkm_path (str, optional): Path to checkpoint from previous
+                MKM results stored as .pkl. If provided, iv and oc are ignored.
             nruns (int, optional): Number of runs for uncertainty quantification.
-                If > 1, uncertainty quantification is performed. Default to 1,
+                If > 1, uncertainty quantification is performed. Default to 1 (no uq).
             solver (str, optional): Solver to use. Default is "Julia".
             sstol (float, optional): Steady state termination threshold. Default is 1e-10.
             tfin (float, optional): Final time for integration in seconds. Default is 1e6 [s].
@@ -392,8 +391,16 @@ class ReactionNetwork(nx.DiGraph):
                 Default is 1e-20.
             rtol (float, optional): Relative tolerance for ODE integration.
                 Default is 1e-8.
-            clip_eact (float, optional): If positive, reactions with eact > clip_eact
-                in both directions will be clipped. Useful to reduce stiffness of the ODEs.
+            clip_eact (float, optional): If positive, reactions with activation barrier 
+                eact > clip_eact in both directions will be clipped such that the smallest barrier
+                between the two directions is equal to clip_eact. Useful to reduce stiffness of the ODEs.
+                If set to zero, reaction will be assumed to be barrierless. Default is -1 (no clipping).
+            precision (int, optional): Precision in bits for ODE integration.
+                Default is 64.
+            jl_solver (str, optional): If solver is "Julia", the specific Julia solver to use.
+            maxiters (int, optional): If solver is "Julia", the maximum number of iterations.
+                                        Default is 1,000,000.
+
             **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
         Returns:
             results (dict): Dictionary containing the results of the
@@ -409,18 +416,12 @@ class ReactionNetwork(nx.DiGraph):
                 with open(mkm_path, "rb") as f:
                     inputs = load(f)
                     v = inputs["v"]
-                    kf = inputs["kf"]
-                    kr = inputs["kr"]
                     T = inputs["T"]
                     P = inputs["P"]
                     y0 = inputs["y"]
                     gas_mask = inputs["gas_mask"]
                     inters = inputs["inters"]
                     inters_formula = inputs["formulas"]
-                    sstol = sstol
-                    rtol = rtol
-                    atol = atol
-                    tfin = tfin
                 print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
                 n_reactions = v.shape[1]
@@ -453,6 +454,13 @@ class ReactionNetwork(nx.DiGraph):
             inters_formula = [intermediates[x].formula for x in inters] + ["*"]
             gas_mask = np.array([inter.phase == "gas" for inter in intermediates.values()] + [False])
             inters.append("*")
+            inters_dict = {}
+            inters_dict["formulas"] = inters_formula
+            inters_dict["codes"] = inters
+            for elem in INTER_ELEMS:
+                if elem in ("*", "q"):
+                    continue
+                inters_dict[elem] = [x[elem] for x in intermediates.values()]
 
             inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
             inlet_molecules = set(inlet_molecules)        
@@ -485,27 +493,34 @@ class ReactionNetwork(nx.DiGraph):
                 inters += inerts
                 v = vstack([v, csr_matrix((len(inerts), n_reactions), dtype=np.int8)]).tocsr()
 
-            if uq:
-                kf = np.zeros((n_reactions, nruns))
-                kr = np.zeros((n_reactions, nruns))
-                for j, rxn in enumerate(reactions):
-                    for run in range(nruns):
-                        kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True, clip_eact=clip_eact)
-            else:
-                kf = np.zeros(n_reactions)
-                kr = np.zeros(n_reactions)
-                for j, rxn in enumerate(reactions):
-                    kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False, clip_eact=clip_eact)
+        if uq:
+            kf = np.zeros((n_reactions, nruns))
+            kr = np.zeros((n_reactions, nruns))
+            for j, rxn in enumerate(reactions):
+                for run in range(nruns):
+                    kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True, clip_eact=clip_eact)
+        else:
+            kf = np.zeros(n_reactions)
+            kr = np.zeros(n_reactions)
+            for j, rxn in enumerate(reactions):
+                kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False, clip_eact=clip_eact)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
-                                inters=inters, pressure=P, temperature=T)
+                                inters=inters_dict, pressure=P, temperature=T)
         print(reactor)
         RTOL, ATOL, SSTOL, TFIN = rtol, atol, sstol, tfin
         settings_str = f"rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s"
         if "precision" in kwargs:
-            settings_str += f", precision={kwargs['precision']} bits ({int(np.floor(kwargs['precision']*0.301))} significant digits)"
+            settings_str += f", prec={kwargs['precision']} bits"
+        if clip_eact >= 0:
+            if clip_eact == 0:
+                settings_str += f", barrierless reactions"
+            else:
+                settings_str += f", clip_Eact={clip_eact} eV"
+        if "jl_solver" in kwargs:
+            settings_str += f", jl_solver={kwargs['jl_solver']}"
 
-        print(f"Integrating ODE with settings: {settings_str}")
+        print(f"ODE settings: {settings_str}")
         results = {}
 
         if uq:
@@ -519,15 +534,13 @@ class ReactionNetwork(nx.DiGraph):
             results.update({k+"_std": np.std([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)})
             results["runs"] = results_runs
         else:
-            for _ in range(20):  # max attempts
-                results = reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu, **kwargs)
-                if results["status"] in (0, 1):
-                    break
-                ATOL /= 10
-                if _ % 2 == 0:
-                    RTOL /= 10
-            else:
-                raise RuntimeError("Failed to reach steady state")
+            results = reactor.integrate(y0, 
+                                        solver, 
+                                        RTOL, 
+                                        ATOL, 
+                                        SSTOL, 
+                                        TFIN, 
+                                        gpu, **kwargs)
         results["formulas"] = inters_formula
         results["U"] = oc.get("U", None)
         results["pH"] = oc.get("pH", None)
@@ -537,4 +550,5 @@ class ReactionNetwork(nx.DiGraph):
         print(f"Elemental balances (in/out): C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}")
         for k, v in balance_dict.items():
             results[f"in_div_out_{k}"] = v
+        results["clip_eact"] = clip_eact
         return results

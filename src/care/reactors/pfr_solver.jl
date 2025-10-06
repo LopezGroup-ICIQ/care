@@ -201,7 +201,8 @@ module SparsePFR
         vf_data, vf_indices, vf_indptr,
         vb_data, vb_indices, vb_indptr,
         atol, rtol, sstol, tfin,
-        analytical_jacobian, impose_nonnegativity, log_transform, precision
+        analytical_jacobian, impose_nonnegativity, log_transform, 
+        precision, jl_solver, maxiters, show_progress
     )
         # --- 1. Determine Numeric Type and Convert Data ---
         T = (precision > 64) ? BigFloat : Float64
@@ -256,7 +257,9 @@ module SparsePFR
                 ode_pfr!(du, u, integrator.p, t)
             end
             sum_abs_du = sum(abs.(du))
-            @printf("%s: %s\n", t, sum_abs_du)
+            if show_progress
+                @printf("%s: %s\n", t, sum_abs_du)
+            end
             return sum_abs_du <= sstol
         end
 
@@ -278,13 +281,29 @@ module SparsePFR
                  CallbackSet(cb_steady_state)
 
         # --- 5. Solve the Problem ---
-        solver = if T == BigFloat
-            linsolve = KrylovJL_GMRES()
-            Rodas5(autodiff=false, linsolve=linsolve)  # TODO: consider KenCarp4, TRBDF2, Rodas5P, RadauIIA5
-        else
-            FBDF(autodiff=false)
+        function get_solver(solver_name::String, T::DataType)
+            SOLVER_MAP = Dict(
+                "FBDF" => FBDF,
+                "Rodas5P" => Rodas5P,
+                "KenCarp4" => KenCarp4,
+                "TRBDF2" => TRBDF2,
+                "RadauIIA5" => RadauIIA5
+            )
+
+            if T == BigFloat
+                linsolve = KrylovJL_GMRES()
+                return Rodas5P(autodiff=false, linsolve=linsolve)
+            else
+                if haskey(SOLVER_MAP, solver_name)
+                    SolverType = SOLVER_MAP[solver_name]
+                    return SolverType(autodiff=false)
+                else
+                    error("Solver '$solver_name' not recognized. Available solvers are: $(keys(SOLVER_MAP))")
+                end
+            end
         end
-        sol = solve(prob, solver, abstol=atol, reltol=rtol, callback=cb_set, save_everystep=false)
+        solver = get_solver(jl_solver, T)
+        sol = solve(prob, solver, abstol=atol, reltol=rtol, callback=cb_set, save_everystep=false, maxiters=maxiters)
 
         # --- 6. Return Final State ---
         final_state = if log_transform
