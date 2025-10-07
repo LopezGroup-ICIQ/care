@@ -394,13 +394,7 @@ class ReactionNetwork(nx.DiGraph):
             clip_eact (float, optional): If positive, reactions with activation barrier 
                 eact > clip_eact in both directions will be clipped such that the smallest barrier
                 between the two directions is equal to clip_eact. Useful to reduce stiffness of the ODEs.
-                If set to zero, reaction will be assumed to be barrierless. Default is -1 (no clipping).
-            precision (int, optional): Precision in bits for ODE integration.
-                Default is 64.
-            jl_solver (str, optional): If solver is "Julia", the specific Julia solver to use.
-            maxiters (int, optional): If solver is "Julia", the maximum number of iterations.
-                                        Default is 1,000,000.
-
+                If set to zero, reaction will be assumed to be barrierless. Default is -1 (no clipping)
             **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
         Returns:
             results (dict): Dictionary containing the results of the

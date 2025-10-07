@@ -12,12 +12,12 @@ from care.constants import K_B, K_BU
 
 
 class Adsorption(ElementaryReaction):
-    __slots__ = ("adsorbate_mass",)
+    __slots__ = ("adsorbate_mass", "adsorbate")
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
-        adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
-        self.adsorbate_mass = adsorbate.mass
+        self.adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
+        self.adsorbate_mass = self.adsorbate.mass  # atomic mass units
 
     def reverse(self):
         self.__class__ = Desorption
@@ -47,10 +47,28 @@ class Adsorption(ElementaryReaction):
             uq (bool, optional): If True, the uncertainty of the activation
                 energy and the reaction energy will be considered. Defaults to
                 False.
+            clip_eact(bool, optional): If > 0.0, the activation energy will be clipped, only if 
+                both the forward and reverse activation energies are > clip_eact.
+                if zero, the reaction will be assumed to be barrierless.
         """
         e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
-        k_eq = np.exp(-e_rxn / t / K_B)
-        k_dir = 1e-18 / (2 * np.pi * self.adsorbate_mass * K_BU * t) ** 0.5
+        e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
+        e_act_rev = e_act - e_rxn
+
+        if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
+            if e_act > clip_eact and e_act_rev > clip_eact:
+                if e_act >= e_act_rev:
+                    e_act = clip_eact + e_rxn
+                else:
+                    e_act = clip_eact
+        if clip_eact == 0.0:
+            e_act = max(0.0, e_rxn)
+
+        sticking_coeff = np.exp(-e_act/ K_B /t)  # unitless
+        area_active_site = 1e-18  # m2
+        adsorbate_mass_kg = self.adsorbate_mass * 1.66054e-27  # kg
+        k_dir = area_active_site * sticking_coeff / (2 * np.pi * adsorbate_mass_kg * K_BU * t) ** 0.5
+        k_eq = np.exp(-e_rxn / K_B / t)
         return k_dir, k_dir / k_eq
 
     def bb_order(self):
@@ -62,12 +80,12 @@ class Adsorption(ElementaryReaction):
 
 
 class Desorption(ElementaryReaction):
-    __slots__ = ("adsorbate_mass",)
+    __slots__ = ("adsorbate_mass", "adsorbate")
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
-        adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
-        self.adsorbate_mass = adsorbate.mass
+        self.adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
+        self.adsorbate_mass = self.adsorbate.mass  # atomic mass units
 
     def reverse(self):
         self.__class__ = Adsorption

@@ -31,6 +31,7 @@ intermediates = [Intermediate("CO(g)", Atoms("CO"), is_surface=False, phase="gas
                  Intermediate("CO2*", Atoms("CO2"), is_surface=False, phase="ads"), 
                  Intermediate("*", Atoms(), is_surface=True, phase="surf")]
 intermediates = {inter.code: inter for inter in intermediates}
+inters = {"codes": inters}
 
 v_matrix = np.array(
     [

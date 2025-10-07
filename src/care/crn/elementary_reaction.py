@@ -156,9 +156,14 @@ class ElementaryReaction:
 
     def __hash__(self):
         return id(self)
-
+    
     def __getitem__(self, key):
-        pass
+        all_species = list(self.reactants) + list(self.products)
+        sorted_species = sorted(all_species, key=len)
+        return sorted_species[key]
+
+    def __len__(self):
+        return len(self.reactants) + len(self.products)
 
     def __iter__(self):
         return iter(list(self.reactants) + list(self.products))
