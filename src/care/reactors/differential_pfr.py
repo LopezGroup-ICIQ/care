@@ -12,6 +12,7 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import isspmatrix_csr, csr_matrix
 from time import time
 
+from care.constants import INTER_ELEMS
 from care.reactors.reactor import ReactorModel
 from care.reactors.utils import net_rate, jacobian_fill_numba
 
@@ -31,7 +32,7 @@ class DifferentialPFR(ReactorModel):
         kd: np.ndarray = np.array([]),
         kr: np.ndarray = np.array([]),
         gas_mask: np.ndarray = np.array([]),
-        inters: list[str] = None,
+        inters: dict = None,
         pressure: float = 100000.0,
         temperature: float = 298.0,
         print_progress: bool = True,
@@ -71,12 +72,13 @@ class DifferentialPFR(ReactorModel):
         self.kr = kr  # Backward kinetic constants
 
         self.gas_mask = gas_mask  # Boolean array indicating which species are in the gas phase
+        self.inters_info = inters
         self.inters = inters["codes"] or []  # List of intermediate species codes
 
         self.P = pressure  # Pressure of the reactor in Pascal
         self.T = temperature  # Temperature of the reactor in Kelvin
 
-        self.sstol = None  # Tolerance for steady-state conditions
+        self.sstol = 0.01  # Tolerance for steady-state conditions
         self.sum_ddt, self.time = [], []
         self.print_progress = print_progress
 
@@ -197,16 +199,44 @@ class DifferentialPFR(ReactorModel):
         t: float,
         y: np.ndarray,
     ) -> float:
-        sum_ddt = np.sum(abs(self.ode(t, y)))
-        abssum_ddt_gas = np.sum(abs(self.ode(t, y)[self.gas_mask]))
-        Py_gas = np.sum(y[self.gas_mask])
+        """Steady state termination condition.
+        It triggers when the sum of coverages is 1, and the elemental
+        input and output flows are equal (in=out for C, H, etc.)
+        """
+        in_div_out = {"*": sum(y[self.gas_mask])}
+        rates = net_rate(
+            y,
+            self.kd, self.kr,
+            self.v_forward_sparse.data, self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
+            self.v_backward_sparse.data, self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
+        )
+        dydt = self.v_sparse.dot(rates)
+        inflow, outflow = {}, {}
+        elem_dict = {k: v for k, v in self.inters_info.items() if k in INTER_ELEMS}
+        for elem, counts in elem_dict.items():
+            inflow[elem] = 0.0
+            outflow[elem] = 0.0
+            for i, coeff in enumerate(counts):
+                if self.gas_mask[i]:
+                    contrib = coeff * dydt[i]
+                    if contrib > 0:
+                        outflow[elem] += contrib
+                    elif contrib < 0:
+                        inflow[elem] += abs(contrib)
+            if inflow[elem] == 0.0 and outflow[elem] == 0.0:
+                in_div_out[elem] = 1
+            else:
+                in_div_out[elem] = inflow[elem] / (outflow[elem] + np.finfo(float).eps)
+        self.time.append(t)
+        sum_balances = sum(in_div_out.values())
+        self.sum_ddt.append(sum_balances)
         if self.print_progress:
             print(
-                f"Time: {t}    Sum_ddt: {sum_ddt}    Gas_ddt: {abssum_ddt_gas}    Gas_sum: {Py_gas}"
+                f"t={t}s    sum_balances = {sum_balances}"
             )
-        self.time.append(t)
-        self.sum_ddt.append(sum_ddt)
-        if sum_ddt <= self.sstol:
+        max_dev = max([abs(x - 1) for x in in_div_out.values()])
+        if max_dev <= self.sstol:
+            print("STEADY-STATE  REACHED!!!")
             return 0
         return 1
 
@@ -233,7 +263,6 @@ class DifferentialPFR(ReactorModel):
         solver: str,
         rtol: float,
         atol: float,
-        sstol: float,
         tfin: float,
         gpu: bool = False,
         analytical_jacobian: bool = True,
@@ -274,21 +303,23 @@ class DifferentialPFR(ReactorModel):
                 if gpu:
                     try:
                         time0 = time()
-                        results["y"] = self.integrate_jl_gpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                        y, t = self.integrate_jl_gpu(
+                            y0, rtol=rtol, atol=atol, tfin=tfin, 
                             analytical_jacobian=analytical_jacobian, 
                             impose_nonnegativity=impose_nonnegativity,
                             log_transform=log_transform, 
                             precision=precision
                         )
+                        results["y"] = y
+                        results["t"] = t
                         results["time"] = time() - time0
                         results["status"] = 1
                     except Exception as e:
                         print(f"Error: {e}")
                         print("Switching from GPU to CPU...")
                         time0 = time()
-                        results["y"] = self.integrate_jl_cpu(
-                            y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                        y, t = self.integrate_jl_cpu(
+                            y0, rtol=rtol, atol=atol, tfin=tfin, 
                             analytical_jacobian=analytical_jacobian, 
                             impose_nonnegativity=impose_nonnegativity, 
                             log_transform=log_transform, 
@@ -297,12 +328,14 @@ class DifferentialPFR(ReactorModel):
                             maxiters=maxiters,
                             show_progress=show_progress
                         )
+                        results["y"] = y
+                        results["t"] = t
                         results["time"] = time() - time0
                         results["status"] = 1
                 else:
                     time0 = time()
-                    results["y"] = np.array(self.integrate_jl_cpu(
-                        y0, rtol=rtol, atol=atol, sstol=sstol, tfin=tfin, 
+                    y, t = self.integrate_jl_cpu(
+                        y0, rtol=rtol, atol=atol, tfin=tfin,
                         analytical_jacobian=analytical_jacobian, 
                         impose_nonnegativity=impose_nonnegativity,
                         log_transform=log_transform, 
@@ -310,7 +343,9 @@ class DifferentialPFR(ReactorModel):
                         jl_solver=jl_solver,
                         maxiters=maxiters,
                         show_progress=show_progress
-                    ))
+                    )
+                    results["y"] = y
+                    results["t"] = t
                     results["time"] = time() - time0
                     results["status"] = 1
             except Exception as e:
@@ -318,11 +353,8 @@ class DifferentialPFR(ReactorModel):
                 results["status"] = 0
         elif solver == "Python":
             self.sum_ddt = []
-            self.sstol = sstol
             ode_events = (
                 [self.steady_state, self.gas_change_event]
-                if sstol
-                else [self.gas_change_event]
             )
             time0 = time()
             results = solve_ivp(
@@ -337,9 +369,6 @@ class DifferentialPFR(ReactorModel):
                 jac_sparsity=None,
             )
             results["time"] = time() - time0
-
-            print(f"Integration time: {results['time']:.2f}s")
-
             results["y"] = results["y"][:, -1]
             results["time_ss"] = self.time
             results["sum_ddt"] = self.sum_ddt
@@ -352,12 +381,12 @@ class DifferentialPFR(ReactorModel):
         results["total_consumption_rate"] = results["consumption_rate"].sum(axis=1)
         results["gas_mask"] = self.gas_mask
         results["inters"] = self.inters
+        results["inters_info"] = self.inters_info
         results["y0"] = y0
         results["T"] = self.T
         results["P"] = self.P
         results["rtol"] = rtol
         results["atol"] = atol
-        results["ss_tol"] = sstol
         results["tfin"] = tfin
         results["v"] = self.v_sparse
         results["solver"] = solver
@@ -418,7 +447,6 @@ class DifferentialPFR(ReactorModel):
         y0: np.ndarray,
         rtol: float,
         atol: float,
-        sstol: float,
         tfin: float,
         analytical_jacobian: bool = True,
         impose_nonnegativity: bool = True,
@@ -440,14 +468,18 @@ class DifferentialPFR(ReactorModel):
             y0_in = y0
             kd_in = self.kd
             kr_in = self.kr
+            
+        elem_dict = {k: v for k, v in self.inters_info.items() if k in INTER_ELEMS}
+        jl_elem_dict = jl.Dict([(k, jl.Vector(v)) for k, v in elem_dict.items()])
 
         vT = self.v_sparse.T.tocsr()
-        solution = jl.SparsePFR.setup_and_solve(
+        solution, time = jl.SparsePFR.setup_and_solve(
             y0_in, kd_in, kr_in, self.gas_mask,
             vT.data.astype(np.int8), vT.indices, vT.indptr,
             self.v_forward_sparse.data.astype(np.int8), self.v_forward_sparse.indices, self.v_forward_sparse.indptr,
             self.v_backward_sparse.data.astype(np.int8), self.v_backward_sparse.indices, self.v_backward_sparse.indptr,
-            atol, rtol, sstol, tfin,
-            analytical_jacobian, impose_nonnegativity, log_transform, precision, jl_solver, maxiters, show_progress
+            atol, rtol, self.sstol, tfin,
+            analytical_jacobian, impose_nonnegativity, log_transform, precision, jl_solver, maxiters, show_progress, 
+            jl_elem_dict
         )
-        return np.array(solution, dtype=np.float64)
+        return np.array(solution, dtype=np.float64), float(time)

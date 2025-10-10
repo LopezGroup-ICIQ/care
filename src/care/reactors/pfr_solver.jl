@@ -46,7 +46,7 @@ module SparsePFR
         return rates
     end
 
-    function ode_pfr!(du::AbstractVector{T}, u::AbstractVector{T}, p::SparsePFRParams{T}, t) where T
+    function ode_pfr!(du::AbstractVector{T}, u::AbstractVector{T}, p::SparsePFRParams{T}, t; zero_gas::Bool = true) where T
         rates = sparse_net_rate(u, p)
         fill!(du, zero(eltype(du)))
         for r in 1:length(rates)
@@ -57,9 +57,11 @@ module SparsePFR
                 du[s] += p.v_data[idx] * rates[r]
             end
         end
-        for i in 1:length(p.gas_mask)
-            if p.gas_mask[i] == 1
-                du[i] = zero(T)
+        if zero_gas
+            for i in 1:length(p.gas_mask)
+                if p.gas_mask[i] == 1
+                    du[i] = zero(T)
+                end
             end
         end
     end
@@ -202,13 +204,11 @@ module SparsePFR
         vb_data, vb_indices, vb_indptr,
         atol, rtol, sstol, tfin,
         analytical_jacobian, impose_nonnegativity, log_transform, 
-        precision, jl_solver, maxiters, show_progress
+        precision, jl_solver, maxiters, show_progress, elem_dict
     )
-        # --- 1. Determine Numeric Type and Convert Data ---
         T = (precision > 64) ? BigFloat : Float64
         if T == BigFloat
             setprecision(BigFloat, precision)
-            # When using BigFloat, data from Python comes as strings to preserve precision
             y0 = parse.(BigFloat, y0_in)
             kd = parse.(BigFloat, kd_in)
             kr = parse.(BigFloat, kr_in)
@@ -248,23 +248,6 @@ module SparsePFR
         prob = ODEProblem(f, y0_transformed, tspan, p)
 
         # --- Define Callbacks ---
-        function condition(u, t, integrator)
-            du = similar(u)
-            if log_transform
-                u_phys = exp.(u)
-                ode_pfr!(du, u_phys, integrator.p, t)
-            else
-                ode_pfr!(du, u, integrator.p, t)
-            end
-            sum_abs_du = sum(abs.(du))
-            if show_progress
-                @printf("%s: %s\n", t, sum_abs_du)
-            end
-            return sum_abs_du <= sstol
-        end
-
-        affect!(integrator) = terminate!(integrator)
-        cb_steady_state = DiscreteCallback(condition, affect!)
 
         cb_nonnegativity = let
             nonnegativity_condition(u, t, integrator) = true
@@ -274,11 +257,68 @@ module SparsePFR
             end
             DiscreteCallback(nonnegativity_condition, nonnegativity_affect!)
         end
+        
+        function elemental_balance(u::AbstractVector{T}, p::SparsePFRParams{T}, elem_dict::Dict) where T
+            du = similar(u)
+            ode_pfr!(du, u, p, zero(T); zero_gas=false) 
 
-        # Don't apply non-negativity constraint in log-space
+            inflow  = Dict{String, T}()
+            outflow = Dict{String, T}()
+
+            for (elem, counts) in elem_dict
+                inflow[elem]  = zero(T)
+                outflow[elem] = zero(T)
+                for (i, coeff) in enumerate(counts)
+                    if p.gas_mask[i]
+                        contrib = coeff * du[i]
+                        if contrib > 0
+                            outflow[elem] += contrib
+                        elseif contrib < 0
+                            inflow[elem]  += contrib
+                        end
+                    end
+                end
+                inflow[elem] = abs(inflow[elem])
+            end
+
+            in_div_out = Dict{String, T}()
+            for elem in keys(elem_dict)
+                if inflow[elem] == 0 && outflow[elem] == 0
+                    in_div_out[elem] = one(T)
+                else
+                    in_div_out[elem] = inflow[elem] / (outflow[elem] + eps(T))
+                end
+            end
+            s = zero(T)
+            for (i, is_gas) in enumerate(p.gas_mask)
+                if !is_gas
+                    s += u[i]
+                end
+            end
+            in_div_out["*"] = s
+            return in_div_out
+        end
+
+        function condition_css(u, t, integrator)
+            u_phys = log_transform ? exp.(u) : u
+            ratios = elemental_balance(u_phys, integrator.p, elem_dict)
+            max_dev = maximum(abs.([ratios[e] - 1 for e in keys(ratios)]))
+            if show_progress
+                println(max_dev)
+            end
+            return max_dev <= sstol
+        end
+
+        function affect_css!(integrator)
+            println("STEADY-STATE REACHED!!!")
+            terminate!(integrator)
+        end
+
+        cb_chemical_steady_state = DiscreteCallback(condition_css, affect_css!)
+
         cb_set = (impose_nonnegativity && !log_transform) ?
-                 CallbackSet(cb_steady_state, cb_nonnegativity) :
-                 CallbackSet(cb_steady_state)
+                 CallbackSet(cb_nonnegativity, cb_chemical_steady_state) :
+                 CallbackSet(cb_chemical_steady_state)
 
         # --- 5. Solve the Problem ---
         function get_solver(solver_name::String, T::DataType)
@@ -311,8 +351,9 @@ module SparsePFR
         else
             sol.u[end]
         end
+        final_time = sol.t[end]
 
-        return Array(final_state) # Convert back to a standard Array for Python
+        return Array(final_state), final_time # Convert back to a standard Array for Python
     end
 
 end 

@@ -414,7 +414,7 @@ class ReactionNetwork(nx.DiGraph):
                     P = inputs["P"]
                     y0 = inputs["y"]
                     gas_mask = inputs["gas_mask"]
-                    inters = inputs["inters"]
+                    inters_info = inputs["inters_info"]
                     inters_formula = inputs["formulas"]
                 print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
@@ -455,7 +455,7 @@ class ReactionNetwork(nx.DiGraph):
                 if elem in ("*", "q"):
                     continue
                 inters_dict[elem] = [x[elem] for x in intermediates.values()]
-
+            inters_info = inters_dict
             inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
             inlet_molecules = set(inlet_molecules)        
 
@@ -500,17 +500,20 @@ class ReactionNetwork(nx.DiGraph):
                 kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False, clip_eact=clip_eact)
 
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
-                                inters=inters_dict, pressure=P, temperature=T)
+                                inters=inters_info, pressure=P, temperature=T)
         print(reactor)
         RTOL, ATOL, SSTOL, TFIN = rtol, atol, sstol, tfin
         settings_str = f"rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s"
         if "precision" in kwargs:
             settings_str += f", prec={kwargs['precision']} bits"
-        if clip_eact >= 0:
-            if clip_eact == 0:
-                settings_str += f", barrierless reactions"
-            else:
-                settings_str += f", clip_Eact={clip_eact} eV"
+        if isinstance(clip_eact, float):
+            if clip_eact >= 0:
+                if clip_eact == 0:
+                    settings_str += f", barrierless reactions"
+                else:
+                    settings_str += f", clip_Eact={clip_eact} eV"
+        else:
+            settings_str += f", user-defined BEPs"
         if "jl_solver" in kwargs:
             settings_str += f", jl_solver={kwargs['jl_solver']}"
 
@@ -541,7 +544,7 @@ class ReactionNetwork(nx.DiGraph):
         results["kf"] = kf
         results["kr"] = kr
         balance_dict = analyze_elemental_balance(results, intermediates)
-        print(f"Elemental balances (in/out): C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}")
+        print(f"Elemental balances at t={results["t"]:.2e} s: C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}, *={balance_dict["*"]:.2e}")
         for k, v in balance_dict.items():
             results[f"in_div_out_{k}"] = v
         results["clip_eact"] = clip_eact

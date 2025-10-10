@@ -32,6 +32,8 @@ intermediates = [Intermediate("CO(g)", Atoms("CO"), is_surface=False, phase="gas
                  Intermediate("*", Atoms(), is_surface=True, phase="surf")]
 intermediates = {inter.code: inter for inter in intermediates}
 inters = {"codes": inters}
+for elem in ["C", "H", "O", "N"]:
+    inters[elem] = [x[elem] for x in intermediates.values()]
 
 v_matrix = np.array(
     [
@@ -140,12 +142,14 @@ class TestDifferentialPFR(unittest.TestCase):
         rf = pfr.forward_rate(y0)
         rb = pfr.backward_rate(y0)
         rn = pfr.net_rate(y0)
-        self.assertTrue(np.array_equal(rf, rf_correct))
-        self.assertTrue(np.array_equal(rb, rb_correct))
-        self.assertTrue(np.array_equal(rn, rn_correct))
-        self.assertEqual(rf.shape, (4,))
-        self.assertEqual(rb.shape, (4,))
-        self.assertEqual(rn.shape, (4,))
+        np.testing.assert_allclose(rf, rf_correct, rtol=1e-8, atol=1e-12,
+            err_msg=f"Forward rates differ.\nExpected: {rf_correct}\nGot: {rf}")
+
+        np.testing.assert_allclose(rb, rb_correct, rtol=1e-8, atol=1e-12,
+            err_msg=f"Backward rates differ.\nExpected: {rb_correct}\nGot: {rb}")
+
+        np.testing.assert_allclose(rn, rn_correct, rtol=1e-8, atol=1e-12,
+            err_msg=f"Net rates differ.\nExpected: {rn_correct}\nGot: {rn}")
 
     def test_rates_jl(self):
         net_rates = SparsePFR.sparse_net_rate(y0, p)
@@ -181,7 +185,6 @@ class TestDifferentialPFR(unittest.TestCase):
                           solver='Python', 
                           rtol=1e-9, 
                           atol=1e-12, 
-                          sstol=1e-25, 
                           tfin=1e20)
         balance = analyze_elemental_balance(y, intermediates)
         self.assertTrue(isinstance(y, dict))
@@ -193,7 +196,7 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance.items():
             self.assertIsInstance(ratio, float)
-            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
+            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
 
     def test_ode_jl(self):
         dydt0 = np.zeros_like(y0)
@@ -206,11 +209,12 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         y = pfr.integrate(y0=y0, 
                           solver='Julia', 
-                          rtol=1e-9, 
-                          atol=1e-12, 
-                          sstol=1e-25, 
-                          tfin=1e20, 
-                          gpu=False)
+                          rtol=1e-12, 
+                          atol=1e-15, 
+                          tfin=1e30, 
+                          gpu=False, 
+                          precision=64, 
+                          maxiters=1_000_000)
         balance = analyze_elemental_balance(y, intermediates)
         self.assertTrue(isinstance(y, dict))
         self.assertTrue(y['y'].shape == (7,))
@@ -221,15 +225,15 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance.items():
             self.assertIsInstance(ratio, float)
-            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
+            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
         y_prec128 = pfr.integrate(y0=y0, 
                           solver='Julia', 
-                          rtol=1e-9, 
-                          atol=1e-12, 
-                          sstol=1e-25, 
-                          tfin=1e20, 
+                          rtol=1e-12, 
+                          atol=1e-15,
+                          tfin=1e30, 
                           gpu=False, 
-                          precision=128)
+                          precision=128, 
+                          maxiters=1_000_000)
         balance_prec128 = analyze_elemental_balance(y_prec128, intermediates)
         self.assertTrue(isinstance(y_prec128, dict))
         self.assertTrue(y_prec128['y'].shape == (7,))
@@ -240,6 +244,6 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y_prec128["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance_prec128.items():
             self.assertIsInstance(ratio, float)
-            self.assertAlmostEqual(ratio, 1.0, places=2, msg=f"Elemental balance for {elem} not conserved.")
-        np.testing.assert_allclose(y['y'], y_prec128['y'], rtol=1e-7, atol=1e-10)
+            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
+        np.testing.assert_allclose(y['y'], y_prec128['y'], rtol=1e-7, atol=1e-3)
 

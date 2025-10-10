@@ -159,15 +159,13 @@ class ElementaryReaction:
     
     def __getitem__(self, key):
         all_species = list(self.reactants) + list(self.products)
-        sorted_species = sorted(all_species, key=len)
-        return sorted_species[key]
+        return all_species[key]
 
     def __len__(self):
         return len(self.reactants) + len(self.products)
 
     def __iter__(self):
         return iter(list(self.reactants) + list(self.products))
-
 
     @property
     def components(self):
@@ -295,16 +293,29 @@ class ElementaryReaction:
         e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
         e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
         e_act_rev = e_act - e_rxn
-
-        if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
-            if e_act > clip_eact and e_act_rev > clip_eact:
-                if e_act >= e_act_rev:
-                    e_act = clip_eact + e_rxn
-                else:
-                    e_act = clip_eact
-        if clip_eact == 0.0:
-            e_act = max(0.0, e_rxn)
-
+        
+        if isinstance(clip_eact, float):
+            if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
+                if e_act > clip_eact and e_act_rev > clip_eact:
+                    if e_act >= e_act_rev:
+                        e_act = clip_eact + e_rxn
+                    else:
+                        e_act = clip_eact
+                if clip_eact == 0.0:
+                    e_act = max(0.0, e_rxn)
+        elif isinstance(clip_eact, dict):
+            x = self.r_type
+            alpha, beta = clip_eact.get(x, (1, 0))
+            if "BondFormation" in self.__class__.__name__:
+                e_act = beta - self.e_rxn[0] * alpha + self.e_rxn[0]
+            elif "BondBreaking" in self.__class__.__name__:
+                e_act = beta + self.e_rxn[0] * alpha
+            else:
+                pass
+            e_act = max(0, e_act)
+        else:
+            pass
+        
         k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
         k_eq = np.exp(-e_rxn / t / K_B)
         return k_dir, k_dir / k_eq
