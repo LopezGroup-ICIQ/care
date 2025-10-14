@@ -86,7 +86,7 @@ class Desorption(ElementaryReaction):
 
     def __init__(self, components, r_type):
         super().__init__(components=components, r_type=r_type)
-        self.adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
+        self.adsorbate = [inter for inter in self.products if inter.phase == "gas"][0]
         self.adsorbate_mass = self.adsorbate.mass  # atomic mass units
 
     def reverse(self):

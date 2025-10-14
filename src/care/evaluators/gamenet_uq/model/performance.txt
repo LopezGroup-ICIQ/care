@@ -5,12 +5,12 @@ Surface order metal neighbours inclusion = 2
 Node adsorbate/surface descriptor = False
 Node radical descriptor = False
 TRAINING PROCESS
-01-Aug-2025, 16:39:15
-Dataset Size = 13644
+14-Oct-2025, 10:47:36
+Dataset Size = 13634
 Data Split (Train/Val) = 80-20 %
 Target scaling = std
-Dataset (train+val) mean = -48.414165 eV
-Dataset (train+val) standard deviation = 29.050852 eV
+Dataset (train+val) mean = -48.232082 eV
+Dataset (train+val) standard deviation = 28.585464 eV
 Epochs = 250
 Batch Size = 32
 Optimizer = Adam

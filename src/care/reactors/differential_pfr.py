@@ -264,13 +264,12 @@ class DifferentialPFR(ReactorModel):
         rtol: float,
         atol: float,
         tfin: float,
-        gpu: bool = False,
         analytical_jacobian: bool = True,
         impose_nonnegativity: bool = True,
         log_transform: bool = False,
         precision: int = 64,
         jl_solver: str = "FBDF", 
-        maxiters: int = 1000000,
+        maxiters: int = 100_000,
         show_progress: bool = False,
         **kwargs,
     ) -> dict:
@@ -284,12 +283,18 @@ class DifferentialPFR(ReactorModel):
             atol(float): Absolute tolerance for the integration.
             sstol(float): Tolerance for steady-state conditions.
             tfin(float): Final time for the integration.
-            gpu(bool): Flag to use GPU for the integration (only for Julia).
             analytical_jacobian(bool): Flag to use analytical Jacobian.
             impose_nonnegativity(bool): Flag to impose non-negativity on the solution.
             log_transform(bool): Flag to use log-transform on the concentrations. If set to True, 
                                     analytical_jacobian and impose_nonnegativity are ignored.
             precision(int): Precision for the Julia solver. Default to 64 (double precision).
+            jl_solver(str): ODE solver in DifferentialEquations.jl, considered only with double precision.
+                            Default to FBDF.
+            maxiters(int): Maximum number of ODE steps. Defaults to 100_000
+            show_progress(bool): If True, the maximum value among the elemental balances IN/OUT is shown.
+                                Convergence occurs when IN/OUT flows for all elements (C,H,O, ...) and the sum
+                                of the surface coverages are between
+                                0.99 and 1.01. Integration wtop when the printed number reaches 0.01.
         Returns:
             (dict): Dictionary containing the solution of the ODE system.
 
@@ -300,54 +305,21 @@ class DifferentialPFR(ReactorModel):
         if solver == "Julia":
             results = {}
             try:
-                if gpu:
-                    try:
-                        time0 = time()
-                        y, t = self.integrate_jl_gpu(
-                            y0, rtol=rtol, atol=atol, tfin=tfin, 
-                            analytical_jacobian=analytical_jacobian, 
-                            impose_nonnegativity=impose_nonnegativity,
-                            log_transform=log_transform, 
-                            precision=precision
-                        )
-                        results["y"] = y
-                        results["t"] = t
-                        results["time"] = time() - time0
-                        results["status"] = 1
-                    except Exception as e:
-                        print(f"Error: {e}")
-                        print("Switching from GPU to CPU...")
-                        time0 = time()
-                        y, t = self.integrate_jl_cpu(
-                            y0, rtol=rtol, atol=atol, tfin=tfin, 
-                            analytical_jacobian=analytical_jacobian, 
-                            impose_nonnegativity=impose_nonnegativity, 
-                            log_transform=log_transform, 
-                            precision=precision, 
-                            jl_solver=jl_solver,
-                            maxiters=maxiters,
-                            show_progress=show_progress
-                        )
-                        results["y"] = y
-                        results["t"] = t
-                        results["time"] = time() - time0
-                        results["status"] = 1
-                else:
-                    time0 = time()
-                    y, t = self.integrate_jl_cpu(
-                        y0, rtol=rtol, atol=atol, tfin=tfin,
-                        analytical_jacobian=analytical_jacobian, 
-                        impose_nonnegativity=impose_nonnegativity,
-                        log_transform=log_transform, 
-                        precision=precision, 
-                        jl_solver=jl_solver,
-                        maxiters=maxiters,
-                        show_progress=show_progress
-                    )
-                    results["y"] = y
-                    results["t"] = t
-                    results["time"] = time() - time0
-                    results["status"] = 1
+                time0 = time()
+                y, t = self.integrate_jl_cpu(
+                    y0, rtol=rtol, atol=atol, tfin=tfin,
+                    analytical_jacobian=analytical_jacobian, 
+                    impose_nonnegativity=impose_nonnegativity,
+                    log_transform=log_transform, 
+                    precision=precision, 
+                    jl_solver=jl_solver,
+                    maxiters=maxiters,
+                    show_progress=show_progress
+                )
+                results["y"] = y
+                results["t"] = t
+                results["time"] = time() - time0
+                results["status"] = 1
             except Exception as e:
                 print(f"Error: {e}")
                 results["status"] = 0

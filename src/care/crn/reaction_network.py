@@ -359,12 +359,10 @@ class ReactionNetwork(nx.DiGraph):
         mkm_path: Optional[str] = None,
         nruns: int = 1,
         solver: str = "Julia",
-        sstol: float = 1e-10,
-        tfin: float = 1e10,
-        gpu: bool = False,
-        atol: float = 1e-12,
-        rtol: float = 1e-9,
-        clip_eact: float = -1,
+        tfin: float = 1e30,
+        atol: float = 1e-15,
+        rtol: float = 1e-12,
+        clip_eact: float = -1.0,
         **kwargs
     ) -> dict:
         """
@@ -383,14 +381,11 @@ class ReactionNetwork(nx.DiGraph):
             nruns (int, optional): Number of runs for uncertainty quantification.
                 If > 1, uncertainty quantification is performed. Default to 1 (no uq).
             solver (str, optional): Solver to use. Default is "Julia".
-            sstol (float, optional): Steady state termination threshold. Default is 1e-10.
-            tfin (float, optional): Final time for integration in seconds. Default is 1e6 [s].
-            gpu (bool, optional): Whether to use GPU acceleration. Default is
-                False.
+            tfin (float, optional): Final time for integration in seconds. Default is 1e30 [s].
             atol (float, optional): Absolute tolerance for ODE integration.
-                Default is 1e-20.
+                Default is 1e-15.
             rtol (float, optional): Relative tolerance for ODE integration.
-                Default is 1e-8.
+                Default is 1e-12.
             clip_eact (float, optional): If positive, reactions with activation barrier 
                 eact > clip_eact in both directions will be clipped such that the smallest barrier
                 between the two directions is equal to clip_eact. Useful to reduce stiffness of the ODEs.
@@ -403,8 +398,10 @@ class ReactionNetwork(nx.DiGraph):
         from care.reactors import DifferentialPFR
         from care.reactors.utils import analyze_elemental_balance
         from scipy.sparse import csr_matrix
+        
         reactions = self.reactions
         intermediates = self.intermediates
+        
         if mkm_path is not None:
             if os.path.isfile(mkm_path):
                 with open(mkm_path, "rb") as f:
@@ -502,11 +499,11 @@ class ReactionNetwork(nx.DiGraph):
         reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
                                 inters=inters_info, pressure=P, temperature=T)
         print(reactor)
-        RTOL, ATOL, SSTOL, TFIN = rtol, atol, sstol, tfin
-        settings_str = f"rtol={RTOL}, atol={ATOL}, sstol={SSTOL}, tfin={TFIN}s"
+        RTOL, ATOL, TFIN = rtol, atol, tfin
+        settings_str = f"rtol={RTOL}, atol={ATOL}, tfin={TFIN}s"
         if "precision" in kwargs:
             settings_str += f", prec={kwargs['precision']} bits"
-        if isinstance(clip_eact, float):
+        if not isinstance(clip_eact, dict):
             if clip_eact >= 0:
                 if clip_eact == 0:
                     settings_str += f", barrierless reactions"
@@ -525,7 +522,7 @@ class ReactionNetwork(nx.DiGraph):
             for run in range(nruns):
                 reactor.kd = kf[:, run]
                 reactor.kr = kr[:, run]
-                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, SSTOL, TFIN, gpu, **kwargs))
+                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, TFIN, **kwargs))
             keys = results_runs[0].keys()
             results = {k: np.mean([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)}
             results.update({k+"_std": np.std([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)})
@@ -535,9 +532,8 @@ class ReactionNetwork(nx.DiGraph):
                                         solver, 
                                         RTOL, 
                                         ATOL, 
-                                        SSTOL, 
-                                        TFIN, 
-                                        gpu, **kwargs)
+                                        TFIN,
+                                        **kwargs)
         results["formulas"] = inters_formula
         results["U"] = oc.get("U", None)
         results["pH"] = oc.get("pH", None)
