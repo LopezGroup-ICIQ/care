@@ -294,15 +294,15 @@ class ElementaryReaction:
         e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
         e_act_rev = e_act - e_rxn
         
-        if isinstance(clip_eact, float):
+        if isinstance(clip_eact, (float, int)):
             if clip_eact > 0.0 and e_act > 0 and e_act_rev > 0:
                 if e_act > clip_eact and e_act_rev > clip_eact:
                     if e_act >= e_act_rev:
                         e_act = clip_eact + e_rxn
                     else:
                         e_act = clip_eact
-                if clip_eact == 0.0:
-                    e_act = max(0.0, e_rxn)
+            if clip_eact == 0.0:
+                e_act = max(0.0, e_rxn)
         elif isinstance(clip_eact, dict):
             x = self.r_type
             alpha, beta = clip_eact.get(x, (1, 0))

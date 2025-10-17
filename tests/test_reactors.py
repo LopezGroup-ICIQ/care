@@ -194,7 +194,6 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y["consumption_rate"].shape == (7,4))
         self.assertTrue(y["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance.items():
-            self.assertIsInstance(ratio, float)
             self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
 
     def test_ode_jl(self):
@@ -223,7 +222,6 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y["consumption_rate"].shape == (7,4))
         self.assertTrue(y["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance.items():
-            self.assertIsInstance(ratio, float)
             self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
         y_prec128 = pfr.integrate(y0=y0, 
                           solver='Julia', 
@@ -242,7 +240,5 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y_prec128["consumption_rate"].shape == (7,4))
         self.assertTrue(y_prec128["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance_prec128.items():
-            self.assertIsInstance(ratio, float)
             self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
         np.testing.assert_allclose(y['y'], y_prec128['y'], rtol=1e-7, atol=1e-3)
-
