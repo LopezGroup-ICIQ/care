@@ -454,4 +454,5 @@ class DifferentialPFR(ReactorModel):
             analytical_jacobian, impose_nonnegativity, log_transform, precision, jl_solver, maxiters, show_progress, 
             jl_elem_dict
         )
-        return np.array(solution, dtype=np.float64), float(time)
+        dtype = np.float64 if precision == 64 else np.float128
+        return np.array(solution, dtype=dtype), float(time)

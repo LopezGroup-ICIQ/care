@@ -1,6 +1,6 @@
 """This module contains functions used for loading a pre-trained GNN."""
 
-from torch import load
+from torch import load, device
 from torch.nn import Module
 
 from care.evaluators.gamenet_uq.nets import GameNetUQ
@@ -57,7 +57,7 @@ def load_model(path: str) -> Module:
         config_dict["graph"]["structure"]["surface_order"] = 2
     target_scaling_params = get_mean_std_from_model(path)
     model = GameNetUQ(20, 192)
-    model.load_state_dict(load(path + "/GNN.pth", weights_only=True))
+    model.load_state_dict(load(path + "/GNN.pth", weights_only=True, map_location=device("cpu")))
     model.y_scale_params = {"mean": target_scaling_params[0], "std": target_scaling_params[1]}
     model.eval()
     model.graph_params = deepcopy(config_dict["graph"])

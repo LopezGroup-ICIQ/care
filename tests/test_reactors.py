@@ -1,4 +1,3 @@
-import pytest
 import unittest
 
 from ase import Atoms
