@@ -6,7 +6,7 @@ consequently yields (Y = X*S) are also zero. However, TOF and selectivity
 can be computed, as well as apparent activation energy and reaction orders.
 """
 import os 
-
+os.environ["JULIA_PROJECT"] = "@."
 import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.sparse import isspmatrix_csr, csr_matrix
