@@ -29,11 +29,14 @@ jobs:
         pip install .[mace]
         pip install .[petmad]
         pip install .[orb]
-    - name: Install Julia and dependencies
+    - name: Install Julia 1.11 and dependencies
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.11'
+    - name: Install Julia dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        curl -y -fsSL https://install.julialang.org | sh
         pip install juliacall
         julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("LinearSolve");'
     - name: Lint with flake8
