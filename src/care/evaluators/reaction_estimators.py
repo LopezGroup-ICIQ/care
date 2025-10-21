@@ -88,6 +88,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         if not mlp.is_mlp:
             raise ValueError("MLP must be a machine learning potential.")
         self.mlp = mlp
+        self.device = mlp.device
         self.num_images = num_images
         self.dx = dx
         self.tol = tol

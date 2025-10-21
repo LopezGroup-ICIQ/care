@@ -2,6 +2,7 @@
 
 from os import makedirs
 from os.path import abspath
+import re
 
 from ase.io import write
 from ase import Atoms
@@ -14,79 +15,62 @@ import numpy as np
 from pydot import Subgraph
 from scipy.interpolate import CubicSpline
 
-from care import ElementaryReaction, format_reaction, Intermediate
-from care.crn.graph import max_flux
+from care import ElementaryReaction, format_reaction, Intermediate, ReactionNetwork
 
 
-def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
-    if source is not None:
-        edge_list = max_flux(graph, source)
-        for edge in graph.edges(data=True):
-            if edge in edge_list:
-                edge[2]["max"] = "max"
-            else:
-                edge[2]["max"] = "no"
-    pos = nx.kamada_kawai_layout(graph)
-    nx.set_node_attributes(graph, pos, "pos")
-    plot = nx.drawing.nx_pydot.to_pydot(graph)
+def write_dotgraph(graph: ReactionNetwork, 
+                   filename: str, 
+                   figsize:tuple=(18, 15), 
+                   rankdir: str="TB"):
+    """
+    Write a dot graph representing the reaction network.
+
+    Args:
+        graph (ReactionNetwork): The reaction network graph.
+        filename (str): The output filename for the dot graph.
+        figsize (tuple): Figure size in cm.
+        rankdir (str): Rank direction for the graph layout. Options are "TB" (top-bottom), "LR" (left-right), etc.
+    """
+    g = nx.DiGraph()
+    for node, _ in graph.nodes(data=True):
+        if isinstance(node, Intermediate):
+            g.add_node(node, category="intermediate", formula=node.formula, phase=node.phase)
+        elif isinstance(node, ElementaryReaction):
+            g.add_node(node, category="reaction", r_type=node.r_type, repr_hr=node.repr_hr)
+            for predecessor in graph.predecessors(node):
+                g.add_edge(predecessor, node)
+            for successor in graph.successors(node):
+                g.add_edge(node, successor)
+        else:
+            pass
+    g.remove_node("*")
+    plot = nx.drawing.nx_pydot.to_pydot(g)
     subgraph_source = Subgraph("source", rank="source")
     subgraph_ads = Subgraph("ads", rank="same")
     subgraph_sink = Subgraph("sink", rank="sink")
     subgraph_des = Subgraph("des", rank="same")
     subgraph_same = Subgraph("same", rank="same")
-    subgraph_electro = Subgraph("electro", rank="same")
-    plot.rankdir = "TB"
-    plot.set_dpi(1)
+    plot.rankdir = rankdir
+    plot.set_node_defaults(fontsize="50", fontname="Arial")
+    color_code_species = {"gas": "lightpink", "ads": "wheat"}
     for node in plot.get_nodes():
         node.set_orientation("portrait")
         attrs = node.get_attributes()
+        node.set_penwidth("2")
         if attrs["category"] == "intermediate":
-            formula = node.get_attributes()["molecule"]
-            # formula += "" if attrs["phase"] == "gas" else "*"
-            # for num in re.findall(r"\d+", formula):
-            #     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-            #     formula = formula.replace(num, num.translate(SUB))
-            # node.set_fontname("Arial")
-            node.set_label(formula)
-            node.set_style("filled")
-            if attrs["phase"] != "gas":
-                node.set_fillcolor("wheat")
-            else:
-                node.set_fillcolor("lightpink")
+            formula = attrs["formula"]
+            formula += "" if attrs["phase"] == "gas" else "*"
+            for num in re.findall(r"\d+", formula):
+                SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+                formula = formula.replace(num, num.translate(SUB))
             node.set_shape("ellipse")
-            # node.set_width("4/2.54")
-            # node.set_height("4/2.54")
-            # node.set_fixedsize("true")
-            # node.set_fontsize("120")
-            # if attrs["phase"] == "gas" and float(attrs["molar_fraction"]) > 0.0:
-            #     # set node_shape to cylinder
-            #     node.set_width("5/2.54")
-            #     node.set_height("5/2.54")
-            #     node.set_shape("cylinder")
-            #     node.set_fillcolor("lightcoral")
-            #     node.set_fontsize("150")
-            #     subgraph_source.add_node(node)
-            # elif attrs["phase"] == "gas" and float(attrs["molar_fraction"]) == 0.0:
-            #     subgraph_sink.add_node(node)
-            # else:
-            #     pass
-        elif attrs["category"] == "electro":
-            formula = node.get_attributes()["formula"]
-            node.set_shape("diamond")
             node.set_style("filled")
             node.set_label(formula)
-            node.set_width("2/2.54")
-            node.set_height("2/2.54")
-            node.set_fillcolor("yellow")
-            node.set_fontsize("150")
-            node.set_fontname("Arial")
-            subgraph_electro.add_node(node)
-        else:  # REACTION
+            node.set_fillcolor(color_code_species[attrs["phase"]])
+        elif attrs["category"] == "reaction":
             node.set_shape("square")
             node.set_style("filled")
             node.set_label("")
-            node.set_width("2/2.54")
-            node.set_height("2/2.54")
             if attrs["r_type"] in ("adsorption", "desorption"):
                 if attrs["r_type"] == "adsorption":
                     subgraph_ads.add_node(node)
@@ -99,101 +83,23 @@ def write_dotgraph(graph: nx.DiGraph, filename: str, source: str = None):
             else:
                 node.set_fillcolor("steelblue3")
                 subgraph_same.add_node(node)
-
     for edge in plot.get_edges():
-        if edge.get_source() == "*" or edge.get_destination() == "*":
-            plot.del_edge(edge.get_source(), edge.get_destination())
-            continue
+        edge.set_penwidth("2")      
+        edge.set_arrowsize("1.5")   
+        edge.set_arrowhead("vee")
 
     plot.add_subgraph(subgraph_source)
     plot.add_subgraph(subgraph_sink)
     plot.add_subgraph(subgraph_ads)
     plot.add_subgraph(subgraph_des)
-    plot.add_subgraph(subgraph_electro)
-    # plot.add_subgraph(subgraph_same)
-    # set min distance between nodes
     plot.set_overlap("false")
     plot.set_splines("true")
-    plot.set_nodesep(0.5)
-    plot.set_ranksep(1)
     plot.set_bgcolor("white")
-
-    plot.write_svg("./" + filename)
-    # return width_list
-
-
-def write_dotgraph_undir(graph: nx.DiGraph, filename: str):
-    plot = nx.drawing.nx_pydot.to_pydot(graph)
-    # subgraph_source = Subgraph("source", rank="source")
-    # subgraph_ads = Subgraph("ads", rank="same")
-    # subgraph_sink = Subgraph("sink", rank="sink")
-    # subgraph_des = Subgraph("des", rank="same")
-    # subgraph_same = Subgraph("same", rank="same")
-    # subgraph_electro = Subgraph("electro", rank="same")
-    subgraph_gas = Subgraph("gas", rank="source")
-    subgraph_ads = Subgraph("ads", rank="same")
-    subgraph_surf = Subgraph("surf", rank="same")
-    plot.rankdir = "LR"
-    plot.set_dpi(100)
-    for node in plot.get_nodes():
-        node.set_orientation("portrait")
-        attrs = node.get_attributes()
-        if attrs["category"] == "intermediate":
-            formula = node.get_attributes()["molecule"]
-            # formula += "" if attrs["phase"] == "gas" else "*"
-            # for num in re.findall(r"\d+", formula):
-            #     SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-            #     formula = formula.replace(num, num.translate(SUB))
-            # node.set_fontname("Arial")
-            node.set_label(formula)
-            node.set_style("filled")
-            if attrs["phase"] != "gas":
-                node.set_fillcolor("wheat")
-            else:
-                node.set_fillcolor("lightpink")
-            node.set_shape("ellipse")
-            node.set_width("4/2.54")
-            node.set_height("4/2.54")
-            # node.set_fixedsize("true")
-            node.set_fontsize("200")
-            if attrs["phase"] == "gas":
-                # set node_shape to cylinder
-                node.set_width("5/2.54")
-                node.set_height("5/2.54")
-                node.set_shape("cylinder")
-                node.set_fillcolor("lightcoral")
-                node.set_fontsize("150")
-                subgraph_gas.add_node(node)
-        else:  # REACTION
-            node.set_shape("square")
-            node.set_style("filled")
-            node.set_label("")
-            node.set_width("2/2.54")
-            node.set_height("2/2.54")
-            if attrs["r_type"] in ("adsorption", "desorption"):
-                if attrs["r_type"] == "adsorption":
-                    subgraph_ads.add_node(node)
-                    node.set_fillcolor("tomato1")
-            elif attrs["r_type"] == "eley_rideal":
-                node.set_fillcolor("mediumpurple1")
-            else:
-                node.set_fillcolor("steelblue3")
-                subgraph_surf.add_node(node)
-
-    for edge in plot.get_edges():
-        if edge.get_source() == "*" or edge.get_destination() == "*":
-            plot.del_edge(edge.get_source(), edge.get_destination())
-            continue
-
-
-    plot.add_subgraph(subgraph_gas)
-    plot.add_subgraph(subgraph_ads)
-    plot.add_subgraph(subgraph_surf)
-    plot.set_overlap("false")
-    plot.set_splines("true")
-    plot.set_ratio(0.45)
-    plot.set_bgcolor("white")
-
+    x, y = (figsize[0]/2.54, figsize[1]/2.54)
+    plot.set_size(f"{x},{y}!")
+    plot.set_ratio("fill")
+    plot.set_nodesep("0.15")
+    plot.set_ranksep("0.3")
     plot.write_svg("./" + filename)
 
 
@@ -314,98 +220,6 @@ def visualize_reaction(step: ElementaryReaction,
     return diagram
 
 
-# def draw_graph(self):
-#     """Create a networkx graph representing the network.
-
-#     Returns:
-#         obj:`nx.DiGraph` with all the information of the network.
-#     """
-#     # norm_vals = self.get_min_max()
-#     colormap = cm.inferno_r
-#     # norm = mpl.colors.Normalize(*norm_vals)
-#     node_inf = {
-#         "inter": {"node_lst": [], "color": [], "size": []},
-#         "ts": {"node_lst": [], "color": [], "size": []},
-#     }
-#     edge_cl = []
-#     for node in self.graph.nodes():
-#         sel_node = self.graph.nodes[node]
-#         try:
-#             # color = colormap(norm(sel_node['energy']))
-#             if sel_node["category"] in ("gas", "ads", "surf"):
-#                 node_inf["inter"]["node_lst"].append(node)
-#                 node_inf["inter"]["color"].append("blue")
-#                 # node_inf['inter']['color'].append(mpl.colors.to_hex(color))
-#                 node_inf["inter"]["size"].append(20)
-#             # elif sel_node['category']  'ts':
-#             else:
-#                 if "electro" in sel_node:
-#                     if sel_node["electro"]:
-#                         node_inf["ts"]["node_lst"].append(node)
-#                         node_inf["ts"]["color"].append("red")
-#                         node_inf["ts"]["size"].append(5)
-#                 else:
-#                     node_inf["ts"]["node_lst"].append(node)
-#                     node_inf["ts"]["color"].append("green")
-#                     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
-#                     node_inf["ts"]["size"].append(5)
-#             # elif sel_node['electro']:
-#             #     node_inf['ts']['node_lst'].append(node)
-#             #     node_inf['ts']['color'].append('green')
-#             #     # node_inf['ts']['color'].append(mpl.colors.to_hex(color))
-#             #     node_inf['ts']['size'].append(10)
-#         except KeyError:
-#             node_inf["ts"]["node_lst"].append(node)
-#             node_inf["ts"]["color"].append("green")
-#             node_inf["ts"]["size"].append(10)
-
-#     # for edge in self.graph.edges():
-#     #     sel_edge = self.graph.edges[edge]
-#     # color = colormap(norm(sel_edge['energy']))
-#     # color = mpl.colors.to_rgba(color, 0.2)
-#     # edge_cl.append(color)
-
-#     fig = plt.Figure()
-#     axes = fig.gca()
-#     axes.get_xaxis().set_visible(False)
-#     axes.get_yaxis().set_visible(False)
-#     fig.patch.set_visible(False)
-#     axes.axis("off")
-
-#     pos = nx.drawing.layout.kamada_kawai_layout(self.graph)
-
-#     nx.drawing.draw_networkx_nodes(
-#         self.graph,
-#         pos=pos,
-#         ax=axes,
-#         nodelist=node_inf["ts"]["node_lst"],
-#         node_color=node_inf["ts"]["color"],
-#         node_size=node_inf["ts"]["size"],
-#     )
-
-#     nx.drawing.draw_networkx_nodes(
-#         self.graph,
-#         pos=pos,
-#         ax=axes,
-#         nodelist=node_inf["inter"]["node_lst"],
-#         node_color=node_inf["inter"]["color"],
-#         node_size=node_inf["inter"]["size"],
-#     )
-#     #    node_shape='v')
-#     nx.drawing.draw_networkx_edges(
-#         self.graph,
-#         pos=pos,
-#         ax=axes,
-#         #    edge_color=edge_cl,
-#         width=0.3,
-#         arrowsize=0.1,
-#     )
-#     # add white background to the plot
-#     axes.set_facecolor("white")
-#     fig.tight_layout()
-#     return fig
-
-
 def build_energy_profile(graph: nx.DiGraph, path: list[str]):
     """
     Generate energy profile with the energydiagram package.
@@ -467,6 +281,7 @@ def plot_reaction_profile(energies, title="", num_points=100):
     ax.legend()
     plt.close(fig)
     return fig
+
 
 def visualize_intermediate(x: Intermediate):
     """Visualize the molecule of an intermediate.

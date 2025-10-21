@@ -304,25 +304,21 @@ class DifferentialPFR(ReactorModel):
         """
         if solver == "Julia":
             results = {}
-            try:
-                time0 = time()
-                y, t = self.integrate_jl_cpu(
-                    y0, rtol=rtol, atol=atol, tfin=tfin,
-                    analytical_jacobian=analytical_jacobian, 
-                    impose_nonnegativity=impose_nonnegativity,
-                    log_transform=log_transform, 
-                    precision=precision, 
-                    jl_solver=jl_solver,
-                    maxiters=maxiters,
-                    show_progress=show_progress
-                )
-                results["y"] = y
-                results["t"] = t
-                results["time"] = time() - time0
-                results["status"] = 1
-            except Exception as e:
-                print(f"Error: {e}")
-                results["status"] = 0
+            time0 = time()
+            y, t = self.integrate_jl_cpu(
+                y0, rtol=rtol, atol=atol, tfin=tfin,
+                analytical_jacobian=analytical_jacobian, 
+                impose_nonnegativity=impose_nonnegativity,
+                log_transform=log_transform, 
+                precision=precision, 
+                jl_solver=jl_solver,
+                maxiters=maxiters,
+                show_progress=show_progress
+            )
+            results["y"] = y
+            results["t"] = t
+            results["time"] = time() - time0
+            results["status"] = 1
         elif solver == "Python":
             self.sum_ddt = []
             ode_events = (
@@ -342,6 +338,7 @@ class DifferentialPFR(ReactorModel):
             )
             results["time"] = time() - time0
             results["y"] = results["y"][:, -1]
+            results["t"] = results["t"][-1]
             results["time_ss"] = self.time
             results["sum_ddt"] = self.sum_ddt
         else:

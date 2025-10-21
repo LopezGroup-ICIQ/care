@@ -363,6 +363,7 @@ class ReactionNetwork(nx.DiGraph):
         atol: float = 1e-15,
         rtol: float = 1e-12,
         clip_eact: float = -1.0,
+        rewire_network: bool = True,
         **kwargs
     ) -> dict:
         """
@@ -390,6 +391,8 @@ class ReactionNetwork(nx.DiGraph):
                 eact > clip_eact in both directions will be clipped such that the smallest barrier
                 between the two directions is equal to clip_eact. Useful to reduce stiffness of the ODEs.
                 If set to zero, reaction will be assumed to be barrierless. Default is -1 (no clipping)
+            rewire_network (bool, optional): If True, the network will be rewired based on the reaction rates   
+                obtained from the kinetic simulation. Default is True.
             **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
         Returns:
             results (dict): Dictionary containing the results of the
@@ -544,4 +547,10 @@ class ReactionNetwork(nx.DiGraph):
         for k, v in balance_dict.items():
             results[f"in_div_out_{k}"] = v
         results["clip_eact"] = clip_eact
+
+        if rewire_network:
+            r = results["net_rate"]
+            for i, rxn in enumerate(self.reactions):
+                if r[i] < 0:
+                    self.reverse_reaction(i)
         return results
