@@ -409,13 +409,13 @@ class ReactionNetwork(nx.DiGraph):
             if os.path.isfile(mkm_path):
                 with open(mkm_path, "rb") as f:
                     inputs = load(f)
-                    v = inputs["v"]
-                    T = inputs["T"]
-                    P = inputs["P"]
-                    y0 = inputs["y"]
-                    gas_mask = inputs["gas_mask"]
-                    inters_info = inputs["inters_info"]
-                    inters_formula = inputs["formulas"]
+                v = inputs["v"]
+                T = inputs["T"]
+                P = inputs["P"]
+                y0 = inputs["y"]
+                gas_mask = inputs["gas_mask"]
+                inters_info = inputs["inters_info"]
+                inters_formula = inputs["formulas"]
                 print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
                 uq = True if nruns > 1 else False
                 n_reactions = v.shape[1]
