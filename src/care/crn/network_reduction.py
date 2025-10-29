@@ -1,143 +1,82 @@
-"""
-ReactionNetworkSimplifier class implementation.
-Given a network, it provides a toolbox of methods to simplify, removing and modifying intermediates and reactions.
-"""
+import numpy as np
 
-import networkx as nx
+from scipy.sparse import diags
 
-from care import Intermediate, ReactionNetwork
+from care import ReactionNetwork
+from care.constants import INTER_ELEMS
 
+def obtain_elemental_flux(mkm_data: dict):
+    fluxes = {}
+    def extend_vector(v):  # inters_info vectors miss "*" species at the end (TODO: fix upstream)
+        return np.concatenate([v, [0]])
 
-class ReactionNetworkSimplifier:
-    def __init__(self):
-        pass
+    Rmol = mkm_data["consumption_rate"] # (NC, NR) sparse matrix
+    elements = [x for x in mkm_data["inters_info"].keys() if x in INTER_ELEMS]
+    for elem in elements:
+        elem_vec = extend_vector(mkm_data["inters_info"][elem])
+        d = diags(elem_vec)
+        r_elem = d @ Rmol  # (NC, NR) sparse matrix
+        r_elem_abs = r_elem.copy()
+        r_elem_abs.data = np.abs(r_elem_abs.data)
+        f_elem_vector = 0.5 * np.sum(r_elem_abs, axis=0)
+        fluxes[elem] = np.asarray(f_elem_vector).flatten()
+    return fluxes
 
-    def del_by_elements(
-        self, network: ReactionNetwork, nc: int = None, nh: int = None, no: int = None
-    ) -> None:
-        """
-        Deletes all the intermediates containing the specified number of atoms.
-
-        Parameters
-        ----------
-        network : ReactionNetwork
-            Reaction network.
-        elements : list
-            List of elements to be deleted.
-        """
-        pass
-
-    def del_by_chemical_family(
-        self, network: ReactionNetwork, family: str, closed_shell_only: bool = True
-    ) -> None:
-        """
-        Delete from the reaction network all the intermediates belonging to the specified chemical family.
-        """
-        return None
-
-    def del_by_formula(self, network: ReactionNetwork, formula: str) -> None:
-        """
-        Deletes all the intermediates containing the formula.
-
-        Parameters
-        ----------
-        network : ReactionNetwork
-            Reaction network.
-        formula : str
-            Chemical formula.
-        """
-        for inter in list(network.intermediates.values()):
-            if formula in inter.molecule.get_chemical_formula():
-                network.del_inter(inter.code)
-        return None
-
-    def del_by_code(self, network: ReactionNetwork, code: str) -> None:
-        """
-        Deletes the intermediate with the given code.
-
-        Parameters
-        ----------
-        network : ReactionNetwork
-            Reaction network.
-        code : str
-            Code of the intermediate to be deleted.
-        """
-        network.del_inter(code)
-        return None
-
-    def del_by_energy(
-        self, network: ReactionNetwork, energy: float, tol: float = 0.0
-    ) -> None:
-        """
-        Deletes all the elementary reactions whose energy is greater than the given energy.
-
-        Parameters
-        ----------
-        network : ReactionNetwork
-            Reaction network.
-        energy : float
-            Energy threshold.
-        tol : float, optional
-            Tolerance, by default 0.0
-        """
-        for rxn in list(network.reactions.values()):
-            if rxn.energy > energy - tol:
-                network.del_rxn(rxn.code)
-        return None
-
-    def del_by_barrier(
-        self, network: ReactionNetwork, barrier: float, tol: float = 0.0
-    ) -> None:
-        """
-        Deletes all the elementary reactions whose barrier is greater than the given barrier.
-
-        Parameters
-        ----------
-        network : ReactionNetwork
-            Reaction network.
-        barrier : float
-            Barrier threshold.
-        tol : float, optional
-            Tolerance, by default 0.0
-        """
-        for rxn in list(network.reactions.values()):
-            if rxn.barrier > barrier - tol:
-                network.del_rxn(rxn.code)
-        return None
-
-
-def is_alkane(inter: Intermediate) -> bool:
+def prune_by_elemental_flux(
+    crn: ReactionNetwork,
+    element_flux_dict: dict[str, np.ndarray],
+    relative_threshold: float = 0.001, 
+    floor: float = 1e-30,
+) -> ReactionNetwork:
     """
-    Checks if the given intermediate is an alkane.
+    Prunes a ReactionNetwork, keeping only reactions with an elemental
+    flux above a given relative threshold for ANY of the provided elements.
 
-    Parameters
-    ----------
-    inter : Intermediate
-        Intermediate.
+    Args:
+        crn: The original ReactionNetwork.
+        element_flux_vectors: A list of 1D arrays (n_reactions), e.g.,
+                              [F_C_vector, F_H_vector, F_O_vector].
+        relative_threshold: The cutoff, relative to *each element's*
+                            own max flux. (e.g., 0.001 keeps reactions
+                            > 0.1% of max C-flux OR > 0.1% of max H-flux).
+        floor: Minimum absolute threshold to avoid zero cutoffs.
 
-    Returns
-    -------
-    bool
-        True if the intermediate is an alkane, False otherwise.
+    Returns:
+        A new, pruned ReactionNetwork.
+
+    Notes:
+    - Ensure that the CRN is correctly rewired after the kinetic simulation
     """
-    return set(inter.molecule.get_chemical_symbols()) == set(["C", "H"])
+    if not element_flux_dict:
+        print("Warning: No elemental flux vectors provided. Returning empty network.")
+        return ReactionNetwork([])
 
+    # 1. Calculate the absolute threshold for each element
+    absolute_thresholds = {}
+    for elem, vec in element_flux_dict.items():
+        max_flux = np.max(vec)
+        if max_flux < floor:  # Avoid division by zero
+            print(f"Warning: Max elemental flux for element {elem} is zero.")
+            absolute_thresholds[elem] = floor
+        else:
+            absolute_thresholds[elem] = max_flux * relative_threshold
 
-def find_flux(graph: nx.DiGraph, source: str) -> nx.Digraph:
-    """
-    Finds the flux of the given source node.
+    # 2. Iterate through reactions and check all elemental fluxes
+    reactions_to_keep = []
+    for j, rxn in enumerate(crn.reactions):
+        keep_this_reaction = False
+        
+        # Check if reaction 'j' is important for ANY element
+        for elem, vec in element_flux_dict.items():
+            if vec[j] > absolute_thresholds[elem]:
+                keep_this_reaction = True
+                break  # Found a reason to keep it, move to next reaction
+        
+        if keep_this_reaction:
+            reactions_to_keep.append(rxn)
 
-    Parameters
-    ----------
-    graph : nx.DiGraph
-        Graph.
-    source : str
-        Source node.
+    print(f"Original network: {crn.num_reactions} reactions")
+    print(f"Pruned network:   {len(reactions_to_keep)} reactions "
+          f"(> {relative_threshold:.1e} relative flux for any element)")
 
-    Returns
-    -------
-    nx.DiGraph
-        Flux graph.
-    """
-
-    #
+    return ReactionNetwork(reactions_to_keep)
