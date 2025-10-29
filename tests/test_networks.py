@@ -7,7 +7,7 @@ from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, Bond
 from care.constants import INTER_ELEMS
 
 
-inters, steps = gen_blueprint(2, 2, False, True, True)
+inters, steps = gen_blueprint(1, 2, None, False, True, True)
 net = ReactionNetwork(steps)
 
 
@@ -91,6 +91,36 @@ class TestElementaryReaction(unittest.TestCase):
                     self.assertGreaterEqual(reaction.e_act, reaction.e_rxn[0])
                 else:
                     self.assertGreaterEqual(reaction.e_act, 0)
+
+    def test_crn_size(self):
+        """
+        Check that the number of steps and intermediates in the CRN are as expected
+        """
+        expected_gas_species = 10
+        expected_surface_species = 28
+        expected_adsorptions = 12
+        expected_desorptions = 0
+        expected_bond_breakings = 50
+        expected_bond_formations = 0
+        expected_rearrangements = 7
+        expected_pcets = 39
+        self.assertEqual(
+            len(inters),
+            expected_gas_species + expected_surface_species,
+        )
+        self.assertEqual(len(steps), sum([
+            expected_adsorptions,
+            expected_bond_breakings,
+            expected_bond_formations,
+            expected_rearrangements,
+            expected_pcets,
+        ]))
+        self.assertEqual(expected_adsorptions, len([step for step in steps if isinstance(step, (Adsorption))]))
+        self.assertEqual(expected_pcets, len([step for step in steps if isinstance(step, PCET)]))
+        self.assertEqual(expected_rearrangements, len([step for step in steps if isinstance(step, Rearrangement)]))
+        self.assertEqual(expected_bond_breakings, len([step for step in steps if isinstance(step, BondBreaking)]))
+        self.assertEqual(expected_bond_formations, len([step for step in steps if isinstance(step, BondFormation)]))
+        self.assertEqual(expected_desorptions, len([step for step in steps if isinstance(step, Desorption)]))
 
     def test_addition(self):
         """
