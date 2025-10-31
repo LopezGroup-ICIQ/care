@@ -28,6 +28,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         dtype: str = "float32",
         num_configs: int = 1,
         del_traj: bool = True,
+        logfile: str = None,
         **kwargs
     ):
         """Interface to the ORB potentials.
@@ -47,6 +48,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
             num_configs (int): The number of configurations to consider for the adsorbed phase. Default is 1.
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
+            logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
         from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
         from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
@@ -68,6 +70,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         self.max_steps = max_steps
         self.num_configs = num_configs
         self.del_traj = del_traj
+        self.logfile = logfile
         self.is_mlp = True
         self.get_slab_energy()
 
@@ -85,7 +88,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
     def get_slab_energy(self):
         self.surface.slab.calc = self.calc
         opt = BFGS(self.surface.slab, 
-                   logfile=None)
+                   logfile=self.logfile)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
         if self.del_traj:
@@ -121,7 +124,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
 
                 molec_eval.calc = self.calc
                 opt = BFGS(molec_eval, 
-                        logfile=None)
+                        logfile=self.logfile)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 intermediate.ads_configs = {
                     intermediate.phase: {
@@ -140,7 +143,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                         break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption,
-                                logfile=None)
+                                logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
@@ -163,10 +166,12 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                     intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
-        else:
+        elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
             opt = BFGS(intermediate,
-                       logfile=None)
+                       logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:
                 intermediate.calc = None
+        else:
+            return NotImplementedError("Input must be an Intermediate or Atoms object.")

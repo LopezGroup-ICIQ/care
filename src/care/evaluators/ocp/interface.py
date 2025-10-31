@@ -15,29 +15,30 @@ from care.evaluators.utils import atoms_to_data
 class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
-        surface: Surface,
+        surface: Surface = None,
         name: str = 'EquiformerV2-31M-S2EF-OC20-All+MD',
-        cpu: bool = True,
+        device: str = 'cpu',
         fmax: float = 0.05,
         max_steps: int = 5,
         num_configs: int = 1,
         del_traj: bool = True,
+        logfile: str = None,
         **kwargs
     ):
         """Interface for the models from the Open Catalyst Project
         (OCP) for predicting the energy of an intermediate on a surface.
 
         Args:
-
-        surface (Surface): The surface on which the reaction network is adsorbed.
-        name (str): The name of the model to use among the checkpoints available in fairchem (OC20 and OC22)
-        cpu (bool): Whether to use the CPU for the calculation. Default is True
-        fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
-        max_steps (int): The maximum number of steps for the relaxation. Default is 100.
-        num_configs (int): The number of configurations to consider for the adsorbed phase. Default to 1.
-        del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
-                         note that this option may imply 10e6x larger CRN files!
-
+            surface (Surface): The surface on which the reaction network is adsorbed.
+            name (str): The name of the model to use among the checkpoints available in fairchem (OC20 and OC22)
+            device (str): The device to use for the calculation. 'cpu' or 'cuda'.
+            fmax (float): The maximum force allowed on the atoms. Default is 0.05 eV/Angstrom.
+            max_steps (int): The maximum number of steps for the relaxation. Default is 100.
+            num_configs (int): The number of configurations to consider for the adsorbed phase. Default to 1.
+            del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
+                            note that this option may imply 10e6x larger CRN files!
+            logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
+        
         Note:
 
         - The intermediate energy is stored as E_tot - E_slab in eV.
@@ -48,8 +49,9 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.model_name = name
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')
         self.surface = surface
+        self.device = device
+        cpu = True if device == 'cpu' else False
         self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
-        self.device = "cpu" if cpu else "cuda"
         self.num_params = sum([p.numel() for p in self.calc.trainer.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
@@ -57,9 +59,10 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
         self.eref = {'C': -7.282, 'H': -3.477, 'O': -7.204, 'N': -8.083}  # eV
         self.is_mlp = True
         self.del_traj = del_traj
+        self.logfile = logfile
 
     def __repr__(self) -> str:
-        return f'{self.model_name} from Meta fairchem models'
+        return f'{self.model_name} from Meta FairChemV1 models'
 
     def __call__(self,
                  intermediate: Intermediate,
@@ -104,6 +107,8 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                     }
                 }
             elif intermediate.phase == "ads":  # adsorbed
+                if self.surface is None:
+                    raise ValueError("Surface must be provided for adsorbed phase evaluation.")
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
                 for i, adsorption in enumerate(adsorptions):
@@ -111,7 +116,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                         break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption, 
-                            logfile=None)
+                            logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
@@ -135,10 +140,12 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                     intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
-        else:
+        elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
             opt = BFGS(intermediate,
-                       logfile=None)
+                       logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:
                 intermediate.calc = None
+        else:
+            return NotImplementedError("Input must be an Intermediate or Atoms object.")

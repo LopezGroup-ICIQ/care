@@ -17,7 +17,7 @@ from care.evaluators.utils import atoms_to_data
 class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
-        surface: Surface,
+        surface: Surface = None,
         size: str = "large",
         device: str = "cpu",
         fmax: float = 0.05,
@@ -26,6 +26,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         num_configs: int = 1,
         dispersion: bool=True,
         del_traj: bool = True,
+        logfile: str = None,
         **kwargs
     ):
         """Interface to the MACE models family.
@@ -41,6 +42,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             dispersion (bool): Include dispersion correction. Defaults to True.
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
+            logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
         from mace.calculators import mace_mp, MACECalculator
 
@@ -61,8 +63,10 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.max_steps = max_steps
         self.num_configs = num_configs
         self.del_traj = del_traj
+        self.logfile = logfile
         self.is_mlp = True
-        self.get_slab_energy()
+        if self.surface is not None:
+            self.get_slab_energy()
 
     def __repr__(self) -> str:
         return f'MACE-MP-0 potential ({self.size}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
@@ -121,7 +125,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
 
                 molec_eval.calc = self.calc
                 opt = BFGS(molec_eval, 
-                        logfile=None)
+                        logfile=self.logfile)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 intermediate.ads_configs = {
                     intermediate.phase: {
@@ -133,6 +137,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                 if self.del_traj:
                     molec_eval.calc = None
             elif intermediate.phase == "ads":  # adsorbed
+                if self.surface is None:
+                    raise ValueError("Surface must be provided for adsorbed phase evaluation.")
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
                 for i, adsorption in enumerate(adsorptions):
@@ -140,7 +146,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                         break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption, 
-                            logfile=None)
+                            logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
@@ -164,10 +170,12 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
-        else:
+        elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
             opt = BFGS(intermediate,
-                       logfile=None)
+                       logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:
                 intermediate.calc = None
+        else:
+            return NotImplementedError("Input must be an Intermediate or Atoms object.")

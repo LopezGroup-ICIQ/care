@@ -28,6 +28,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
         num_configs: int = 1,
         dispersion: bool = False,
         del_traj: bool = True,
+        logfile: str = None,
         **kwargs
     ):
         """Interface to the SevenNet potentials.
@@ -48,6 +49,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
                 If True, the device must be "cuda" (GPU) as currently CPU+D3 is not supported.
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
+            logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
         from sevenn.calculator import SevenNetCalculator, SevenNetD3Calculator
         
@@ -86,6 +88,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
         self.max_steps = max_steps
         self.num_configs = num_configs
         self.del_traj = del_traj
+        self.logfile = logfile
         self.is_mlp = True
         self.get_slab_energy()
 
@@ -106,7 +109,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
     def get_slab_energy(self):
         self.surface.slab.calc = self.calc
         opt = BFGS(self.surface.slab, 
-                   logfile=None)
+                   logfile=self.logfile)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
         if self.del_traj:
@@ -140,7 +143,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
 
                 molec_eval.calc = self.calc
                 opt = BFGS(molec_eval, 
-                        logfile=None)
+                        logfile=self.logfile)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 intermediate.ads_configs = {
                     intermediate.phase: {
@@ -159,7 +162,7 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
                         break
                     adsorption.calc = self.calc
                     opt = BFGS(adsorption, 
-                            logfile=None)
+                            logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
@@ -182,10 +185,12 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
                     intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
-        else:
+        elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
             opt = BFGS(intermediate,
-                       logfile=None)
+                       logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:
                 intermediate.calc = None
+        else:
+            return NotImplementedError("Input must be an Intermediate or Atoms object.")
