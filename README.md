@@ -16,69 +16,108 @@ CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and man
 
 ## 🪛 Installation
 
-Installing CARE requires Conda and Git locally installed. The following instructions are optimized to install CARE on Linux and macOS machines. Installation time estimates are provided for each step on an Ubuntu 24.04.01 (x86_64, 16 GB RAM, internet speed 170 Mbps) and macOS 15.3.1 (arm64, 8 GB RAM, Internet speed 40 Mbps).
+We recommend installing `care-crn` from PyPI. A developer installation is also available for those who wish to contribute.
 
-⏲ Total installation time estimates: ~18min (Ubuntu), ~11min (macOS).
+### 1\. Standard Installation (from PyPI)
 
-💾 Required disk space: ~6.5 GB (Conda environment), ~4.3 GB (Julia+dependencies)  
-
-1. Clone the repo:
+This is the fastest way to get `care-crn` and its core dependencies.
 
 ```bash
-git clone git@github.com:LopezGroup-ICIQ/care.git
+pip install care-crn
 ```
 
-⏲ 4s (Ubuntu), 26s (macOS)
+-----
 
-2. Create a conda environment with Python 3.12 and activate it:
+### 2\. (Optional) Install External Evaluators & Runtimes
 
-```bash
-conda create -n care_env python==3.12
-conda activate care_env
-```
+`care-crn` interfaces with several external tools. These must be installed separately.
 
-⏲ 8s (Ubuntu), 9s (macOS)
+#### Python Evaluators (OCP, MACE, etc.)
 
-3. Enter the repo and install the package with pip:
+You can install the Python wrappers for these evaluators using `pip`'s "extras" syntax.
 
-```bash
-cd care
-python3 -m pip install .
-```
-⏲ 4min20s (Ubuntu), 1min50s (macOS)
+1.  **For OCP ([FAIRChem-v1](https://github.com/FAIR-Chem/fairchem)):**
+    First, install `torch_sparse` and `torch_scatter` by following the instructions on the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page. Then, run:
 
-*NOTE: macOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
+    ```bash
+    pip install care-crn[ocp]
+    ```
 
-4. (optional) To interface to energy evaluators from [FAIRChem-v1](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
+2.  **For other evaluators:**
+    You can install [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
 
-```bash
-python3 -m pip install .[ocp]
-```
+    ```bash
+    pip install care-crn[mace]
+    pip install care-crn[petmad]
+    pip install care-crn[orb]
+    pip install care-crn[sevennet]
+    ```
 
-⏲ 17s (Ubuntu), 19s (macOS)
+    Or all at once:
 
-5. (optional) To employ [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) potentials as energy evaluators, run:
+    ```bash
+    pip install care-crn[ocp,mace,petmad,orb,sevennet]
+    ```
 
-```bash
-python3 -m pip install .[mace]
-python3 -m pip install .[petmad]
-python3 -m pip install .[orb]
-python3 -m pip install .[sevennet]
-```
+    *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
+    both evaluators should work correctly if the installation order shown above is followed.*
 
-⏲ 20s (Ubuntu), 8s (macOS)
+#### Julia (for Microkinetics)
 
-*NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
-both evaluators should work correctly if the installation order shown above is followed.*
-
-6. To run microkinetic simulations with [Julia](https://julialang.org/), install it together with the [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) ODE package.
+To run microkinetic simulations with [Julia](https://julialang.org/), install it and the required packages:
 
 ```bash
+# Install Julia and add version 1.11
 curl -fsSL https://install.julialang.org | sh -s -- --yes && ~/.juliaup/bin/juliaup add 1.11
+
+# Add DifferentialEquations.jl and LinearSolve.jl
 julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("LinearSolve");'
 ```
 
-⏲ 13min (Ubuntu), 9min (macOS)
+*⏲ Julia setup time estimate: \~13min (Ubuntu), \~9min (macOS)*
+
+-----
+
+### 3\. (Optional) Developer Installation (from Source)
+
+If you want to contribute to the code or use the very latest (unstable) version, you can install from the source.
+
+  * ⏲ **Total installation time estimates:** \~18min (Ubuntu), \~11min (macOS).
+  * 💾 **Required disk space:** \~6.5 GB (Conda environment), \~4.3 GB (Julia+dependencies)
+
+<!-- end list -->
+
+1.  **Clone the repo:**
+
+    ```bash
+    git clone git@github.com:LopezGroup-ICIQ/care.git
+    cd care
+    ```
+
+2.  **Create a conda environment:**
+
+    ```bash
+    conda create -n care_env python==3.12
+    conda activate care_env
+    ```
+
+3.  **Install the package in "editable" mode:**
+    (The `-e` flag links the installation to your source code)
+
+    ```bash
+    python3 -m pip install -e .
+    ```
+
+    *NOTE: macOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
+
+4.  **Install optional dependencies:**
+    (Note the syntax is slightly different from the PyPI install)
+
+    ```bash
+    python3 -m pip install -e .[ocp]
+    python3 -m pip install -e .[mace]
+    # etc.
+    ```
 
 ## 💥 Usage
 
