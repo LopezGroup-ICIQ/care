@@ -1,3 +1,4 @@
+[![PyPI version](https://img.shields.io/pypi/v/care-crn.svg)](https://pypi.org/project/care-crn/)
 [![DOI](https://img.shields.io/badge/DOI-10.26434%2Fchemrxiv--2024--bfv3d-blue)](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.12-blue.svg)
@@ -26,13 +27,11 @@ This is the fastest way to get `care-crn` and its core dependencies.
 pip install care-crn
 ```
 
------
+### 2\. Install External Evaluators & Runtimes
 
-### 2\. (Optional) Install External Evaluators & Runtimes
+`care-crn` interfaces with several external ML Interatomic Potentials (MLIPs). These must be installed separately.
 
-`care-crn` interfaces with several external tools. These must be installed separately.
-
-#### Python Evaluators (OCP, MACE, etc.)
+#### MLIP Evaluators (OCP, MACE, etc.)
 
 You can install the Python wrappers for these evaluators using `pip`'s "extras" syntax.
 
@@ -62,7 +61,7 @@ You can install the Python wrappers for these evaluators using `pip`'s "extras" 
     *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
     both evaluators should work correctly if the installation order shown above is followed.*
 
-#### Julia (for Microkinetics)
+#### Julia (Microkinetic modeling)
 
 To run microkinetic simulations with [Julia](https://julialang.org/), install it and the required packages:
 
