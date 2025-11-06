@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=78.1.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "care"
+name = "care-crn"
 version = "0.1.0"
 requires-python = "==3.12.*"
 dependencies = [
@@ -33,13 +33,13 @@ dependencies = [
 ]
 
 authors = [
-  {name = "Santiago Morandi", email = "smorandi@iciq.es"},
-  {name = "Oliver Loveday", email = "oloveday@iciq.es"},
+  {name = "Santiago Morandi", email = "santiagomorandi@yahoo.it"},
+  {name = "Oliver Loveday", email = "oliverlovros@gmail.com"},
   {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
 maintainers = [
-  {name = "Santiago Morandi", email = "smorandi@iciq.es"},
-  {name = "Oliver Loveday", email = "oloveday@iciq.es"},
+  {name = "Santiago Morandi", email = "santiagomorandi@yahoo.it"},
+  {name = "Oliver Loveday", email = "oliverlovros@gmail.com"},
   {name = "Pol Sanz Berman", email = "psanz@iciq.es"}
 ]
 description = "Chemical Reaction Network generator for heterogenous catalysis"
