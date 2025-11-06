@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "care-crn"
-version = "0.1.1"
+version = "0.1.2"
 requires-python = "==3.12.*"
 dependencies = [
   "acat==1.6.8",
@@ -64,7 +64,7 @@ petmad = [
 ]
 orb =  [
     "orb-models == 0.4.2", 
-    "pynanoflann @ git+https://github.com/u1234x1234/pynanoflann.git@0.0.8",
+    "pynanoflann == 0.0.8",
 ]
 sevennet = [
     "sevenn == 0.11.2"
@@ -74,6 +74,7 @@ dev = ["pytest", "pytest-cov"]
 
 [project.urls]
 Repository = "https://github.com/LopezGroup-ICIQ/care"
+Bugtracker = "https://github.com/LopezGroup-ICIQ/care/issues"
 
 [project.scripts]
 "care_run" = "care.scripts.care_script:main"
