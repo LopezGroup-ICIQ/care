@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "care-crn"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = "==3.12.*"
 dependencies = [
   "acat==1.6.8",
@@ -24,7 +24,7 @@ dependencies = [
   "scipy==1.15.1",
   "setuptools==70.0.0",
   "numba",
-  "energydiagram @ git+https://github.com/giacomomarchioro/PyEnergyDiagrams",
+  "energydiagram",
   "rich",
   "py-cpuinfo",
   "psutil",
