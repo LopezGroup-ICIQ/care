@@ -67,10 +67,10 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
     def __call__(self,
                  intermediate: Intermediate,
                  **kwargs) -> None:
-        if isinstance(intermediate, Intermediate):
+        if isinstance(intermediate, (Intermediate, Atoms)):
             self.eval(intermediate, **kwargs)
         else:
-            return NotImplementedError("Input must be an Intermediate object.")
+            return NotImplementedError("Input must be a CARE Intermediate or ASE Atoms object.")
         
     @property
     def adsorbate_domain(self):

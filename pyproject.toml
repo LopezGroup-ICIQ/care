@@ -29,6 +29,7 @@ dependencies = [
   "py-cpuinfo",
   "psutil",
   "dask[complete]==2025.3.0",
+  "juliacall==0.9.27"
 ]
 
 authors = [

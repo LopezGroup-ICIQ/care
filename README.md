@@ -49,7 +49,7 @@ python3 -m pip install .
 
 *NOTE: macOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
 
-4. (optional) To interface to energy evaluators from [Open Catalyst Project](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
+4. (optional) To interface to energy evaluators from [FAIRChem-v1](https://github.com/FAIR-Chem/fairchem), first install `torch_sparse` and `torch_scatter` following the instructions in the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page depending on your device settings. Then, just run:
 
 ```bash
 python3 -m pip install .[ocp]
@@ -71,21 +71,14 @@ python3 -m pip install .[sevennet]
 *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
 both evaluators should work correctly if the installation order shown above is followed.*
 
-6. (optional) Install [Julia](https://julialang.org/) and the ODE packages required to perform kinetic simulations. As alternative, simulations can run with the implemented SciPy solver.
+6. To run microkinetic simulations with [Julia](https://julialang.org/), install it together with the [DifferentialEquations.jl](https://github.com/SciML/DifferentialEquations.jl) ODE package.
 
 ```bash
-curl -fsSL https://install.julialang.org | sh
-python3 -m pip install juliacall  # Python-Julia bridge
+curl -fsSL https://install.julialang.org | sh -s -- --yes && ~/.juliaup/bin/juliaup add 1.11
 julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("LinearSolve");'
 ```
 
 ⏲ 13min (Ubuntu), 9min (macOS)
-
-*NOTE: For some systems Julia may present some error while using sh. If that is the case, please install Julia by running instead:*
-
-```bash
-curl -fsSL https://install.julialang.org | sh -s -- -y
-```
 
 ## 💥 Usage
 
