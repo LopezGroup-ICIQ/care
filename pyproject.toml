@@ -70,7 +70,12 @@ sevennet = [
     "sevenn == 0.11.2"
 ]
 
-dev = ["pytest", "pytest-cov"]
+dev = ["pytest", 
+       "pytest-cov", 
+       "coverage", 
+       "codecov", 
+       "flake8"
+]
 
 [project.urls]
 Repository = "https://github.com/LopezGroup-ICIQ/care"
