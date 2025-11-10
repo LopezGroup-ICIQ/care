@@ -1,6 +1,6 @@
 import unittest
 from random import randint
-from typing import NoReturn
+
 from ase import Atoms
 from scipy.sparse import csr_matrix
 import numpy as np
