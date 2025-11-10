@@ -345,6 +345,7 @@ class DifferentialPFR(ReactorModel):
             raise ValueError("Invalid solver. Choose between 'Python' or 'Julia'.")
         results["forward_rate"] = self.forward_rate(results["y"])
         results["backward_rate"] = self.backward_rate(results["y"])
+        results["reversibility"] = results["forward_rate"] / results["backward_rate"]
         results["net_rate"] = self.net_rate(results["y"])
         results["consumption_rate"] = self.v_sparse.multiply(results["net_rate"])
         results["total_consumption_rate"] = results["consumption_rate"].sum(axis=1)

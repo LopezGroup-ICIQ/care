@@ -1,6 +1,10 @@
 import unittest
 from random import randint
+from typing import NoReturn
 from ase import Atoms
+from scipy.sparse import csr_matrix
+import numpy as np
+from networkx import DiGraph
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMechanism, gen_blueprint
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
@@ -65,7 +69,10 @@ class TestElementaryReaction(unittest.TestCase):
             ]
             if len(gas_phase) == 1:
                 good += 1
+            assert hasattr(step, "adsorbate")
+            assert hasattr(step, "adsorbate_mass")
         self.assertEqual(good, len(adsorption_steps))
+        
 
     def test_rearrengement(self):
         """
@@ -235,15 +242,42 @@ class TestIntermediate(unittest.TestCase):
 
 class TestReactionNetwork(unittest.TestCase):
     def test_reaction_network(self):
+        self.assertIsInstance(net, DiGraph)
+        self.assertGreater(net.number_of_edges(), 2 * len(net))
+        self.assertEqual(net.number_of_nodes(), len(steps)+len(inters)+1+3)
         self.assertEqual(len(net), len(steps))
         self.assertEqual(len(net.intermediates), len(inters))
+        self.assertEqual(net.ncc, 1)
+        self.assertEqual(net.noc, 2)
+        self.assertTrue("*" in net)
+        self.assertIsNone(net.get_reaction_table())
 
     def test_getitem(self):
-        """
-        Check that the __getitem__ method works correctly
-        """
         random_step = net[randint(0, len(steps) - 1)]
         self.assertIsInstance(random_step, ElementaryReaction)
         random_inter_key = list(inters.keys())[randint(0, len(inters) - 1)]
         random_inter = net[random_inter_key]
         self.assertIsInstance(random_inter, Intermediate)
+
+    def test_stoichiometry(self):
+        self.assertIsInstance(net.v, csr_matrix)
+        self.assertEqual(net.v.shape, (len(net.intermediates)+1, len(steps)))
+
+    def test_element_species_matrix(self):
+        self.assertIsInstance(net.es, np.ndarray)
+        self.assertEqual(net.es.shape, (len(INTER_ELEMS)-1, len(net.intermediates)+1))
+
+    def test_reverse(self):
+        i = randint(0, len(steps) - 1)
+        reactants, products = net[i].reactants, net[i].products
+        net.reverse_reaction(i)
+        self.assertEqual(net[i].reactants, products)
+        self.assertEqual(net[i].products, reactants)
+        net.reverse_reaction(i)
+        self.assertEqual(net[i].reactants, reactants)
+        self.assertEqual(net[i].products, products)
+
+    def test_hubs(self):
+        hubs = net.get_hubs(6)
+        self.assertIsInstance(hubs, dict)
+        self.assertEqual(list(hubs.values())[0], max(list(hubs.values())))
