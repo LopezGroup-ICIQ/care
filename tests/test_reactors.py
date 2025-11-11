@@ -7,7 +7,7 @@ from scipy.sparse import csr_matrix
 from care import Intermediate
 from care.reactors import DifferentialPFR
 from care.reactors.differential_pfr import SparsePFR
-from care.reactors.utils import analyze_elemental_balance
+from care.reactors.utils import analyze_elemental_balance, net_rate
 
 # Test reaction mechanism
 # R1) CO(g) + * -> CO*
@@ -141,6 +141,9 @@ class TestDifferentialPFR(unittest.TestCase):
         rf = pfr.forward_rate(y0)
         rb = pfr.backward_rate(y0)
         rn = pfr.net_rate(y0)
+        vf_data, vf_indices, vf_indptr = pfr.v_forward_sparse.data, pfr.v_forward_sparse.indices, pfr.v_forward_sparse.indptr
+        vb_data, vb_indices, vb_indptr = pfr.v_backward_sparse.data, pfr.v_backward_sparse.indices, pfr.v_backward_sparse.indptr
+        rn_numba = net_rate(y0, kd, kr, vf_data, vf_indices, vf_indptr, vb_data, vb_indices, vb_indptr)
         np.testing.assert_allclose(rf, rf_correct, rtol=1e-8, atol=1e-12,
             err_msg=f"Forward rates differ.\nExpected: {rf_correct}\nGot: {rf}")
 
@@ -149,6 +152,9 @@ class TestDifferentialPFR(unittest.TestCase):
 
         np.testing.assert_allclose(rn, rn_correct, rtol=1e-8, atol=1e-12,
             err_msg=f"Net rates differ.\nExpected: {rn_correct}\nGot: {rn}")
+        
+        np.testing.assert_allclose(rn, rn_numba, rtol=1e-8, atol=1e-12,
+            err_msg=f"Net rates evaluated with numba and numpy differ.\nExpected: {rn}\nGot: {rn_numba}")
 
     def test_rates_jl(self):
         net_rates = SparsePFR.sparse_net_rate(y0, p)

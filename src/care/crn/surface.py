@@ -47,7 +47,7 @@ def parse_hkl_string(hkl_str):
         raise ValueError(f"Invalid hkl string format: {hkl_str}")
     
 
-def bottom_half_indices(slab):
+def bottom_half_indices(slab: Atoms) -> np.ndarray[int]:
     z = slab.positions[:, 2]
     sorted_indices = np.argsort(z)
     n = len(slab)

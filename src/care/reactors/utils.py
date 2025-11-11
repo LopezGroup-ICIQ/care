@@ -10,13 +10,13 @@ from care.constants import R
 
 
 @njit
-def net_rate(y, kd, kr,
-             sf_data, sf_indices, sf_indptr,
-             sb_data, sb_indices, sb_indptr):
+def net_rate(y: np.ndarray, kd: np.ndarray, kr: np.ndarray,
+             sf_data: np.ndarray, sf_indices: np.ndarray, sf_indptr: np.ndarray,
+             sb_data: np.ndarray, sb_indices: np.ndarray, sb_indptr: np.ndarray) -> np.ndarray:
     rates = np.empty_like(kd)
     n_reactions = kd.shape[0]
 
-    for i in range(n_reactions):  # loop over reactions
+    for i in range(n_reactions):
         forward_product = 1.0
         backward_product = 1.0
 

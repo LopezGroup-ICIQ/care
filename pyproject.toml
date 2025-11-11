@@ -22,7 +22,6 @@ dependencies = [
   "rdkit==2023.9.6",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
-  "setuptools==70.0.0",
   "numba",
   "energydiagram",
   "rich",
