@@ -17,14 +17,9 @@ from torch_geometric.loader import DataLoader
 
 from care import Intermediate, ElementaryReaction, Surface
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import MODEL_PATH, ADSORBATE_ELEMS, METALS
 from care.adsorption import place_adsorbate
 from care.constants import INTER_ELEMS, K_B, METAL_STRUCT_DICT
 from care.crn.utils.electro import Proton, Electron, Water
-from care.evaluators.gamenet_uq.functions import load_model
-from care.evaluators.gamenet_uq.graph import atoms_to_data
-from care.evaluators.gamenet_uq.graph_filters import extract_adsorbate
-from care.evaluators.gamenet_uq.graph_tools import pyg_to_nx
 from care.evaluators.utils import connectivity_signature
 from care.crn.templates import BondBreaking
 
@@ -53,8 +48,10 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 if True, the configurations will be sorted in ascending order of uncertainty in the ads_configs attribute.
             torch_compile (bool, optional): Whether to compile the model using Torch. Defaults to False.
         """
+        from gamenet_uq import atoms_to_data, load_model
+        
 
-        self.model = load_model(MODEL_PATH)
+        self.model = load_model()
         if torch_compile:
             self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
@@ -83,11 +80,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
     @property
     def adsorbate_domain(self):
-        return ADSORBATE_ELEMS
+        return ["C", "H", "O", "N", "S"]
 
     @property
     def surface_domain(self):
-        return METALS
+        return ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 
     def __repr__(self) -> str:
         return (
@@ -109,6 +106,8 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         bool
             True if the intermediate is in the database, False otherwise.
         """
+        from gamenet_uq import atoms_to_data
+
         if self.db is None:
             return False
 
@@ -277,7 +276,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             U=U,
             **kwargs
         )
-        self.model = load_model(MODEL_PATH)
+        self.model = load_model()
         if torch_compile:
             self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
@@ -288,10 +287,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.supports_batching = True
 
     def adsorbate_domain(self):
-        return ADSORBATE_ELEMS
+        return ["C", "H", "O", "N", "S"]
 
     def surface_domain(self):
-        return METALS
+        return ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
 
     def __repr__(self) -> str:
         return (
@@ -418,6 +417,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Returns:
             Data: graph representing the TS graph
         """
+        from gamenet_uq.graph_filters import extract_adsorbate
+        from gamenet_uq.graph_tools import pyg_to_nx
         bond = tuple(step.r_type.split("-"))
 
         # 1) Select initial state A*, convert to full adsorption graph, and find potential edges
@@ -464,7 +465,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 break
 
         # 3) Assign each adsorbate node to one of the two fragments B* or C*
-        adsorbate_node_indices = [i for i in range(n_nodes) if ts_graph.elem[i] in ADSORBATE_ELEMS]
+        adsorbate_node_indices = [i for i in range(n_nodes) if ts_graph.elem[i] in self.adsorbate_domain()]
         node_indices_B, node_indices_C = {u}, {v}
         neighbors = {i: set() for i in range(n_nodes)}
         for i in range(n_edges):

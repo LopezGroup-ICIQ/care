@@ -15,25 +15,21 @@
     </p>
 </div>
 
-CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [Open Catalyst](https://github.com/FAIR-Chem/fairchem) models, [MACE](https://github.com/ACEsuit/mace), etc.
+CARE (*Catalysis Automated Reaction Evaluator*) is a tool for generating and manipulating chemical reaction networks (CRNs) on catalytic surfaces. CARE is powered by data-driven models such as [GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FAIRChem](https://github.com/FAIR-Chem/fairchem) models, [MACE](https://github.com/ACEsuit/mace), etc.
 
 ## 🪛 Installation
 
-We recommend installing `care-crn` from PyPI. A developer installation is also available for those who wish to contribute.
-
-### 1\. Standard Installation (from PyPI)
-
-This is the fastest way to get `care-crn` and its core dependencies.
+### 1\. Standard Installation from PyPI
 
 ```bash
 pip install care-crn
 ```
 
-### 2\. Install External Evaluators & Runtimes
+### 2\. Install External Energy Evaluators
 
 `care-crn` interfaces with several external ML Interatomic Potentials (MLIPs). These must be installed separately.
 
-#### MLIP Evaluators (OCP, MACE, etc.)
+#### ML Evaluators (GAME-Net-UQ, FAIRChem, MACE, etc.)
 
 You can install the Python wrappers for these evaluators using `pip`'s "extras" syntax.
 
@@ -52,12 +48,13 @@ You can install the Python wrappers for these evaluators using `pip`'s "extras" 
     pip install care-crn[petmad]
     pip install care-crn[orb]
     pip install care-crn[sevennet]
+    pip install care-crn[gamenetuq]
     ```
 
     Or all at once:
 
     ```bash
-    pip install care-crn[ocp,mace,petmad,orb,sevennet]
+    pip install care-crn[ocp,mace,petmad,orb,sevennet,gamenetuq]
     ```
 
     *NOTE: There currently is a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
