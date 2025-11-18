@@ -14,6 +14,12 @@ from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
 
+try:
+    from mace.calculators import mace_mp
+    MACE_AVAILABLE = True
+except ImportError:
+    MACE_AVAILABLE = False
+
 class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
@@ -44,7 +50,9 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
-        from mace.calculators import mace_mp, MACECalculator
+        if not MACE_AVAILABLE:
+            raise ImportError("The MACEIntermediateEvaluator requires 'mace-torch' to be installed. "
+                "Please install it using pip install mace-torch.")
 
         self.surface = surface
         self.slab_energy = 0.0

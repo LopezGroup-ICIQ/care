@@ -50,7 +50,7 @@ classifiers = [
 
 [project.optional-dependencies]
 gamenetuq = [
-    "gamenet-uq == 0.1.0
+    "gamenet-uq == 0.1.3"
     ]
 ocp = [
     "fairchem-core == 1.4.0",

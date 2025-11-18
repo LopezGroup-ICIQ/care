@@ -9,11 +9,21 @@ from ase import Atoms
 from ase.db import connect
 import networkx as nx
 import numpy as np
-import torch
-torch.set_float32_matmul_precision('high')
-from torch import no_grad, tensor, cat, compile
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
+
+try:
+    from gamenet_uq.constants import ADSORBATE_ELEMS, METALS
+    from gamenet_uq.functions import load_model_from_url
+    from gamenet_uq.graph import atoms_to_data
+    from gamenet_uq.graph_filters import extract_adsorbate
+    from gamenet_uq.graph_tools import convert_pyg_to_nx
+    from torch_geometric.data import Data
+    from torch_geometric.loader import DataLoader
+    import torch
+    torch.set_float32_matmul_precision('high')
+    from torch import no_grad, tensor, cat, compile
+    GAMENETUQ_AVAILABLE = True
+except ImportError:
+    GAMENETUQ_AVAILABLE = False
 
 from care import Intermediate, ElementaryReaction, Surface
 from care.evaluators import IntermediateEnergyEstimator, ReactionEnergyEstimator
@@ -48,10 +58,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
                 if True, the configurations will be sorted in ascending order of uncertainty in the ads_configs attribute.
             torch_compile (bool, optional): Whether to compile the model using Torch. Defaults to False.
         """
-        from gamenet_uq import atoms_to_data, load_model
-        
+        if not GAMENETUQ_AVAILABLE: 
+            raise ImportError("The GameNetUQInter evaluator requires 'gamenet-uq' to be installed. "
+            "Please install it using pip install gamenet-uq.")
 
-        self.model = load_model()
+        self.model = load_model_from_url()
         if torch_compile:
             self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
@@ -80,11 +91,11 @@ class GameNetUQInter(IntermediateEnergyEstimator):
 
     @property
     def adsorbate_domain(self):
-        return ["C", "H", "O", "N", "S"]
+        return ADSORBATE_ELEMS
 
     @property
     def surface_domain(self):
-        return ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
+        return METALS
 
     def __repr__(self) -> str:
         return (
@@ -106,7 +117,6 @@ class GameNetUQInter(IntermediateEnergyEstimator):
         bool
             True if the intermediate is in the database, False otherwise.
         """
-        from gamenet_uq import atoms_to_data
 
         if self.db is None:
             return False
@@ -269,6 +279,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                     If True, the configuration with the lowest uncertainty is selected for reaction energy evaluation.
                 torch_compile (bool, optional): Whether to compile the model using Torch. Defaults to False.
         """
+        if not GAMENETUQ_AVAILABLE: 
+            raise ImportError("The GameNetUQInter evaluator requires 'gamenet-uq' to be installed. "
+            "Please install it using pip install gamenet-uq.")
+
         super().__init__(
             T=T,
             ref_electrode=ref_electrode,
@@ -276,7 +290,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             U=U,
             **kwargs
         )
-        self.model = load_model()
+        self.model = load_model_from_url()
         if torch_compile:
             self.model = compile(self.model, backend="inductor", fullgraph=False, mode="default")
         self.device = device
@@ -287,10 +301,10 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         self.supports_batching = True
 
     def adsorbate_domain(self):
-        return ["C", "H", "O", "N", "S"]
-
+        return ADSORBATE_ELEMS
+    
     def surface_domain(self):
-        return ["Ag", "Au", "Cd", "Co", "Cu", "Fe", "Ir", "Ni", "Os", "Pd", "Pt", "Rh", "Ru", "Zn"]
+        return METALS
 
     def __repr__(self) -> str:
         return (
@@ -417,8 +431,6 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         Returns:
             Data: graph representing the TS graph
         """
-        from gamenet_uq.graph_filters import extract_adsorbate
-        from gamenet_uq.graph_tools import pyg_to_nx
         bond = tuple(step.r_type.split("-"))
 
         # 1) Select initial state A*, convert to full adsorption graph, and find potential edges
@@ -431,7 +443,8 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             key=lambda x: A.ads_configs[x]['s' if self.use_uq else 'mu'],
         )
         ts_graph = atoms_to_data(A.ads_configs[idx]["ase"], 
-                                 surface_order=-1, filter=False)
+                                 surface_order=-1, filter=False, 
+                                 add_surf_hops_info=True)
         if not isinstance(step, BondBreaking):
             return ts_graph  
         n_nodes = ts_graph.num_nodes
@@ -456,7 +469,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
             data.edge_index = edge_index_new
             data.edge_attr = edge_attr_new
             adsorbate = extract_adsorbate(data, ["C", "H", "O", "N", "S"])
-            nx_adsorbate = pyg_to_nx(adsorbate)
+            nx_adsorbate = convert_pyg_to_nx(adsorbate)
 
             if connectivity_signature(nx_adsorbate) == nx_bc_signature:
                 ts_graph.edge_attr[e_idx] = 1

@@ -4,7 +4,7 @@ from dask.distributed import Client, LocalCluster
 
 from care import Surface
 from care.constants import FACET_DICT, METAL_STRUCT_DICT
-from care.evaluators.gamenet_uq import GameNetUQInter, METALS
+from care.evaluators.gamenet_uq import GameNetUQInter
 from tests import test_inters, surface
 
 model_inter = GameNetUQInter(surface, num_configs=2)
@@ -15,7 +15,7 @@ class TestEvaluator(unittest.TestCase):
     def test_surface(self):
         """Check that all surfaces have active sites
         """
-        for metal in METALS:
+        for metal in METAL_STRUCT_DICT.keys():
             for facet in FACET_DICT[METAL_STRUCT_DICT[metal]]:
                 test_surface = Surface.from_metal_db(metal=metal, hkl=facet)
                 assert test_surface.num_atoms != 0
