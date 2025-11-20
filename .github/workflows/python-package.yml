@@ -25,8 +25,7 @@ jobs:
         conda create -n care_test python=3.12
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        pip install .
-        pip install torch_scatter torch_sparse
+        pip install . torch_scatter torch_sparse -f https://data.pyg.org/whl/torch-2.4.0+cpu.html
         pip install .[ocp]
         pip install .[mace]
         pip install .[petmad]
