@@ -131,11 +131,11 @@ class Intermediate:
     @classmethod
     def from_molecule(
         cls,
-        ase_atoms_obj: Atoms,
-        code=None,
-        is_surface=False,
-        phase=None,
-    ):
+        ase_atoms_obj: Union[Atoms, str],
+        code: str = None,
+        is_surface: bool = False,
+        phase: str = None,
+    ) -> "Intermediate":
         """Create an Intermediate using a molecule obj.
 
         Args:
@@ -150,21 +150,15 @@ class Intermediate:
         Returns:
             obj:`Intermediate` with the given values.
         """
-        if len(ase_atoms_obj) != 0:
-            new_mol = ase_atoms_obj.copy()
-            new_mol.arrays["conn_pairs"] = get_voronoi_neighbourlist(
-                new_mol, 0.25, 1, ["C", "H", "O"]
-            )
-            return cls(
-                code=code,
-                molecule=new_mol,
-                is_surface=is_surface,
-                phase=phase,
-            )
-        else:
-            return cls(
-                code=code, molecule=ase_atoms_obj, is_surface=is_surface, phase=phase
-            )
+        if isinstance(ase_atoms_obj, str):
+            ase_atoms_obj = read(ase_atoms_obj, format="vasp")
+        elif not isinstance(ase_atoms_obj, Atoms):
+            raise ValueError("ase_atoms_obj must be an ASE Atoms object or a string path to a POSCAR file.")
+        if phase not in ["gas", "ads", "surf"]:
+            raise ValueError("phase must be either 'gas' or 'ads'")
+        return cls(
+            code=code, molecule=ase_atoms_obj, is_surface=is_surface, phase=phase
+        )
         
     @classmethod
     def from_smiles(cls, 
@@ -199,7 +193,7 @@ class Intermediate:
         self._graph = other
 
     @property
-    def cyclic(self):
+    def cyclic(self) -> bool:
         """
         Check if a molecule is cyclic or not.
         """
@@ -211,7 +205,7 @@ class Intermediate:
         return self._cyclic
 
     @property
-    def gas_configs(self):
+    def gas_configs(self) -> list[Atoms]:
         if self._gas_configs is None:
             self._gas_configs = self.gen_gas_configs()
         return self._gas_configs

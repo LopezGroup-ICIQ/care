@@ -10,6 +10,8 @@ from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMech
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.constants import INTER_ELEMS
 
+from tests import inter_from_poscar
+
 
 inters, steps = gen_blueprint(1, 2, None, False, True, True)
 net = ReactionNetwork(steps)
@@ -238,6 +240,15 @@ class TestIntermediate(unittest.TestCase):
         for _, inter in inters.items():
             for element in INTER_ELEMS:
                 self.assertIsInstance(inter[element], int)
+                
+    def test_from_molecule(self):
+        """
+        Check that the from_molecule method works correctly
+        """
+        self.assertIsInstance(inter_from_poscar, Intermediate)
+        self.assertEqual(inter_from_poscar.code, "CO2g")
+        self.assertEqual(inter_from_poscar.phase, "gas")
+        self.assertIsInstance(inter_from_poscar.molecule, Atoms)
 
 
 class TestReactionNetwork(unittest.TestCase):

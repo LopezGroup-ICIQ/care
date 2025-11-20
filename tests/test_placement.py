@@ -4,7 +4,7 @@ from care.crn.surface import bottom_half_indices
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data, extract_adsorbate
 
-from tests import test_inters, surface
+from tests import test_inters, surface, inter_from_poscar, surface_from_slab
 
 n_slab = len(surface.slab)
 num_configs = 3
@@ -32,4 +32,16 @@ class TestAdsorbatePlacement(unittest.TestCase):
                     self.assertTrue(all([g.elem[i] == structure[i].symbol for i in range(g.num_nodes)]))  # check on preserved mapping
                     self.assertTrue(gg.num_nodes == n_adsorbate)
                     self.assertTrue(all([gg.elem[i] == structure[gg.idx[i]].symbol for i in range(gg.num_nodes)]))  # check on preserved mapping
-
+                    self.assertEqual(surface.fixed_atoms, list(structure.constraints[0].index))  # check on preserved fixed atoms
+                    
+    def test_specific_config(self):
+        """
+        Assert that specific adsorbate placement on specific surface sites works correctly
+        This code functionality is not for high-throughput, but for targeted placements.
+        """
+        adsorptions = place_adsorbate(inter_from_poscar, surface_from_slab, 1, surface_sites=[38,39,40], adsorbate_atom=2)
+        self.assertEqual(len(adsorptions), 1)
+        graph = atoms_to_data(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
+        self.assertTrue(all([x in graph.idx for x in [38,39,40]]))  # check on surface atoms
+        adsorbate_anchoring_atom_graph_idx = graph.idx.index(2+ n_slab-1)  # adsorbate atom used for placement
+        self.assertTrue(any([edge[0] == adsorbate_anchoring_atom_graph_idx and edge[1] in [graph.idx.index(i) for i in [38,39,40]] for edge in graph.edge_index.T]))

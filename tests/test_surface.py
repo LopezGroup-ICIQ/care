@@ -24,12 +24,15 @@ class TestSurface(unittest.TestCase):
         atoms_tags = list(surface.slab.get_array("atom_tags"))
         self.assertTrue(all(tag == 0 for tag in atoms_tags))
         self.assertIsInstance(bottom_half_indices(surface.slab), np.ndarray)
+        self.assertIsInstance(surface.fixed_atoms, list)
 
     def test_from_bulk_poscar(self):
         self.assertIsInstance(surface_from_bulk.slab, Atoms)
         self.assertIsNotNone(surface_from_bulk.facet)
         self.assertAlmostEqual(surface.vacuum_height, 15.0, delta=1.5)
+        self.assertIsInstance(surface.fixed_atoms, list)
 
     def test_from_slab_poscar(self):
         self.assertIsInstance(surface_from_slab.slab, Atoms)
         self.assertIsNone(surface_from_slab.facet)
+        self.assertIsInstance(surface.fixed_atoms, list)

@@ -11,7 +11,7 @@
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./care_readme_figure.png" width="80%" height="80%" />
+     <img src="https://raw.githubusercontent.com/LopezGroup-ICIQ/care/main/care_readme_figure.png" width="80%" height="80%" />
     </p>
 </div>
 
@@ -134,7 +134,7 @@ gen_crn_blueprint -cs "CCO" "C(CO)O" -o output_name # Example from user-defined 
 
 <div style="display: flex; justify-content: center; align-items: center;">
     <p align="center">
-     <img src="./care_bp_screenshot.png" width="70%" height="70%" />
+     <img src="https://raw.githubusercontent.com/LopezGroup-ICIQ/care/main/care_bp_screenshot.png" width="70%" height="70%" />
     </p>
 </div>
 

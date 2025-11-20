@@ -221,3 +221,13 @@ class Surface:
         """
         a, b, _ = self.slab.get_cell()
         return np.linalg.norm(np.cross(a, b))
+    
+    @property
+    def fixed_atoms(self) -> list[int]:
+        """
+        Get indices of fixed atoms in the slab.
+        """
+        for constraint in self.slab._get_constraints():
+            if isinstance(constraint, FixAtoms):
+                return list(constraint.index)
+        return []
