@@ -1,7 +1,7 @@
 import random
 import pathlib
     
-from care import Surface, gen_blueprint, Intermediate
+from care import Surface, gen_blueprint, Intermediate, load_crn
 from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
 
 TEST_DIR = pathlib.Path(__file__).parent
@@ -13,6 +13,7 @@ inter_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/CO2.posca
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 neb = NEBReactionEnergyEstimator(mlp=mlp)
+evaluated_network = load_crn(str(TEST_DIR) + "/files/c1o1_Ru0001.pkl")
 
 __all__ = [
     "intermediates",
@@ -24,4 +25,5 @@ __all__ = [
     "mlp",
     "neb", 
     "TEST_DIR",
+    "evaluated_network",
 ]
