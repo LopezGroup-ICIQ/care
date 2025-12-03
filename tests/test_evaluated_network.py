@@ -1,9 +1,11 @@
 import unittest
 
+import numpy as np
+
 from care import ReactionNetwork
 from tests import evaluated_network as nw
 
-mkm = nw.run_microkinetic(iv={"CH4": 0.5, "H2": 0.5 }, oc={"T": 450, "P": 1e6}, solver="Python")
+mkm = nw.run_microkinetic(iv={"CO": 0.33, "H2": 0.67 }, oc={"T": 450, "P": 1e6}, solver="Julia")
 
 class TestReactionNetwork(unittest.TestCase):
     def test_reaction_network(self):
@@ -32,3 +34,13 @@ class TestReactionNetwork(unittest.TestCase):
     def test_hubs(self):
         self.assertTrue(len(nw.get_hubs()), len(nw.intermediates))
         self.assertTrue(len(nw.get_hubs(5)), 5)
+
+    def test_mkm_results(self):
+        self.assertTrue(len(mkm["reactants_idxs"] == 2))
+        self.assertIsInstance(mkm["conversion"], np.ndarray)
+        self.assertIsInstance(mkm["selectivity"], dict)
+        for elem in nw.elements:
+            self.assertTrue(elem in mkm["selectivity"].keys())
+            self.assertTrue(elem in mkm["yield"].keys())
+            s = mkm["selectivity"][elem]
+            self.assertTrue(np.all((s >= 0) & (s <= 1) | np.isnan(s)))

@@ -13,7 +13,7 @@ inter_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/CO2.posca
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 neb = NEBReactionEnergyEstimator(mlp=mlp)
-evaluated_network = load_crn(str(TEST_DIR) + "/files/c1o1_Ru0001.pkl")
+evaluated_network = load_crn(str(TEST_DIR) + "/files/c1o2_Ru0001.pkl")
 
 __all__ = [
     "intermediates",

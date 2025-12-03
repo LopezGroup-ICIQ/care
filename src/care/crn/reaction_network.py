@@ -69,6 +69,7 @@ class ReactionNetwork(nx.DiGraph):
         self._reactions = self.get_reactions()
         self._v = self.build_stoichiometry()
         self._es = self.build_es_matrix()
+        self._elements = self.get_elements()
 
     def get_intermediates(self):
         return {x.code: x for x in self.nodes if isinstance(x, Intermediate) and x.phase in ("ads", "gas")}
@@ -145,6 +146,10 @@ class ReactionNetwork(nx.DiGraph):
         return "thermal" if Electron() not in self.intermediates else "electro"
     
     @property
+    def elements(self):
+        return self._elements
+    
+    @property
     def v(self):
         return self._v
     
@@ -194,6 +199,12 @@ class ReactionNetwork(nx.DiGraph):
         m[-2, -1] = 1  # surface site
         m = m[:-1, :]  # delete charge row
         return m
+    
+    def get_elements(self):
+        elements = set()
+        for inter in self.intermediates.values():
+            elements.update(set(inter.molecule.get_chemical_symbols()))
+        return sorted(list(elements))
 
     @property
     def ncc(self):
@@ -451,10 +462,9 @@ class ReactionNetwork(nx.DiGraph):
             inters_dict = {}
             inters_dict["formulas"] = inters_formula
             inters_dict["codes"] = inters
-            for elem in INTER_ELEMS:
-                if elem in ("*", "q"):
-                    continue
+            for elem in self.elements:
                 inters_dict[elem] = [x[elem] for x in intermediates.values()]
+            inters_dict["elements"] = self.elements
             inters_info = inters_dict
             inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
             inlet_molecules = set(inlet_molecules)        

@@ -74,6 +74,7 @@ class DifferentialPFR(ReactorModel):
         self.gas_mask = gas_mask  # Boolean array indicating which species are in the gas phase
         self.inters_info = inters
         self.inters = inters["codes"] or []  # List of intermediate species codes
+        self.elements = inters["elements"]
 
         self.P = pressure  # Pressure of the reactor in Pascal
         self.T = temperature  # Temperature of the reactor in Kelvin
@@ -363,6 +364,27 @@ class DifferentialPFR(ReactorModel):
         results["jl_solver"] = jl_solver if solver == "Julia" else "Python"
         results["precision"] = precision if solver == "Julia" else 64
         results["maxiters"] = maxiters if solver == "Julia" else None
+        reactants_idxs = np.where((self.gas_mask) & (y0 > 0))[0]
+        products_idxs = np.where((self.gas_mask) & (y0 == 0))[0]
+        results["reactants_idxs"] = reactants_idxs
+        results["products_idxs"] = products_idxs
+        conversion_vector = np.zeros(len(reactants_idxs))
+        results["conversion"] = conversion_vector
+        selectivity_matrix = np.zeros((len(reactants_idxs), len(products_idxs), len(self.elements)))
+        yield_matrix = np.zeros((len(reactants_idxs), len(products_idxs), len(self.elements)))
+        r = results["total_consumption_rate"]
+        n = self.inters_info
+        for e, elem in enumerate(self.elements):
+            for i, reactant in enumerate(reactants_idxs):
+                n_elem_reactant = n[elem][reactant]
+                for j, product in enumerate(products_idxs):
+                    if n_elem_reactant == 0:
+                        selectivity_matrix[i, j, e] = np.nan  # example: selectivity of H2 to CO makes no sense, thus nan
+                    else:
+                        selectivity_matrix[i, j, e] = r[product] * n[elem][product] / (abs(r[reactant]) * n_elem_reactant)
+                    yield_matrix[i, j, e] = 0.0
+        results["selectivity"] = {elem: selectivity_matrix[:, :, e] for e, elem in enumerate(self.elements)}
+        results["yield"] = {elem: yield_matrix[:, :, e] for e, elem in enumerate(self.elements)}
         return results
 
     def conversion(self, reactant_idx: int, y: np.ndarray) -> float:
@@ -370,7 +392,7 @@ class DifferentialPFR(ReactorModel):
         Conversion of the reactant i.
         By definition, conversion is 0 due to infinitesimal volume of the reactor.
         """
-        return 1 - y[reactant_idx, -1] / y[reactant_idx, 0]
+        return 0.0
 
     def selectivity(
         self, target_idx: int, product_idxs: list[int], consumption_rate: np.ndarray

@@ -46,14 +46,12 @@ def parse_hkl_string(hkl_str):
     else:
         raise ValueError(f"Invalid hkl string format: {hkl_str}")
     
-
 def bottom_half_indices(slab: Atoms) -> np.ndarray[int]:
     z = slab.positions[:, 2]
     sorted_indices = np.argsort(z)
     n = len(slab)
     bottom_half = sorted_indices[: n // 2]
     return bottom_half
-
     
 def load_surface(metal: str = None,
                  hkl: Union[str, list[int]] = None,
@@ -231,3 +229,11 @@ class Surface:
             if isinstance(constraint, FixAtoms):
                 return list(constraint.index)
         return []
+    
+    @property
+    def surface_atoms(self) -> list[int]:
+        """
+        Get indices of surface atoms in the slab.
+        """
+        fixed = set(self.fixed_atoms)
+        return [atom.index for atom in self.slab if atom.index not in fixed]
