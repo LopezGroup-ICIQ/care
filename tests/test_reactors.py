@@ -33,6 +33,7 @@ intermediates = {inter.code: inter for inter in intermediates}
 inters = {"codes": inters}
 for elem in ["C", "H", "O", "N"]:
     inters[elem] = [x[elem] for x in intermediates.values()]
+inters["elements"] = ["C", "H", "O", "N"]
 
 v_matrix = np.array(
     [
