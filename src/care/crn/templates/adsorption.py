@@ -138,9 +138,7 @@ def gen_adsorption_reactions(
         adsorption reactions of the reaction network as ElementaryReaction instances.
     """
 
-    surf_inter = Intermediate.from_molecule(
-        Atoms(), code="*", is_surface=True, phase="surf"
-    )
+    surf_inter = Intermediate(code="*", molecule=Atoms(), is_surface=True, phase="surf")
 
     gas_intermediates = [
         inter for inter in intermediates.values() if inter.phase == "gas"
@@ -226,15 +224,7 @@ def process_ads_react_chunk(
     """
     adsorptions = []
     for inter in inter_chunk:
-        ads_inter = Intermediate.from_molecule(
-            inter.molecule, code=inter.code[:-1] + "*", phase="ads"
-        )
-        adsorptions.append(
-            Adsorption(
-                components=(frozenset([surf_inter, inter]), frozenset([ads_inter])),
-                r_type="adsorption",
-            )
-        )
-
+        ads_inter = Intermediate(code=inter.code[:-1] + "*", molecule=inter.molecule, phase="ads")
+        adsorptions.append(Adsorption(components=([surf_inter, inter], [ads_inter]), r_type="adsorption"))
     progress_queue.put(1)
     return adsorptions

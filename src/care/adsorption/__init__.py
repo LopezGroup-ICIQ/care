@@ -3,8 +3,7 @@ Module containing tools to place molecules on surfaces.
 These include DockOnSurf and ASE functionalities.
 """
 from collections import defaultdict
-
-from typing import Any
+from typing import Any, List
 
 from acat.adsorption_sites import SlabAdsorptionSites
 from acat.settings import CustomSurface
@@ -12,6 +11,7 @@ from ase import Atoms
 from ase.build import add_adsorbate
 from ase.constraints import FixAtoms
 import networkx as nx
+import numpy as np
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
 
@@ -20,7 +20,7 @@ from care.crn.utils.species import atoms_to_graph
 from care import Intermediate, Surface, BOND_ORDER, CORDERO
 
 
-def connectivity_analysis(graph: nx.Graph) -> list[int]:
+def connectivity_analysis(graph: nx.Graph) -> List[int]:
     """
     Performs a connectivity analysis of the molecule. Returns a list of potential anchoring atoms.
 
@@ -32,78 +32,38 @@ def connectivity_analysis(graph: nx.Graph) -> list[int]:
     Returns
     -------
     list[int]
-        List with the number of connections for each atom in the molecule.
+        List of atom indices that are potential anchoring atoms.
     """
-
-    max_conns = BOND_ORDER
-
     unsat_elems = [
         node
         for node in graph.nodes()
-        if graph.degree(node) < max_conns.get(graph.nodes[node]["elem"], 0)
+        if graph.degree(node) < BOND_ORDER.get(graph.nodes[node]["elem"], 0)
     ]
-    if not unsat_elems:
-        # If the molecule is H2, return the list of atoms
-        if (
-            len(graph.nodes()) == 2
-            and graph.nodes[0]["elem"] == "H"
-            and graph.nodes[1]["elem"] == "H"
-        ):
-            return list(set(graph.nodes()))
-        else:
-            sat_elems = [
-                node for node in graph.nodes() if graph.nodes[node]["elem"] != "H"
-            ]
+    
+    # H
+    if len(graph) == 1 and graph.nodes[0]["elem"] == "H":
+        return list(graph.nodes())
+    
+    if unsat_elems:
+        if len(graph) == 2 and set(graph.nodes[n]["elem"] for n in graph.nodes()) == {"C", "O"}:
+            # CO
+            return [n for n in unsat_elems if graph.nodes[n]["elem"] == "C"]
+        
+        if len(graph) == 3 and [graph.nodes[n]["elem"] for n in graph.nodes()].count("O") == 2 and [graph.nodes[n]["elem"] for n in graph.nodes()].count("C") == 1:
+            # CO2
+            return [n for n in unsat_elems if graph.nodes[n]["elem"] == "C"]
+        return unsat_elems
 
-            # If there are oxygen atoms, return the list of oxygen atoms
-            if "O" in [graph.nodes[node]["elem"] for node in graph.nodes()]:
-                return [
-                    node for node in graph.nodes()
-                    if graph.nodes[node]["elem"] == "O"
-                ]
+    if len(graph) == 2 and all(graph.nodes[node]["elem"] == "H" for node in graph.nodes()):
+        # H2
+        return list(graph.nodes())
 
-            return list(set(sat_elems))
-
-    # Specifying the carbon monoxide case
-    elif len(graph.nodes()) == 2 and (
-        (graph.nodes[0]["elem"] == "C" and graph.nodes[1]["elem"] == "O")
-        or (graph.nodes[0]["elem"] == "O" and graph.nodes[1]["elem"] == "C")
-    ):
-        # Extracting only the Carbon atom index
-        unsat_elems = [
-            node for node in graph.nodes() if graph.nodes[node]["elem"] == "C"
-        ]
-        return list(set(unsat_elems))
-
-    # Specifying the case for CO2
-    elif len(graph.nodes()) == 3 and (
-        (
-            graph.nodes[0]["elem"] == "C"
-            and graph.nodes[1]["elem"] == "O"
-            and graph.nodes[2]["elem"] == "O"
-        )
-        or (
-            graph.nodes[0]["elem"] == "O"
-            and graph.nodes[1]["elem"] == "O"
-            and graph.nodes[2]["elem"] == "C"
-        )
-        or (
-            graph.nodes[0]["elem"] == "O"
-            and graph.nodes[1]["elem"] == "C"
-            and graph.nodes[2]["elem"] == "O"
-        )
-    ):
-        # Extracting only the Carbon atom index
-        unsat_elems = [
-            node for node in graph.nodes() if graph.nodes[node]["elem"] == "C"
-        ]
-        return list(set(unsat_elems))
-
-    # Specifying case for H
-    elif len(graph.nodes()) == 1 and graph.nodes[0]["elem"] == "H":
-        return list(set(graph.nodes()))
-    else:
-        return list(set(unsat_elems))
+    # fully-saturated molecule
+    sat_elems = [node for node in graph.nodes() if graph.nodes[node]["elem"] != "H"]
+    
+    if any(graph.nodes[node]["elem"] == "O" for node in graph.nodes()):
+        return [node for node in sat_elems if graph.nodes[node]["elem"] == "O"]
+    return sat_elems
 
 
 def generate_inp_vars(
@@ -115,7 +75,7 @@ def generate_inp_vars(
     sites: list,
 ) -> dict[str, Any]:
     """
-    Generates the input variables for the dockonsurf screening.
+    Generates input for DockOnSurf.
 
     Parameters
     ----------
@@ -142,7 +102,7 @@ def generate_inp_vars(
         Dictionary with the input variables.
     """
     adsorbate.set_cell(surface.get_cell().lengths())
-    inp_vars = {
+    return {
         "Global": True,
         "Screening": True,
         "run_type": "Screening",
@@ -169,10 +129,10 @@ def generate_inp_vars(
         "special_atoms": "False",
         "potcar_dir": "False",
     }
-    return inp_vars
 
-
-def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) -> Atoms:
+def adapt_surface(molec_ase: Atoms, 
+                  surface: Surface, 
+                  tolerance: float = 2.0) -> Atoms:
     """
     Adapts the surface slab size to fit the adsorbate size
     by measuring the longest distance between atoms in the molecule and 
@@ -208,6 +168,51 @@ def adapt_surface(molec_ase: Atoms, surface: Surface, tolerance: float = 2.0) ->
             condition = aug_surf.slab_diag - tolerance > max_dist_molec
     return new_slab
 
+def get_active_sites(surface: Surface) -> list[dict]:
+    """
+    Get surface active sites with ACAT.
+    """
+    surf = surface.crystal_structure + surface.facet
+    if surface.facet == "10m10":
+        surf += "h"
+    tol_dict = defaultdict(lambda: 0.5)
+    tol_dict["Cd"] = 1.5
+    tol_dict["Co"] = 0.75
+    tol_dict["Os"] = 0.75
+    tol_dict["Ru"] = 0.75
+    tol_dict["Zn"] = 1.25
+    if surface.facet == "10m11" or (
+        surface.crystal_structure == "bcp" and surface.facet in ("111", "100")
+    ):
+        tol = 2.0
+        sas = SlabAdsorptionSites(
+            surface.slab, surface=surf, tol=tol, label_sites=True
+        )
+    elif surface.crystal_structure == "fcc" and surface.facet == "110":
+        tol = 1.5
+        sas = SlabAdsorptionSites(
+            surface.slab, surface=surf, tol=tol, label_sites=True
+        )
+    else:
+        try:
+            sas = SlabAdsorptionSites(
+                surface.slab,
+                surface=surf,
+                tol=tol_dict[surface.metal],
+                label_sites=True,
+                optimize_surrogate_cell=True,
+            )
+        except ValueError:
+            sas = SlabAdsorptionSites(
+                surface.slab,
+                surface=CustomSurface(surf),
+                tol=tol_dict[surface.metal],
+                label_sites=True,
+                optimize_surrogate_cell=True,
+            )
+    sas = sas.get_unique_sites()
+    sas = [site for site in sas if site["position"][2] > 0.65 * surface.slab_height]
+    return sas
 
 def place_adsorbate(
     intermediate: Intermediate, 
@@ -246,193 +251,94 @@ def place_adsorbate(
     adsorptions = []
     n_slab = len(surface.slab)
     n_adsorbate = len(intermediate.molecule)
-    try:  # DockOnSurf + ACAT
-        slab = adapt_surface(intermediate.molecule, surface)
-        if surface_sites == None:
-            active_sites_acat = get_active_sites(surface)
-            active_sites = {
-                "{}".format(site["label"]): site["indices"] for site in active_sites_acat
-            }
+    slab = adapt_surface(intermediate.molecule, surface)
+
+    if surface_sites:
+        if all(x in surface.surface_atoms for x in surface_sites):
+            active_sites = [surface_sites]
         else:
-            active_sites = {
-                "user-defined": surface_sites
-            }
-        if len(intermediate.molecule) > 10:
-            ads_height = min_ads_height
-            for site_idxs in active_sites.values():
-                site_list = []
-                if site_idxs != []:
-                    try:
-                        configs_to_place = intermediate.gen_gas_configs()
-                    except AttributeError:
-                        configs_to_place = [intermediate.molecule]
-                    for config in configs_to_place:
-                        config_graph = atoms_to_graph(config)
-                        if adsorbate_atom:
-                            connect_sites_molec = [adsorbate_atom]
-                        else:
-                            connect_sites_molec = connectivity_analysis(config_graph)
-                        config_list_i = []
-                        while config_list_i == []:
-                            inp_vars = generate_inp_vars(
-                                adsorbate=config,
-                                surface=slab,
-                                ads_height=ads_height,
-                                max_structures=3,
-                                molec_ctrs=connect_sites_molec,
-                                sites=site_idxs,
-                            )
-                            config_list_i = dos.dockonsurf(inp_vars)
-                            ads_height += 0.2
-                            site_list.extend(config_list_i)
-                            for ad in config_list_i:
-                                ad.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
-                                ad.set_constraint(FixAtoms(indices=surface.fixed_atoms))
-                adsorptions.append(site_list)
-            if num_configs == -1:
-                return [adsorption for sublist in adsorptions for adsorption in sublist]
-            new_adsorptions = []
-            index = 0
-            while len(new_adsorptions) < num_configs:
-                items_at_index = [lst[index] for lst in adsorptions if index < len(lst)]
-                if not items_at_index:
-                    break
-                new_adsorptions.extend(items_at_index)
-                if len(new_adsorptions) > num_configs:
-                    new_adsorptions = new_adsorptions[:num_configs]
-                    break
-                index += 1
-            return new_adsorptions            
-        elif 2 <= len(intermediate.molecule) <= 10:
-            ads_height = (
-                1.8 if intermediate.molecule.get_chemical_formula() != "H2" else 1.5
-            )
-            for site_idxs in active_sites.values():
-                site_list = []
-                if site_idxs != []:
-                    try:
-                        configs_to_place = intermediate.gen_gas_configs()
-                    except AttributeError:
-                        configs_to_place = [intermediate.molecule]
-                        
-                    for config in configs_to_place:
-                        config_graph = atoms_to_graph(config)
-                        connect_sites_molec = [adsorbate_atom] if adsorbate_atom else connectivity_analysis(config_graph)
-                        config_list_i = []
-                        while config_list_i == []:
-                            inp_vars = generate_inp_vars(
-                                adsorbate=config,
-                                surface=slab,
-                                ads_height=ads_height,
-                                max_structures=1,
-                                molec_ctrs=connect_sites_molec,
-                                sites=site_idxs,
-                            )
-                            config_list_i = dos.dockonsurf(inp_vars)
-                            for ad in config_list_i:
-                                ad.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
-                                ad.set_constraint(FixAtoms(indices=surface.fixed_atoms))
-                            ads_height += 0.1
-                            site_list.extend(config_list_i)
-                adsorptions.append(site_list)
-            if num_configs == -1:
-                return [adsorption for sublist in adsorptions for adsorption in sublist]
-            new_adsorptions = []
-            index = 0
-            while len(new_adsorptions) < num_configs:
-                items_at_index = [lst[index] for lst in adsorptions if index < len(lst)]
-                if not items_at_index:
-                    break
-                new_adsorptions.extend(items_at_index)
-                if len(new_adsorptions) > num_configs:
-                    new_adsorptions = new_adsorptions[:num_configs]
-                    break
-                index += 1
-            return new_adsorptions                
-        else:  # C*, H*, O*
-            surface_atom_radii = CORDERO[slab.get_chemical_symbols()[0]]
-            for site in active_sites_acat:
+            raise ValueError("Some specified atoms indices do not belong to the surface.")
+    else:
+        active_sites = [site["indices"] for site in get_active_sites(surface)]
+    
+    configs = intermediate.gen_gas_configs()
+    if adsorbate_atom:
+        if adsorbate_atom < 0 or adsorbate_atom >= n_adsorbate:
+            raise ValueError("adsorbate_atom index is out of bounds.")
+        anchor_atoms = [adsorbate_atom]
+    else:
+        anchor_atoms = [connectivity_analysis(atoms_to_graph(x)) for x in configs]
+
+    try:
+        if n_adsorbate > 1:
+            if n_adsorbate <= 10:
+                ads_height = 1.8 if intermediate.formula != "H2" else 1.5
+            else:
+                ads_height = min_ads_height
+            for active_site in active_sites:
+                for config in configs:
+                    config_list = []
+                    while config_list == []:
+                        x = generate_inp_vars(
+                            adsorbate=config,
+                            surface=slab,
+                            ads_height=ads_height,
+                            max_structures=3 if n_adsorbate >10 else 1,
+                            molec_ctrs=anchor_atoms,
+                            sites=active_site,
+                        )
+                        config_list = dos.dockonsurf(x)
+                        ads_height += 0.2 if n_adsorbate > 10 else 0.1
+                        adsorptions.append(config_list)     
+        else:
+            for active_site in active_sites:
                 atoms = slab.copy()
                 atoms.append(intermediate.molecule[0])
-                site_pos = site["position"] + [0, 0, surface_atom_radii]
+                site_pos = active_site["position"] + [0, 0, CORDERO[slab.get_chemical_symbols()[0]]]
                 atoms.positions[-1] = site_pos
-                atoms.set_array('atom_tags', list(atoms.get_array('atom_tags')) + [1])
-                atoms.set_constraint(FixAtoms(indices=surface.fixed_atoms))
                 atoms.set_cell(surface.slab.get_cell())
                 atoms.set_pbc(surface.slab.get_pbc())
                 adsorptions.append(atoms)
-            if num_configs == -1:
-                return adsorptions
-            return adsorptions[:num_configs]
-    except:  # ASE (when DockOnSurf+ACAT fails on complex surfaces)
-        if num_configs == -1:
-            num_configs = 5  # hardcoded for now
+    except Exception as e:
         mol_index = 0  if adsorbate_atom is None else adsorbate_atom
+        positions = []
         if surface_sites:
-            # get centers of specified surface sites
-            x_pos = [
-                surface.slab.get_positions()[idx][0] for idx in surface_sites
-            ]
-            y_pos = [
-                surface.slab.get_positions()[idx][1] for idx in surface_sites
-            ]
+            x_pos = [surface.slab.get_positions()[idx][0] for idx in surface_sites]
+            y_pos = [surface.slab.get_positions()[idx][1] for idx in surface_sites]
             x, y = sum(x_pos) / len(x_pos), sum(y_pos) / len(y_pos)
-            adsorption = surface.slab.copy()
-            add_adsorbate(adsorption, intermediate.molecule, min_ads_height, position=(x, y), mol_index=mol_index)
-            adsorption.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
-            adsorption.set_constraint(FixAtoms(indices=surface.fixed_atoms))
-            adsorptions.append(adsorption)
-            return adsorptions
-        for configuration in range(num_configs):
-            adsorption = surface.slab.copy()
-            x_pos = adsorption.get_cell()[0, 0] / (num_configs+1) * configuration
-            y_pos = adsorption.get_cell()[1, 1] / (num_configs+1) * configuration
-            add_adsorbate(adsorption, intermediate.molecule, min_ads_height, position=(x_pos, y_pos), mol_index=mol_index)
-            adsorption.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
-            adsorption.set_constraint(FixAtoms(indices=surface.fixed_atoms))
-            adsorptions.append(adsorption)
-        return adsorptions
-    
-
-def get_active_sites(surface) -> list[dict]:
-        surf = surface.crystal_structure + surface.facet
-        if surface.facet == "10m10":
-            surf += "h"
-        tol_dict = defaultdict(lambda: 0.5)
-        tol_dict["Cd"] = 1.5
-        tol_dict["Co"] = 0.75
-        tol_dict["Os"] = 0.75
-        tol_dict["Ru"] = 0.75
-        tol_dict["Zn"] = 1.25
-        if surface.facet == "10m11" or (
-            surface.crystal_structure == "bcp" and surface.facet in ("111", "100")
-        ):
-            tol = 2.0
-            sas = SlabAdsorptionSites(
-                surface.slab, surface=surf, tol=tol, label_sites=True
-            )
-        elif surface.crystal_structure == "fcc" and surface.facet == "110":
-            tol = 1.5
-            sas = SlabAdsorptionSites(
-                surface.slab, surface=surf, tol=tol, label_sites=True
-            )
+            positions.append((x, y))
         else:
-            try:
-                sas = SlabAdsorptionSites(
-                    surface.slab,
-                    surface=surf,
-                    tol=tol_dict[surface.metal],
-                    label_sites=True,
-                    optimize_surrogate_cell=True,
-                )
-            except ValueError:
-                sas = SlabAdsorptionSites(
-                    surface.slab,
-                    surface=CustomSurface(surf),
-                    tol=tol_dict[surface.metal],
-                    label_sites=True,
-                    optimize_surrogate_cell=True,
-                )
-        sas = sas.get_unique_sites()
-        sas = [site for site in sas if site["position"][2] > 0.65 * surface.slab_height]
-        return sas
+            num_configs = num_configs if num_configs != -1 else 5
+            for configuration in range(num_configs):
+                x = surface.slab.get_cell()[0, 0] / (num_configs+1) * configuration
+                y = surface.slab.get_cell()[1, 1] / (num_configs+1) * configuration
+                positions.append((x, y))
+        for xy in positions:
+            adsorption = surface.slab.copy()
+            add_adsorbate(adsorption, intermediate.molecule, min_ads_height, position=xy, mol_index=mol_index)
+            adsorptions.append(adsorption)
+    if num_configs != -1:
+        if isinstance(adsorptions[0], Atoms):
+            adsorptions = adsorptions[:num_configs]
+        else:
+            new_adsorptions, idx = [], 0
+            while len(new_adsorptions) < num_configs:
+                items_at_index = [lst[idx] for lst in adsorptions if idx < len(lst)]
+                if not items_at_index:
+                    break
+                new_adsorptions.extend(items_at_index)
+                if len(new_adsorptions) > num_configs:
+                    new_adsorptions = new_adsorptions[:num_configs]
+                    break
+                idx += 1
+            adsorptions = new_adsorptions
+    else:
+        if isinstance(adsorptions[0], list):
+            flattened_adsorptions = []
+            for sublist in adsorptions:
+                flattened_adsorptions.extend(sublist)
+            adsorptions = flattened_adsorptions
+    for ad in adsorptions:
+        ad.set_array('atom_tags', [0] * n_slab + [1] * n_adsorbate, dtype=int)
+        ad.set_constraint(FixAtoms(indices=surface.fixed_atoms))
+    return adsorptions

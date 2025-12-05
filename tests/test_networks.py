@@ -10,7 +10,7 @@ from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMech
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.constants import INTER_ELEMS
 
-from tests import inter_from_poscar
+from tests import co2_from_poscar, ammonia_from_poscar
 
 
 inters, steps = gen_blueprint(1, 2, None, False, True, True)
@@ -245,11 +245,33 @@ class TestIntermediate(unittest.TestCase):
         """
         Check that the from_molecule method works correctly
         """
-        self.assertIsInstance(inter_from_poscar, Intermediate)
-        self.assertEqual(inter_from_poscar.code, "CO2g")
-        self.assertEqual(inter_from_poscar.phase, "gas")
-        self.assertIsInstance(inter_from_poscar.molecule, Atoms)
+        self.assertIsInstance(co2_from_poscar, Intermediate)
+        self.assertEqual(co2_from_poscar.code, "CO2g")
+        self.assertEqual(co2_from_poscar.phase, "gas")
+        self.assertIsInstance(co2_from_poscar.molecule, Atoms)
 
+    def test_gen_gas_configs(self):
+        """
+        Check that the gen_gas_configs method works correctly
+        """
+        for x in inters.values():
+            formula = x.formula
+            gas_configs = x.gen_gas_configs()
+            for config in gas_configs:
+                self.assertIsInstance(config, Atoms)
+                self.assertEqual(config.get_chemical_formula(), formula)
+        for n, molecule in dict(zip([4], [ammonia_from_poscar])).items():
+            self.assertEqual(len(molecule.molecule), n)
+            gas_configs = molecule.gen_gas_configs()
+            formula = molecule.formula
+            for config in gas_configs:
+                self.assertIsInstance(config, Atoms)
+                self.assertEqual(config.get_chemical_formula(), formula)
+                self.assertEqual(len(config), n)
+
+    def test_electrons(self):
+        self.assertEqual(co2_from_poscar.electrons, 8)
+        self.assertEqual(ammonia_from_poscar.electrons, 6)
 
 class TestReactionNetwork(unittest.TestCase):
     def test_reaction_network(self):

@@ -515,7 +515,10 @@ class ReactionNetwork(nx.DiGraph):
         RTOL, ATOL, TFIN = rtol, atol, tfin
         settings_str = f"rtol={RTOL}, atol={ATOL}, tfin={TFIN}s"
         if "precision" in kwargs:
+            precision = kwargs["precision"]
             settings_str += f", prec={kwargs['precision']} bits"
+        else: 
+            precision = 64
         if not isinstance(clip_eact, dict):
             if clip_eact >= 0:
                 if clip_eact == 0:
@@ -552,6 +555,10 @@ class ReactionNetwork(nx.DiGraph):
         results["pH"] = oc.get("pH", None)
         results["kf"] = kf
         results["kr"] = kr
+        results["rxn_strings"] = [rxn.repr_hr for rxn in reactions]
+        results["Material"] = self.surface.slab.get_chemical_formula() if self.surface else "N/A"
+        results["precision"] = f"float{precision}"
+        results["Catalyst mass (g)"] = 0.0
         balance_dict = analyze_elemental_balance(results, intermediates)
         print(f"Elemental balances at t={results["t"]:.2e} s: C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}, *={balance_dict["*"]:.2e}")
         for k, v in balance_dict.items():

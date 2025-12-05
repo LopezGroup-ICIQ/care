@@ -9,7 +9,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 
 from care.constants import INTER_PHASES, BOND_ORDER
-from care.crn.utils.species import atoms_to_graph, get_voronoi_neighbourlist
+from care.crn.utils.species import atoms_to_graph
 
 
 class Intermediate:
@@ -338,15 +338,8 @@ class Intermediate:
         rdkit_molecule = Chem.AddHs(
             rdkit_molecule
         ) 
-        num_C = num_O = num_H = 0
-        for atom in rdkit_molecule.GetAtoms():
-            sym = atom.GetSymbol()
-            if sym == "C":
-                num_C += 1
-            elif sym == "O":
-                num_O += 1
-            elif sym == "H":
-                num_H += 1
+        
+        n = {k: self[k] for k in BOND_ORDER.keys()}
 
         def conformer_to_ase(mol, confId):
             conf = mol.GetConformer(confId)
@@ -357,7 +350,7 @@ class Intermediate:
             ase_atoms.set_pbc(True)
             return ase_atoms
 
-        num_conformers = 50 * (1+num_C) + 10 * num_O + 2 * num_H
+        num_conformers = 50 * (1+n["C"]) + 10 * n["O"] + 2 * n["H"]
         randomseed = 42
         if rdkit_molecule.GetNumAtoms() > 2:
             AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
@@ -427,7 +420,7 @@ class Intermediate:
         ase_atoms.new_array("atom_tags", [1] * len(ase_atoms), dtype=int)
         return ase_atoms
 
-    def ase_to_rdkit(self):
+    def ase_to_rdkit(self) -> Chem.rdchem.Mol:
         """
         Convert an ASE Atoms object to an RDKit molecule.
         """
@@ -443,11 +436,11 @@ class Intermediate:
 
         rdkit_mol = Chem.MolFromPDBBlock(pdb_string, removeHs=False)
         if rdkit_mol is None:
-            raise ValueError(f"RDKit failed to parse PDB from {self.code}")
+            raise ValueError(f"RDKit failed to convert from ASE {self.code}({self.formula})")
         return rdkit_mol
 
     @property
-    def smiles(self):
+    def smiles(self) -> str:
         if not self.is_surface and len(self.molecule) != 0:
             self._smiles = Chem.MolToSmiles(self.rdkit, allHsExplicit=False)
         else:
@@ -458,7 +451,7 @@ class Intermediate:
         return Chem.MolToSmiles(self.rdkit, allHsExplicit=allHsExplicit)
 
     @property
-    def electrons(self):
+    def electrons(self) -> int:
         if self._electrons is None:
-            self._electrons = 4 * self["C"] + 1 * self["H"] - 6 * self["O"]
+            self._electrons = sum([BOND_ORDER[elem]*self[elem] for elem in set(self.molecule.get_chemical_symbols())])
         return self._electrons

@@ -1,5 +1,5 @@
 from pickle import load
-from typing import Union
+from typing import Union, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -199,3 +199,103 @@ def analyze_elemental_balance(mkm_results: Union[dict, str], inters):
     in_div_out["*"] =  sum(mkm_results["y"][~gas_mask])
     return in_div_out
 
+
+def generate_simulation_report(results_dict: Dict[str, Any], 
+                               output_filename: str = "simulation_report.xlsx") -> None:
+    """
+    Generate a structured Excel report with four sheets: Species, Reactions, Settings, and Activity.
+
+    Args:
+        results_dict (Dict[str, Any]): Dictionary containing simulation results and metadata.
+        output_filename (str): Name of the output Excel file.
+    Returns:
+        None
+    """
+
+    print(f"Generating report: {output_filename}...")
+    species_df, reactions_df, performance_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
+    # Use ExcelWriter for multi-sheet output
+    with pd.ExcelWriter(output_filename, engine='openpyxl', mode="w") as writer:
+        species_info = results_dict["inters_info"]
+        species_df["idx"] = list(range(len(species_info['codes'])))
+        species_df["InChIKey"] = species_info['codes']
+        species_df["formula"] = species_info['formulas']
+        species_df["phase"] = ["gas" if x == 1 else "adsorbed" for x in results_dict['gas_mask']]
+        for elem in species_info['elements']:
+            species_df[f"n{elem}"] = species_info[elem] + [0]
+        species_df["theta0"] = results_dict['y0']
+        species_df["theta"] = results_dict['y']
+        species_df["unit"] = ["Pa" if x == 1 else "-" for x in results_dict['gas_mask']]
+        species_df["reactants"] = ["True" if i in results_dict['reactants_idxs'] else "False" for i, x in enumerate(species_info['codes'])]
+        species_df["products"] = ["True" if i in results_dict['products_idxs'] else "False" for i, x in enumerate(species_info['codes'])]
+        species_df["formation/consumption rate (1/s)"] = results_dict['total_consumption_rate']
+
+        species_df.to_excel(writer, sheet_name='Species', index=True)
+
+
+        # --- Sheet 2: Reaction Information (Simple Table) ---
+        reactions_df["idx"] = list(range(len(results_dict["kf"])))
+        reactions_df["reaction"] = results_dict["rxn_strings"]
+        reactions_df["kdir"] = results_dict["kf"]
+        reactions_df["krev"] = results_dict["kr"]
+        reactions_df["forward rate (1/s)"] = results_dict["forward_rate"]
+        reactions_df["backward rate (1/s)"] = results_dict["backward_rate"]
+        reactions_df["net rate (1/s)"] = results_dict["net_rate"]
+        reactions_df["reversibility"] = results_dict["reversibility"]
+        reactions_df.to_excel(writer, sheet_name='Reactions', index=True)
+        print("  - Sheet 'Reaction Info' created.")
+
+        # --- Sheet 3: Summary of performance metrics ---
+        SHEET = 'Activity'
+        current_row = 0
+        row_labels = [species_info["formulas"][i] for i in results_dict['reactants_idxs']]
+        column_labels = [species_info["formulas"][i] for i in results_dict['products_idxs']]
+        # conversion (vector)
+        conversion_df = pd.DataFrame(results_dict["conversion"]*100.0, index=row_labels, columns=["Conversion (%)"])
+        name = 'Conversion (%)'
+        df = pd.DataFrame({0: [f"{name}"]})
+        df.to_excel(writer, sheet_name=SHEET, index=False, header=False, startrow=current_row)
+        current_row += 2
+        conversion_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
+        current_row += conversion_df.shape[0] + 3
+        #selectivity
+        for elem, matrix in results_dict["selectivity"].items():
+            performance_df = pd.DataFrame(matrix*100.0, index=row_labels, columns=column_labels)
+            name = f'Selectivity ({elem}-based, %)'
+            df = pd.DataFrame({0: [f"{name}"]})
+            df.to_excel(writer, sheet_name=SHEET, index=False, header=False, startrow=current_row)
+            current_row += 2
+            performance_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
+            current_row += performance_df.shape[0] + 3
+        # yield
+        for elem, matrix in results_dict["yield"].items():
+            performance_df = pd.DataFrame(matrix*100.0, index=row_labels, columns=column_labels)
+            name = f'Yield ({elem}-based, %)'
+            df = pd.DataFrame({0: [f"{name}"]})
+            df.to_excel(writer, sheet_name=SHEET, index=False, header=False, startrow=current_row)
+            current_row += 2
+            performance_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
+            current_row += performance_df.shape[0] + 3
+
+        # --- Sheet 4: Simulation settings ---
+        settings = {
+            "Temperature (K)": results_dict['T'],
+            "Pressure (Pa)": results_dict['P'],
+            "Applied potential (V vs RHE)": results_dict.get('U', 'N/A'),
+            "pH (-)": results_dict.get('pH', 'N/A'),
+            "Number of species": len(species_info['codes']),
+            "Number of reactions": len(results_dict["kf"]),
+            "Reactor model": "Differential PFR", 
+            "Material": results_dict.get("surface", "N/A"),
+            "ODE backend": "Python Scipy" if results_dict.get("solver", None) == "Python" else "Julia DifferentialEquations.jl",
+            "ODE solver": "BDF" if results_dict.get("solver", None) == "Python" else results_dict.get("jl_solver", "N/A"),
+            "Simulation time (s)": results_dict.get("time", "N/A"),
+        }
+        for elem in species_info['elements']:
+            settings[f"{elem} elemental balance (IN/OUT)"] = results_dict[f'in_div_out_{elem}']
+        settings_df = pd.DataFrame(list(settings.items()), columns=["Setting", "Value"])
+        settings_df.to_excel(writer, sheet_name='Settings', index=False)      
+            
+    print(f"Report successfully generated at: **{output_filename}**")
+    return
