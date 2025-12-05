@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "care-crn"
-version = "0.2.0"
+version = "0.3.0"
 requires-python = "==3.12.*"
 dependencies = [
   "acat==1.6.8",
@@ -28,7 +28,8 @@ dependencies = [
   "py-cpuinfo",
   "psutil",
   "dask[complete]==2025.3.0",
-  "juliacall==0.9.27"
+  "juliacall==0.9.27", 
+  "openpyxl==3.1.5"
 ]
 
 authors = [
