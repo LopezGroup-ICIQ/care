@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Union
+from typing import Union, Tuple, List
 
 from ase.data import chemical_symbols
 from ase.mep import NEB
@@ -7,12 +7,11 @@ from ase.optimize import BFGS, LBFGS
 import networkx as nx
 import numpy as np
 from torch.cuda import empty_cache
-from torch_geometric.data import Data
 
 from care.crn.templates.dissociation import BondBreaking, BondFormation
 from care import ElementaryReaction
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
-from care.evaluators.utils import atoms_to_data, pyg_to_nx, extract_adsorbate, is_adsorbate_fragmented, connectivity_signature
+from care.evaluators.utils import atoms_to_data, extract_adsorbate, is_adsorbate_fragmented, connectivity_signature
 from care.constants import CORDERO
 
 
@@ -144,15 +143,26 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             return nx.compose(nx0, nx1)
         else:
             raise ValueError("Reaction stoichiometry not supported.")
+
+    def _find_potential_edges(self, graph: nx.Graph, bond: Tuple[str, str]) -> List[Tuple]:
+        """
+        Finds edges in a NetworkX graph that connect two specific atomic elements.
+
+        Args:
+            graph (nx.Graph): NetworkX Graph object. Nodes must have an 'elem' attribute.
+            bond (Tuple[str, str]): A tuple of two element symbols (e.g., ('C', 'O')).
+
+        Returns:
+            List[Tuple]: A list of NetworkX edge tuples ((node_u, node_v)) that match the element types.
+        """
+        elem1, elem2 = bond
         
-    def _find_potential_edges(self, graph: Data, bond: tuple[str, str]) -> list[int]:
-        potential_edges = []
-        for i in range(graph.num_edges):
-            edge_idxs = graph.edge_index[:, i]
-            atom1, atom2 = graph.elem[edge_idxs[0]], graph.elem[edge_idxs[1]]
-            if (atom1, atom2) == bond or (atom2, atom1) == bond:
-                potential_edges.append(i)
-        return potential_edges
+        return [(u, v) for u, v in graph.edges() if (
+                (graph.nodes[u].get('elem') == elem1 and graph.nodes[v].get('elem') == elem2) 
+                or 
+                (graph.nodes[u].get('elem') == elem2 and graph.nodes[v].get('elem') == elem1)
+            )
+        ]
 
     def get_fs(self, reaction: ElementaryReaction) -> None:
         """
@@ -174,8 +184,8 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             is_graph = atoms_to_data(IS, IS.get_array("atom_tags"), surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
-            n_nodes = is_graph.num_nodes
-            n_edges = is_graph.num_edges
+            n_nodes = len(is_graph)
+            n_edges = is_graph.number_of_edges()
         except:
             return
 
@@ -201,8 +211,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 data = is_graph.clone()
                 data.edge_index = edge_index_new
                 adsorbate = extract_adsorbate(data, IS.get_array("atom_tags"))
-                nx_adsorbate = pyg_to_nx(adsorbate)
-                if connectivity_signature(nx_adsorbate) == nx_bc_signature:
+                if connectivity_signature(adsorbate) == nx_bc_signature:
                     break
                 if _ == len(potential_edges) - 1:
                     return

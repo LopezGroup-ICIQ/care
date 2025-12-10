@@ -1,14 +1,14 @@
 """
 This module contains functions and classes for creating, manipulating and analyzing graphs
-from ASE Atoms objects to PyG Data format. Readapted from GAME-Net-UQ, but general for any structure.
+from ASE Atoms objects to PyG Graph format. Readapted from GAME-Net-UQ, but general for any structure.
 """
 
+from collections import defaultdict
 from itertools import product
 
-import numpy as np
-import torch
 from ase import Atoms
-from ase.data import atomic_numbers
+import matplotlib.pyplot as plt
+import numpy as np
 from networkx import (
     Graph,
     cycle_basis,
@@ -19,12 +19,8 @@ from networkx import (
     kamada_kawai_layout
 )
 from scipy.spatial import Voronoi
-from torch import tensor
-from torch_geometric.data import Data
-from torch_geometric.utils import to_networkx
 
 from care.constants import CORDERO, RGB_COLORS
-import matplotlib.pyplot as plt
 
 
 def get_voronoi_neighbourlist(
@@ -96,15 +92,16 @@ def get_voronoi_neighbourlist(
         increment += 0.2
 
 
-def atoms_to_nx(
+def atoms_to_data(
     atoms: Atoms,
-    voronoi_tolerance: float,
-    scaling_factor: float,
-    surface_order: int,
-    atom_tags: list[int],
+    atom_tags: list[int] = None,
+    surface_order: int = -1,
+    voronoi_tolerance: float = 0.5,
+    scaling_factor: float = 1.25,
+    filter: bool = True,
 ) -> Graph:
     """
-    Convert ASE Atoms object to NetworkX graph, representing the adsorbate-surface system.
+    Convert ASE Atoms object to NetworkX graph.
 
     Args:
         atoms (Atoms): ASE Atoms object representing the adsorbate-metal system.
@@ -113,9 +110,17 @@ def atoms_to_nx(
         surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
                             all surface slab is included.
         atom_tags (list[int]): tags defining whether an atom is part of the adsorbate or the surface.
+        filter (bool): whether to apply connectivity checks on final graph.
     Returns:
         Graph: NetworkX graph representing the adsorbate-metal system.
     """
+    if atom_tags is None or len(atom_tags) == 0:
+        if "atom_tags" in atoms.arrays:
+            atom_tags = atoms.get_array("atom_tags").tolist()
+        else:
+            raise ValueError(
+                "No atom_tags provided and ASE structure has no 'atom_tags' array"
+            )
     neighbour_list = get_voronoi_neighbourlist(
         atoms, voronoi_tolerance, scaling_factor, atom_tags
     )
@@ -137,109 +142,52 @@ def atoms_to_nx(
     graph = Graph()
     graph.add_nodes_from(list(adsorption_ensemble))
     set_node_attributes(graph, {i: atoms[i].symbol for i in graph.nodes()}, "elem")
+    set_node_attributes(graph, {i: i for i in graph.nodes()}, "idx")
+    set_node_attributes(graph, {i: atom_tags[i] for i in graph.nodes()}, "atom_tags")
     ensemble_neighbour_list = [
         pair
         for pair in neighbour_list
         if pair[0] in graph.nodes() and pair[1] in graph.nodes()
     ]
     graph.add_edges_from(ensemble_neighbour_list)
-    return graph, surf_hops
-
-
-def atoms_to_data(
-    structure: Atoms, 
-    atom_tags: list[int] = None,
-    surface_order: int = -1,
-    filter: bool = True,
-    tol: float = 0.50
-) -> Data:
-    """
-    Convert ASE Atoms object to PyG Data graph based on the input parameters.
-    In CARE, this function is used only for intermediate species, not for transition states.
-    The implementation is similar to the one in the ASE to PyG converter class, but it is not a class method and
-    is used for inference. Target values are not included in the Data object.
-
-    Args:
-        structure (Atoms): ASE atoms object.
-        atom_tags (list[int]): list of tags defining whether an atom is part of the adsorbate or the surface.
-                               0 for surface atoms, 1 for adsorbate atoms. If not provided, the function tries to extract this info 
-                               from the ASE input structure metadata
-        surface_order (int): order of the surface neighbours to be included in the graph. If set to -1,
-                            all surface slab is included.
-        filter (bool): whether to apply connectivity checks on final graph.
-    Returns:
-        graph (Data): PyG Data object.
-    """
-    if atom_tags is None or len(atom_tags) == 0:
-        if "atom_tags" in structure.arrays:
-            atom_tags = structure.get_array("atom_tags").tolist()
-        else:
-            raise ValueError(
-                "No atom_tags provided and ASE structure has no 'atom_tags' array"
-            )
-    nx, surf_hops = atoms_to_nx(
-            structure, tol, 1.25, surface_order, atom_tags
-    )
-    elem_list = list(get_node_attributes(nx, "elem").values())
-    idx_list = list(get_node_attributes(nx, "elem").keys())
-    elem_enc = np.array([atomic_numbers[symbol] for symbol in elem_list]).reshape(-1, 1)
-    x = torch.from_numpy(elem_enc).float()
-    nodes_list = list(nx.nodes)
-    edge_tails_heads = [
-        (nodes_list.index(edge[0]), nodes_list.index(edge[1])) for edge in nx.edges
-    ]
-    edge_tails = [x for x, _ in edge_tails_heads] + [y for _, y in edge_tails_heads]
-    edge_heads = [y for _, y in edge_tails_heads] + [x for x, _ in edge_tails_heads]
-    edge_index = torch.tensor([edge_tails, edge_heads], dtype=torch.long)
-    graph = Data(x, 
-                 edge_index, 
-                 elem=elem_list, 
-                 idx=idx_list, 
-                #  surf_hops=surf_hops, 
-                 formula=structure.get_chemical_formula())
-
-    # CONNECTIVITY CHECKS
+    graph.graph["surf_hops"] = surf_hops
+    graph.graph["formula"] = atoms.get_chemical_formula()
     if filter:
-        if not H_filter(graph, atom_tags):
+        if not H_filter(graph):
             return None
-        if not C_filter(graph, atom_tags):
+        if not C_filter(graph):
             return None
         if is_adsorbate_fragmented(graph, atom_tags):
             return None
     return graph
 
 
-def extract_adsorbate(graph: Data, atom_tags: list[int]) -> Data:
+def extract_adsorbate(graph: Graph, atom_tags: list[int]) -> Graph:
     """Extract adsorbate from the graph."""
-    adsorbate_nodes = [
-        node_idx
-        for node_idx in range(graph.num_nodes)
-        if atom_tags[graph.idx[node_idx]] == 1
-    ]
-    return graph.subgraph(tensor(adsorbate_nodes))
+    adsorbate_nodes = [n for n in graph.nodes if atom_tags[graph.nodes[n]["idx"]] == 1]
+    adsorbate = graph.subgraph(adsorbate_nodes).copy()
+    return adsorbate
 
 
-def is_adsorbate_fragmented(graph: Data, atom_tags: list[int]) -> bool:
+def is_adsorbate_fragmented(graph: Graph, atom_tags: list[int]) -> bool:
     """Check adsorbate fragmentation in the graph.
     Args:
-        graph(Data): Adsorption graph.
+        graph(Graph): Adsorption graph.
         atom_tags (list[int]): list of tags defining whether an atom is part of the adsorbate or the surface.
     Returns:
         (bool): True = Fragmented adsorbate
                 False = Connected adsorbate
     """
     adsorbate = extract_adsorbate(graph, atom_tags)
-    graph_nx = to_networkx(adsorbate, to_undirected=True, remove_self_loops=True)
-    if adsorbate.num_nodes == 1 and adsorbate.num_edges == 0:
+    if len(adsorbate) == 1 and adsorbate.number_of_edges() == 0:
         return False
-    return not is_connected(graph_nx)
+    return not is_connected(adsorbate)
 
 
-def is_ring(graph: Data, atom_tags: list[int]) -> bool:
+def is_ring(graph: Graph, atom_tags: list[int]) -> bool:
     """Check if the graph contains a ring."""
     adsorbate = extract_adsorbate(graph, atom_tags)
-    graph_nx = to_networkx(adsorbate, to_undirected=True, remove_self_loops=True)
-    cycles = list(cycle_basis(graph_nx))
+    cycles = list(cycle_basis(adsorbate))
     ring_nodes = set(node for cycle in cycles for node in cycle)
     if len(ring_nodes) > 0:
         return True
@@ -247,57 +195,85 @@ def is_ring(graph: Data, atom_tags: list[int]) -> bool:
         return False
 
 
-def H_filter(graph: Data, atom_tags: list[int]) -> bool:
+def H_filter(graph: Graph) -> bool:
     """
-    Graph filter that checks the connectivity of H atoms whithin the adsorbate.
-    Each H atoms must be connected to maximum one atom within the adsorbate.
+    Graph filter that checks the connectivity of H atoms within the adsorbate 
+    using a NetworkX graph object.
+
+    Each H atom in the adsorbate must be connected to a maximum of one other 
+    atom that is also part of the adsorbate.
+
     Args:
-        graph(torch_geometric.data.Data): Graph object representation
-        encoder(sklearn.preprocessing._encoders.OneHotEncoder): One-hot encoder for atomic elements
-        adsorbate_elems(list[str]): List of atomic elements in the adsorbate
+        graph (nx.Graph): NetworkX Graph object.
+        atom_tags (Dict[int, int]): A dictionary mapping the graph's node IDs (keys)
+                                    to an integer tag (values), where 1 indicates 
+                                    the atom is part of the adsorbate, and 0 otherwise.
+
     Returns:
-        (bool): True = Correct connectivity for all H atoms in the adsorbate
-                False = Bad connectivity for at least one H atom in the adsorbate
+        bool: True = Correct connectivity for all H atoms in the adsorbate.
+              False = Bad connectivity for at least one H atom in the adsorbate.
     """
-    H_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "H" and atom_tags[graph.idx[i]] == 1]
-    for node_index in H_nodes_indices:
-        counter = 0  # bonds between H and other adsorbate atoms
-        for j in range(graph.num_edges):
-            if graph.edge_index[0, j] == node_index:
-                counter += 1 if atom_tags[graph.idx[graph.edge_index[1, j]]] == 1 else 0
-        if counter > 1:
+    
+    H_nodes_in_adsorbate = []
+    for node_id in graph.nodes:
+        is_hydrogen = graph.nodes[node_id].get('elem') == 'H'
+        is_adsorbate = graph.nodes[node_id].get('atom_tags') == 1
+        
+        if is_hydrogen and is_adsorbate:
+            H_nodes_in_adsorbate.append(node_id)
+
+    for h_node in H_nodes_in_adsorbate:
+        adsorbate_neighbor_count = 0
+        for neighbor_node in graph.neighbors(h_node):            
+            if graph.nodes[neighbor_node].get('atom_tags') == 1:
+                adsorbate_neighbor_count += 1
+        if adsorbate_neighbor_count > 1:
+            return False
+    return True
+
+def C_filter(graph: Graph) -> bool:
+    """
+    Graph filter that checks the connectivity of H atoms within the adsorbate 
+    using a NetworkX graph object.
+
+    Each H atom in the adsorbate must be connected to a maximum of one other 
+    atom that is also part of the adsorbate.
+
+    Args:
+        graph (nx.Graph): NetworkX Graph object.
+        atom_tags (Dict[int, int]): A dictionary mapping the graph's node IDs (keys)
+                                    to an integer tag (values), where 1 indicates 
+                                    the atom is part of the adsorbate, and 0 otherwise.
+
+    Returns:
+        bool: True = Correct connectivity for all H atoms in the adsorbate.
+              False = Bad connectivity for at least one H atom in the adsorbate.
+    """
+    
+    H_nodes_in_adsorbate = []
+    for node_id in graph.nodes:
+        is_hydrogen = graph.nodes[node_id].get('elem') == 'C'
+        is_adsorbate = graph.nodes[node_id].get('atom_tags') == 1
+        
+        if is_hydrogen and is_adsorbate:
+            H_nodes_in_adsorbate.append(node_id)
+
+    for h_node in H_nodes_in_adsorbate:
+        adsorbate_neighbor_count = 0
+        for neighbor_node in graph.neighbors(h_node):            
+            if graph.nodes[neighbor_node].get('atom_tags') == 1:
+                adsorbate_neighbor_count += 1
+        if adsorbate_neighbor_count > 4:
             return False
     return True
 
 
-def C_filter(graph: Data, atom_tags: list[int]) -> bool:
-    """
-    Graph filter that checks the connectivity of C atoms whithin the adsorbate.
-    Each C atom must be connected to maximum 4 atoms within the molecule.
-    Args:
-        graph(torch_geometric.data.Data): Graph object representation
-        encoder(sklearn.preprocessing._encoders.OneHotEncoder): One-hot encoder for atomic elements
-        adsorbate_elems(list[str]): List of atomic elements in the molecule
-    Returns:
-        (bool): True = Correct connectivity for all C atoms in the molecule
-                False = Bad connectivity for at least one C atom in the molecule
-    """
-    C_nodes_indices = [i for i, elem in enumerate(graph.elem) if elem == "C" and atom_tags[graph.idx[i]] == 1]
-    for node_index in C_nodes_indices:
-        counter = 0  # nbonds between C and other adsorbate atoms
-        for j in range(graph.num_edges):
-            if graph.edge_index[0, j] == node_index:
-                counter += 1 if atom_tags[graph.idx[graph.edge_index[1, j]]] == 1 else 0
-        if counter > 4:
-            return False
-    return True
-
-
-def adsorption_filter(graph: Data, atom_tags: list[int]) -> bool:
+def adsorption_filter(graph: Graph, atom_tags: list[int]) -> bool:
     """
     Check presence of surface atoms in the adsorption graph.
+
     Args:
-        graph(torch_geometric.data.Data): Graph object representation
+        graph(torch_geometric.data.Graph): Graph object representation
         atom_tags (list[int]): List of tags defining whether an atom is part of the adsorbate or the surface
     Returns:
         (bool): True = Surface atoms present in the adsorption graph
@@ -311,7 +287,7 @@ def ase_adsorption_filter(atoms: Atoms, atom_tags: list[int]) -> bool:
     Check that the adsorbate has not been incorporated in the bulk.
 
     Args:
-        graph (Data): Input adsorption/molecular graph.
+        graph (Graph): Input adsorption/molecular graph.
         atom_tags (list[int]): List of tags defining whether an atom is part of the adsorbate or the surface
 
     Returns:
@@ -330,58 +306,10 @@ def ase_adsorption_filter(atoms: Atoms, atom_tags: list[int]) -> bool:
         return False
     else:
         return True
-    
-
-def pyg_to_nx(graph: Data) -> Graph:
-    """
-    Convert graph in pytorch_geometric to NetworkX type.
-    For each node in the graph, the label corresponding to the atomic species
-    is added as attribute together with a corresponding color.
-    Args:
-        graph(torch_geometric.data.Data): torch_geometric graph object.
-    Returns:
-        nx_graph(networkx.classes.graph.Graph): NetworkX graph object.
-    """
-    n_nodes = graph.num_nodes
-    atom_list = [graph.elem[i] for i in range(n_nodes)]
-    g = to_networkx(graph, to_undirected=True)
-    connections = list(g.edges)
-    nx_graph = Graph()
-    for i in range(n_nodes):
-        nx_graph.add_node(i, elem=atom_list[i], rgb=RGB_COLORS[atom_list[i]])
-    nx_graph.add_edges_from(connections)
-    return nx_graph
-
-
-def nx_to_pyg(graph_nx: Graph) -> Data:
-    """
-    Convert graph object from networkx to pytorch_geometric type.
-    Args:
-        graph(networkx.classes.graph.Graph): networkx graph object
-    Returns:
-        new_g(torch_geometric.data.Data): torch_geometric graph object
-    """
-    n_nodes = graph_nx.number_of_nodes()
-    n_edges = graph_nx.number_of_edges()
-    node_features = torch.zeros((n_nodes, 1))
-    edge_features = torch.zeros((n_edges, 1))
-    edge_index = torch.zeros((2, n_edges), dtype=torch.long)
-    node_index = torch.zeros((n_nodes), dtype=torch.long)
-    for i, node in enumerate(graph_nx.nodes):
-        node_index[i] = node
-        node_features[i, 0] = graph_nx.nodes[node]["elem"]
-    for i, edge in enumerate(graph_nx.edges):
-        edge_index[0, i] = edge[0]
-        edge_index[1, i] = edge[1]
-
-    graph_pyg = Data(
-        x=node_features, edge_index=edge_index, y=node_index
-    )
-    return graph_pyg
 
 
 def graph_plotter(
-    graph: Data,
+    g: Graph,
     node_size: int = 320,
     font_color: str = "white",
     font_weight: str = "bold",
@@ -397,30 +325,29 @@ def graph_plotter(
     Visualize graph with atom labels and colors. Working also for TSs.
     Kamada_kawai_layout engine gives the best visualization appearance.
     Args:
-        graph(torch_geometric.data.Data): graph object in pyG format.
+        graph(torch_geometric.data.Graph): graph object in pyG format.
     """
-    nx_graph = pyg_to_nx(graph)
-    labels = get_node_attributes(nx_graph, "elem")
-    colors = list(get_node_attributes(nx_graph, "rgb").values())
-    edge_colors = ["black" for edge in nx_graph.edges]
+    labels = get_node_attributes(g, "elem")
+    node_colors = {i: RGB_COLORS[labels[i]] for i in g.nodes}
+    edge_colors = ["black" for edge in g.edges]
     plt.figure(figsize=figsize, dpi=dpi)
     draw_networkx(
-        nx_graph,
+        g,
         labels=labels,
         node_size=node_size,
         font_color=font_color,
         font_weight=font_weight,
-        node_color=colors,
+        node_color=list(node_colors.values()),
         edge_color=edge_colors,
         alpha=alpha,
         arrowsize=arrowsize,
         width=width,
-        pos=kamada_kawai_layout(nx_graph),
+        pos=kamada_kawai_layout(g),
         linewidths=0.5,
     )
     if node_index:
-        pos_dict = kamada_kawai_layout(nx_graph)
-        for node in nx_graph.nodes:
+        pos_dict = kamada_kawai_layout(g)
+        for node in g.nodes:
             x, y = pos_dict[node]
             plt.text(x + 0.05, y + 0.05, node, fontsize=7)
     if text != None:
@@ -428,11 +355,69 @@ def graph_plotter(
     plt.axis("off")
     plt.draw()
 
-def connectivity_signature(nx_g):
-    """Return a sorted list of (element, sorted neighbor elements) for each node."""
+
+def connectivity_signature(g: Graph) -> list[tuple[str, tuple[str]]]:
+    """
+    Return a sorted list of (element, sorted neighbor elements) for each node.
+    This signature is independent of atom order and can be used to assess
+    if two graphs have the same connectivity configuration.
+    """
     sig = []
-    for n in nx_g.nodes():
-        elem = nx_g.nodes[n]['elem']
-        neighbor_elems = sorted([nx_g.nodes[neigh]['elem'] for neigh in nx_g.neighbors(n)])
+    for n in g.nodes():
+        elem = g.nodes[n]['elem']
+        neighbor_elems = sorted([g.nodes[neigh]['elem'] for neigh in g.neighbors(n)])
         sig.append((elem, tuple(neighbor_elems)))
     return sorted(sig)
+
+
+def get_connectivity_dict(atoms: Atoms, atom_tags: list[int], target: str="as") -> dict:
+    """
+    Generates a canonical signature dictionary representing the connectivity 
+    between adsorbate and surface atoms.
+    
+    The signature is independent of atom order and can be used to assess
+    if two adsorption structures have the same bonding configuration 
+    (number of bonds and bonding elements).
+    
+    Assumes atom_tags is a list where surface atoms have one tag and adsorbate 
+    atoms have a different tag (e.g., [0, 0, 0, 1, 1]).
+    
+    The final dictionary structure is:
+    {'Element1-Element2': [[idx_A, idx_B], [idx_C, idx_D], ...]}
+    where Element1-Element2 is sorted (e.g., 'C-Fe'), and the index pairs 
+    [idx_A, idx_B] are sorted lists themselves, and the list of pairs is 
+    sorted for canonical representation.
+
+    Args:
+        atoms (Atoms): ASE Atoms object of the adsorption structure.
+        atom_tags (list[int]): List of tags defining adsorbate (1) vs surface atoms (0).
+        target (str): Type of connections to consider:
+                      'as' for adsorbate-surface,
+                      'aa' for adsorbate-adsorbate,
+                      'ss' for surface-surface.
+    Returns:
+        dict: Canonical connectivity signature dictionary.
+    """
+    graph = atoms_to_data(atoms, atom_tags=atom_tags, surface_order=1, filter=False)
+    connectivity_dict = defaultdict(set)
+    for node1, node2 in graph.edges():
+        data1 = graph.nodes[node1]
+        data2 = graph.nodes[node2]
+        elem1, elem2 = data1['elem'], data2['elem']
+        ase_idx1, ase_idx2 = data1['idx'], data2['idx']
+        tag1, tag2 = atom_tags[node1], atom_tags[node2]
+        elem_str = "-".join(sorted([elem1, elem2]))
+        if target == "as" and tag1 != tag2:
+            connectivity_dict[elem_str].add(tuple(sorted((ase_idx1, ase_idx2))))
+        elif target == "aa" and tag1 == 1 and tag2 == 1:
+            connectivity_dict[elem_str].add(tuple(sorted((ase_idx1, ase_idx2))))
+        elif target == "ss" and tag1 == 0 and tag2 == 0:
+            connectivity_dict[elem_str].add(tuple(sorted((ase_idx1, ase_idx2))))
+        else:
+            raise ValueError("Invalid targeted connections specified. Use 'as' for adsorbate-surface, 'aa' for adsorbate-adsorbate, or 'ss' for surface-surface.")
+    canonical_dict = {}
+    for elem_str, bond_set in connectivity_dict.items():
+        sorted_bonds = sorted([list(pair) for pair in bond_set])
+        canonical_dict[elem_str] = sorted_bonds
+        
+    return canonical_dict
