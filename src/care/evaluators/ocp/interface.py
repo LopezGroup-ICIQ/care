@@ -118,7 +118,7 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
                     opt = BFGS(adsorption, 
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
-                    g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
+                    g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
                         continue
                     ads_config_dict[str(i)] = {}

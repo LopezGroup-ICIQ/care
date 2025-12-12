@@ -44,7 +44,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
-        from mace.calculators import mace_mp, MACECalculator
+        from mace.calculators import mace_mp
 
         self.surface = surface
         self.slab_energy = 0.0
@@ -148,7 +148,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     opt = BFGS(adsorption, 
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
-                    g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
+                    g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
                         continue
                     ads_config_dict[str(i)] = {}

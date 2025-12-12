@@ -158,9 +158,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         elem1, elem2 = bond
         
         return [(u, v) for u, v in graph.edges() if (
-                (graph.nodes[u].get('elem') == elem1 and graph.nodes[v].get('elem') == elem2) 
+                (graph.nodes[u]['elem'] == elem1 and graph.nodes[v]['elem'] == elem2) 
                 or 
-                (graph.nodes[u].get('elem') == elem2 and graph.nodes[v].get('elem') == elem1)
+                (graph.nodes[u]['elem'] == elem2 and graph.nodes[v]['elem'] == elem1)
             )
         ]
 
@@ -170,6 +170,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         """
         reaction.bb()  # ensure starting always from reaction in bond-breaking direction (A* -> B* + C*)
         bond = tuple(reaction.r_type.split("-"))
+        atom_tags_array = IS.get_array("atom_tags")
+        adsorbate_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 1]
+        slab_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 0]
 
         # 1) Get most stable configuration of initial state (A*)
         IS_intermediate = [
@@ -181,11 +184,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 key=lambda x: IS_intermediate.ads_configs[x]['mu'],
             )
             IS = IS_intermediate.ads_configs[idx]["ase"]
-            is_graph = atoms_to_data(IS, IS.get_array("atom_tags"), surface_order=-1, filter=True)
+            is_graph = atoms_to_data(IS, atom_tags_array, surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
             n_nodes = len(is_graph)
-            n_edges = is_graph.number_of_edges()
         except:
             return
 
@@ -194,49 +196,40 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
 
         # 2) Find broken bond in the graph of the IS via isomorphic comparison
         if len(potential_edges) == 0 and len(nx_bc) == 2: # edge case: H2, O2 not showing bond in the graph
-            uvs = [is_graph.idx[i] for i in range(is_graph.num_nodes) if IS.get_array("atom_tags")[i] == 1]
-            u, v = uvs[0], uvs[1]
+            u, v = adsorbate_node_ids[0], adsorbate_node_ids[1]
         elif len(potential_edges) == 0 and len(nx_bc) != 2:
             return
         else:
             nx_bc_signature = connectivity_signature(nx_bc)
-            for _, e_idx in enumerate(potential_edges):
-                u = is_graph.edge_index[0, e_idx].item()
-                v = is_graph.edge_index[1, e_idx].item()
-                mask = ~(
-                    ((is_graph.edge_index[0] == u) & (is_graph.edge_index[1] == v)) |
-                    ((is_graph.edge_index[0] == v) & (is_graph.edge_index[1] == u))
-                )
-                edge_index_new = is_graph.edge_index[:, mask]
-                data = is_graph.clone()
-                data.edge_index = edge_index_new
-                adsorbate = extract_adsorbate(data, IS.get_array("atom_tags"))
+            for u, v in potential_edges:
+                data = is_graph.copy()
+                if data.has_edge(u, v):
+                    data.remove_edge(u, v)
+                else:
+                    continue
+                adsorbate = extract_adsorbate(data, atom_tags_array)
                 if connectivity_signature(adsorbate) == nx_bc_signature:
                     break
-                if _ == len(potential_edges) - 1:
-                    return
+            else:
+                return
 
         # 3) Assign each adsorbate atom to one of the two fragments (B* or C*)
-        adsorbate_node_indices = [
-            i for i in range(n_nodes) if IS.get_array("atom_tags")[i] == 1
-        ]
         node_indices_B, node_indices_C = {u}, {v}
-        neighbors = {i: set() for i in range(n_nodes)}
-        for i in range(n_edges):
-            a, b = is_graph.edge_index[:, i].tolist()
-            neighbors[a].add(b)
-            neighbors[b].add(a)
         queue_B, queue_C = [u], [v]
         while queue_B or queue_C:
             new_queue_B, new_queue_C = [], []
             for node in queue_B:
-                for nbr in neighbors[node]:
-                    if nbr in adsorbate_node_indices and nbr not in node_indices_B and nbr not in node_indices_C:
+                for nbr in is_graph.neighbors(node):
+                    is_adsorbate = nbr in adsorbate_node_ids
+                    is_unassigned = nbr not in node_indices_B and nbr not in node_indices_C
+                    if is_adsorbate and is_unassigned:
                         node_indices_B.add(nbr)
                         new_queue_B.append(nbr)
             for node in queue_C:
-                for nbr in neighbors[node]:
-                    if nbr in adsorbate_node_indices and nbr not in node_indices_B and nbr not in node_indices_C:
+                for nbr in is_graph.neighbors(node):
+                    is_adsorbate = nbr in adsorbate_node_ids
+                    is_unassigned = nbr not in node_indices_B and nbr not in node_indices_C
+                    if is_adsorbate and is_unassigned:
                         node_indices_C.add(nbr)
                         new_queue_C.append(nbr)
             queue_B, queue_C = new_queue_B, new_queue_C
@@ -244,8 +237,8 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         node_indices_C = list(node_indices_C)
 
         # 4) Get center of mass of fragments B and C and their distance from surface to choose which fragment to move
-        slab_atoms = [idx for idx in is_graph.idx if idx not in node_indices_B and idx not in node_indices_C]
-        z_max = max(IS.positions[i][2] for i in slab_atoms)
+        slab_positions = IS.positions[slab_node_ids]
+        z_max = np.max(slab_positions[:, 2])
         cm_B = IS.get_center_of_mass(indices=node_indices_B)
         cm_C = IS.get_center_of_mass(indices=node_indices_C)
         dist_Bz = abs(z_max - cm_B[2])
@@ -278,10 +271,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                     logfile=None)
             opt.run(fmax=0.05, steps=self.mlp.max_steps)
             empty_cache()
-            fs_graph = atoms_to_data(FS, FS.get_array("atom_tags"), surface_order=-1, filter=False)
-            reaction.fs_graph = fs_graph
-            reaction.fs_atoms = FS.copy()
-            if is_adsorbate_fragmented(fs_graph, FS.get_array("atom_tags")):
+            fs_graph = atoms_to_data(FS, atom_tags_array, surface_order=-1, filter=False)
+            if is_adsorbate_fragmented(fs_graph, atom_tags_array):
+                reaction.fs_graph = fs_graph
+                reaction.fs_atoms = FS.copy()
                 break
             else:
                 increment += 0.5
