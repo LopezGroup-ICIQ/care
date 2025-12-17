@@ -181,11 +181,11 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 key=lambda x: IS_intermediate.ads_configs[x]['mu'],
             )
             IS = IS_intermediate.ads_configs[idx]["ase"]
+            atom_tags_array = IS.get_array("atom_tags")
             is_graph = atoms_to_data(IS, atom_tags_array, surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
             n_nodes = len(is_graph)
-            atom_tags_array = IS.get_array("atom_tags")
             adsorbate_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 1]
             slab_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 0]
         except:
