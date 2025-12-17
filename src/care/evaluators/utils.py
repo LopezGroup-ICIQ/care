@@ -157,19 +157,18 @@ def atoms_to_data(
             return None
         if not C_filter(graph):
             return None
-        if is_adsorbate_fragmented(graph, atom_tags):
+        if is_adsorbate_fragmented(graph):
             return None
     return graph
 
 
-def extract_adsorbate(graph: Graph, atom_tags: list[int]) -> Graph:
+def extract_adsorbate(graph: Graph) -> Graph:
     """Extract adsorbate from the graph."""
-    adsorbate_nodes = [n for n in graph.nodes if atom_tags[graph.nodes[n]["idx"]] == 1]
-    adsorbate = graph.subgraph(adsorbate_nodes).copy()
-    return adsorbate
+    adsorbate_nodes = [n for n in graph.nodes if graph.nodes[n]["atom_tags"] == 1]
+    return graph.subgraph(adsorbate_nodes).copy()
 
 
-def is_adsorbate_fragmented(graph: Graph, atom_tags: list[int]) -> bool:
+def is_adsorbate_fragmented(graph: Graph) -> bool:
     """Check adsorbate fragmentation in the graph.
     Args:
         graph(Graph): Adsorption graph.
@@ -178,15 +177,15 @@ def is_adsorbate_fragmented(graph: Graph, atom_tags: list[int]) -> bool:
         (bool): True = Fragmented adsorbate
                 False = Connected adsorbate
     """
-    adsorbate = extract_adsorbate(graph, atom_tags)
-    if len(adsorbate) == 1 and adsorbate.number_of_edges() == 0:
+    graph = extract_adsorbate(graph)
+    if len(graph) == 1 and graph.number_of_edges() == 0:
         return False
-    return not is_connected(adsorbate)
+    return not is_connected(graph)
 
 
-def is_ring(graph: Graph, atom_tags: list[int]) -> bool:
+def is_ring(graph: Graph) -> bool:
     """Check if the graph contains a ring."""
-    adsorbate = extract_adsorbate(graph, atom_tags)
+    adsorbate = extract_adsorbate(graph)
     cycles = list(cycle_basis(adsorbate))
     ring_nodes = set(node for cycle in cycles for node in cycle)
     if len(ring_nodes) > 0:
@@ -268,7 +267,7 @@ def C_filter(graph: Graph) -> bool:
     return True
 
 
-def adsorption_filter(graph: Graph, atom_tags: list[int]) -> bool:
+def adsorption_filter(graph: Graph) -> bool:
     """
     Check presence of surface atoms in the adsorption graph.
 
@@ -279,7 +278,7 @@ def adsorption_filter(graph: Graph, atom_tags: list[int]) -> bool:
         (bool): True = Surface atoms present in the adsorption graph
                 False = No surface atoms in the adsorption graph
     """
-    return False if all([atom_tags[graph.idx[i]] == 1 for i in range(graph.num_nodes)]) else True
+    return False if all([graph.nodes[node_id]["atom_tags"] == 1 for node_id in range(graph.nodes)]) else True
 
 
 def ase_adsorption_filter(atoms: Atoms, atom_tags: list[int]) -> bool:
@@ -414,7 +413,7 @@ def get_connectivity_dict(atoms: Atoms, atom_tags: list[int], target: str="as") 
         elif target == "ss" and tag1 == 0 and tag2 == 0:
             connectivity_dict[elem_str].add(tuple(sorted((ase_idx1, ase_idx2))))
         else:
-            raise ValueError("Invalid targeted connections specified. Use 'as' for adsorbate-surface, 'aa' for adsorbate-adsorbate, or 'ss' for surface-surface.")
+            continue
     canonical_dict = {}
     for elem_str, bond_set in connectivity_dict.items():
         sorted_bonds = sorted([list(pair) for pair in bond_set])

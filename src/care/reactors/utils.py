@@ -171,6 +171,7 @@ def analyze_elemental_balance(mkm_results: Union[dict, str], inters):
     if isinstance(mkm_results, str):
         with open(mkm_results, "rb") as f:
             mkm_results = load(f)
+    elements = mkm_results["inters_info"]["elements"]
 
     rows = []
     for k, inter in inters.items():
@@ -180,19 +181,16 @@ def analyze_elemental_balance(mkm_results: Union[dict, str], inters):
                 "formula": inter.formula,
                 "code": inter.code,
                 "consumption_rate": mkm_results["total_consumption_rate"][idx],
-                "C": inter["C"],
-                "H": inter["H"],
-                "O": inter["O"],
-                "N": inter["N"]
+                **{elem: inter[elem] for elem in elements}
             })
 
     df = pd.DataFrame(rows)
 
-    outflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(lower=0), axis=0)).sum()
-    inflow = (df[["C", "H", "O"]].mul(df["consumption_rate"].clip(upper=0), axis=0)).sum()
+    outflow = (df[elements].mul(df["consumption_rate"].clip(lower=0), axis=0)).sum()
+    inflow = (df[elements].mul(df["consumption_rate"].clip(upper=0), axis=0)).sum()
     in_div_out = (inflow.abs() / outflow).round(2).astype(float).to_dict()
 
-    for elem in ["C", "H", "O"]:
+    for elem in elements:
         if inflow[elem] == 0 and outflow[elem] == 0:
             in_div_out[elem] = 1.0
     gas_mask = mkm_results["gas_mask"]
@@ -223,7 +221,7 @@ def generate_simulation_report(results_dict: Dict[str, Any],
         species_df["formula"] = species_info['formulas']
         species_df["phase"] = ["gas" if x == 1 else "adsorbed" for x in results_dict['gas_mask']]
         for elem in species_info['elements']:
-            species_df[f"n{elem}"] = species_info[elem] + [0]
+            species_df[f"n{elem}"] = species_info[elem]
         species_df["theta0"] = results_dict['y0']
         species_df["theta"] = results_dict['y']
         species_df["unit"] = ["Pa" if x == 1 else "-" for x in results_dict['gas_mask']]

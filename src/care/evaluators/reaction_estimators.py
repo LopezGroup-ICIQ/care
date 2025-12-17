@@ -207,7 +207,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                     data.remove_edge(u, v)
                 else:
                     continue
-                adsorbate = extract_adsorbate(data, atom_tags_array)
+                adsorbate = extract_adsorbate(data)
                 if connectivity_signature(adsorbate) == nx_bc_signature:
                     break
             else:
@@ -272,7 +272,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             opt.run(fmax=0.05, steps=self.mlp.max_steps)
             empty_cache()
             fs_graph = atoms_to_data(FS, atom_tags_array, surface_order=-1, filter=False)
-            if is_adsorbate_fragmented(fs_graph, atom_tags_array):
+            if is_adsorbate_fragmented(fs_graph):
                 reaction.fs_graph = fs_graph
                 reaction.fs_atoms = FS.copy()
                 break

@@ -463,7 +463,7 @@ class ReactionNetwork(nx.DiGraph):
             inters_dict["formulas"] = inters_formula
             inters_dict["codes"] = inters
             for elem in self.elements:
-                inters_dict[elem] = [x[elem] for x in intermediates.values()]
+                inters_dict[elem] = [x[elem] for x in intermediates.values()] + [0] # surface site
             inters_dict["elements"] = self.elements
             inters_info = inters_dict
             inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            

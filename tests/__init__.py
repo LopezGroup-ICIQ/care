@@ -1,6 +1,8 @@
 import random
 import pathlib
-    
+
+from ase.io import read
+
 from care import Surface, gen_blueprint, Intermediate, load_crn
 from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
 
@@ -11,6 +13,9 @@ surface_from_bulk = Surface.from_bulk_poscar(str(TEST_DIR) + "/files/Ni_fcc.posc
 surface_from_slab = Surface.from_poscar(str(TEST_DIR) + "/files/Os0001.poscar")
 co2_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/CO2.poscar", code="CO2g", phase="gas")
 ammonia_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/NH3.poscar", code="NH3g", phase="gas")
+ase_adsorbate_linear = read(str(TEST_DIR) + "/files/C3H6O3_Cu111.poscar", format="vasp")
+ase_adsorbate_ring = read(str(TEST_DIR) + "/files/aromatic_Ag111.poscar", format="vasp")
+ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.poscar", format="vasp")
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 neb = NEBReactionEnergyEstimator(mlp=mlp)
