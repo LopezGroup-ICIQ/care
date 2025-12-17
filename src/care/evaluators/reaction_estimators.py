@@ -170,9 +170,6 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         """
         reaction.bb()  # ensure starting always from reaction in bond-breaking direction (A* -> B* + C*)
         bond = tuple(reaction.r_type.split("-"))
-        atom_tags_array = IS.get_array("atom_tags")
-        adsorbate_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 1]
-        slab_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 0]
 
         # 1) Get most stable configuration of initial state (A*)
         IS_intermediate = [
@@ -184,6 +181,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                 key=lambda x: IS_intermediate.ads_configs[x]['mu'],
             )
             IS = IS_intermediate.ads_configs[idx]["ase"]
+            atom_tags_array = IS.get_array("atom_tags")
+            adsorbate_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 1]
+            slab_node_ids = [i for i in range(n_nodes) if atom_tags_array[i] == 0]
             is_graph = atoms_to_data(IS, atom_tags_array, surface_order=-1, filter=True)
             reaction.is_graph = is_graph
             reaction.is_atoms = IS.copy()
