@@ -7,10 +7,12 @@ from care.evaluators.utils import atoms_to_data, extract_adsorbate, get_connecti
 from tests import ase_adsorbate_linear as x1
 from tests import ase_adsorbate_ring as x2
 from tests import ase_adsorbate_fragmented as x3
+from tests import ase_adsorbate_oxide as x4
 
 x11 = [0] * 48 + [1] * 12
 x22 = [0] * 48 + [1] * 15
 x33 = x11
+x44 = [0] * 120 + [1] * 6
 
 g1o1 = atoms_to_data(x1, x11, 1)
 g2o1 = atoms_to_data(x2, x22, 1)
@@ -30,8 +32,13 @@ sig2_o1 = connectivity_signature(g2o1)
 condict_o1 = get_connectivity_dict(x1, x11)
 condict_o2 = get_connectivity_dict(x2, x22)
 
+# structure with 2 adsorbate fragments
 g_fragmented_nofilter = atoms_to_data(x3, x33, 1, filter=False)
 g_fragmented = atoms_to_data(x3, x33, 1, filter=True)
+
+# structure where both surface and adsorbate contain same element (O)
+g_oxide_om1 = atoms_to_data(x4, x44, -1)
+adsorbate_oxide = extract_adsorbate(g_oxide_om1)
 
 class TestGraphUtils(unittest.TestCase):
     def test_graph_gen(self):
@@ -65,6 +72,11 @@ class TestGraphUtils(unittest.TestCase):
         self.assertTrue(is_adsorbate_fragmented(g_fragmented_nofilter))
         self.assertFalse(is_ring(ads1_o1))
         self.assertTrue(is_ring(ads2_o1))
+        # oxide
+        self.assertIsInstance(g_oxide_om1, Graph)
+        self.assertEqual(len(g_oxide_om1), 126)
+        self.assertIsInstance(adsorbate_oxide, Graph)
+        self.assertEqual(len(adsorbate_oxide), 6)
 
     def test_connectivity_dict(self):
         self.assertIsInstance(sig1_o1, list)

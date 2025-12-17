@@ -16,6 +16,7 @@ ammonia_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/NH3.pos
 ase_adsorbate_linear = read(str(TEST_DIR) + "/files/C3H6O3_Cu111.poscar", format="vasp")
 ase_adsorbate_ring = read(str(TEST_DIR) + "/files/aromatic_Ag111.poscar", format="vasp")
 ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.poscar", format="vasp")
+ase_adsorbate_oxide = read(str(TEST_DIR) + "/files/carbonic_acid_TiO2.poscar", format="vasp")
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 neb = NEBReactionEnergyEstimator(mlp=mlp)

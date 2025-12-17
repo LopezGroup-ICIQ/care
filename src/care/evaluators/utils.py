@@ -272,8 +272,7 @@ def adsorption_filter(graph: Graph) -> bool:
     Check presence of surface atoms in the adsorption graph.
 
     Args:
-        graph(torch_geometric.data.Graph): Graph object representation
-        atom_tags (list[int]): List of tags defining whether an atom is part of the adsorbate or the surface
+        graph(networkx.Graph): Graph of the adsorption structure obtained with atoms_to_data.
     Returns:
         (bool): True = Surface atoms present in the adsorption graph
                 False = No surface atoms in the adsorption graph
@@ -324,7 +323,7 @@ def graph_plotter(
     Visualize graph with atom labels and colors. Working also for TSs.
     Kamada_kawai_layout engine gives the best visualization appearance.
     Args:
-        graph(torch_geometric.data.Graph): graph object in pyG format.
+        graph(networkx.Graph): Input graph obtained with atoms_to_data.
     """
     labels = get_node_attributes(g, "elem")
     node_colors = {i: RGB_COLORS[labels[i]] for i in g.nodes}
