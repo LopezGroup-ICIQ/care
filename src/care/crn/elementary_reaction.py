@@ -196,45 +196,32 @@ class ElementaryReaction:
         return self._repr_hr
     
     def solve_stoichiometry(self) -> dict[str, float]:
-        """Solve the stoichiometry of the elementary reaction.
+        """
+        Solve the stoichiometry of the elementary reaction.
         sum_i nu_i * S_i = 0 (nu_i are the stoichiometric coefficients and S_i are the species)
 
         Returns:
             dict containing the stoichiometry of the elementary reaction.
         """
-        reactants = [specie for specie in self.reactants]
-        products = [specie for specie in self.products]
+        reactants = [specie for specie in self.reactants]  # self.reactants is a frozenset
+        products = [specie for specie in self.products]  # self.products is a frozenset
         species = reactants + products
-        stoic_dict = {
-            specie.code: -1 if specie in reactants else 1 for specie in species
-        }  # initial guess (correct for most of the steps)
-        matrix = np.zeros((len(species), len(INTER_ELEMS)), dtype=np.int8)
+        matrix = np.zeros((len(species), len(INTER_ELEMS)))
         for i, inter in enumerate(species):
             for j, element in enumerate(INTER_ELEMS):
-                if element == "*" and inter.phase not in ("gas", "solv", "electro"):
-                    matrix[i, j] = 1
-                elif element == "q":
-                    matrix[i, j] = species[i].charge
-                else:
-                    matrix[i, j] = species[i][element]
-        y = np.zeros((len(INTER_ELEMS), 1))
-        for i, _ in enumerate(INTER_ELEMS):
-            y[i] = np.dot(
-                matrix[:, i], np.array([stoic_dict[specie.code] for specie in species])
-            )
-        if np.all(y == 0):
-            return stoic_dict
-        else:
-            stoic = null_space(matrix.T)
-            stoic = stoic[:, np.all(np.abs(stoic) > 1e-9, axis=0)]
-            min_abs = min([abs(x) for x in stoic])
-            stoic = np.round(stoic / min_abs).astype(int)
-            if stoic[0] > 0:
-                stoic = [-x for x in stoic]
-            stoic = [int(x[0]) for x in stoic]
-            for i, specie in enumerate(species):
-                stoic_dict[specie.code] = stoic[i]
-        return stoic_dict
+                matrix[i, j] = inter[element]
+        default_coeffs = np.array([-1] * len(self.reactants) + [1] * len(self.products))  # Initial guess
+        if np.allclose(matrix.T @ default_coeffs, 0):
+            return dict(zip([s.code for s in species], default_coeffs.tolist()))
+        ns = null_space(matrix.T)
+        if ns.size == 0:
+            raise ValueError("No stoichiometric solution found (Null space is empty).")
+        stoic = ns[:, 0]
+        min_val = np.min(np.abs(stoic[np.abs(stoic) > 1e-9]))
+        stoic = np.round(stoic / min_val)
+        if stoic[0] > 0:
+            stoic *= -1
+        return dict(zip([s.code for s in species], stoic.astype(int).tolist()))
 
     def reverse(self):
         """
