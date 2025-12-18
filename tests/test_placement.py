@@ -26,7 +26,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
                 for structure in adsorptions1:
                     atoms_tags = list(structure.get_array("atom_tags"))
                     g = atoms_to_data(structure, atoms_tags)
-                    gg = extract_adsorbate(g, atoms_tags)
+                    gg = extract_adsorbate(g)
                     self.assertEqual(len(structure) , n_slab + n_adsorbate)
                     self.assertTrue(all(inter[i] == structure.get_chemical_symbols().count(i) for i in ["C", "H", "O"]))
                     self.assertTrue(all(i in structure.constraints[0].get_indices() for i in bottom_half_indices(surface.slab)))  # check on constrained bulk atoms
