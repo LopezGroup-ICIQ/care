@@ -277,7 +277,7 @@ def adsorption_filter(graph: Graph) -> bool:
         (bool): True = Surface atoms present in the adsorption graph
                 False = No surface atoms in the adsorption graph
     """
-    return False if all([graph.nodes[node_id]["atom_tags"] == 1 for node_id in range(graph.nodes)]) else True
+    return False if all([graph.nodes[node_id]["atom_tags"] == 1 for node_id in graph.nodes]) else True
 
 
 def ase_adsorption_filter(atoms: Atoms, atom_tags: list[int]) -> bool:

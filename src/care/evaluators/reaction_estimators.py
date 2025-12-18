@@ -54,6 +54,25 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
     """
     Class for estimating the transition state energy of surface reactions using the NEB method with 
     ML potentials within ASE calculators.
+
+    Args:
+        mlp (IntermediateEnergyEstimator): An instance of IntermediateEnergyEstimator representing the ML potential.
+        num_images (int): Number of intermediate images for NEB. Default is 3.
+        climb (bool): Whether to use the climbing image NEB method. Default is True.
+        interpolation_method (str): Method for interpolating initial NEB images. Default is "linear".
+        neb_method (str): NEB method to use. Default is "aseneb".
+        remove_rotation_and_translation (bool): Whether to remove rotation and translation during NEB. Default is True.
+        allow_shared_calculator (bool): Whether to allow shared calculator among images. Default is False.
+        k (float or list of float): Spring constant(s) for NEB. Default is 0.1 eV/Å².
+        parallel (bool): Whether to run NEB in parallel. Default is True.
+        dx (float): Initial displacement distance for generating final state. Default is 1.5 Å.
+        tol (float): Tolerance for avoiding atomic clashes when generating final state. Default is 0.0 Å.
+        max_steps (int): Maximum number of optimization steps for NEB. Default is 100.
+        optimizer (str): Optimizer to use ("BFGS" or "LBFGS"). Default is "BFGS".
+        T (float): Temperature in Kelvin for thermodynamic corrections. Default is 298.0 K.
+        ref_electrode (str): Reference electrode for electrochemical corrections. Default is "SHE".
+        pH (float): pH value for electrochemical corrections. Default is 7.0.
+        U (float): Electrode potential in Volts for electrochemical corrections. Default is 0.0 V.
     """
 
     def __init__(
@@ -295,7 +314,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         neb.interpolate(method=self.interpolation_method, 
                         mic=True, 
                         apply_constraint=True)
-        for image in images[1:self.num_images + 1]:
+        for image in images[1:self.num_images + 1]:  # only intermediate images
             image.calc = deepcopy(self.mlp.calc)
         if self.optimizer == "LBFGS":
             optimizer = LBFGS(neb, logfile=None)
@@ -305,8 +324,9 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
 
         final_NEB_frames = []
         final_NEB_energies = []
-        for _, image in enumerate(neb.images):
-            image.calc = deepcopy(self.mlp.calc)
+        for i, image in enumerate(neb.images):  # including initial and final states
+            if i == 0 or i == len(neb.images) - 1: # IS and FS have no calculator assigned
+                image.calc = deepcopy(self.mlp.calc)
             energy_image = image.get_potential_energy()
             final_NEB_energies.append(energy_image)
             image.calc = None

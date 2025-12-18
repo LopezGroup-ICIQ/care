@@ -1,6 +1,20 @@
 import unittest
 
-from tests import neb, mlp
+from care.evaluators import NEBReactionEnergyEstimator
+from care.evaluators.utils import is_adsorbate_fragmented, adsorption_filter
+from care.crn.templates import BondBreaking
+from networkx import is_connected
+
+from tests import mlp, evaluated_network
+
+neb = NEBReactionEnergyEstimator(mlp=mlp, max_steps=10)
+
+# choose random reaction from evaluated network of type BondBreaking for testing
+reaction = None
+for rxn in evaluated_network.reactions:
+    if isinstance(rxn, BondBreaking):
+        reaction = rxn
+        break
 
 
 class TestNEB(unittest.TestCase):
@@ -11,4 +25,17 @@ class TestNEB(unittest.TestCase):
         self.assertIsInstance(neb.num_images, int)
         self.assertIsInstance(neb.max_steps, int)
         self.assertIsInstance(neb.optimizer, str)
+
+    def test_2(self):
+        bc_graph = neb._build_product_nx(reaction)
+        neb.get_fs(reaction)
+        self.assertFalse(is_connected(bc_graph))
+        self.assertFalse(is_adsorbate_fragmented(reaction.is_graph))
+        self.assertTrue(is_adsorbate_fragmented(reaction.fs_graph))
+        self.assertTrue(adsorption_filter(reaction.fs_graph))
+        self.assertTrue(adsorption_filter(reaction.is_graph))
+        neb.run_neb(reaction)
+        self.assertIsNotNone(reaction.neb_images)
+        self.assertIsNotNone(reaction.neb_energies)
+        self.assertEqual(len(reaction.neb_images), neb.num_images+2)
         
