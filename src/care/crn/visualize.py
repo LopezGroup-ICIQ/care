@@ -26,6 +26,7 @@ def write_dotgraph(graph: ReactionNetwork,
                    node_sep: float=0.15, 
                    fontsize: int=50, 
                    layout_engine: str="dot", 
+                   show_species_labels: bool=True,
                    dpi:int=150):
     """
     Write a dot graph representing the reaction network.
@@ -66,14 +67,17 @@ def write_dotgraph(graph: ReactionNetwork,
             attrs = node.get_attributes()
             node.set_penwidth("2")
             if attrs["category"] == "intermediate":
-                formula = attrs["formula"]
-                formula += "" if attrs["phase"] == "gas" else "*"
-                for num in re.findall(r"\d+", formula):
-                    SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-                    formula = formula.replace(num, num.translate(SUB))
                 node.set_shape("ellipse")
                 node.set_style("filled")
-                node.set_label(formula)
+                if show_species_labels:
+                    formula = attrs["formula"]
+                    formula += "" if attrs["phase"] == "gas" else "*"
+                    for num in re.findall(r"\d+", formula):
+                        SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+                        formula = formula.replace(num, num.translate(SUB))
+                    node.set_label(formula)
+                else:
+                    node.set_label("")
                 node.set_fillcolor(color_code_species[attrs["phase"]])
             elif attrs["category"] == "reaction":
                 node.set_shape("square")
