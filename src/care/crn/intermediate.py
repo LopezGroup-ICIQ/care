@@ -112,7 +112,7 @@ class Intermediate:
             return self.code == other
         if isinstance(other, Intermediate):
             return self.code == other.code
-        raise NotImplementedError
+        return False
 
     def __repr__(self):
         if self.phase in ("surf", "ads"):
@@ -209,6 +209,14 @@ class Intermediate:
         if self._gas_configs is None:
             self._gas_configs = self.gen_gas_configs()
         return self._gas_configs
+    
+    def is_evaluated(self) -> bool:
+        """
+        Check if the intermediate has been energetically evaluated.
+        """
+        if len(self.ads_configs) > 0:
+            return True
+        return False
     
     def is_closed_shell(self) -> bool:
         """

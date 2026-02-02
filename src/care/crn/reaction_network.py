@@ -50,21 +50,14 @@ class ReactionNetwork(nx.DiGraph):
                     )
                     intermediate_map[inter.code] = inter
         for rxn in reactions:
-            reactant_codes = [inter.code for inter in rxn.reactants]
-            product_codes = [inter.code for inter in rxn.products]
-            rxn.components = ([intermediate_map[i] for i in reactant_codes],
-                              [intermediate_map[i] for i in product_codes])
+            new_reactants = [intermediate_map[r.code] for r in rxn.reactants]
+            new_products = [intermediate_map[p.code] for p in rxn.products]
+            rxn.components = (new_reactants, new_products)
             self.add_node(rxn)
-            for inter in list(rxn.reactants):
-                self.add_edge(
-                    inter,
-                    rxn,
-                )
-            for inter in list(rxn.products):
-                self.add_edge(
-                    rxn,
-                    inter,
-                )
+            for r in rxn.reactants:
+                self.add_edge(r, rxn)
+            for p in rxn.products:
+                self.add_edge(rxn, p)
         self._intermediates = self.get_intermediates()
         self._reactions = self.get_reactions()
         self._v = self.build_stoichiometry()
@@ -156,6 +149,16 @@ class ReactionNetwork(nx.DiGraph):
     @property
     def es(self):
         return self._es
+    
+    @property
+    def is_evaluated(self) -> bool:
+        """
+        Check if all reactions and intermediates in the network have been energetically evaluated.
+        """
+        for rxn in self.reactions:
+            if not rxn.is_evaluated():
+                return False
+        return True
 
     def build_stoichiometry(self):
         inters = list(self.intermediates.keys()) + ["*"]
@@ -294,7 +297,7 @@ class ReactionNetwork(nx.DiGraph):
             raise TypeError("Index must be str or int")
 
     def __str__(self):
-        string = "ReactionNetwork({} surface species, {} gas molecules, {} elementary reactions)\n".format(
+        string = "ReactionNetwork({} surface species, {} molecules, {} elementary reactions)\n".format(
             self.num_intermediates - self.num_closed_shell_mols,
             self.num_closed_shell_mols,
             self.num_reactions,
@@ -303,6 +306,7 @@ class ReactionNetwork(nx.DiGraph):
         string += "Network Carbon cutoff: {}\n".format(self.ncc)
         string += "Network Oxygen cutoff: {}\n".format(self.noc)
         string += "Type: {}\n".format(self.crn_type)
+        string += "Energetically evaluated: {}\n".format(self.is_evaluated)
         return string
 
     def __repr__(self):
@@ -409,6 +413,8 @@ class ReactionNetwork(nx.DiGraph):
             results (dict): Dictionary containing the results of the
                 microkinetic simulation.
         """
+        if not self.is_evaluated:
+            raise ValueError("All reactions (and therefore intermediates) in the network must be energetically evaluated before running microkinetic simulations.")
         from care.reactors import DifferentialPFR
         from care.reactors.utils import analyze_elemental_balance
         from scipy.sparse import csr_matrix
