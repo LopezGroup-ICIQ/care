@@ -96,7 +96,8 @@ class Surface:
         self.num_atoms = len(ase_atoms_slab)
         self.mp_id = mp_id 
         self.energy = None
-        self.slab.new_array("atom_tags", [0] * len(self.slab), dtype=int)  # 0=surface atom, 1=adsorbate atom
+        if "atom_tags" not in self.slab.arrays:
+            self.slab.new_array("atom_tags", [0] * len(self.slab), dtype=int)
 
     def __repr__(self) -> str:
         return f"{self.metal}({self.facet})"
@@ -237,3 +238,8 @@ class Surface:
         """
         fixed = set(self.fixed_atoms)
         return [atom.index for atom in self.slab if atom.index not in fixed]
+    
+    def __eq__(self, other):
+        if not isinstance(other, Surface):
+            return NotImplemented
+        return self.metal == other.metal and self.facet == other.facet and self.mp_id == other.mp_id and self.slab == other.slab

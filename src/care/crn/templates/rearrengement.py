@@ -15,8 +15,8 @@ from care import Intermediate, ElementaryReaction
 class Rearrangement(ElementaryReaction):
     """Class for (1,2)-H shift rearrangement reactions."""
 
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
 
     def reverse(self):
         self.components = self.components[::-1]

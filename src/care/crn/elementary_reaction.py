@@ -148,14 +148,22 @@ class ElementaryReaction:
 
     def __str__(self) -> str:
         return self.__repr__()
-
+    
     def __eq__(self, other):
-        if isinstance(other, ElementaryReaction):
-            return frozenset(self.components) == frozenset(other.components)
-        return False
+        if not isinstance(other, ElementaryReaction):
+            return NotImplemented
+
+        def get_code_signature(components):
+            sig = []
+            for group in components:
+                codes = sorted([inter.code for inter in group])
+                sig.append(tuple(codes))
+            return tuple(sig)
+
+        return get_code_signature(self.components) == get_code_signature(other.components)
 
     def __hash__(self):
-        return id(self)
+        return hash(self.code)
     
     def __getitem__(self, key):
         all_species = list(self.reactants) + list(self.products)

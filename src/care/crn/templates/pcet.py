@@ -11,8 +11,8 @@ from care.crn.utils.electro import Proton, Electron, Water
 class PCET(ElementaryReaction):
     """Class for proton-coupled electron transfer reactions."""
     __slots__ = ("alpha", "_bader_energy")
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
         self.alpha = 0.5  # charge transfer coefficient
         self._bader_energy = None
 

@@ -15,6 +15,7 @@ from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, load_surface
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator
+from care.io import save_network
 from care.scripts import setup_logging, load_x, predict
 
 
@@ -170,9 +171,8 @@ def main():
     crn = ReactionNetwork(reactions=rxns, surface=surface)
 
     print(f"Total time: {(time() - t0):.2f} s")
-    with open(ARGS.output+'.pkl', "wb") as f:
-        dump(crn, f)
-        print(f"CRN saved to {ARGS.output+'.pkl'}")
+    save_network(crn, f"{ARGS.output}.json")
+    print(f"CRN saved to {ARGS.output+'.json'}")
     if os.path.exists(ARGS.output + '_intermediates.pkl'):
         os.remove(ARGS.output + '_intermediates.pkl')
     if os.path.exists(ARGS.output + '_reactions.pkl'):

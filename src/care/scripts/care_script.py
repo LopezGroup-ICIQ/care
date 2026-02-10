@@ -15,8 +15,8 @@ import dask
 from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, gen_blueprint, load_surface
-from care.crn.utils.electro import Electron
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
+from care.io import save_network, load_network
 from care.scripts import setup_logging, load_x, predict
 
 def main():
@@ -235,14 +235,11 @@ def main():
         )
 
         print("\nSaving the CRN...")
-        with open(f"{output_dir}/crn.pkl", "wb") as f:
-            dump(crn, f)
-        print("Done!")
+        save_network(crn, f"{output_dir}/crn.json")
 
     else:
         print("Loading the CRN...")
-        with open(crn_path, "rb") as f:
-            crn = load(f)
+        crn = load_network(crn, f"{output_dir}/crn.json")
 
     if MKM_SWITCH:
         print("\nRunning the microkinetic simulation...")

@@ -45,8 +45,6 @@ __all__ = [
     "ReactionMechanism",
     "gen_blueprint",
     "dissociate",
-    "load_crn",
     "load_surface",
-    "save_crn",
 ]
-__version__ = "0.1.0"
+__version__ = "0.3.0"

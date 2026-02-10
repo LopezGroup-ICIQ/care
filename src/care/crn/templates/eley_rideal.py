@@ -6,8 +6,8 @@ class AssociativeAdsorption(Adsorption):
     Eley-Rideal (associative adsorption) elementary reaction:
     A* + B(g) -> C*
     """
-    def __init__(self, components, r_type):
-        super().__init__(components, r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components, r_type, stoic)
 
     def reverse(self):
         self.__class__ = DissociativeDesorption
@@ -31,8 +31,8 @@ class DissociativeDesorption(Desorption):
     Dissociative desorption elementary reaction of the type:
     A* -> B(g) * C*
     """
-    def __init__(self, components, r_type):
-        super().__init__(components, r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components, r_type, stoic)
 
     def reverse(self):
         self.__class__ = AssociativeAdsorption

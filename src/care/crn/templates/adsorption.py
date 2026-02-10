@@ -14,8 +14,8 @@ from care.constants import K_B, K_BU
 class Adsorption(ElementaryReaction):
     __slots__ = ("adsorbate_mass", "adsorbate")
 
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
         self.adsorbate = [inter for inter in self.reactants if inter.phase == "gas"][0]
         self.adsorbate_mass = self.adsorbate.mass  # atomic mass units
 
@@ -84,8 +84,8 @@ class Adsorption(ElementaryReaction):
 class Desorption(ElementaryReaction):
     __slots__ = ("adsorbate_mass", "adsorbate")
 
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
         self.adsorbate = [inter for inter in self.products if inter.phase == "gas"][0]
         self.adsorbate_mass = self.adsorbate.mass  # atomic mass units
 

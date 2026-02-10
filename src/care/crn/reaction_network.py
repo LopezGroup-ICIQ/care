@@ -571,3 +571,15 @@ class ReactionNetwork(nx.DiGraph):
                 if r[i] < 0:
                     self.reverse_reaction(i)
         return results
+    
+    def __eq__(self, other):
+        if not isinstance(other, ReactionNetwork):
+            return NotImplemented
+
+        if self.surface != other.surface:
+            return False
+
+        if set(self.reactions) != set(other.reactions):
+            return False
+
+        return True

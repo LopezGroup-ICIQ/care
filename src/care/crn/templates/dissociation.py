@@ -15,8 +15,8 @@ from care.constants import BOND_TYPES
 class BondBreaking(ElementaryReaction):
     """Class for bond-breaking reactions."""
 
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
 
     def reverse(self):
         self.__class__ = BondFormation
@@ -44,8 +44,8 @@ class BondBreaking(ElementaryReaction):
 class BondFormation(ElementaryReaction):
     """Class for bond-formation reactions."""
 
-    def __init__(self, components, r_type):
-        super().__init__(components=components, r_type=r_type)
+    def __init__(self, components, r_type, stoic=None):
+        super().__init__(components=components, r_type=r_type, stoic=stoic)
 
     def reverse(self):
         self.__class__ = BondBreaking

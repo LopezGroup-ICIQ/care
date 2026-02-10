@@ -3,8 +3,9 @@ import pathlib
 
 from ase.io import read
 
-from care import Surface, gen_blueprint, Intermediate, load_crn
-from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
+from care import Surface, gen_blueprint, Intermediate
+from care.io import load_network
+from care.evaluators import MACEIntermediateEvaluator
 
 TEST_DIR = pathlib.Path(__file__).parent
 intermediates, rxns = gen_blueprint(1, 1, False, False, False)
@@ -19,7 +20,7 @@ ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.
 ase_adsorbate_oxide = read(str(TEST_DIR) + "/files/carbonic_acid_TiO2.poscar", format="vasp")
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
-evaluated_network = load_crn(str(TEST_DIR) + "/files/c1o2_Ru0001.pkl")
+evaluated_network = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001.gz")
 
 __all__ = [
     "intermediates",
