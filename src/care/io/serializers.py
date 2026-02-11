@@ -47,7 +47,8 @@ def intermediate_to_dict(inter: Intermediate) -> dict:
 
 def intermediate_from_dict(data: dict) -> Intermediate:
     """Reconstructs the object, handling the nested ads_configs."""
-    molecule = deserialize_complex_data(data.get("molecule"))
+    mol_data = data.get("molecule")
+    molecule = deserialize_complex_data(mol_data) if mol_data else Atoms()
     inter = Intermediate(
         code=data.get("code"),
         molecule=molecule,

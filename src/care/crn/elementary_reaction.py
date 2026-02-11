@@ -145,6 +145,14 @@ class ElementaryReaction:
             comp_str = " + ".join(inters_str_sorted)
             comps_str.append(comp_str)
         return format_reaction(" \u27F9 ".join(comps_str))
+    
+    @property
+    def _signature(self):
+        r_codes = tuple(sorted(i.code for i in self.reactants))
+        p_codes = tuple(sorted(i.code for i in self.products))
+        sides = [r_codes, p_codes]
+        sides.sort()
+        return tuple(sides)
 
     def __str__(self) -> str:
         return self.__repr__()
@@ -152,18 +160,10 @@ class ElementaryReaction:
     def __eq__(self, other):
         if not isinstance(other, ElementaryReaction):
             return NotImplemented
-
-        def get_code_signature(components):
-            sig = []
-            for group in components:
-                codes = sorted([inter.code for inter in group])
-                sig.append(tuple(codes))
-            return tuple(sig)
-
-        return get_code_signature(self.components) == get_code_signature(other.components)
+        return self._signature == other._signature
 
     def __hash__(self):
-        return hash(self.code)
+        return hash(self._signature)
     
     def __getitem__(self, key):
         all_species = list(self.reactants) + list(self.products)

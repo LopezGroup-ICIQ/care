@@ -573,13 +573,18 @@ class ReactionNetwork(nx.DiGraph):
         return results
     
     def __eq__(self, other):
+        # compare for structural equivalence, not state equivalence
+        # a network with A+B->C and one with C->A+B would be considered equivalent
         if not isinstance(other, ReactionNetwork):
             return NotImplemented
-
+        
         if self.surface != other.surface:
             return False
-
-        if set(self.reactions) != set(other.reactions):
+        
+        my_inters = set(x.code for x in self.intermediates.values())
+        other_inters = set(x.code for x in other.intermediates.values())
+        
+        if my_inters != other_inters:
             return False
-
-        return True
+              
+        return set(self.reactions) == set(other.reactions)
