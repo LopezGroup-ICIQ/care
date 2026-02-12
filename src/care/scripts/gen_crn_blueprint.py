@@ -93,7 +93,7 @@ def main():
         )
         print("Input chemical space (SMILES): {}".format(", ".join(ARGS.cs)))
     t0 = time()
-    inters, rxns = gen_blueprint(
+    crn = gen_blueprint(
         ncc=ARGS.ncc,
         noc=ARGS.noc,
         cs=ARGS.cs,
@@ -111,7 +111,7 @@ def main():
     print(f"Total time: {t:.2f} s")
     # Save the blueprint
     with open(ARGS.output+'.pkl', "wb") as f:
-        dump((inters, rxns), f)
+        dump(crn, f)
         print(f"CRN blueprint saved to {ARGS.output+'.pkl'}")
 
 if __name__ == '__main__':

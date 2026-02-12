@@ -156,7 +156,7 @@ class ReactionNetwork(nx.DiGraph):
         Check if all reactions and intermediates in the network have been energetically evaluated.
         """
         for rxn in self.reactions:
-            if not rxn.is_evaluated():
+            if not rxn.is_evaluated:
                 return False
         return True
 

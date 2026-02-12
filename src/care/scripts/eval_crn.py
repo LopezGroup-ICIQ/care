@@ -71,7 +71,7 @@ def main():
 
     # Load CRN blueprint
     with open(ARGS.bp, "rb") as f:
-        inters, rxns = load(f)
+        crn = load(f)
 
     # Load evaluation settings
     with open(ARGS.input, "rb") as f:
@@ -101,7 +101,7 @@ def main():
     )
     t0 = time()
     # INTERMEDIATE EVALUATION
-    print(f"Energy estimation of the {len(inters)} intermediates...")
+    print(f"Energy estimation of the {crn.num_intermediates} intermediates...")
     print("Intermediates energy calculator: ", inter_evaluator)
     cluster = LocalCluster(n_workers=ARGS.num_cpu,
                            threads_per_worker=1, 
@@ -115,7 +115,7 @@ def main():
             print("Loading intermediates from disk...")
             intermediates = load(f)
     else:
-        tasks = [load_x(intermediate) for intermediate in inters.values()]
+        tasks = [load_x(intermediate) for intermediate in crn.intermediates.values()]
         dmodel = dask.delayed(inter_evaluator)
         predictions = [predict(task, dmodel) for task in tasks]
         predictions = dask.compute(*predictions)
@@ -123,22 +123,22 @@ def main():
         with open(ARGS.output+'_intermediates.pkl', "wb") as f:
             print("Saving intermediates to disk...")
             dump(intermediates, f)
-    for rxn in rxns:
+    for rxn in crn.reactions:
         rxn.update_intermediates(intermediates)
     ti = time()
     print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
     # REACTION EVALUATION
-    print(f"\nEnergy estimation of the {len(rxns)} reactions...")
+    print(f"\nEnergy estimation of the {crn.num_reactions} reactions...")
     print("Reaction properties calculator: ", rxn_evaluator)
     if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
         print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
-        batches = [rxns[i:i + ARGS.batch_size_rxn] for i in range(0, len(rxns), ARGS.batch_size_rxn)]
+        batches = [crn.reactions[i:i + ARGS.batch_size_rxn] for i in range(0, crn.num_reactions, ARGS.batch_size_rxn)]
         for batch in tqdm(batches):
             rxn_evaluator(batch)
     else:
         results  = []
-        tasks = [load_x(reaction) for reaction in rxns]
+        tasks = [load_x(reaction) for reaction in crn.reactions]
         dmodel = dask.delayed(rxn_evaluator)
         for i in range(0, len(tasks), ARGS.batch_size_rxn):
             batch_tasks = tasks[i:i+ARGS.batch_size_rxn]

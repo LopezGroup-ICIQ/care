@@ -17,6 +17,7 @@ class TestReactionNetwork(unittest.TestCase):
         self.assertEqual(nw.crn_type, "thermal")
         self.assertGreater(nw.num_closed_shell_mols, 0)
         self.assertGreater(len(nw.adsorptions), 0)
+        self.assertTrue(nw.is_evaluated)
 
     def test_mkm(self):
         with self.assertRaises(ValueError):

@@ -7,7 +7,9 @@ from care import Surface, gen_blueprint, Intermediate, load_crn
 from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
 
 TEST_DIR = pathlib.Path(__file__).parent
-intermediates, rxns = gen_blueprint(1, 1, False, False, False)
+crn = gen_blueprint(1, 1, False, False, False)
+intermediates = crn.intermediates
+rxns = crn.reactions
 surface = Surface.from_metal_db(metal="Co", hkl="0001")
 surface_from_bulk = Surface.from_bulk_poscar(str(TEST_DIR) + "/files/Ni_fcc.poscar", hkl="111", num_layers=3, xy_repeat=2)
 surface_from_slab = Surface.from_poscar(str(TEST_DIR) + "/files/Os0001.poscar")

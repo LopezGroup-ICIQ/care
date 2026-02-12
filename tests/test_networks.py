@@ -6,15 +6,16 @@ from scipy.sparse import csr_matrix
 import numpy as np
 from networkx import DiGraph
 
-from care import Intermediate, ElementaryReaction, ReactionNetwork, ReactionMechanism, gen_blueprint
+from care import Intermediate, ElementaryReaction, ReactionMechanism, gen_blueprint
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.constants import INTER_ELEMS
 
 from tests import co2_from_poscar, ammonia_from_poscar
 
 
-inters, steps = gen_blueprint(1, 2, None, False, True, True)
-net = ReactionNetwork(steps)
+net = gen_blueprint(1, 2, None, False, True, True)
+inters = net.intermediates
+steps = net.reactions
 
 
 class TestElementaryReaction(unittest.TestCase):
@@ -232,6 +233,7 @@ class TestIntermediate(unittest.TestCase):
             self.assertIsInstance(inter.phase, str)
             self.assertIsInstance(inter.closed_shell, (bool, None))
             self.assertIsInstance(inter.molecule, (Atoms, None))
+            self.assertFalse(inter.is_evaluated)
 
     def test_getitem(self):
         """

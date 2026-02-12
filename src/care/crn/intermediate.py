@@ -210,11 +210,12 @@ class Intermediate:
             self._gas_configs = self.gen_gas_configs()
         return self._gas_configs
     
+    @property    
     def is_evaluated(self) -> bool:
         """
         Check if the intermediate has been energetically evaluated.
         """
-        if len(self.ads_configs) > 0:
+        if len(self.ads_configs) > 0 and self.phase in ("ads", "gas"):
             return True
         return False
     

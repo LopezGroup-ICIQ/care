@@ -5,7 +5,7 @@ import multiprocessing as mp
 from prettytable import PrettyTable
 from rdkit.Chem import MolFromSmiles
 
-from care import ElementaryReaction, Intermediate, ReactionNetwork
+from care import ReactionNetwork
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
 
 def format_description(description, width=45):
@@ -22,7 +22,7 @@ def gen_blueprint(
     electro: bool = None,
     num_cpu: int = mp.cpu_count(),
     show_progress: bool = False
-) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+) -> ReactionNetwork:
     """
     Generate the reaction network blueprint.
 

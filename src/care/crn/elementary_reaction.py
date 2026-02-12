@@ -413,7 +413,8 @@ class ElementaryReaction:
             return self + (-1) * other
         else:
             raise TypeError("The object is not an ElementaryReaction")
-        
+    
+    @property    
     def is_evaluated(self) -> bool:
         """
         Check if all intermediates in the reaction have been energetically evaluated.
