@@ -183,16 +183,17 @@ def main():
         print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
         # REACTION EVALUATION
-        print(f"\nEnergy estimation of the {len(reactions)} reactions...")
+        num_reactions = crn.num_reactions
+        print(f"\nEnergy estimation of {num_reactions} reactions...")
         print("Reaction properties calculator: ", rxn_evaluator)
         if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
             print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
-            batches = [reactions[i:i + ARGS.batch_size_rxn] for i in range(0, len(reactions), ARGS.batch_size_rxn)]
+            batches = [crn.reactions[i:i + ARGS.batch_size_rxn] for i in range(0, num_reactions, ARGS.batch_size_rxn)]
             for batch in tqdm(batches):
                 rxn_evaluator(batch)
         else:
             results  = []
-            tasks = [load_x(reaction) for reaction in reactions]
+            tasks = [load_x(reaction) for reaction in crn.reactions]
             dmodel = dask.delayed(rxn_evaluator)
             for i in range(0, len(tasks), ARGS.batch_size_rxn):
                 batch_tasks = tasks[i:i+ARGS.batch_size_rxn]
