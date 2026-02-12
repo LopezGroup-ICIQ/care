@@ -13,6 +13,7 @@ class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):
         for inter in test_inters:
             model_inter(inter)
+            self.assertTrue(inter.is_evaluated)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
                 self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
@@ -34,6 +35,7 @@ class TestEvaluator(unittest.TestCase):
         futures = client.map(f, test_inters)
         results = client.gather(futures)
         for inter in results:
+            self.assertTrue(inter.is_evaluated)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
                 self.assertIsInstance(inter.ads_configs["0"]["mu"], float)

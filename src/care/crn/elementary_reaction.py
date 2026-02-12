@@ -18,7 +18,7 @@ class ElementaryReaction:
         r_type (str): Elementary reaction type.
     """
     __slots__ = (
-        "_components", "r_type", "stoic",
+        "_components", "_reactants", "_products", "r_type", "stoic",
         "e_is", "e_ts", "e_fs", "e_rxn", "e_act",
         "k_dir", "k_rev", "k_eq", "rate",
         "_repr_str", "extra_intermediates",
@@ -421,6 +421,16 @@ class ElementaryReaction:
             return self + (-1) * other
         else:
             raise TypeError("The object is not an ElementaryReaction")
+    
+    @property    
+    def is_evaluated(self) -> bool:
+        """
+        Check if all intermediates in the reaction have been energetically evaluated.
+        """
+        for attr in [self.e_is, self.e_fs, self.e_rxn, self.e_act, self.e_ts]:
+            if attr is None:
+                return False
+        return True
 
 
 class ReactionMechanism(ElementaryReaction):

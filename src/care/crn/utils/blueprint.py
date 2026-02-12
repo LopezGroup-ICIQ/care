@@ -5,7 +5,7 @@ import multiprocessing as mp
 from prettytable import PrettyTable
 from rdkit.Chem import MolFromSmiles
 
-from care import ElementaryReaction, Intermediate
+from care import ReactionNetwork
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
 
 def format_description(description, width=45):
@@ -22,11 +22,9 @@ def gen_blueprint(
     electro: bool = None,
     num_cpu: int = mp.cpu_count(),
     show_progress: bool = False
-) -> tuple[dict[str, Intermediate], list[ElementaryReaction]]:
+) -> ReactionNetwork:
     """
-    Generate the CRN blueprint by applying
-    reaction templates to the chemical space defined by
-    the input parameters.
+    Generate the reaction network blueprint.
 
     Parameters
     ----------
@@ -51,11 +49,9 @@ def gen_blueprint(
 
     Returns
     -------
-    intermediates_dict : dict[str, Intermediate]
-        Dictionary of the Intermediate instances of all the chemical species of the reaction network.
-        Each key is the InChIKey of a molecule, and each value is a list of Intermediate instances for that molecule.
-    rxns_list : list[ElementaryReaction]
-        List of all the reactions of the reaction network as ElementaryReaction instances.
+    ReactionNetwork
+        The generated Reaction Network object. Reactions are stored in the bond-breaking
+        and adsorption directions (no bond-forming and desorption).
     """
     intermediates, reactions = {}, []
 
@@ -140,4 +136,4 @@ def gen_blueprint(
 
     print(f"\n{table}")
 
-    return intermediates, reactions
+    return ReactionNetwork(reactions)

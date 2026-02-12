@@ -116,7 +116,7 @@ def main():
         else:
             print("Input chemical space (SMILES): {}".format(", ".join(cs)))
 
-        intermediates, reactions = gen_blueprint(
+        crn = gen_blueprint(
                                             ncc=ncc,
                                             noc=noc,
                                             cs=cs,
@@ -152,7 +152,7 @@ def main():
 
         t0 = time.time()
         # 2.1 Intermediate evaluator
-        print(f"Energy estimation of the {len(intermediates)} intermediates...")
+        print(f"Energy estimation of the {crn.num_intermediates} intermediates...")
         inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
         print("Intermediates energy calculator: ", inter_evaluator)
         del config["evaluator"]["model"]
@@ -171,7 +171,7 @@ def main():
                 intermediates = load(f)
         else:
             tasks = [load_x(intermediate)
-                for intermediate in intermediates.values()
+                for intermediate in crn.intermediates.values()
             ]
             dmodel = dask.delayed(inter_evaluator)
             predictions = [predict(task, dmodel)
@@ -182,7 +182,7 @@ def main():
             with open(ARGS.output+'_intermediates.pkl', "wb") as f:
                 print("Saving intermediates to disk...")
                 dump(intermediates, f)
-        for rxn in reactions:
+        for rxn in crn.reactions:
             rxn.update_intermediates(intermediates)
         ti = time.time()
         print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
@@ -226,12 +226,6 @@ def main():
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
-        )
-
-        crn = ReactionNetwork(
-            reactions=reactions,
-            surface=surface,
-            oc={"T": T, "P": P, "U": U, "pH": PH},
         )
 
         print("\nSaving the CRN...")
