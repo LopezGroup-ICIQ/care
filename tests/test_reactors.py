@@ -22,13 +22,13 @@ inters = ['CO(g)', 'O2(g)', 'CO2(g)', 'CO*', 'O*', 'CO2*', '*']
 gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
 y0 = np.array([1e6, 3e6, 0.0, 0.5, 0.05, 0.2, 0.25])
 pCO, pO2, pCO2, thetaCO, thetaO, thetaCO2, thetastar = y0
-intermediates = [Intermediate("CO(g)", Atoms("CO"), is_surface=False, phase="gas"), 
-                 Intermediate("O2(g)", Atoms("O2"), is_surface=False, phase="gas"), 
-                 Intermediate("CO2(g)", Atoms("CO2"), is_surface=False, phase="gas"), 
-                 Intermediate("CO*", Atoms("CO"), is_surface=False, phase="ads"), 
-                 Intermediate("O*", Atoms("O"), is_surface=False, phase="ads"), 
-                 Intermediate("CO2*", Atoms("CO2"), is_surface=False, phase="ads"), 
-                 Intermediate("*", Atoms(), is_surface=True, phase="surf")]
+intermediates = [Intermediate("CO(g)", Atoms("CO"), phase="gas"), 
+                 Intermediate("O2(g)", Atoms("O2"), phase="gas"), 
+                 Intermediate("CO2(g)", Atoms("CO2"), phase="gas"), 
+                 Intermediate("CO*", Atoms("CO"), phase="ads"), 
+                 Intermediate("O*", Atoms("O"), phase="ads"), 
+                 Intermediate("CO2*", Atoms("CO2"), phase="ads"), 
+                 Intermediate("*", Atoms(), phase="surf")]
 intermediates = {inter.code: inter for inter in intermediates}
 inters = {"codes": inters}
 for elem in ["C", "H", "O", "N"]:

@@ -129,7 +129,7 @@ def dissociate(
     # Generate the Intermediate objects
     rdkit_inters = {MolToInchiKey(mol): mol for mol in all_mol_list}
     inters = gen_intermediates_dict(rdkit_inters, ncpus, show_progress)
-    active_site = Intermediate(code="*", molecule=Atoms(), is_surface=True, phase="surf")
+    active_site = Intermediate(code="*", molecule=Atoms(), phase="surf")
     rxns = []
 
     if show_progress:

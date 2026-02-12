@@ -138,7 +138,7 @@ def gen_adsorption_reactions(
         adsorption reactions of the reaction network as ElementaryReaction instances.
     """
 
-    surf_inter = Intermediate(code="*", molecule=Atoms(), is_surface=True, phase="surf")
+    surf_inter = Intermediate(code="*", molecule=Atoms(), phase="surf")
 
     gas_intermediates = [
         inter for inter in intermediates.values() if inter.phase == "gas"

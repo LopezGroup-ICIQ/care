@@ -4,10 +4,10 @@ Generate chemical reaction network blueprint with CARE.
 
 import argparse
 import os
-from pickle import dump
 from time import time
 
 from care import gen_blueprint
+from care.io import save_network
 
 
 def main():
@@ -109,10 +109,7 @@ def main():
         )
 
     print(f"Total time: {t:.2f} s")
-    # Save the blueprint
-    with open(ARGS.output+'.pkl', "wb") as f:
-        dump(crn, f)
-        print(f"CRN blueprint saved to {ARGS.output+'.pkl'}")
+    save_network(crn, f"{ARGS.output}.json")
 
 if __name__ == '__main__':
     main()

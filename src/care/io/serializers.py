@@ -4,6 +4,7 @@ import numpy as np
 from ase import Atoms
 import ase.constraints as ase_constraints
 from ase.constraints import dict2constraint 
+from rdkit import Chem
 
 from care import Intermediate, ElementaryReaction, ReactionNetwork, Surface
 import care.crn.templates as rxn_module
@@ -37,22 +38,28 @@ def load_intermediate(filename: str) -> Intermediate:
     return intermediate_from_dict(data)
 
 def intermediate_to_dict(inter: Intermediate) -> dict:
+    if inter.phase in ("gas", "ads"):
+        molecule_block = Chem.MolToMolBlock(inter.rdkit, forceV3000=True)
+    else:
+        molecule_block = serialize_complex_data(inter.molecule)
     return {
         "code": inter.code,
-        "is_surface": inter.is_surface,
         "phase": inter.phase,
-        "molecule": serialize_complex_data(inter.molecule) if inter.molecule else None,
+        "molecule": molecule_block,
         "ads_configs": serialize_complex_data(inter.ads_configs)
     }
 
 def intermediate_from_dict(data: dict) -> Intermediate:
     """Reconstructs the object, handling the nested ads_configs."""
-    mol_data = data.get("molecule")
-    molecule = deserialize_complex_data(mol_data) if mol_data else Atoms()
+    phase = data.get("phase")
+    mol_text = data.get("molecule")
+    if phase in ("gas", "ads"):
+        molecule = Chem.MolFromMolBlock(mol_text, removeHs=False, sanitize=True)
+    else:
+        molecule = Atoms()
     inter = Intermediate(
         code=data.get("code"),
         molecule=molecule,
-        is_surface=data.get("is_surface", False),
         phase=data.get("phase")
     )
     raw_ads = data.get("ads_configs", {})
@@ -323,6 +330,7 @@ def save_network(network: ReactionNetwork, filepath: str, compress=True):
     else:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, cls=ChemJSONEncoder, indent=4)
+    print(f"ReactionNetwork saved to {filepath}")
 
 def load_network(filepath):
     """Loads network, automatically detecting if it is gzipped."""
@@ -332,5 +340,4 @@ def load_network(filepath):
     else:
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            
     return network_from_dict(data)

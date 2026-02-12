@@ -85,8 +85,7 @@ def gen_pcet_reactions(
         if inter.formula == "H" and inter.phase == "ads"
     ][0]
     active_site = Intermediate(
-        code="*", molecule=Atoms(), phase="surf", is_surface=True
-    )
+        code="*", molecule=Atoms(), phase="surf")
 
     pcets.append(
         PCET(

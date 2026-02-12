@@ -11,7 +11,6 @@ from ase import Atoms
 from ase.build import add_adsorbate
 from ase.constraints import FixAtoms
 import networkx as nx
-import numpy as np
 from numpy import max
 from pymatgen.io.ase import AseAtomsAdaptor
 

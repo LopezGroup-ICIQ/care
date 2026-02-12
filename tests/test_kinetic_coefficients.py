@@ -7,13 +7,13 @@ from care import Intermediate
 from care.constants import *
 from care.crn.templates import Adsorption, Desorption, BondFormation
 
-inters = [Intermediate("CO(g)", Atoms("CO"), is_surface=False, phase="gas"), 
-                 Intermediate("O2(g)", Atoms("O2"), is_surface=False, phase="gas"), 
-                 Intermediate("CO2(g)", Atoms("CO2"), is_surface=False, phase="gas"), 
-                 Intermediate("CO*", Atoms("CO"), is_surface=False, phase="ads"), 
-                 Intermediate("O*", Atoms("O"), is_surface=False, phase="ads"), 
-                 Intermediate("CO2*", Atoms("CO2"), is_surface=False, phase="ads"), 
-                 Intermediate("*", Atoms(), is_surface=True, phase="surf")]
+inters = [Intermediate("CO(g)", Atoms("CO"), phase="gas"), 
+                 Intermediate("O2(g)", Atoms("O2"), phase="gas"), 
+                 Intermediate("CO2(g)", Atoms("CO2"), phase="gas"), 
+                 Intermediate("CO*", Atoms("CO"), phase="ads"), 
+                 Intermediate("O*", Atoms("O"), phase="ads"), 
+                 Intermediate("CO2*", Atoms("CO2"), phase="ads"), 
+                 Intermediate("*", Atoms(), phase="surf")]
 COg, O2g, CO2g = inters[0], inters[1], inters[2]
 COads, Oads, CO2ads, surf = inters[3], inters[4], inters[5], inters[6] 
 rxns = [Adsorption([[COg, surf], [COads]], r_type="adsorption"), 

@@ -1,4 +1,3 @@
-from pickle import load, dump
 import re
 
 def format_reaction(s: str) -> str:
@@ -26,16 +25,7 @@ from care.crn.intermediate import Intermediate
 from care.crn.elementary_reaction import ElementaryReaction, ReactionMechanism
 from care.crn.reaction_network import ReactionNetwork
 from care.crn.utils.blueprint import gen_blueprint
-from care.crn.templates.dissociation import dissociate
-
-def load_crn(file_path: str) -> ReactionNetwork:
-    with open(file_path, "rb") as f:
-        return load(f)
-    
-def save_crn(crn: ReactionNetwork, file_path: str):
-    with open(file_path, "wb") as f:
-        dump(crn, f)
-        
+from care.crn.templates.dissociation import dissociate        
 
 __all__ = [
     "Intermediate",

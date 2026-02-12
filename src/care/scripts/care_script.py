@@ -14,7 +14,8 @@ from tqdm import tqdm
 import dask
 from dask.distributed import Client, LocalCluster
 
-from care import ReactionNetwork, gen_blueprint, load_surface
+from care import gen_blueprint, load_surface
+from care.crn.reaction_network import ReactionNetwork
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
 from care.io import save_network, load_network
 from care.scripts import setup_logging, load_x, predict
@@ -90,12 +91,6 @@ def main():
     cyclic = config["chemspace"]["cyclic"] if "cyclic" in config["chemspace"] else None
     additional_rxns = config["chemspace"]["additional"] if "additional" in config["chemspace"] else None
     electrochem = config["chemspace"]["electro"] if "electro" in config["chemspace"] else None
-    crn_type = "electrochemical" if electrochem else "thermal"
-
-    PH = config["operating_conditions"]["pH"] if electrochem else None
-    U = config["operating_conditions"]["U"] if electrochem else None
-    T = config["operating_conditions"]["temperature"] if "operating_conditions" in config else None
-    P = config["operating_conditions"]["pressure"] if "operating_conditions" in config else None
 
     # Output directory
     OUTPUT_DIR = ARGS.output
@@ -104,7 +99,7 @@ def main():
     else:
         output_dir = OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=False)
-    crn_path = f"{output_dir}/crn.pkl"
+    crn_path = f"{output_dir}/crn.json"
 
     # 0. Check if the CRN already exists
     if (not os.path.exists(crn_path)) or (config["chemspace"]["regen"] == True):
@@ -117,15 +112,15 @@ def main():
             print("Input chemical space (SMILES): {}".format(", ".join(cs)))
 
         crn = gen_blueprint(
-                                            ncc=ncc,
-                                            noc=noc,
-                                            cs=cs,
-                                            cyclic=cyclic,
-                                            additional_rxns=additional_rxns,
-                                            electro=electrochem,
-                                            num_cpu=ARGS.num_cpu,
-                                            show_progress=True
-                                        )
+                            ncc=ncc,
+                            noc=noc,
+                            cs=cs,
+                            cyclic=cyclic,
+                            additional_rxns=additional_rxns,
+                            electro=electrochem,
+                            num_cpu=ARGS.num_cpu,
+                            show_progress=True
+                        )
 
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ CRN blueprint generated ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
@@ -223,17 +218,14 @@ def main():
         tr = time()
         print(f"Total reaction evaluation time: {tr - ti:.2f} s")
 
-
         print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
         )
-
-        print("\nSaving the CRN...")
+        crn = ReactionNetwork(reactions=reactions, surface=surface)
         save_network(crn, f"{output_dir}/crn.json")
 
     else:
-        print("Loading the CRN...")
-        crn = load_network(crn, f"{output_dir}/crn.json")
+        crn = load_network(f"{output_dir}/crn.json")
 
     if MKM_SWITCH:
         print("\nRunning the microkinetic simulation...")

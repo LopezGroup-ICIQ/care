@@ -22,7 +22,7 @@ ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.
 ase_adsorbate_oxide = read(str(TEST_DIR) + "/files/carbonic_acid_TiO2.poscar", format="vasp")
 test_inters = random.sample(list(intermediates.values()), 4)
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
-evaluated_network = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001.gz")
+evaluated_network = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001.json.gz")
 
 __all__ = [
     "intermediates",

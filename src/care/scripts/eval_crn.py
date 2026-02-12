@@ -15,7 +15,7 @@ from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, load_surface
 from care.evaluators import load_inter_evaluator, load_reaction_evaluator
-from care.io import save_network
+from care.io import save_network, load_network
 from care.scripts import setup_logging, load_x, predict
 
 
@@ -37,7 +37,7 @@ def main():
         "-bp",
         type=str,
         dest="bp",
-        help="Path to CRN blueprint file.",
+        help="Path to network blueprint file.",
     )
     PARSER.add_argument(
         "-o",
@@ -71,8 +71,10 @@ def main():
     setup_logging(ARGS.log)
 
     # Load CRN blueprint
-    with open(ARGS.bp, "rb") as f:
-        crn = load(f)
+    crn = load_network(ARGS.bp)
+    
+    if crn.is_evaluated:
+        raise ValueError("The input CRN blueprint has already been evaluated. Please provide a blueprint that has not been evaluated yet.")
 
     # Load evaluation settings
     with open(ARGS.input, "rb") as f:
@@ -172,7 +174,6 @@ def main():
 
     print(f"Total time: {(time() - t0):.2f} s")
     save_network(crn, f"{ARGS.output}.json")
-    print(f"CRN saved to {ARGS.output+'.json'}")
     if os.path.exists(ARGS.output + '_intermediates.pkl'):
         os.remove(ARGS.output + '_intermediates.pkl')
     if os.path.exists(ARGS.output + '_reactions.pkl'):

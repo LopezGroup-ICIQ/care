@@ -18,9 +18,6 @@ class Intermediate:
     Attributes:
         code (str): Code of the intermediate. InChiKey of the molecule.
         molecule (Union[obj:`ase.Atoms`, obj:`rdkit.Chem.rdchem.Mol`]): Associated molecule.
-        graph (obj:`nx.graph`): Associated molecule graph.
-        ads_configs (dict): Adsorption configurations of the intermediate.
-        is_surface (bool): Defines if the intermediate corresponds to the empty surface.
         phase (str): Phase of the intermediate.
     """
     __slots__ = [
@@ -47,11 +44,13 @@ class Intermediate:
         self,
         code: str = None,
         molecule: Union[Atoms, Chem.rdchem.Mol] = None,
-        is_surface: bool = False,
         phase: str = None,
     ):
         self.code = code
-        self.is_surface = is_surface
+        if phase not in self.phases:
+            raise ValueError(f"Phase must be one of {self.phases}")
+        self.phase = phase
+        self.is_surface = True if self.phase == "surf" else False
         self._graph = None
         self._formula = None
         self._electrons = None
@@ -65,18 +64,9 @@ class Intermediate:
         else:
             self._rdkit = None
             self.molecule = molecule
-
         self.ads_configs = {}
         self.charge = 0
-
-        if self.is_surface:
-            self.phase = "surf"
-            self.closed_shell = None
-        else:
-            self.closed_shell = self.is_closed_shell()
-            if phase not in self.phases:
-                raise ValueError(f"Phase must be one of {self.phases}")
-            self.phase = phase
+        self.closed_shell = None if self.is_surface else self.is_closed_shell()            
         self._gas_configs = None
 
     @property
@@ -133,7 +123,6 @@ class Intermediate:
         cls,
         ase_atoms_obj: Union[Atoms, str],
         code: str = None,
-        is_surface: bool = False,
         phase: str = None,
     ) -> "Intermediate":
         """Create an Intermediate using a molecule obj.
@@ -144,8 +133,6 @@ class Intermediate:
             code (str, optional): Code of the intermediate. Defaults to None.
             energy (float, optional): Energy of the intermediate. Defaults to
                 None.
-            is_surface (bool, optional): Defines if the intermediate is the
-                surface.
 
         Returns:
             obj:`Intermediate` with the given values.
@@ -157,7 +144,7 @@ class Intermediate:
         if phase not in ["gas", "ads", "surf"]:
             raise ValueError("phase must be either 'gas' or 'ads'")
         return cls(
-            code=code, molecule=ase_atoms_obj, is_surface=is_surface, phase=phase
+            code=code, molecule=ase_atoms_obj, phase=phase
         )
         
     @classmethod
@@ -173,7 +160,7 @@ class Intermediate:
         phase_id = "g" if phase=="gas" else "*"    
         rdkit_mol = Chem.MolFromSmiles(smiles)
         inchikey = Chem.inchi.MolToInchiKey(rdkit_mol)        
-        return cls(code=inchikey+phase_id, molecule=rdkit_mol, is_surface=False, phase="gas")
+        return cls(code=inchikey+phase_id, molecule=rdkit_mol, phase="gas")
     
     @property
     def graph(self):

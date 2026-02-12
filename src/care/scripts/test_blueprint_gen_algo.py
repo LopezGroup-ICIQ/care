@@ -86,11 +86,11 @@ def test_blueprint_gen():
                 bp_args = (c, o, ncpu)
                 print(bp_args)
                 t0 = time.time()
-                inters, steps = gen_blueprint(c, o, CYCLIC, REARR, ELECTRO, num_cpu=ncpu)
+                crn = gen_blueprint(c, o, CYCLIC, REARR, ELECTRO, num_cpu=ncpu)
                 tf_sec = time.time() - t0
-                ns, nr = len(inters), len(steps)
+                ns, nr = len(crn.intermediates), len(crn.reactions)
                 sum_inters = 0
-                for step in steps:
+                for step in crn.reactions:
                     sum_inters += len(step.stoic)
                 sparsity = (1 - sum_inters / ((ns+1)*nr)) * 100.0
                 info_dict[bp_args] = (ns, nr, sparsity, tf_sec)

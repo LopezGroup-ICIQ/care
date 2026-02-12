@@ -3,6 +3,8 @@
 from os import makedirs
 from os.path import abspath
 import re
+from io import BytesIO 
+from PIL import Image
 
 from ase.io import write
 from ase import Atoms
@@ -19,7 +21,7 @@ from care import ElementaryReaction, format_reaction, Intermediate, ReactionNetw
 
 
 def write_dotgraph(graph: ReactionNetwork, 
-                   filename: str, 
+                   filename: str=None, 
                    figsize:tuple=(18, 15), 
                    rankdir: str="TB", 
                    rank_sep: float=0.3, 
@@ -27,13 +29,15 @@ def write_dotgraph(graph: ReactionNetwork,
                    fontsize: int=50, 
                    layout_engine: str="dot", 
                    show_species_labels: bool=True,
-                   dpi:int=150):
+                   dpi:int=100):
     """
     Write a dot graph representing the reaction network.
 
     Args:
         graph (ReactionNetwork): The reaction network graph.
-        filename (str): The output filename for the dot graph.
+        filename (str): The output filename for the network visualization. 
+                        If None, the graph will be displayed in a Jupyter notebook. 
+                        Supported formats include .svg, .png, and .dot.
         figsize (tuple): Figure size in cm.
         rankdir (str): Rank direction for the graph layout. Options are "TB" (top-bottom), "LR" (left-right), etc.
         rank_sep (float): Separation between ranks in the graph.
@@ -118,21 +122,30 @@ def write_dotgraph(graph: ReactionNetwork,
     plot.set_fontname("Arial")
     plot.set_fontsize(str(fontsize))
     plot.set_dpi(str(dpi))
-    print(f"Writing graph to {filename} using layout engine: {layout_engine}")
-    try:
-        if filename.endswith(".svg"):
-            plot.write_svg("./" + filename, prog=layout_engine)
-        elif filename.endswith(".png"):
-            plot.write_png("./" + filename, prog=layout_engine)
-        elif filename.endswith(".dot"):
-            plot.write_dot("./" + filename, prog=layout_engine)
-        else:
-            print(f"Warning: Unknown file extension. Writing to {filename}.svg")
-            plot.write_svg("./" + filename + ".svg", prog=layout_engine)
-    except FileNotFoundError:
-        print(f"Error: Layout engine '{layout_engine}' not found.")
-        print("Please ensure Graphviz is installed and in your system's PATH.")
-        print("You can download it from: https://graphviz.org/download/")
+    if filename is None: # print to notebook
+        png_str = plot.create_png(prog=layout_engine)
+        sio = BytesIO(png_str)
+        img = Image.open(sio)
+        plt.figure(figsize=(figsize[0]/2.54, figsize[1]/2.54), dpi=dpi)
+        plt.imshow(img)
+        plt.axis('off')
+        plt.show() 
+    else:
+        print(f"Writing graph to {filename} using layout engine: {layout_engine}")
+        try:
+            if filename.endswith(".svg"):
+                plot.write_svg("./" + filename, prog=layout_engine)
+            elif filename.endswith(".png"):
+                plot.write_png("./" + filename, prog=layout_engine)
+            elif filename.endswith(".dot"):
+                plot.write_dot("./" + filename, prog=layout_engine)
+            else:
+                print(f"Warning: Unknown file extension. Writing to {filename}.svg")
+                plot.write_svg("./" + filename + ".svg", prog=layout_engine)
+        except FileNotFoundError:
+            print(f"Error: Layout engine '{layout_engine}' not found.")
+            print("Please ensure Graphviz is installed and in your system's PATH.")
+            print("You can download it from: https://graphviz.org/download/")
 
 
 def visualize_reaction(step: ElementaryReaction, 

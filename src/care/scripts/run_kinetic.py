@@ -8,6 +8,7 @@ from pickle import dump, load
 import tomllib
 
 from care import ReactionNetwork
+from care.io import load_network
 
 def main():
     """
@@ -49,8 +50,7 @@ def main():
         ARGS.output = f"mkm_C{ARGS.ncc}O{ARGS.noc}_cyclic{ARGS.cyclic}_rearr{ARGS.rearr}_electro{ARGS.electro}"
 
     # Load CRN blueprint
-    with open(ARGS.crn, "rb") as f:
-        crn = load(f)
+    crn = load_network(ARGS.crn)
 
     if not isinstance(crn, ReactionNetwork):
         raise TypeError("The input CRN file does not contain a valid ReactionNetwork object.")
