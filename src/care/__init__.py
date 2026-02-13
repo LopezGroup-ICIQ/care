@@ -37,4 +37,4 @@ __all__ = [
     "dissociate",
     "load_surface",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"
