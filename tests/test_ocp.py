@@ -21,7 +21,7 @@ class TestEvaluator(unittest.TestCase):
                 assert len(inter.ads_configs) == 1
 
     def test_parallel_eval(self):
-        cluster = LocalCluster(n_workers=4, threads_per_worker=1)
+        cluster = LocalCluster(n_workers=2, threads_per_worker=1)
         client = Client(address=cluster)
         def f(inter):
             print(inter.code + "\n")
