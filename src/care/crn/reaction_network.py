@@ -4,6 +4,7 @@ from typing import Union, Optional
 
 import networkx as nx
 import numpy as np
+import pandas as pd
 from scipy.sparse import vstack, coo_matrix
 
 from care import ElementaryReaction, Intermediate, Surface
@@ -328,29 +329,48 @@ class ReactionNetwork(nx.DiGraph):
         else:
             raise TypeError("Index must be str, Intermediate or ElementaryReaction")
 
-    def get_reaction_table(self, rxns: list = None) -> None:
+    def get_reaction_table(self, rxns: list = None, return_df: bool = False) -> Union[None, pd.DataFrame]:
         if rxns is None:
             rxns = self.reactions
-        repr_hr_width = max(len(step.repr_hr) for step in rxns) + 2
-        dhr_width = 10
-        eact_width = 10
-        class_width = 20
-        index_width = 5
-        r_type_width = 10
-        header = "{:<{}} {:<{}} {:<{}} {:<{}} {:<{}} {}".format(
-            "Idx", index_width, "Step", repr_hr_width, "r-type", r_type_width, "DHR (eV)", dhr_width, "Eact (eV)", eact_width, "Class"
-        )
-        print(header)
-        print("=" * (index_width + repr_hr_width + r_type_width + dhr_width + eact_width + class_width))
 
+        data = []
         for idx, step in enumerate(rxns):
-            index_str = str(idx).ljust(index_width)
-            repr_hr_str = step.repr_hr.ljust(repr_hr_width)
-            r_type_str = step.r_type.ljust(r_type_width) if "-" in step.r_type else "-".ljust(r_type_width)
-            dhr_str = "{:+.2f}".format(step.e_rxn[0]).ljust(dhr_width)
-            eact_str = "{:+.2f}".format(step.e_act[0]).ljust(eact_width)
-            class_str = str(type(step)).split(".")[-1].strip("'>").ljust(class_width)
-            print(f"{index_str}{repr_hr_str} {r_type_str} {dhr_str} {eact_str} {class_str}")
+            def format_energy(val_list):
+                if val_list is not None and len(val_list) > 0 and val_list[0] is not None:
+                    return f"{val_list[0]:+.2f}"
+                return "N/A"
+
+            row = {
+                "Idx": idx,
+                "Step": step.repr_hr,
+                "r-type": step.r_type if "-" in getattr(step, 'r_type', "") else "-",
+                "DHR (eV)": format_energy(getattr(step, 'e_rxn', None)),
+                "Eact (eV)": format_energy(getattr(step, 'e_act', None)),
+                "Class": type(step).__name__
+            }
+            data.append(row)
+
+        if return_df:
+            return pd.DataFrame(data).set_index("Idx")
+
+        repr_hr_width = max((len(step.repr_hr) for step in rxns), default=10) + 2
+        widths = {"Idx": 5, "Step": repr_hr_width, "r-type": 10, "DHR": 10, "Eact": 10, "Class": 20}
+        
+        header = (
+            f"{'Idx':<{widths['Idx']}} {'Step':<{widths['Step']}} "
+            f"{'r-type':<{widths['r-type']}} {'DHR (eV)':<{widths['DHR']}} "
+            f"{'Eact (eV)':<{widths['Eact']}} {'Class'}"
+        )
+        
+        print(header)
+        print("-" * len(header))
+        
+        for r in data:
+            print(
+                f"{str(r['Idx']):<{widths['Idx']}} {r['Step']:<{widths['Step']}} "
+                f"{r['r-type']:<{widths['r-type']}} {r['DHR (eV)']:<{widths['DHR']}} "
+                f"{r['Eact (eV)']:<{widths['Eact']}} {r['Class']}"
+            )
 
     def get_hubs(self, n: int = None) -> dict[str, int]:
         """
