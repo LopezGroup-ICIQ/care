@@ -101,3 +101,5 @@ testpaths = [
     "tests",
 ]
 pythonpath = "src"
+
+[tool.setuptools_scm]
