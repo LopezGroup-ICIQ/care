@@ -1,3 +1,4 @@
+from importlib.metadata import version, PackageNotFoundError
 import re
 
 def format_reaction(s: str) -> str:
@@ -37,4 +38,8 @@ __all__ = [
     "dissociate",
     "load_surface",
 ]
-__version__ = "0.4.0"
+
+try:
+    __version__ = version("care-crn")
+except PackageNotFoundError:
+    __version__ = "unknown"
