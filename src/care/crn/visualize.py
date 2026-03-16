@@ -20,16 +20,16 @@ from scipy.interpolate import CubicSpline
 from care import ElementaryReaction, format_reaction, Intermediate, ReactionNetwork
 
 
-def write_dotgraph(graph: ReactionNetwork, 
-                   filename: str=None, 
-                   figsize:tuple=(18, 15), 
-                   rankdir: str="TB", 
-                   rank_sep: float=0.3, 
-                   node_sep: float=0.15, 
-                   fontsize: int=50, 
-                   layout_engine: str="dot", 
-                   show_species_labels: bool=True,
-                   dpi:int=100):
+def plot_crn(graph: ReactionNetwork, 
+            filename: str=None, 
+            figsize:tuple=(18, 15), 
+            rankdir: str="TB", 
+            rank_sep: float=0.3, 
+            node_sep: float=0.15, 
+            fontsize: int=50, 
+            layout_engine: str="dot", 
+            show_species_labels: bool=True,
+            dpi:int=100):
     """
     Write a dot graph representing the reaction network.
 

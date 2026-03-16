@@ -329,9 +329,12 @@ class ReactionNetwork(nx.DiGraph):
         else:
             raise TypeError("Index must be str, Intermediate or ElementaryReaction")
 
-    def get_reaction_table(self, rxns: list = None, return_df: bool = False) -> Union[None, pd.DataFrame]:
+    def get_reaction_table(self, rxns: list = None, return_df: bool = False):
         if rxns is None:
             rxns = self.reactions
+
+        label_dh = "ΔE (eV)"
+        label_ea = "Eₐ (eV)"
 
         data = []
         for idx, step in enumerate(rxns):
@@ -344,8 +347,8 @@ class ReactionNetwork(nx.DiGraph):
                 "Idx": idx,
                 "Step": step.repr_hr,
                 "r-type": step.r_type if "-" in getattr(step, 'r_type', "") else "-",
-                "DHR (eV)": format_energy(getattr(step, 'e_rxn', None)),
-                "Eact (eV)": format_energy(getattr(step, 'e_act', None)),
+                label_dh: format_energy(getattr(step, 'e_rxn', None)),
+                label_ea: format_energy(getattr(step, 'e_act', None)),
                 "Class": type(step).__name__
             }
             data.append(row)
@@ -354,12 +357,11 @@ class ReactionNetwork(nx.DiGraph):
             return pd.DataFrame(data).set_index("Idx")
 
         repr_hr_width = max((len(step.repr_hr) for step in rxns), default=10) + 2
-        widths = {"Idx": 5, "Step": repr_hr_width, "r-type": 10, "DHR": 10, "Eact": 10, "Class": 20}
-        
+
         header = (
-            f"{'Idx':<{widths['Idx']}} {'Step':<{widths['Step']}} "
-            f"{'r-type':<{widths['r-type']}} {'DHR (eV)':<{widths['DHR']}} "
-            f"{'Eact (eV)':<{widths['Eact']}} {'Class'}"
+            f"{'Idx':<5} {'Reaction':<{repr_hr_width}} "
+            f"{'r-type':<10} {label_dh:<10} "
+            f"{label_ea:<10} {'Class'}"
         )
         
         print(header)
@@ -367,9 +369,9 @@ class ReactionNetwork(nx.DiGraph):
         
         for r in data:
             print(
-                f"{str(r['Idx']):<{widths['Idx']}} {r['Step']:<{widths['Step']}} "
-                f"{r['r-type']:<{widths['r-type']}} {r['DHR (eV)']:<{widths['DHR']}} "
-                f"{r['Eact (eV)']:<{widths['Eact']}} {r['Class']}"
+                f"{str(r['Idx']):<5} {r['Step']:<{repr_hr_width}} "
+                f"{r['r-type']:<10} {r[label_dh]:<10} "
+                f"{r[label_ea]:<10}{r['Class']}"
             )
 
     def get_hubs(self, n: int = None) -> dict[str, int]:
