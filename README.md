@@ -1,5 +1,5 @@
 [![PyPI version](https://img.shields.io/pypi/v/care-crn.svg)](https://pypi.org/project/care-crn/)
-[![DOI](https://img.shields.io/badge/DOI-10.26434%2Fchemrxiv--2024--bfv3d-blue)](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
+[![DOI](https://img.shields.io/badge/DOI-10.1038%2Fs44286--026--00361--8-blue)](https://doi.org/10.1038/s44286-026-00361-8)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.12-blue.svg)
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
@@ -183,6 +183,4 @@ The code is released under the [MIT](./LICENSE) license.
 
 ## 📜 Reference
 
-- **A Foundational Model for Reaction Networks on Metal Surfaces**
-  Authors: S. Morandi, O. Loveday, T. Renningholtz, S. Pablo-García, R. A. Vargas Hernáńdez, R. R. Seemakurthi, P. Sanz Berman, R. García-Muelas, A. Aspuru-Guzik, and N. López
-  DOI: [10.26434/chemrxiv-2024-bfv3d](https://doi.org/10.26434/chemrxiv-2024-bfv3d)
+Morandi, S., Loveday, O., Renningholtz, T. *et al.* An end-to-end framework for reactivity in heterogeneous catalysis. *Nat. Chem. Eng.* (2026). [https://doi.org/10.1038/s44286-026-00361-8](https://doi.org/10.1038/s44286-026-00361-8)
