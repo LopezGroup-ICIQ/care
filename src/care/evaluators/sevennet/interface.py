@@ -51,7 +51,11 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
-        from sevenn.calculator import SevenNetCalculator, SevenNetD3Calculator
+        try:
+            from sevenn.calculator import SevenNetCalculator, SevenNetD3Calculator
+        except:
+            raise ImportError("SevenNet not installed. "
+            "Install it using pip install care-crn[sevennet]")
         
         warn("SevenNet depends on e3nn==0.5.6, while the other implemented models depend on previous versions. "
              "Please create a separate conda environment to run SevenNet pre-trained models.")

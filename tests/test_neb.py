@@ -1,11 +1,13 @@
 import unittest
 
-from care.evaluators import NEBReactionEnergyEstimator
+from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
 from care.evaluators.utils import is_adsorbate_fragmented, adsorption_filter
 from care.crn.templates import BondBreaking
 from networkx import is_connected
 
-from tests import mlp, evaluated_network
+from tests import evaluated_network, surface
+
+mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 
 neb = NEBReactionEnergyEstimator(mlp=mlp, max_steps=10)
 

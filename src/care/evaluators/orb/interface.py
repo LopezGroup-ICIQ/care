@@ -50,8 +50,12 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
-        from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
-        from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
+        try:
+            from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
+            from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
+        except:
+            raise ImportError("Orb not installed. "
+            "Install it using pip install care-crn[orb]")
 
         if version not in ORB_PRETRAINED_MODELS:
             raise ValueError(f"Version {version} not existing. Choose from {list(ORB_PRETRAINED_MODELS.keys())}.")

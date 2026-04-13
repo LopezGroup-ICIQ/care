@@ -12,7 +12,7 @@ from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
 
-class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
+class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface = None,
@@ -43,8 +43,12 @@ class OCPIntermediateEvaluator(IntermediateEnergyEstimator):
 
         - The intermediate energy is stored as E_tot - E_slab in eV.
         """
-        from fairchem.core.models.model_registry import model_name_to_local_file
-        from fairchem.core.common.relaxation.ase_utils import OCPCalculator
+        try:
+            from fairchem.core.models.model_registry import model_name_to_local_file
+            from fairchem.core.common.relaxation.ase_utils import OCPCalculator
+        except:
+            raise ImportError("fairchem not installed. "
+            "Install it using pip install fairchem-core.")
 
         self.model_name = name
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')

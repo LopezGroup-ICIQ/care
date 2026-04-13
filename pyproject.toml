@@ -17,8 +17,6 @@ dependencies = [
   "pydot==4.0.1",
   "mp-api==0.46.0",
   "pymatgen",
-  "torch==2.4.0",
-  "torch_geometric==2.5.3",
   "rdkit==2023.9.6",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
@@ -52,8 +50,13 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-ocp = [
-    "fairchem-core == 1.4.0",
+gamenetuq = [
+    "gamenet-uq == 0.1.3"
+    ]
+fairchemv1 = [
+    "fairchem-core == 1.10.0",
+    "torch_scatter",
+    "torch_sparse"
 ]
 mace = [
     "mace-torch == 0.3.12",

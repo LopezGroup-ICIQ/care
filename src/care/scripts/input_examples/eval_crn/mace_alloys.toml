@@ -4,7 +4,7 @@ mp_id = "mp-865855"  # Materials Project ID
 mp_api_key = "your_api_key_here"  # Materials Project API key
 
 [evaluator]
-model = "mace"  # available are gamenetuq, ocp, mace
+model = "mace"  # available are gamenetuq, fairchemv1, mace
 size = "small"  # Model size (small/medium/large)
 device = "cpu"  # Device (cpu or cuda)
 fmax = 0.05  # Convergence criterion: if fmax lower than fmax, stop relaxation

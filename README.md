@@ -25,38 +25,21 @@ CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated
 pip install care-crn
 ```
 
+### 2\. ML evaluators
 
-### 2\. Install External Evaluators & Runtimes
+`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
 
-`care-crn` interfaces with several external ML Interatomic Potentials (MLIPs). These must be installed separately.
+```bash
+pip install care-crn[mace]
+pip install care-crn[fairchemv1]
+pip install care-crn[petmad]
+pip install care-crn[orb]
+pip install care-crn[sevennet]
+pip install care-crn[gamenetuq]
+```
 
-#### MLIP Evaluators
+Installing all evaluators at once (i.e., ```pip install care-crn[fairchemv1,mace,petmad,orb,sevennet,gamenetuq]```) leads to a dependency clash during as FairChemV1 and MACE depend to different versions of the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). However, both evaluators work correctly if the installation order shown above (mace -> fairchemv1) is followed.*
 
-1.  **For [FAIRChem-v1](https://github.com/FAIR-Chem/fairchem) potentials:**
-    Install `torch_sparse` and `torch_scatter` by following the instructions in the [PyTorch Geometric](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) page. Then:
-
-    ```bash
-    pip install care-crn[ocp]
-    ```
-
-2.  **For other evaluators:**
-    You can install [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
-
-    ```bash
-    pip install care-crn[mace]
-    pip install care-crn[petmad]
-    pip install care-crn[orb]
-    pip install care-crn[sevennet]
-    ```
-
-    Or all at once:
-
-    ```bash
-    pip install care-crn[ocp,mace,petmad,orb,sevennet]
-    ```
-
-    *NOTE: There is currently a dependency clash during installation of OCP and MACE evaluators related to the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). Installation might result in an incompatibility warning, but
-    both evaluators should work correctly if the installation order shown above is followed.*
 
 #### Julia (Microkinetic modeling)
 
@@ -105,7 +88,7 @@ If you want to contribute to the code or use the very latest (unstable) version,
 4.  **Install optional dependencies:**
 
     ```bash
-    python3 -m pip install -e .[ocp]
+    python3 -m pip install -e .[fairchemv1]
     python3 -m pip install -e .[mace]
     # etc.
     ```

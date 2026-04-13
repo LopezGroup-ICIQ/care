@@ -3,7 +3,7 @@ metal = "Ru" # metal catalyst (str)
 hkl = "10m11" # Surface facet, fcc/bcc metals: "111", "110" "100"; hcp metals: "0001", "10m10","10m11" (str)
 
 [evaluator]
-model = "mace"  # available are gamenetuq, ocp, mace
+model = "mace"  # available are gamenetuq, fairchemv1, mace
 size = "large"  # Model size (small/medium/large)
 device = "cpu"  # Device (cpu or cuda)
 fmax = 0.05  # Convergence criterion: if fmax lower than fmax, stop relaxation

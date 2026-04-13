@@ -5,7 +5,6 @@ from ase.io import read
 
 from care import Surface, gen_blueprint, Intermediate
 from care.io import load_network
-from care.evaluators import MACEIntermediateEvaluator
 
 TEST_DIR = pathlib.Path(__file__).parent
 crn = gen_blueprint(1, 1, False, False, False)
@@ -21,7 +20,6 @@ ase_adsorbate_ring = read(str(TEST_DIR) + "/files/aromatic_Ag111.poscar", format
 ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.poscar", format="vasp")
 ase_adsorbate_oxide = read(str(TEST_DIR) + "/files/carbonic_acid_TiO2.poscar", format="vasp")
 test_inters = random.sample(list(intermediates.values()), 4)
-mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
 evaluated_network = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001.json.gz")
 
 __all__ = [
@@ -30,8 +28,7 @@ __all__ = [
     "surface",
     "surface_from_bulk", 
     "surface_from_slab",
-    "test_inters",
-    "mlp", 
+    "test_inters", 
     "TEST_DIR",
     "evaluated_network",
 ]

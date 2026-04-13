@@ -42,7 +42,11 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
                              note that this option may imply 10e6x larger CRN objects!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
-        from pet_mad.calculator import PETMADCalculator
+        try:
+            from pet_mad.calculator import PETMADCalculator
+        except:
+            raise ImportError("PET_MAD not installed. "
+            "Install it using pip install care-crn[pet_mad]")
 
         self.surface = surface
         self.slab_energy = 0.0
