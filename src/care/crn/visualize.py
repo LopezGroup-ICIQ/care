@@ -5,6 +5,7 @@ from os.path import abspath
 import re
 from io import BytesIO 
 from PIL import Image
+import shutil
 
 from ase.io import write
 from ase import Atoms
@@ -45,6 +46,10 @@ def plot_crn(graph: ReactionNetwork,
         fontsize (int): Font size for the graph labels.
         layout_engine (str): Layout engine to use (e.g., "dot", "neato", "fdp", "circo", "twopi").
     """
+    if shutil.which(layout_engine) is None:
+        raise RuntimeError("Graphviz binaries not found. You must install Graphviz "
+        "(https://graphviz.org/download/) and ensure it is in your system PATH.")
+
     g = nx.DiGraph()
     for node, _ in graph.nodes(data=True):
         if isinstance(node, Intermediate):

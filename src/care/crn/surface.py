@@ -156,6 +156,7 @@ class Surface:
         slab.set_constraint(FixAtoms(indices=bottom_half_indices(slab)))  # Fix bottom half of the slab
         slab = slab.repeat((xy_repeat, xy_repeat, 1))
         slab.set_cell([slab.cell[0], slab.cell[1], slab.cell[2] + [0, 0, vacuum]], scale_atoms=False)
+        slab.set_pbc([True, True, True])
         return cls(ase_atoms_slab=slab, facet=hkl, mp_id=mp_id)
 
     @classmethod

@@ -46,12 +46,39 @@ v_matrix = np.array(
         [-1, -2, 1, 1],
     ]
 )
+v_matrix_reversed = np.array(
+    [
+        [-1, 0, 0, 0],
+        [0, -1, 0, 0],
+        [0, 0, 0, 1],
+        [1, 0, 1, 0],
+        [0, 2, 1, 0],
+        [0, 0, -1, -1],
+        [-1, -2, -1, 1],
+    ]
+) # same mechanism, R3 written in opposite direction
+v_matrix_reversed_full = np.array(
+    [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, -1],
+        [-1, 0, 1, 0],
+        [0, -2, 1, 0],
+        [0, 0, -1, 1],
+        [1, 2, -1, -1],
+    ]
+) # same mechanism, ALL reactions rewritten in opposite direction
 v_matrix = csr_matrix(v_matrix)
+v_matrix_reversed = csr_matrix(v_matrix_reversed) 
+v_matrix_full_reversed = csr_matrix(v_matrix_reversed_full) 
 kd = np.array([1e-2, 2e-3, 3e-2, 5e-2])
 kr = np.array([1e-4, 1e-5, 1e-1, 1e-1])
 k1d, k2d, k3d, k4d = kd[0], kd[1], kd[2], kd[3]
 k1r, k2r, k3r, k4r = kr[0], kr[1], kr[2], kr[3]
 pfr = DifferentialPFR(v=v_matrix, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
+prf_reversed_reactions = DifferentialPFR(v=v_matrix_reversed, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
+prf_reversed_reactions.kd[2], prf_reversed_reactions.kr[2] = prf_reversed_reactions.kr[2], prf_reversed_reactions.kd[2]
+pfr_full_reversed = DifferentialPFR(v=v_matrix_full_reversed, kd=kr, kr=kd, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
 rf_correct = np.array([k1d*pCO*thetastar, k2d*pO2*thetastar**2, k3d*thetaCO*thetaO, k4d*thetaCO2])
 rb_correct = np.array([k1r*thetaCO, k2r*thetaO**2, k3r*thetaCO2*thetastar, k4r*pCO2*thetastar])
 rn_correct = rf_correct - rb_correct
@@ -202,6 +229,31 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertTrue(y["total_consumption_rate"].shape == (7,1))
         for elem, ratio in balance.items():
             self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
+
+    def test_integration_reversed_reactions(self):
+        """
+        Check two scenarios: (I) that the results of the microkinetic simulations do not change if surface elementary
+        reactions (all except adsorption and desorption) are reversed in direction. (II) results of the microkinetic 
+        simulations do not change if ALL reactions (including adsorption and desorption) are reversed in direction; 
+        second scenario must be extended in the future.
+        """
+        y = pfr.integrate(y0=y0, 
+                          solver='Python', 
+                          rtol=1e-9, 
+                          atol=1e-12, 
+                          tfin=1e20)
+        y_rev_partial = prf_reversed_reactions.integrate(y0=y0, 
+                          solver='Python', 
+                          rtol=1e-9, 
+                          atol=1e-12, 
+                          tfin=1e20)
+        y_rev_full = pfr_full_reversed.integrate(y0=y0, 
+                          solver='Python', 
+                          rtol=1e-9, 
+                          atol=1e-12, 
+                          tfin=1e20)
+        np.testing.assert_allclose(y['y'], y_rev_partial['y'], rtol=1e-7, atol=1e-3)
+        np.testing.assert_allclose(y['y'], y_rev_full['y'], rtol=1e-7, atol=1e-3)
 
     def test_ode_jl(self):
         dydt0 = np.zeros_like(y0)
