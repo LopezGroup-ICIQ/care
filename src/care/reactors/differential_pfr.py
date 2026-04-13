@@ -14,7 +14,7 @@ from time import time
 
 from care.constants import INTER_ELEMS
 from care.reactors.reactor import ReactorModel
-from care.reactors.utils import net_rate, jacobian_fill_numba
+from care.reactors.utils import net_rate, jacobian_fill_numba, analyze_elemental_balance
 
 import juliacall
 
@@ -361,6 +361,8 @@ class DifferentialPFR(ReactorModel):
         results["tfin"] = tfin
         results["v"] = self.v_sparse
         results["solver"] = solver
+        results["kf"] = self.kd
+        results["kr"] = self.kr
         results["jl_solver"] = jl_solver if solver == "Julia" else "Python"
         results["precision"] = precision if solver == "Julia" else 64
         results["maxiters"] = maxiters if solver == "Julia" else None
@@ -385,6 +387,12 @@ class DifferentialPFR(ReactorModel):
                     yield_matrix[i, j, e] = 0.0
         results["selectivity"] = {elem: selectivity_matrix[:, :, e] for e, elem in enumerate(self.elements)}
         results["yield"] = {elem: yield_matrix[:, :, e] for e, elem in enumerate(self.elements)}
+        balance_dict = analyze_elemental_balance(results)
+        print(f"Elemental balances at t={results["t"]:.2e} s: C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}, *={balance_dict["*"]:.2e}")
+        for k, v in balance_dict.items():
+            results[f"in_div_out_{k}"] = v
+        results["Catalyst mass (g)"] = 0.0
+        results["formulas"] = self.inters_info['formulas']
         return results
 
     def conversion(self, reactant_idx: int, y: np.ndarray) -> float:

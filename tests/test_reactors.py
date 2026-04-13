@@ -1,13 +1,16 @@
+import os
 import unittest
+import tempfile
 
 from ase import Atoms
 import numpy as np
+import pandas as pd
 from scipy.sparse import csr_matrix
 
 from care import Intermediate
 from care.reactors import DifferentialPFR
 from care.reactors.differential_pfr import SparsePFR
-from care.reactors.utils import analyze_elemental_balance, net_rate
+from care.reactors.utils import analyze_elemental_balance, net_rate, generate_simulation_report
 
 # Test reaction mechanism
 # R1) CO(g) + * -> CO*
@@ -19,6 +22,7 @@ from care.reactors.utils import analyze_elemental_balance, net_rate
 # ----------------------
 
 inters = ['CO(g)', 'O2(g)', 'CO2(g)', 'CO*', 'O*', 'CO2*', '*']
+elements = ["C", "H", "O", "N"]
 gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
 y0 = np.array([1e6, 3e6, 0.0, 0.5, 0.05, 0.2, 0.25])
 pCO, pO2, pCO2, thetaCO, thetaO, thetaCO2, thetastar = y0
@@ -30,7 +34,7 @@ intermediates = [Intermediate("CO(g)", Atoms("CO"), phase="gas"),
                  Intermediate("CO2*", Atoms("CO2"), phase="ads"), 
                  Intermediate("*", Atoms(), phase="surf")]
 intermediates = {inter.code: inter for inter in intermediates}
-inters = {"codes": inters}
+inters = {"codes": inters, "formulas": inters}
 for elem in ["C", "H", "O", "N"]:
     inters[elem] = [x[elem] for x in intermediates.values()]
 inters["elements"] = ["C", "H", "O", "N"]
@@ -76,8 +80,9 @@ kr = np.array([1e-4, 1e-5, 1e-1, 1e-1])
 k1d, k2d, k3d, k4d = kd[0], kd[1], kd[2], kd[3]
 k1r, k2r, k3r, k4r = kr[0], kr[1], kr[2], kr[3]
 pfr = DifferentialPFR(v=v_matrix, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
-prf_reversed_reactions = DifferentialPFR(v=v_matrix_reversed, kd=kd, kr=kr, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
-prf_reversed_reactions.kd[2], prf_reversed_reactions.kr[2] = prf_reversed_reactions.kr[2], prf_reversed_reactions.kd[2]
+kd_reversed = np.array([1e-2, 2e-3, 1e-1, 5e-2])
+kr_reversed = np.array([1e-4, 1e-5, 3e-2, 1e-1])
+pfr_reversed_reactions = DifferentialPFR(v=v_matrix_reversed, kd=kd_reversed, kr=kr_reversed, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
 pfr_full_reversed = DifferentialPFR(v=v_matrix_full_reversed, kd=kr, kr=kd, gas_mask=gas_mask, inters=inters, temperature=500, pressure=1e5, print_progress=False)
 rf_correct = np.array([k1d*pCO*thetastar, k2d*pO2*thetastar**2, k3d*thetaCO*thetaO, k4d*thetaCO2])
 rb_correct = np.array([k1r*thetaCO, k2r*thetaO**2, k3r*thetaCO2*thetastar, k4r*pCO2*thetastar])
@@ -143,6 +148,13 @@ p = SparsePFR.SparsePFRParams(
     jvec(pfr.v_forward_sparse.data.astype('int8')), jvec(pfr.v_forward_sparse.indices.astype('int64')), jvec(pfr.v_forward_sparse.indptr.astype('int64')),
     jvec(pfr.v_backward_sparse.data.astype('int8')), jvec(pfr.v_backward_sparse.indices.astype('int64')), jvec(pfr.v_backward_sparse.indptr.astype('int64')),
 )
+
+output = pfr.integrate(y0=y0, 
+                solver='Python', 
+                rtol=1e-9, 
+                atol=1e-12, 
+                tfin=1e20)
+
 
 class TestDifferentialPFR(unittest.TestCase):
 
@@ -214,21 +226,14 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         Check that the integration with scipy is correctly implemented
         """
-        y = pfr.integrate(y0=y0, 
-                          solver='Python', 
-                          rtol=1e-9, 
-                          atol=1e-12, 
-                          tfin=1e20)
-        balance = analyze_elemental_balance(y, intermediates)
-        self.assertTrue(isinstance(y, dict))
-        self.assertTrue(y['y'].shape == (7,))
-        self.assertTrue(y['forward_rate'].shape == (4,))
-        self.assertTrue(y['backward_rate'].shape == (4,))
-        self.assertTrue(y['net_rate'].shape == (4,))
-        self.assertTrue(y["consumption_rate"].shape == (7,4))
-        self.assertTrue(y["total_consumption_rate"].shape == (7,1))
-        for elem, ratio in balance.items():
-            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
+        self.assertTrue(output['y'].shape == (7,))
+        self.assertTrue(output['forward_rate'].shape == (4,))
+        self.assertTrue(output['backward_rate'].shape == (4,))
+        self.assertTrue(output['net_rate'].shape == (4,))
+        self.assertTrue(output["consumption_rate"].shape == (7,4))
+        self.assertTrue(output["total_consumption_rate"].shape == (7,1))
+        for elem in elements:
+            self.assertAlmostEqual(output[f"in_div_out_{elem}"], 1.0, places=1, msg=f"Elemental balance for {elem} not respected.")
 
     def test_integration_reversed_reactions(self):
         """
@@ -237,23 +242,18 @@ class TestDifferentialPFR(unittest.TestCase):
         simulations do not change if ALL reactions (including adsorption and desorption) are reversed in direction; 
         second scenario must be extended in the future.
         """
-        y = pfr.integrate(y0=y0, 
+        output_rev_partial = pfr_reversed_reactions.integrate(y0=y0, 
                           solver='Python', 
                           rtol=1e-9, 
                           atol=1e-12, 
                           tfin=1e20)
-        y_rev_partial = prf_reversed_reactions.integrate(y0=y0, 
+        output_rev_full = pfr_full_reversed.integrate(y0=y0, 
                           solver='Python', 
                           rtol=1e-9, 
                           atol=1e-12, 
                           tfin=1e20)
-        y_rev_full = pfr_full_reversed.integrate(y0=y0, 
-                          solver='Python', 
-                          rtol=1e-9, 
-                          atol=1e-12, 
-                          tfin=1e20)
-        np.testing.assert_allclose(y['y'], y_rev_partial['y'], rtol=1e-7, atol=1e-3)
-        np.testing.assert_allclose(y['y'], y_rev_full['y'], rtol=1e-7, atol=1e-3)
+        np.testing.assert_allclose(output['y'], output_rev_partial['y'], rtol=1e-7, atol=1e-3)
+        np.testing.assert_allclose(output['y'], output_rev_full['y'], rtol=1e-7, atol=1e-3)
 
     def test_ode_jl(self):
         dydt0 = np.zeros_like(y0)
@@ -264,7 +264,7 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         Check that the integration with Julia is correctly implemented.
         """
-        y = pfr.integrate(y0=y0, 
+        output_jl = pfr.integrate(y0=y0, 
                           solver='Julia', 
                           rtol=1e-12, 
                           atol=1e-15, 
@@ -272,17 +272,15 @@ class TestDifferentialPFR(unittest.TestCase):
                           gpu=False, 
                           precision=64, 
                           maxiters=1_000_000)
-        balance = analyze_elemental_balance(y, intermediates)
-        self.assertTrue(isinstance(y, dict))
-        self.assertTrue(y['y'].shape == (7,))
-        self.assertTrue(y['forward_rate'].shape == (4,))
-        self.assertTrue(y['backward_rate'].shape == (4,))
-        self.assertTrue(y['net_rate'].shape == (4,))
-        self.assertTrue(y["consumption_rate"].shape == (7,4))
-        self.assertTrue(y["total_consumption_rate"].shape == (7,1))
-        for elem, ratio in balance.items():
-            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
-        y_prec128 = pfr.integrate(y0=y0, 
+        self.assertTrue(output_jl['y'].shape == (7,))
+        self.assertTrue(output_jl['forward_rate'].shape == (4,))
+        self.assertTrue(output_jl['backward_rate'].shape == (4,))
+        self.assertTrue(output_jl['net_rate'].shape == (4,))
+        self.assertTrue(output_jl["consumption_rate"].shape == (7,4))
+        self.assertTrue(output_jl["total_consumption_rate"].shape == (7,1))
+        for elem in elements:
+            self.assertAlmostEqual(output_jl[f"in_div_out_{elem}"], 1.0, places=1, msg=f"Elemental balance for {elem} not respected.")
+        output_jl_prec128 = pfr.integrate(y0=y0, 
                           solver='Julia', 
                           rtol=1e-12, 
                           atol=1e-15,
@@ -290,14 +288,34 @@ class TestDifferentialPFR(unittest.TestCase):
                           gpu=False, 
                           precision=128, 
                           maxiters=1_000_000)
-        balance_prec128 = analyze_elemental_balance(y_prec128, intermediates)
-        self.assertTrue(isinstance(y_prec128, dict))
-        self.assertTrue(y_prec128['y'].shape == (7,))
-        self.assertTrue(y_prec128['forward_rate'].shape == (4,))
-        self.assertTrue(y_prec128['backward_rate'].shape == (4,))
-        self.assertTrue(y_prec128['net_rate'].shape == (4,))
-        self.assertTrue(y_prec128["consumption_rate"].shape == (7,4))
-        self.assertTrue(y_prec128["total_consumption_rate"].shape == (7,1))
-        for elem, ratio in balance_prec128.items():
-            self.assertAlmostEqual(ratio, 1.0, places=1, msg=f"Elemental balance for {elem} not conserved.")
-        np.testing.assert_allclose(y['y'], y_prec128['y'], rtol=1e-7, atol=1e-3)
+        self.assertTrue(output_jl_prec128['y'].shape == (7,))
+        self.assertTrue(output_jl_prec128['forward_rate'].shape == (4,))
+        self.assertTrue(output_jl_prec128['backward_rate'].shape == (4,))
+        self.assertTrue(output_jl_prec128['net_rate'].shape == (4,))
+        self.assertTrue(output_jl_prec128["consumption_rate"].shape == (7,4))
+        self.assertTrue(output_jl_prec128["total_consumption_rate"].shape == (7,1))
+        for elem in elements:
+            self.assertAlmostEqual(output_jl_prec128[f"in_div_out_{elem}"], 1.0, places=1, msg=f"Elemental balance for {elem} not respected.")
+        np.testing.assert_allclose(output_jl['y'], output_jl_prec128['y'], rtol=1e-7, atol=1e-3)
+
+    def test_report_generation(self):
+        """Verify that the Excel file is created with the correct sheets."""
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            output_path = os.path.join(tmpdirname, "test_report.xlsx")
+            generate_simulation_report(output, output_filename=output_path)
+            self.assertTrue(os.path.exists(output_path))
+            
+            # Check if all sheets are present
+            excel_file = pd.ExcelFile(output_path)
+            expected_sheets = {'Species', 'Reactions', 'Activity', 'Settings'}
+            self.assertTrue(expected_sheets.issubset(set(excel_file.sheet_names)))
+            
+            # Content validation (Species sheet)
+            df_species = pd.read_excel(output_path, sheet_name='Species', engine='openpyxl')
+            self.assertIn("InChIKey", df_species.columns)
+            self.assertEqual(len(df_species), 7)
+
+            # Content validation (Reactions sheet)
+            df_reactions = pd.read_excel(output_path, sheet_name='Reactions', engine='openpyxl')
+            self.assertIn("net rate (1/s)", df_reactions.columns)
+            self.assertEqual(len(df_reactions), 4)

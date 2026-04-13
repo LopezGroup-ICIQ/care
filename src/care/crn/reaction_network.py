@@ -438,7 +438,6 @@ class ReactionNetwork(nx.DiGraph):
         if not self.is_evaluated:
             raise ValueError("All reactions (and therefore intermediates) in the network must be energetically evaluated before running microkinetic simulations.")
         from care.reactors import DifferentialPFR
-        from care.reactors.utils import analyze_elemental_balance
         from scipy.sparse import csr_matrix
         
         reactions = self.reactions
@@ -578,19 +577,11 @@ class ReactionNetwork(nx.DiGraph):
                                         ATOL, 
                                         TFIN,
                                         **kwargs)
-        results["formulas"] = inters_formula
         results["U"] = oc.get("U", None)
         results["pH"] = oc.get("pH", None)
-        results["kf"] = kf
-        results["kr"] = kr
         results["rxn_strings"] = [rxn.repr_hr for rxn in reactions]
         results["Material"] = self.surface.slab.get_chemical_formula() if self.surface else "N/A"
         results["precision"] = f"float{precision}"
-        results["Catalyst mass (g)"] = 0.0
-        balance_dict = analyze_elemental_balance(results, intermediates)
-        print(f"Elemental balances at t={results["t"]:.2e} s: C={balance_dict["C"]:.2e}, H={balance_dict["H"]:.2e}, O={balance_dict["O"]:.2e}, *={balance_dict["*"]:.2e}")
-        for k, v in balance_dict.items():
-            results[f"in_div_out_{k}"] = v
         results["clip_eact"] = clip_eact
 
         if rewire_network:
