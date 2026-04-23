@@ -42,13 +42,28 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
         Note:
 
         - The intermediate energy is stored as E_tot - E_slab in eV.
-        """
+        """        
         try:
             from fairchem.core.models.model_registry import model_name_to_local_file
             from fairchem.core.common.relaxation.ase_utils import OCPCalculator
-        except:
-            raise ImportError("fairchem not installed. "
-            "Install it using pip install fairchem-core.")
+            import torch_scatter
+            import torch_sparse
+        except (ImportError, ModuleNotFoundError):
+            import torch
+            pyt_version = torch.__version__.split('+')[0]
+            if torch.cuda.is_available() and torch.version.cuda:
+                cuda_suffix = "cu" + torch.version.cuda.replace(".", "")
+            else:
+                cuda_suffix = "cpu"
+            error_msg = (
+                f"\n{'!'*30} MISSING DEPENDENCIES {'!'*30}\n"
+                f"FairChemV1IntermediateEvaluator requires 'fairchem-core', 'torch-scatter', and 'torch-sparse'.\n"
+                f"Based on your environment (PyTorch {pyt_version} + {cuda_suffix}), run:\n\n"
+                f"pip install fairchem-core==1.10.0 torch-scatter torch-sparse -f "
+                f"https://data.pyg.org/whl/torch-{pyt_version}+{cuda_suffix}.html\n"
+                f"{'!'*78}"
+            )
+            raise ImportError(error_msg)
 
         self.model_name = name
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')

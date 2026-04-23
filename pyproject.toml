@@ -54,9 +54,7 @@ gamenetuq = [
     "gamenet-uq == 0.1.3"
     ]
 fairchemv1 = [
-    "fairchem-core == 1.10.0",
-    "torch_scatter == 2.1.2+pt24cu121",
-    "torch_sparse == 0.6.18+pt24cu121"
+    "fairchem-core == 1.10.0"
 ]
 mace = [
     "mace-torch == 0.3.12",
