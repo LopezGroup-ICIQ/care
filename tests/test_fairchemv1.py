@@ -3,30 +3,36 @@ import unittest
 
 from dask.distributed import Client, LocalCluster
 
-from care.evaluators.fairchemv1 import FairChemV1IntermediateEvaluator
 from tests import surface, test_inters
 
-
-model_inter = FairChemV1IntermediateEvaluator(surface, num_configs=2, max_steps=3)
-
-
+@pytest.mark.skip(reason="Testing only v2")
 class TestEvaluator(unittest.TestCase):
-    @pytest.mark.skip(reason="Testing only v2")
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from care.evaluators.fairchemv1 import FairChemV1IntermediateEvaluator
+            cls.model_inter = FairChemV1IntermediateEvaluator(
+                surface, num_configs=2, max_steps=3
+            )
+        except ImportError:
+            pytest.skip("Fairchem-core not installed, skipping these tests.")
+
     def test_serial_eval(self):
         for inter in test_inters:
-            model_inter(inter)
+            self.model_inter(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1
 
-    @pytest.mark.skip(reason="Testing only v2")
     def test_parallel_eval(self):
         cluster = LocalCluster(n_workers=2, threads_per_worker=1)
         client = Client(address=cluster)
+        model = self.model_inter 
         def f(inter):
             print(inter.code + "\n")
-            model_inter(inter)
+            model(inter)
             return inter
         futures = client.map(f, test_inters)
         results = client.gather(futures)
