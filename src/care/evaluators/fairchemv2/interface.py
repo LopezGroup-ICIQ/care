@@ -137,7 +137,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
                     molec_eval.calc = None
             elif intermediate.phase == "ads":  # adsorbed
                 ads_config_dict = {}
-                adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
                 for i, adsorption in enumerate(adsorptions):
                     if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
                         break
@@ -152,6 +152,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
                     ads_config_dict[str(i)]['ase'] = adsorption
                     ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy
                     ads_config_dict[str(i)]['s'] = 0.0
+                    # ads_config_dict[str(i)]['converged'] = opt.converged()
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
@@ -160,7 +161,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
                     ads_config_dict["0"]['ase'] = adsorption
                     ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy
                     ads_config_dict["0"]['s'] = 0.0
-                    ads_config_dict["0"]['converged'] = opt.converged()
+                    # ads_config_dict["0"]['converged'] = opt.converged()
                     ads_config_dict["0"]['connectivity'] = False
                 else:
                     intermediate.ads_configs = ads_config_dict

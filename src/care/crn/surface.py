@@ -227,7 +227,7 @@ class Surface:
         """
         Get indices of fixed atoms in the slab.
         """
-        for constraint in self.slab._get_constraints():
+        for constraint in self.slab.constraints:
             if isinstance(constraint, FixAtoms):
                 return list(constraint.index)
         return []

@@ -11,7 +11,7 @@ dependencies = [
   "ase==3.26.0",
   "matplotlib",
   "networkx==3.2",
-  "numpy==2.4.4",
+  "numpy<=2.3.5",
   "pandas==2.3.3",
   "prettytable==3.9.0",
   "pydot==4.0.1",
