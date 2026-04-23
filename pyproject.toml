@@ -7,17 +7,17 @@ name = "care-crn"
 dynamic = ["version"]
 requires-python = "==3.12.*"
 dependencies = [
-  "acat==1.6.8",
-  "ase==3.24.0",
-  "matplotlib==3.8.0",
+  "acat==2.0.3",
+  "ase==3.26.0",
+  "matplotlib",
   "networkx==3.2",
-  "numpy==1.26.4",
-  "pandas==2.2.0",
+  "numpy==2.4.4",
+  "pandas==2.3.3",
   "prettytable==3.9.0",
   "pydot==4.0.1",
   "mp-api==0.46.0",
   "pymatgen",
-  "rdkit==2023.9.6",
+  "rdkit==2025.9.1",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
   "numba",
@@ -55,6 +55,9 @@ gamenetuq = [
     ]
 fairchemv1 = [
     "fairchem-core == 1.10.0"
+]
+fairchemv2 = [
+    "fairchem-core == 2.19.0"
 ]
 mace = [
     "mace-torch == 0.3.12",
