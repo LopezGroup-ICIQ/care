@@ -1,5 +1,5 @@
 """
-Interface to Open Catalyst Project (OCP) models.
+Interface to FairChem-V1 potentials from Meta.
 """
 from typing import Union
 
@@ -7,10 +7,11 @@ from ase import Atoms
 from ase.optimize import BFGS
 from ase.data import chemical_symbols
 
-from care import Intermediate, Surface
+from care import Intermediate, Surface, silent_context
 from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
+
 
 class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -70,7 +71,8 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
         self.surface = surface
         self.device = device
         cpu = True if device == 'cpu' else False
-        self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
+        with silent_context():
+            self.calc = OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=cpu, seed=42)
         self.num_params = sum([p.numel() for p in self.calc.trainer.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
@@ -142,7 +144,7 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
                         continue
                     ads_config_dict[str(i)] = {}
                     ads_config_dict[str(i)]['ase'] = adsorption
-                    # Note: OCP output is Eads, so to get Etot - Eslab, we need to add the gas-phase energy of the adsorbate
+                    # Note: Output for models trained only on OC20 dataset is Eads, so to get Etot - Eslab, we need to add the gas-phase energy of the adsorbate
                     ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
                     ads_config_dict[str(i)]['s'] = 0.0
                     if self.del_traj:

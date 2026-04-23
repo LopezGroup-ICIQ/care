@@ -11,7 +11,7 @@ model_inter = FairChemV1IntermediateEvaluator(surface, num_configs=2, max_steps=
 
 
 class TestEvaluator(unittest.TestCase):
-    @pytest.mark.skip(reason="Failing only on GitHub Actions")
+    @pytest.mark.skip(reason="Testing only v2")
     def test_serial_eval(self):
         for inter in test_inters:
             model_inter(inter)
@@ -20,6 +20,7 @@ class TestEvaluator(unittest.TestCase):
             elif inter.phase in ("gas", "surf"):
                 assert len(inter.ads_configs) == 1
 
+    @pytest.mark.skip(reason="Testing only v2")
     def test_parallel_eval(self):
         cluster = LocalCluster(n_workers=2, threads_per_worker=1)
         client = Client(address=cluster)

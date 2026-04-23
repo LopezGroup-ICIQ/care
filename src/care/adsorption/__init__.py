@@ -16,7 +16,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care.crn.utils.species import atoms_to_graph
-from care import Intermediate, Surface, BOND_ORDER, CORDERO
+from care import Intermediate, Surface, BOND_ORDER, CORDERO, silent_context
 
 
 def connectivity_analysis(graph: nx.Graph) -> List[int]:
@@ -286,7 +286,8 @@ def place_adsorbate(
                             molec_ctrs=anchor_atoms,
                             sites=active_site,
                         )
-                        config_list = dos.dockonsurf(x)
+                        with silent_context():
+                            config_list = dos.dockonsurf(x)
                         ads_height += 0.2 if n_adsorbate > 10 else 0.1
                         adsorptions.append(config_list)     
         else:

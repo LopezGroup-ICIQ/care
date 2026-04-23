@@ -1,5 +1,30 @@
+from contextlib import contextmanager
 from importlib.metadata import version, PackageNotFoundError
+import logging
+import os
 import re
+import sys
+import warnings
+
+@contextmanager
+def silent_context(suppress_stdout=True, suppress_logging=True):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        if suppress_logging:
+            previous_log_level = logging.root.manager.disable
+            logging.disable(logging.CRITICAL)
+        old_stdout = sys.stdout
+        if suppress_stdout:
+            sys.stdout = open(os.devnull, 'w')
+            
+        try:
+            yield
+        finally:
+            if suppress_stdout:
+                sys.stdout.close()
+                sys.stdout = old_stdout
+            if suppress_logging:
+                logging.disable(previous_log_level)
 
 def format_reaction(s: str) -> str:
     subscript_map = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
