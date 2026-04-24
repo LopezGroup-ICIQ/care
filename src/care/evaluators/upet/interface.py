@@ -14,10 +14,11 @@ from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
 
-class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
+class UPETIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
         self,
         surface: Surface,
+        model: str = "pet-mad-s",
         version: str = "latest",
         device: str = "cpu",
         fmax: float = 0.05,
@@ -28,7 +29,7 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
         logfile: str = None,
         **kwargs
     ):
-        """Interface to the PET-MAD potential.
+        """Interface to the UPET family of MLIPs.
 
         Args:
             surface (Surface): The surface on which the reaction network is adsorbed.
@@ -43,18 +44,19 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
         """
         try:
-            from pet_mad.calculator import PETMADCalculator
+            from upet.calculator import UPETCalculator
         except:
-            raise ImportError("PET_MAD not installed. "
-            "Install it using pip install care-crn[pet_mad]")
+            raise ImportError("UPET not installed. "
+            "Install it using pip install care-crn[upet]")
 
         self.surface = surface
         self.slab_energy = 0.0
+        self.model = model
         self.version = version
         self.dtype = dtype
         self.device = device
-        self.calc = PETMADCalculator(version=version, device=device)
-        self.num_params = sum([p.numel() for p in self.calc._model.parameters()])
+        self.calc = UPETCalculator(model=model, version=version, device=device)
+        self.num_params = 0 #sum([p.numel() for p in self.calc._model.parameters()]) #TODO adapt
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
@@ -64,7 +66,7 @@ class PETMADIntermediateEvaluator(IntermediateEnergyEstimator):
         self.get_slab_energy()
 
     def __repr__(self) -> str:
-        return f'PET-MAD potential ({self.version}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
+        return f'UPET potential ({self.model} v{self.version}, {round(self.num_params/1e6, 1)}M params, {self.device}, {self.dtype})'
 
     def __call__(self,
                  intermediate: Intermediate,

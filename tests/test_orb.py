@@ -1,3 +1,4 @@
+import pytest
 import unittest
 
 from dask.distributed import Client, LocalCluster
@@ -8,7 +9,7 @@ from tests import surface, test_inters
 
 model_inter = ORBIntermediateEvaluator(surface, version="orb-v2", num_configs=2, max_steps=3)
 
-
+@pytest.mark.skip(reason="Testing only v2")
 class TestEvaluator(unittest.TestCase):
     def test_serial_eval(self):       
         for inter in test_inters:

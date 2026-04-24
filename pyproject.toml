@@ -60,8 +60,8 @@ mace = [
     "mace-torch == 0.3.12",
     "torch-dftd == 0.5.1",
 ]
-petmad = [
-    "pet_mad == 1.4.3",
+upet = [
+    "upet == 0.2.2",
 ]
 orb =  [
     "orb-models == 0.4.2", 

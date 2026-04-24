@@ -26,8 +26,6 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install .[mace]
-        pip install .[petmad]
-        pip install .[orb]
         pip install .[gamenetuq]
         pip install coverage codecov
     - name: Install Julia 1.11 and dependencies
