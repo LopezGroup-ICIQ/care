@@ -163,7 +163,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     ads_config_dict[str(i)]['ase'] = adsorption
                     ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                     ads_config_dict[str(i)]['s'] = 0.0
-                    ads_config_dict[str(i)]['converged'] = opt.converged()
+                    # ads_config_dict[str(i)]['converged'] = opt.converged()
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
@@ -172,7 +172,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     ads_config_dict["0"]['ase'] = adsorption
                     ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
                     ads_config_dict["0"]['s'] = 0.0
-                    ads_config_dict["0"]['converged'] = opt.converged()
+                    # ads_config_dict["0"]['converged'] = opt.converged()
                     ads_config_dict["0"]['connectivity'] = False
                 else:
                     intermediate.ads_configs = ads_config_dict
