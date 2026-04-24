@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import deepcopy, copy
 from typing import Union, Tuple, List
 
 from ase.data import chemical_symbols
@@ -285,7 +285,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             FS.positions[atoms_to_move] += (self.dx + increment) * direction
             FS.wrap()
             # 7) Relax final state structure (B* + C*)
-            FS.calc = deepcopy(self.mlp.calc)
+            try:
+                FS.calc = deepcopy(self.mlp.calc)
+            except:
+                FS.calc = self.mlp.calc
             opt = BFGS(FS, 
                     logfile=None)
             opt.run(fmax=0.05, steps=self.mlp.max_steps)
@@ -315,7 +318,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                         mic=True, 
                         apply_constraint=True)
         for image in images[1:self.num_images + 1]:  # only intermediate images
-            image.calc = deepcopy(self.mlp.calc)
+            try:
+                image.calc = deepcopy(self.mlp.calc)
+            except:
+                image.calc = copy(self.mlp.calc)
         if self.optimizer == "LBFGS":
             optimizer = LBFGS(neb, logfile=None)
         elif self.optimizer == "BFGS":
@@ -326,7 +332,10 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         final_NEB_energies = []
         for i, image in enumerate(neb.images):  # including initial and final states
             if i == 0 or i == len(neb.images) - 1: # IS and FS have no calculator assigned
-                image.calc = deepcopy(self.mlp.calc)
+                try:
+                    image.calc = deepcopy(self.mlp.calc)
+                except:
+                    image.calc = copy(self.mlp.calc)
             energy_image = image.get_potential_energy()
             final_NEB_energies.append(energy_image)
             image.calc = None

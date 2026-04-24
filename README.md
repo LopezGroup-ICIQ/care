@@ -15,7 +15,7 @@
     </p>
 </div>
 
-CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem-v1](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace) potentials, *etc*.) and includes kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
+CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace) potentials, *etc*.) and includes kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
 
 ## 🪛 Installation
 
@@ -27,21 +27,22 @@ pip install care-crn
 
 ### 2\. ML evaluators
 
-`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [PET-MAD](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
+`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem) or [FairChemV2](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb-v2](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
 
 ```bash
 pip install care-crn[mace]
 pip install care-crn[fairchemv1]
+pip install care-crn[fairchemv2]
 pip install care-crn[petmad]
 pip install care-crn[orb]
 pip install care-crn[sevennet]
 pip install care-crn[gamenetuq]
 ```
 
-Installing all evaluators at once (i.e., ```pip install care-crn[fairchemv1,mace,petmad,orb,sevennet,gamenetuq]```) leads to a dependency clash during as FairChemV1 and MACE depend to different versions of the `e3nn` library (see: [this issue for MACE](https://github.com/ACEsuit/mace/issues/555)). However, both evaluators work correctly if the installation order shown above (mace -> fairchemv1) is followed.*
+It is important to note that since each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), starting from care-crn==0.6.0 you will need to create one distinct environment for each ML evaluator you want to employ. 
 
 
-#### Julia (Microkinetic modeling)
+#### Julia-powered microkinetic solver
 
 To run microkinetic simulations with [Julia](https://julialang.org/), install it and the required packages:
 
@@ -88,8 +89,8 @@ If you want to contribute to the code or use the very latest (unstable) version,
 4.  **Install optional dependencies:**
 
     ```bash
-    python3 -m pip install -e .[fairchemv1]
     python3 -m pip install -e .[mace]
+    python3 -m pip install -e .[fairchemv2]
     # etc.
     ```
 

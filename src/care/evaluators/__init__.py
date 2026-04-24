@@ -1,6 +1,7 @@
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
 from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
 from care.evaluators.fairchemv1 import FairChemV1IntermediateEvaluator
+from care.evaluators.fairchemv2 import FairChemV2IntermediateEvaluator
 from care.evaluators.mace import MACEIntermediateEvaluator
 from care.evaluators.upet import UPETIntermediateEvaluator
 from care.evaluators.orb import ORBIntermediateEvaluator
@@ -10,6 +11,7 @@ from care.evaluators.reaction_estimators import BarrierlessReactionEnergyEstimat
 eval_dict = {
     "gamenetuq": (GameNetUQInter, GameNetUQRxn),
     "fairchemv1": (FairChemV1IntermediateEvaluator, NEBReactionEnergyEstimator),
+    "fairchemv2": (FairChemV2IntermediateEvaluator, NEBReactionEnergyEstimator),
     "mace": (MACEIntermediateEvaluator, NEBReactionEnergyEstimator),
     "upet": (UPETIntermediateEvaluator, NEBReactionEnergyEstimator),
     "orb": (ORBIntermediateEvaluator, NEBReactionEnergyEstimator),

@@ -1,6 +1,6 @@
 import unittest
 
-from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator
+from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator, FairChemV2IntermediateEvaluator
 from care.evaluators.utils import is_adsorbate_fragmented, adsorption_filter
 from care.crn.templates import BondBreaking
 from networkx import is_connected
@@ -8,6 +8,7 @@ from networkx import is_connected
 from tests import evaluated_network, surface
 
 mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
+# mlp = FairChemV2IntermediateEvaluator(surface=surface, max_steps=3, device="cuda")
 
 neb = NEBReactionEnergyEstimator(mlp=mlp, max_steps=10)
 

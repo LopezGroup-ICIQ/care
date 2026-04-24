@@ -235,24 +235,22 @@ def find_unique_bonds(mol: Chem.rdchem.Mol) -> list[Chem.rdchem.Bond]:
     list[rdkit.Chem.rdchem.Bond]
         The unique bonds in the molecule
     """
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception:
+        pass
 
-    # Aromaticity detection
-    Chem.SanitizeMol(mol)
     Chem.AssignStereochemistry(
         mol, cleanIt=True, force=True, flagPossibleStereoCenters=True
     )
-
-    # Assign symmetry classes to atoms
     symmetry_classes = Chem.CanonicalRankAtoms(mol, breakTies=False)
 
-    # Iterate over bonds and find unique representative bonds
     unique_bonds = {}
     for bond in mol.GetBonds():
         atom1_sym_class = symmetry_classes[bond.GetBeginAtomIdx()]
         atom2_sym_class = symmetry_classes[bond.GetEndAtomIdx()]
         bond_key = tuple(sorted([atom1_sym_class, atom2_sym_class]))
 
-        # Store only the first bond for each equivalent class
         if bond_key not in unique_bonds:
             unique_bonds[bond_key] = bond
 
@@ -332,69 +330,95 @@ def break_bonds(
         All the reactions are added to the unique reactions set,
         and all the processed fragments are added to the processed fragments dictionary
     """
+    try:
+        Chem.SanitizeMol(molecule)
+    except Exception:
+        pass
 
     current_smiles = MolToSmiles(molecule, isomericSmiles=True, allHsExplicit=True)
 
-    if current_smiles in processed_molecules:
-        return 0
+    if original_smiles not in processed_fragments:
+        processed_fragments[original_smiles] = []
 
-    unique_bonds = find_unique_bonds(molecule)
+    if current_smiles in processed_molecules:
+        return
+
+    try:
+        unique_bonds = find_unique_bonds(molecule)
+    except Exception as e:
+        print(f"Warning: find_unique_bonds failed for {current_smiles}. Skipping.")
+        processed_molecules.add(current_smiles)
+        return
 
     total_bond_counter = 0
     for bond in unique_bonds:
         for Z_atom1, Z_atom2 in BOND_TYPES:
             if is_desired_bond(bond, Z_atom1, Z_atom2):
                 mol_copy = Chem.RWMol(molecule)
-                mol_copy.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+                
+                a1_idx = bond.GetBeginAtomIdx()
+                a2_idx = bond.GetEndAtomIdx()
+                
+                mol_copy.RemoveBond(a1_idx, a2_idx)
+
+                a1 = mol_copy.GetAtomWithIdx(a1_idx)
+                a2 = mol_copy.GetAtomWithIdx(a2_idx)
+                
+                a1.SetNumRadicalElectrons(a1.GetNumRadicalElectrons() + 1)
+                a2.SetNumRadicalElectrons(a2.GetNumRadicalElectrons() + 1)
+                
+                a1.SetNoImplicit(True)  
+                a2.SetNoImplicit(True)
 
                 frags = Chem.GetMolFrags(mol_copy, asMols=True, sanitizeFrags=False)
+                
                 frag_smiles_list = []
+                frag_mols_list = [] 
+                
                 for frag in frags:
+                    try:
+                        Chem.SanitizeMol(frag)
+                    except Exception as e:
+                        break
+                    
                     frag_smiles = MolToSmiles(
                         frag, isomericSmiles=True, allHsExplicit=True
                     )
                     frag_smiles_list.append(frag_smiles)
+                    frag_mols_list.append(frag)
 
-                    if frag_smiles not in processed_fragments[original_smiles]:
-                        processed_fragments[original_smiles].append(frag_smiles)
+                else:  
+                    for smi in frag_smiles_list:
+                        if smi not in processed_fragments[original_smiles]:
+                            processed_fragments[original_smiles].append(smi)
 
-                    # Recursive call with the fragment as the new molecule
-                    frag_mol = MolFromSmiles(frag_smiles, sanitize=False)
-                    break_bonds(
-                        frag_mol,
-                        processed_fragments,
-                        original_smiles,
-                        unique_reactions,
-                        processed_molecules,
-                    )
-
-                if len(frag_smiles_list) == 2:
-                    # Correction for [HH] in the fragment smiles list
-                    if frag_smiles_list[0] == "[HH]":
-                        # Modify the fragment smiles list to have [H] instead of [HH]
-                        frag_smiles_list[0] = "[H]"
-
-                    if frag_smiles_list[1] == "[HH]":
-                        # Modify the fragment smiles list to have [H] instead of [HH]
-                        frag_smiles_list[1] = "[H]"
-
-                rxn_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
-
-                # Check if the reaction tuple is unique
-                if rxn_tuple not in unique_reactions:
+                    for frag_mol in frag_mols_list:
+                        break_bonds(
+                            frag_mol,
+                            processed_fragments,
+                            original_smiles,
+                            unique_reactions,
+                            processed_molecules,
+                        )
+                    
                     bbtype = sorted(
                         [
                             Chem.Atom(Z_atom1).GetSymbol(),
                             Chem.Atom(Z_atom2).GetSymbol(),
                         ]
                     )
+                    bbtype_str = f"{bbtype[0]}-{bbtype[1]}"
 
-                    unique_reactions.add(
-                        (rxn_tuple[0], rxn_tuple[1], f"{bbtype[0]}-{bbtype[1]}")
-                    )
-                    total_bond_counter += 1
+                    if len(frag_smiles_list) >= 1:
+                        rxn_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
 
-        processed_molecules.add(current_smiles)
+                        if rxn_tuple not in unique_reactions:
+                            unique_reactions.add(
+                                (rxn_tuple[0], rxn_tuple[1], bbtype_str)
+                            )
+                            total_bond_counter += 1
+                        
+    processed_molecules.add(current_smiles)
 
 
 def gen_intermediates_dict(
