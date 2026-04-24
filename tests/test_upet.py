@@ -3,16 +3,21 @@ import pytest
 
 from dask.distributed import Client, LocalCluster
 
-from care.evaluators.upet import UPETIntermediateEvaluator
 from tests import surface, test_inters
 
-model_inter = UPETIntermediateEvaluator(surface, num_configs=2, max_steps=3)
-
-@pytest.mark.skip(reason="not testing")
+@pytest.mark.skip(reason="not testing on GH")
 class TestEvaluator(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from care.evaluators.upet import UPETIntermediateEvaluator
+            cls.model_inter = UPETIntermediateEvaluator(surface, num_configs=2, max_steps=3)
+        except ImportError:
+            pytest.skip("UPET not installed, skipping these tests.")
+
     def test_serial_eval(self):
         for inter in test_inters:
-            model_inter(inter)
+            self.model_inter(inter)
             if inter.phase == "ads":
                 assert len(inter.ads_configs) == 2
                 self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
@@ -27,9 +32,10 @@ class TestEvaluator(unittest.TestCase):
     def test_parallel_eval(self):
         cluster = LocalCluster(n_workers=4, threads_per_worker=1)
         client = Client(address=cluster)
+        model = self.model_inter 
         def f(inter):
             print(inter.code + "\n")
-            model_inter(inter)
+            model(inter)
             return inter
         futures = client.map(f, test_inters)
         results = client.gather(futures)
