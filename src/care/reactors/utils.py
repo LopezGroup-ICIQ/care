@@ -185,10 +185,11 @@ def analyze_elemental_balance(mkm_results: Union[dict, str]) -> dict:
                 **{elem: mkm_results["inters_info"][elem][i] for elem in elements}
             })  
     df = pd.DataFrame(rows)
-
+    for col in elements + ["consumption_rate"]:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
     outflow = (df[elements].mul(df["consumption_rate"].clip(lower=0), axis=0)).sum()
     inflow = (df[elements].mul(df["consumption_rate"].clip(upper=0), axis=0)).sum()
-    in_div_out = (inflow.abs() / outflow).round(2).astype(float).to_dict()
+    in_div_out = (inflow.abs() / outflow).round(2).fillna(0).to_dict()
 
     for elem in elements:
         if inflow[elem] == 0 and outflow[elem] == 0:
