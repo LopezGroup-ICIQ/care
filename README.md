@@ -48,7 +48,7 @@ To run microkinetic simulations with [Julia](https://julialang.org/), install it
 
 ```bash
 curl -fsSL https://install.julialang.org | sh -s -- --yes && ~/.juliaup/bin/juliaup add 1.11
-julia -e 'import Pkg; Pkg.add([Pkg.PackageSpec(name="DifferentialEquations", version="7"), Pkg.PackageSpec(name="LinearSolve")]); Pkg.pin("DifferentialEquations")'
+julia -e 'import Pkg; Pkg.add([Pkg.PackageSpec(name="DifferentialEquations", version="8"), Pkg.PackageSpec(name="LinearSolve")]); Pkg.pin("DifferentialEquations")'
 ```
 
 *⏲ Julia setup time estimate: \~13min (Ubuntu), \~9min (macOS)*
