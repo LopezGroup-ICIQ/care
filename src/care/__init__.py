@@ -2,9 +2,23 @@ from contextlib import contextmanager
 from importlib.metadata import version, PackageNotFoundError
 import logging
 import os
+import pathlib
 import re
+import shutil
 import sys
 import warnings
+
+CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
+JULIA_ENV_PATH = CURRENT_DIR / "julia_env"
+os.environ["PYTHON_JULIACALL_PROJECT"] = str(JULIA_ENV_PATH)
+
+def setup_julia():
+    if shutil.which("julia") is None:
+        raise RuntimeError(
+            "Julia executable not found in PATH.\n"
+            "Please install Julia 1.11: https://julialang.org/downloads/\n"
+            "Or run: curl -fsSL https://install.julialang.org | sh"
+        )
 
 @contextmanager
 def silent_context(suppress_stdout=True, suppress_logging=True):

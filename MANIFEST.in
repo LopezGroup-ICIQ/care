@@ -1,3 +1,4 @@
 graft src/care/data
 include src/care/data/*.db
 include src/care/logo.txt
+recursive-include src/care/julia_env *.toml

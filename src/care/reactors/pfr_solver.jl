@@ -2,6 +2,7 @@ module SparsePFR
     using DifferentialEquations
     using OrdinaryDiffEqSDIRK
     using OrdinaryDiffEqFIRK
+    using ADTypes
     using SparseArrays
     using Printf
     using LinearSolve
@@ -334,11 +335,11 @@ module SparsePFR
 
             if T == BigFloat
                 linsolve = KrylovJL_GMRES()
-                return Rodas5P(autodiff=false, linsolve=linsolve)
+                return Rodas5P(autodiff=AutoFiniteDiff(), linsolve=linsolve)
             else
                 if haskey(SOLVER_MAP, solver_name)
                     SolverType = SOLVER_MAP[solver_name]
-                    return SolverType(autodiff=false)
+                    return SolverType(autodiff=AutoFiniteDiff())
                 else
                     error("Solver '$solver_name' not recognized. Available solvers are: $(keys(SOLVER_MAP))")
                 end

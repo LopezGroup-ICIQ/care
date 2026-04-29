@@ -12,6 +12,7 @@ from scipy.integrate import solve_ivp
 from scipy.sparse import isspmatrix_csr, csr_matrix
 from time import time
 
+from care import setup_julia
 from care.constants import INTER_ELEMS
 from care.reactors.reactor import ReactorModel
 from care.reactors.utils import net_rate, jacobian_fill_numba, analyze_elemental_balance
@@ -304,6 +305,7 @@ class DifferentialPFR(ReactorModel):
             the steady-state tolerance 'sstol'.
         """
         if solver == "Julia":
+            setup_julia()
             results = {}
             time0 = time()
             y, t = self.integrate_jl_cpu(

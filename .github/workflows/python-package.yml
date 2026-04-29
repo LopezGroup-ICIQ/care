@@ -29,15 +29,14 @@ jobs:
         pip install .[gamenetuq]
         pip install coverage codecov
     - name: Install Julia 1.11 and dependencies
-      uses: julia-actions/setup-julia@v1
+      uses: julia-actions/setup-julia@v2
       with:
         version: '1.11'
     - name: Install Julia dependencies
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        julia -e 'import Pkg; Pkg.add([Pkg.PackageSpec(name="DifferentialEquations", version="8"), Pkg.PackageSpec(name="LinearSolve")]); Pkg.pin("DifferentialEquations")'
-        julia -e 'import Pkg; Pkg.add("OrdinaryDiffEqSDIRK"); Pkg.add("OrdinaryDiffEqFIRK")' 
+        julia --project=src/care/julia_env -e 'import Pkg; Pkg.instantiate(); Pkg.precompile()'
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
@@ -52,6 +51,7 @@ jobs:
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install pytest pytest-cov
+        export PYTHON_JULIACALL_PROJECT=$(pwd)/src/care/julia_env
         pytest --cov --cov-branch --cov-report=xml
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5

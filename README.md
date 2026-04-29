@@ -39,23 +39,23 @@ pip install care-crn[sevennet]
 pip install care-crn[gamenetuq]
 ```
 
-It is important to note that since each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), starting from care-crn==0.6.0 you will need to create one distinct environment for each ML evaluator you want to employ. 
+Note: as each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), starting from care-crn==0.6.0 you will need to create one distinct environment for each ML evaluator you want to employ. 
 
 
-#### Julia-powered microkinetic solver
+### 3\. Julia microkinetic solver (optional)
 
 To run microkinetic simulations with [Julia](https://julialang.org/), install it and the required packages:
 
 ```bash
 curl -fsSL https://install.julialang.org | sh -s -- --yes && ~/.juliaup/bin/juliaup add 1.11
-julia -e 'import Pkg; Pkg.add([Pkg.PackageSpec(name="DifferentialEquations", version="8"), Pkg.PackageSpec(name="LinearSolve")]); Pkg.pin("DifferentialEquations")'
+julia --project=src/care/julia_env -e 'import Pkg; Pkg.instantiate(); Pkg.precompile()'
 ```
 
 *⏲ Julia setup time estimate: \~13min (Ubuntu), \~9min (macOS)*
 
 -----
 
-### 3\. Developer Installation
+### 4\. Developer Installation
 
 If you want to contribute to the code or use the very latest (unstable) version, you can install from the source.
 
