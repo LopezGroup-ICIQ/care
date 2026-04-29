@@ -17,16 +17,10 @@ from care.constants import INTER_ELEMS
 from care.reactors.reactor import ReactorModel
 from care.reactors.utils import net_rate, jacobian_fill_numba, analyze_elemental_balance
 
-import juliacall
-
-jl = juliacall.newmodule("mkm")
-script_dir = os.path.dirname(os.path.abspath(__file__))
-julia_solver_path = os.path.join(script_dir, "pfr_solver.jl")
-jl.seval(f'include("{julia_solver_path}")')
-SparsePFR = jl.SparsePFR
-
 
 class DifferentialPFR(ReactorModel):
+    _jl = None
+
     def __init__(
         self,
         v: np.ndarray = np.array([[]]),
@@ -259,6 +253,19 @@ class DifferentialPFR(ReactorModel):
     gas_change_event.terminal = False
     gas_change_event.direction = 0
 
+    def _get_julia_solver(self):
+        """Lazy-load Julia and the .jl script only when actually needed."""
+        if DifferentialPFR._jl is None:
+            setup_julia()
+            import juliacall
+            mkm = juliacall.newmodule("mkm")
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            julia_solver_path = os.path.join(script_dir, "pfr_solver.jl")
+            mkm.seval(f'include("{julia_solver_path}")')
+            DifferentialPFR._jl = mkm.SparsePFR
+            
+        return DifferentialPFR._jl
+
     def integrate(
         self,
         y0: np.ndarray,
@@ -305,7 +312,6 @@ class DifferentialPFR(ReactorModel):
             the steady-state tolerance 'sstol'.
         """
         if solver == "Julia":
-            setup_julia()
             results = {}
             time0 = time()
             y, t = self.integrate_jl_cpu(
@@ -385,7 +391,7 @@ class DifferentialPFR(ReactorModel):
                     if n_elem_reactant == 0:
                         selectivity_matrix[i, j, e] = np.nan  # example: selectivity of H2 to CO makes no sense, thus nan
                     else:
-                        selectivity_matrix[i, j, e] = r[product] * n[elem][product] / (abs(r[reactant]) * n_elem_reactant)
+                        selectivity_matrix[i, j, e] = r[product].item() * n[elem][product] / (abs(r[reactant].item()) * n_elem_reactant)
                     yield_matrix[i, j, e] = 0.0
         results["selectivity"] = {elem: selectivity_matrix[:, :, e] for e, elem in enumerate(self.elements)}
         results["yield"] = {elem: yield_matrix[:, :, e] for e, elem in enumerate(self.elements)}
@@ -461,6 +467,9 @@ class DifferentialPFR(ReactorModel):
         """
         Integrate the ODE system using the Julia-based solver on CPU, supporting Float64 or BigFloat.
         """
+        sparse_pfr = self._get_julia_solver()
+        import juliacall
+        jl_base = juliacall.Main.Base 
 
         if precision > 64:
             y0_in = [str(x) for x in y0]
@@ -472,10 +481,10 @@ class DifferentialPFR(ReactorModel):
             kr_in = self.kr
             
         elem_dict = {k: v for k, v in self.inters_info.items() if k in INTER_ELEMS}
-        jl_elem_dict = jl.Dict([(k, jl.Vector(v)) for k, v in elem_dict.items()])
+        jl_elem_dict = jl_base.Dict([(k, jl_base.Vector(v)) for k, v in elem_dict.items()])
 
         vT = self.v_sparse.T.tocsr()
-        solution, time = jl.SparsePFR.setup_and_solve(
+        solution, time = sparse_pfr.setup_and_solve(
             y0_in, kd_in, kr_in, self.gas_mask,
             vT.data.astype(np.int8), vT.indices, vT.indptr,
             self.v_forward_sparse.data.astype(np.int8), self.v_forward_sparse.indices, self.v_forward_sparse.indptr,

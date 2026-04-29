@@ -9,8 +9,7 @@ from scipy.sparse import csr_matrix
 
 from care import Intermediate
 from care.reactors import DifferentialPFR
-from care.reactors.differential_pfr import SparsePFR
-from care.reactors.utils import analyze_elemental_balance, net_rate, generate_simulation_report
+from care.reactors.utils import net_rate, generate_simulation_report
 
 # Test reaction mechanism
 # R1) CO(g) + * -> CO*
@@ -141,9 +140,13 @@ Jy0_correct[6, 5] = -k3r*thetastar + k4d  # d(d*dt)/dCO2*
 Jy0_correct[6, 6] = -k1d*pCO - 2*2*k2d*pO2*thetastar - k3r*thetaCO2 - k4r*pCO2  # d(d*dt)/d*
 
 v = v_matrix.T.tocsr()
-jvec = lambda arr: SparsePFR.Base.Vector(arr)  # shorthand to call Julia Vector
+SparsePFR = pfr._get_julia_solver() 
+import juliacall
+jl_base = juliacall.Main.Base 
+jvec = lambda arr: jl_base.Vector(arr)
+
 p = SparsePFR.SparsePFRParams(
-    jvec(kd), jvec(kr), SparsePFR.Base.BitVector(gas_mask),
+    jvec(kd), jvec(kr), jl_base.BitVector(gas_mask),
     jvec(v.data.astype('int8')), jvec(v.indices.astype('int64')), jvec(v.indptr.astype('int64')),
     jvec(pfr.v_forward_sparse.data.astype('int8')), jvec(pfr.v_forward_sparse.indices.astype('int64')), jvec(pfr.v_forward_sparse.indptr.astype('int64')),
     jvec(pfr.v_backward_sparse.data.astype('int8')), jvec(pfr.v_backward_sparse.indices.astype('int64')), jvec(pfr.v_backward_sparse.indptr.astype('int64')),
@@ -269,7 +272,6 @@ class TestDifferentialPFR(unittest.TestCase):
                           rtol=1e-12, 
                           atol=1e-15, 
                           tfin=1e30, 
-                          gpu=False, 
                           precision=64, 
                           maxiters=1_000_000)
         self.assertTrue(output_jl['y'].shape == (7,))
@@ -285,7 +287,6 @@ class TestDifferentialPFR(unittest.TestCase):
                           rtol=1e-12, 
                           atol=1e-15,
                           tfin=1e30, 
-                          gpu=False, 
                           precision=128, 
                           maxiters=1_000_000)
         self.assertTrue(output_jl_prec128['y'].shape == (7,))
