@@ -10,7 +10,8 @@ import warnings
 
 CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
 JULIA_ENV_PATH = CURRENT_DIR / "julia_env"
-os.environ["PYTHON_JULIACALL_PROJECT"] = str(JULIA_ENV_PATH)
+if "PYTHON_JULIACALL_PROJECT" not in os.environ:
+    os.environ["PYTHON_JULIACALL_PROJECT"] = str(JULIA_ENV_PATH)
 
 def setup_julia():
     if shutil.which("julia") is None:
