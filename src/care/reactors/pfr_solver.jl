@@ -1,5 +1,7 @@
 module SparsePFR
     using DifferentialEquations
+    using OrdinaryDiffEqSDIRK
+    using OrdinaryDiffEqFIRK
     using SparseArrays
     using Printf
     using LinearSolve
