@@ -36,7 +36,7 @@ jobs:
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
-        julia -e 'import Pkg; Pkg.add("DifferentialEquations"); Pkg.add("LinearSolve");'
+        julia -e 'import Pkg; Pkg.add([Pkg.PackageSpec(name="DifferentialEquations", version="7"), Pkg.PackageSpec(name="LinearSolve")]); Pkg.pin("DifferentialEquations")'
     - name: Lint with flake8
       run: |
         source $CONDA/etc/profile.d/conda.sh
