@@ -9,7 +9,7 @@ from care.io import load_network
 TEST_DIR = pathlib.Path(__file__).parent
 crn = gen_blueprint(1, 1, False, False, False)
 intermediates = crn.intermediates
-adsorbed_inters = {k:v for k,v in intermediates.items() if "*" in k}
+adsorbed_inters = {k:v for k,v in intermediates.items() if v.phase == "ads"}
 rxns = crn.reactions
 surface = Surface.from_metal_db(metal="Co", hkl="0001")
 surface_from_bulk = Surface.from_bulk_poscar(str(TEST_DIR) + "/files/Ni_fcc.poscar", hkl="111", num_layers=3, xy_repeat=2)
