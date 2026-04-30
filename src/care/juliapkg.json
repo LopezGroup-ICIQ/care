@@ -1,0 +1,25 @@
+{
+  "julia": "~1.11",
+  "packages": {
+    "ADTypes": {
+      "uuid": "47edcb42-4c32-4615-8424-f2b9edc5f35b",
+      "version": "1.22.0"
+    },
+    "DifferentialEquations": {
+      "uuid": "0c46a032-eb83-5123-abaf-570d42b7fbaa",
+      "version": "8.0.0"
+    },
+    "LinearSolve": {
+      "uuid": "7ed4a6bd-45f5-4d41-b270-4a48e9bafcae",
+      "version": "3.49.0"
+    },
+    "OrdinaryDiffEqFIRK": {
+      "uuid": "5960d6e9-dd7a-4743-88e7-cf307b64f125",
+      "version": "1.16.0"
+    },
+    "OrdinaryDiffEqSDIRK": {
+      "uuid": "2d112036-d095-4a1e-ab9a-08536f3ecdbf",
+      "version": "1.7.0"
+    }
+  }
+}

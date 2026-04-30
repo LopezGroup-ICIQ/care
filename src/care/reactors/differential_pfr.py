@@ -254,13 +254,13 @@ class DifferentialPFR(ReactorModel):
     gas_change_event.direction = 0
 
     def _get_julia_solver(self):
-        """Lazy-load Julia and the .jl script only when actually needed."""
+        """Lazy-load Julia and the .jl script"""
         if DifferentialPFR._jl is None:
-            setup_julia()
             import juliacall
             mkm = juliacall.newmodule("mkm")
             script_dir = os.path.dirname(os.path.abspath(__file__))
             julia_solver_path = os.path.join(script_dir, "pfr_solver.jl")
+            julia_solver_path = julia_solver_path.replace("\\", "/")
             mkm.seval(f'include("{julia_solver_path}")')
             DifferentialPFR._jl = mkm.SparsePFR
             

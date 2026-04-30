@@ -96,7 +96,7 @@ include-package-data = true
 package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
-"*" = ["julia_env/*.toml"]
+"*" = ["*.jl", "/*.jl", "juliapkg.json"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
