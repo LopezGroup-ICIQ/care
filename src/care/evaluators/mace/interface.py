@@ -3,10 +3,12 @@ Interface to MACE models.
 """
 
 from copy import deepcopy
+import logging
 from typing import Union
+import warnings
 
 from ase import Atoms
-from ase.optimize import BFGS
+from ase.optimize import BFGS, LBFGS
 from ase.data import chemical_symbols
 
 from care import Intermediate, Surface
@@ -33,6 +35,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         dispersion: bool=True,
         del_traj: bool = True,
         logfile: str = None,
+        patience: int = 3,
+        optimizer: str = "BFGS",
         **kwargs
     ):
         """Interface to the MACE models family.
@@ -49,6 +53,8 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
+            patience (int): The number of steps to wait before considering a relaxation as failed. Default is 3.
+            optimizer (str): The optimizer to use for the relaxation. Default is "BFGS". Other options are "LBFGS".
         """
         if not MACE_AVAILABLE:
             raise ImportError("The MACEIntermediateEvaluator requires 'mace-torch' to be installed. "
@@ -70,9 +76,11 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
+        self.patience = patience * num_configs
         self.del_traj = del_traj
         self.logfile = logfile
         self.is_mlp = True
+        self.optimizer = BFGS if optimizer == 'BFGS' else LBFGS
         if self.surface is not None:
             self.get_slab_energy()
 
@@ -89,7 +97,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def get_slab_energy(self):
         self.surface.slab.calc = self.calc
-        opt = BFGS(self.surface.slab, 
+        opt = self.optimizer(self.surface.slab, 
                    logfile=None)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
@@ -112,6 +120,9 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
             return [chemical_symbols[i] for i in self.calc.z_table.zs]
         except:
             return chemical_symbols
+        
+    def get_calculator(self):
+        return mace_mp(model=self.size, device=self.device, default_dtype=self.dtype, dispersion=self.dispersion)
 
     def eval(
         self,
@@ -132,7 +143,7 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                 molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
 
                 molec_eval.calc = self.calc
-                opt = BFGS(molec_eval, 
+                opt = self.optimizer(molec_eval, 
                         logfile=self.logfile)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 intermediate.ads_configs = {
@@ -149,38 +160,58 @@ class MACEIntermediateEvaluator(IntermediateEnergyEstimator):
                     raise ValueError("Surface must be provided for adsorbed phase evaluation.")
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                attempts = 0
+                best_broken_ads = None
+                lowest_broken_mu = float('inf')
                 for i, adsorption in enumerate(adsorptions):
-                    if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
+                    if len(ads_config_dict) == self.num_configs or attempts >= self.patience:
                         break
+                    attempts += 1
                     adsorption.calc = self.calc
-                    opt = BFGS(adsorption, 
+                    opt = self.optimizer(adsorption, 
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    current_energy = adsorption.get_potential_energy()
                     g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
+                        if current_energy < lowest_broken_mu:
+                            lowest_broken_mu = current_energy
+                            best_broken_ads = adsorption.copy()
                         continue
-                    ads_config_dict[str(i)] = {}
-                    ads_config_dict[str(i)]['ase'] = adsorption
-                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict[str(i)]['s'] = 0.0
-                    # ads_config_dict[str(i)]['converged'] = opt.converged()
+                    ads_config_dict[str(i)] = {
+                        'ase': adsorption,
+                        'mu': current_energy - self.slab_energy,  # eV
+                        's': 0.0,
+                        'connectivity': True,
+                        # 'converged': opt.converged()
+                    }
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
-                    Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
-                    ads_config_dict["0"] = {}
-                    ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict["0"]['s'] = 0.0
-                    # ads_config_dict["0"]['converged'] = opt.converged()
-                    ads_config_dict["0"]['connectivity'] = False
-                else:
-                    intermediate.ads_configs = ads_config_dict
+                    warnings.warn(
+                        f"Failed to find intact configuration for {intermediate.formula} "
+                        f"after {attempts} attempts. Falling back to the lowest energy broken structure."
+                    )
+                    fallback_ads = best_broken_ads if best_broken_ads is not None else adsorptions[-1]
+                    
+                    ads_config_dict["0"] = {
+                        'ase': fallback_ads,
+                        'mu': (lowest_broken_mu if best_broken_ads is not None else fallback_ads.get_potential_energy()) - self.slab_energy,
+                        's': 0.0,
+                        'connectivity': False
+                    }
+                elif len(ads_config_dict) < self.num_configs:
+                    logging.info(
+                        f"Requested {self.num_configs} configs for {intermediate.formula}, "
+                        f"but only found {len(ads_config_dict)} valid ones before hitting the attempt limit."
+                    )
+
+                intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
         elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
-            opt = BFGS(intermediate,
+            opt = self.optimizer(intermediate,
                        logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:

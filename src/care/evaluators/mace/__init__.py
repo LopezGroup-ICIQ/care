@@ -1,5 +1,6 @@
-from care.evaluators.mace.interface import MACEIntermediateEvaluator
+from care.evaluators.mace.interface import MACEIntermediateEvaluator, MACE_AVAILABLE
 
 __all__ = [
-    "MACEIntermediateEvaluator"
+    "MACEIntermediateEvaluator", 
+    "MACE_AVAILABLE",
 ]

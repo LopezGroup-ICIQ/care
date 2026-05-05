@@ -64,7 +64,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         remove_rotation_and_translation (bool): Whether to remove rotation and translation during NEB. Default is True.
         allow_shared_calculator (bool): Whether to allow shared calculator among images. Default is False.
         k (float or list of float): Spring constant(s) for NEB. Default is 0.1 eV/Å².
-        parallel (bool): Whether to run NEB in parallel. Default is True.
+        parallel (bool): Whether to run NEB in parallel. Default is False.
         dx (float): Initial displacement distance for generating final state. Default is 1.5 Å.
         tol (float): Tolerance for avoiding atomic clashes when generating final state. Default is 0.0 Å.
         max_steps (int): Maximum number of optimization steps for NEB. Default is 100.
@@ -85,7 +85,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         remove_rotation_and_translation: bool = True,
         allow_shared_calculator: bool = False,
         k: Union[float, list[float]] = 0.1,
-        parallel: bool = True,
+        parallel: bool = False,
         dx: float = 1.5, 
         tol: float = 0.0, 
         max_steps: int = 100,
@@ -285,10 +285,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
             FS.positions[atoms_to_move] += (self.dx + increment) * direction
             FS.wrap()
             # 7) Relax final state structure (B* + C*)
-            try:
-                FS.calc = deepcopy(self.mlp.calc)
-            except:
-                FS.calc = self.mlp.calc
+            self._assign_calculator(FS)
             opt = BFGS(FS, 
                     logfile=None)
             opt.run(fmax=0.05, steps=self.mlp.max_steps)
@@ -318,10 +315,8 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
                         mic=True, 
                         apply_constraint=True)
         for image in images[1:self.num_images + 1]:  # only intermediate images
-            try:
-                image.calc = deepcopy(self.mlp.calc)
-            except:
-                image.calc = copy(self.mlp.calc)
+            self._assign_calculator(image)
+
         if self.optimizer == "LBFGS":
             optimizer = LBFGS(neb, logfile=None)
         elif self.optimizer == "BFGS":
@@ -332,10 +327,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         final_NEB_energies = []
         for i, image in enumerate(neb.images):  # including initial and final states
             if i == 0 or i == len(neb.images) - 1: # IS and FS have no calculator assigned
-                try:
-                    image.calc = deepcopy(self.mlp.calc)
-                except:
-                    image.calc = copy(self.mlp.calc)
+                self._assign_calculator(image)
             energy_image = image.get_potential_energy()
             final_NEB_energies.append(energy_image)
             image.calc = None
@@ -343,7 +335,7 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         energy_TS = max(final_NEB_energies)
         reaction.neb_images = final_NEB_frames
         reaction.neb_energies = final_NEB_energies
-        if type(self.mlp).__name__ != "OCPIntermediateEvaluator":
+        if type(self.mlp).__name__ != "FairChemV1IntermediateEvaluator":
             referenced_ts_energy = energy_TS - self.mlp.surface.energy
         else:
             referenced_ts_energy = energy_TS + sum(
@@ -375,3 +367,14 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         else:
             reaction.e_ts = reaction.e_is if reaction.e_is[0] > reaction.e_fs[0] else reaction.e_fs
         reaction.e_act = reaction.e_ts[0] - reaction.e_is[0], 0.0
+
+    def _assign_calculator(self, atoms):
+        if self.allow_shared_calculator:
+            atoms.calc = self.mlp.calc
+        elif hasattr(self.mlp, "get_calculator"):
+            atoms.calc = self.mlp.get_calculator()
+        else:
+            try:
+                atoms.calc = deepcopy(self.mlp.calc)
+            except Exception:
+                atoms.calc = copy(self.mlp.calc)

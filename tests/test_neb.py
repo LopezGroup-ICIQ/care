@@ -1,16 +1,16 @@
 import unittest
 
-from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator, FairChemV2IntermediateEvaluator
+from care.evaluators import NEBReactionEnergyEstimator, MACEIntermediateEvaluator #, FairChemV2IntermediateEvaluator
 from care.evaluators.utils import is_adsorbate_fragmented, adsorption_filter
 from care.crn.templates import BondBreaking
 from networkx import is_connected
 
 from tests import evaluated_network, surface
 
-mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=5)
+mlp = MACEIntermediateEvaluator(surface=surface, size="small", max_steps=2, device="cpu")
 # mlp = FairChemV2IntermediateEvaluator(surface=surface, max_steps=3, device="cuda")
 
-neb = NEBReactionEnergyEstimator(mlp=mlp, max_steps=10)
+neb = NEBReactionEnergyEstimator(mlp=mlp, max_steps=10, allow_shared_calculator=False, parallel=False)
 
 # choose random reaction from evaluated network of type BondBreaking for testing
 reaction = None
@@ -38,7 +38,9 @@ class TestNEB(unittest.TestCase):
         self.assertTrue(adsorption_filter(reaction.fs_graph))
         self.assertTrue(adsorption_filter(reaction.is_graph))
         neb.run_neb(reaction)
+        print(reaction.neb_energies)
         self.assertIsNotNone(reaction.neb_images)
         self.assertIsNotNone(reaction.neb_energies)
+        self.assertIsInstance(reaction.neb_energies[2], float)
         self.assertEqual(len(reaction.neb_images), neb.num_images+2)
         

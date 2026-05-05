@@ -1,10 +1,12 @@
 """
 Interface to FairChem-V1 potentials from Meta.
 """
+import logging
 from typing import Union
+import warnings
 
 from ase import Atoms
-from ase.optimize import BFGS
+from ase.optimize import BFGS, LBFGS
 from ase.data import chemical_symbols
 
 from care import Intermediate, Surface, silent_context
@@ -12,6 +14,14 @@ from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
 
+try:
+    from fairchem.core.models.model_registry import model_name_to_local_file
+    from fairchem.core.common.relaxation.ase_utils import OCPCalculator
+    import torch_scatter
+    import torch_sparse
+    FAIRCHEMV1_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    FAIRCHEMV1_AVAILABLE = False
 
 class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -24,6 +34,8 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
         num_configs: int = 1,
         del_traj: bool = True,
         logfile: str = None,
+        patience: int = 3,
+        optimizer: str = 'BFGS',
         **kwargs
     ):
         """Interface for the models from the Open Catalyst Project
@@ -39,17 +51,13 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                             note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
+            patience (int): The number of steps to wait before considering a relaxation as failed. Default is 3.
+            optimizer (str): The optimizer to use for the relaxation. Default is 'BFGS', other option is 'LBFGS'.
         
         Note:
-
         - The intermediate energy is stored as E_tot - E_slab in eV.
-        """        
-        try:
-            from fairchem.core.models.model_registry import model_name_to_local_file
-            from fairchem.core.common.relaxation.ase_utils import OCPCalculator
-            import torch_scatter
-            import torch_sparse
-        except (ImportError, ModuleNotFoundError):
+        """
+        if not FAIRCHEMV1_AVAILABLE:
             import torch
             pyt_version = torch.__version__.split('+')[0]
             if torch.cuda.is_available() and torch.version.cuda:
@@ -64,7 +72,7 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
                 f"https://data.pyg.org/whl/torch-{pyt_version}+{cuda_suffix}.html\n"
                 f"{'!'*78}"
             )
-            raise ImportError(error_msg)
+            raise ImportError(error_msg)   
 
         self.model_name = name
         self.checkpoint_path = model_name_to_local_file(name, local_cache='/tmp/fairchem_checkpoints/')
@@ -81,6 +89,8 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
         self.is_mlp = True
         self.del_traj = del_traj
         self.logfile = logfile
+        self.patience = patience * num_configs
+        self.optimizer = BFGS if optimizer == 'BFGS' else LBFGS
 
     def __repr__(self) -> str:
         return f'{self.model_name} from Meta FairChemV1 models'
@@ -102,6 +112,10 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
         return chemical_symbols[1:]
+    
+    def get_calculator(self):
+        with silent_context():
+            return OCPCalculator(checkpoint_path=self.checkpoint_path, cpu=self.device=='cpu', seed=42)
 
     def eval(
         self,
@@ -132,38 +146,59 @@ class FairChemV1IntermediateEvaluator(IntermediateEnergyEstimator):
                     raise ValueError("Surface must be provided for adsorbed phase evaluation.")
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                attempts = 0
+                best_broken_ads = None
+                lowest_broken_mu = float('inf')
                 for i, adsorption in enumerate(adsorptions):
                     if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
                         break
+                    attempts += 1
                     adsorption.calc = self.calc
-                    opt = BFGS(adsorption, 
+                    opt = self.optimizer(adsorption, 
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    current_energy = adsorption.get_potential_energy()
                     g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
+                        if current_energy < lowest_broken_mu:
+                            lowest_broken_mu = current_energy
+                            best_broken_ads = adsorption.copy()
                         continue
-                    ads_config_dict[str(i)] = {}
-                    ads_config_dict[str(i)]['ase'] = adsorption
+                    ads_config_dict[str(i)] = {
+                        'ase': adsorption,
+                        'mu': current_energy + gas_energy,  # eV
+                        's': 0.0,
+                        'connectivity': True,
+                        # 'converged': opt.converged()
+                    }
                     # Note: Output for models trained only on OC20 dataset is Eads, so to get Etot - Eslab, we need to add the gas-phase energy of the adsorbate
-                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() + gas_energy
-                    ads_config_dict[str(i)]['s'] = 0.0
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
-                    Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
-                    ads_config_dict["0"] = {}
-                    ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() + gas_energy
-                    ads_config_dict["0"]['s'] = 0.0
-                    ads_config_dict["0"]['converged'] = opt.converged()
-                    ads_config_dict["0"]['connectivity'] = False
-                else:
-                    intermediate.ads_configs = ads_config_dict
+                    warnings.warn(
+                        f"Failed to find intact configuration for {intermediate.formula} "
+                        f"after {attempts} attempts. Falling back to the lowest energy broken structure."
+                    )
+                    fallback_ads = best_broken_ads if best_broken_ads is not None else adsorptions[-1]
+                    
+                    ads_config_dict["0"] = {
+                        'ase': fallback_ads,
+                        'mu': (lowest_broken_mu if best_broken_ads is not None else fallback_ads.get_potential_energy()) + gas_energy,  # eV
+                        's': 0.0,
+                        'connectivity': False
+                    }
+                elif len(ads_config_dict) < self.num_configs:
+                    logging.info(
+                        f"Requested {self.num_configs} configs for {intermediate.formula}, "
+                        f"but only found {len(ads_config_dict)} valid ones before hitting the attempt limit."
+                    )
+
+                intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
         elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
-            opt = BFGS(intermediate,
+            opt = self.optimizer(intermediate,
                        logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:

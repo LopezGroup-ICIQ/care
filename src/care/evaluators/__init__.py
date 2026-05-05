@@ -1,27 +1,31 @@
 from care.evaluators.energy_estimator import IntermediateEnergyEstimator, ReactionEnergyEstimator
-from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn
-from care.evaluators.fairchemv1 import FairChemV1IntermediateEvaluator
-from care.evaluators.fairchemv2 import FairChemV2IntermediateEvaluator
-from care.evaluators.mace import MACEIntermediateEvaluator
-from care.evaluators.upet import UPETIntermediateEvaluator
-from care.evaluators.orb import ORBIntermediateEvaluator
-from care.evaluators.sevennet import SevenNetIntermediateEvaluator
+from care.evaluators.gamenet_uq import GameNetUQInter, GameNetUQRxn, GAMENETUQ_AVAILABLE
+from care.evaluators.fairchemv1 import FairChemV1IntermediateEvaluator, FAIRCHEMV1_AVAILABLE
+from care.evaluators.fairchemv2 import FairChemV2IntermediateEvaluator, FAIRCHEMV2_AVAILABLE
+from care.evaluators.mace import MACEIntermediateEvaluator, MACE_AVAILABLE
+from care.evaluators.upet import UPETIntermediateEvaluator, UPET_AVAILABLE
+from care.evaluators.orb import ORBIntermediateEvaluator, ORB_AVAILABLE
+from care.evaluators.sevennet import SevenNetIntermediateEvaluator, SEVENNET_AVAILABLE
 from care.evaluators.reaction_estimators import BarrierlessReactionEnergyEstimator, NEBReactionEnergyEstimator
 
 eval_dict = {
-    "gamenetuq": (GameNetUQInter, GameNetUQRxn),
-    "fairchemv1": (FairChemV1IntermediateEvaluator, NEBReactionEnergyEstimator),
-    "fairchemv2": (FairChemV2IntermediateEvaluator, NEBReactionEnergyEstimator),
-    "mace": (MACEIntermediateEvaluator, NEBReactionEnergyEstimator),
-    "upet": (UPETIntermediateEvaluator, NEBReactionEnergyEstimator),
-    "orb": (ORBIntermediateEvaluator, NEBReactionEnergyEstimator),
-    "sevennet": (SevenNetIntermediateEvaluator, NEBReactionEnergyEstimator),
+    "gamenetuq": (GameNetUQInter, GameNetUQRxn, GAMENETUQ_AVAILABLE),
+    "fairchemv1": (FairChemV1IntermediateEvaluator, NEBReactionEnergyEstimator, FAIRCHEMV1_AVAILABLE),
+    "fairchemv2": (FairChemV2IntermediateEvaluator, NEBReactionEnergyEstimator, FAIRCHEMV2_AVAILABLE),
+    "mace": (MACEIntermediateEvaluator, NEBReactionEnergyEstimator, MACE_AVAILABLE),
+    "upet": (UPETIntermediateEvaluator, NEBReactionEnergyEstimator, UPET_AVAILABLE),
+    "orb": (ORBIntermediateEvaluator, NEBReactionEnergyEstimator, ORB_AVAILABLE),
+    "sevennet": (SevenNetIntermediateEvaluator, NEBReactionEnergyEstimator, SEVENNET_AVAILABLE),
 }
 
-def get_available_evaluators():
+def get_available_evaluators(installed_only=False) -> list:
     """
     Show available energy evaluators in CARE.
+    Args:
+        installed_only (bool): If True, only show installed evaluators. If False, show all evaluators.
     """
+    if installed_only:
+        return [key for key, (inter, rxn, available) in eval_dict.items() if available]
     return list(eval_dict.keys())
 
 def load_inter_evaluator(model: str, surface, **kwargs) -> IntermediateEnergyEstimator:

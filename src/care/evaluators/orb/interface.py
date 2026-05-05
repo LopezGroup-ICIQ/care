@@ -3,16 +3,26 @@ Interface to ORB potentials.
 """
 
 from copy import deepcopy
+import warnings
+import logging
 from typing import Union
 
 from ase import Atoms
-from ase.optimize import BFGS
+from ase.optimize import BFGS, LBFGS
 from ase.data import chemical_symbols
 
 from care import Intermediate, Surface
 from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
+
+try:
+    from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
+    from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
+    ORB_AVAILABLE = True
+except:
+    ORB_AVAILABLE = False
+
 
 class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -29,6 +39,8 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         num_configs: int = 1,
         del_traj: bool = True,
         logfile: str = None,
+        patience: int = 3,
+        optimizer: str = "BFGS",
         **kwargs
     ):
         """Interface to the ORB potentials.
@@ -49,13 +61,12 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
+            patience (int): The number of steps to wait before considering a relaxation as failed. Default is 3.
+            optimizer (str): The optimizer to use for the relaxation. Default is "BFGS". Other options are "LBFGS".
         """
-        try:
-            from orb_models.forcefield.pretrained import ORB_PRETRAINED_MODELS
-            from orb_models.forcefield.calculator import ORBCalculator, SystemConfig
-        except:
+        if not ORB_AVAILABLE:
             raise ImportError("Orb not installed. "
-            "Install it using pip install care-crn[orb]")
+                "Install it using pip install care-crn[orb]")
 
         if version not in ORB_PRETRAINED_MODELS:
             raise ValueError(f"Version {version} not existing. Choose from {list(ORB_PRETRAINED_MODELS.keys())}.")
@@ -65,10 +76,13 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         self.dtype = dtype
         self.device = device
         self.model = ORB_PRETRAINED_MODELS[version](device=device)
+        self.brute_force_knn = brute_force_knn
+        self.radius = radius
+        self.max_num_neighbors = max_num_neighbors
         self.calc = ORBCalculator(model=self.model, 
-                                  brute_force_knn=brute_force_knn, 
-                                  system_config=SystemConfig(radius=radius, max_num_neighbors=max_num_neighbors), 
-                                  device=device)
+                                  brute_force_knn=self.brute_force_knn, 
+                                  system_config=SystemConfig(radius=self.radius, max_num_neighbors=self.max_num_neighbors), 
+                                  device=self.device)
         self.num_params = sum([p.numel() for p in self.calc.model.parameters()])
         self.fmax = fmax
         self.max_steps = max_steps
@@ -76,6 +90,8 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
         self.del_traj = del_traj
         self.logfile = logfile
         self.is_mlp = True
+        self.patience = patience * num_configs
+        self.optimizer = BFGS if optimizer == 'BFGS' else LBFGS
         self.get_slab_energy()
 
     def __repr__(self) -> str:
@@ -91,7 +107,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
 
     def get_slab_energy(self):
         self.surface.slab.calc = self.calc
-        opt = BFGS(self.surface.slab, 
+        opt = self.optimizer(self.surface.slab, 
                    logfile=self.logfile)
         opt.run(fmax=self.fmax, steps=self.max_steps)
         self.slab_energy = self.surface.slab.get_potential_energy()
@@ -108,6 +124,12 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
         return chemical_symbols[1:]
+    
+    def get_calculator(self):
+        return ORBCalculator(model=self.model, 
+                            brute_force_knn=self.brute_force_knn, 
+                            system_config=SystemConfig(radius=self.radius, max_num_neighbors=self.max_num_neighbors), 
+                            device=self.device)
 
     def eval(
         self,
@@ -127,7 +149,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                 molec_eval.set_cell([10, 10, 10])  # TODO: Should be function of molecule size
 
                 molec_eval.calc = self.calc
-                opt = BFGS(molec_eval, 
+                opt = self.optimizer(molec_eval, 
                         logfile=self.logfile)
                 opt.run(fmax=self.fmax, steps=self.max_steps)
                 intermediate.ads_configs = {
@@ -142,37 +164,58 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
             elif intermediate.phase == "ads":  # adsorbed
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                attempts = 0
+                best_broken_ads = None
+                lowest_broken_mu = float('inf')
                 for i, adsorption in enumerate(adsorptions):
                     if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
                         break
+                    attempts += 1
                     adsorption.calc = self.calc
-                    opt = BFGS(adsorption,
+                    opt = self.optimizer(adsorption,
                                 logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    current_energy = adsorption.get_potential_energy()
                     g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
+                        if current_energy < lowest_broken_mu:
+                            lowest_broken_mu = current_energy
+                            best_broken_ads = adsorption.copy()
                         continue
-                    ads_config_dict[str(i)] = {}
-                    ads_config_dict[str(i)]['ase'] = adsorption
-                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict[str(i)]['s'] = 0.0
+                    ads_config_dict[str(i)] = {
+                        'ase': adsorption,
+                        'mu': current_energy - self.slab_energy,  # eV
+                        's': 0.0,
+                        'connectivity': True,
+                        # 'converged': opt.converged()
+                    }
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
-                    Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
-                    ads_config_dict["0"] = {}
-                    ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict["0"]['s'] = 0.0
-                    # ads_config_dict["0"]['converged'] = opt.converged()
-                    ads_config_dict["0"]['connectivity'] = False
-                else:
-                    intermediate.ads_configs = ads_config_dict
+                    warnings.warn(
+                        f"Failed to find intact configuration for {intermediate.formula} "
+                        f"after {attempts} attempts. Falling back to the lowest energy broken structure."
+                    )
+                    fallback_ads = best_broken_ads if best_broken_ads is not None else adsorptions[-1]
+                    
+                    ads_config_dict["0"] = {
+                        'ase': fallback_ads,
+                        'mu': (lowest_broken_mu if best_broken_ads is not None else fallback_ads.get_potential_energy()) - self.slab_energy,
+                        's': 0.0,
+                        'connectivity': False
+                    }
+                elif len(ads_config_dict) < self.num_configs:
+                    logging.info(
+                        f"Requested {self.num_configs} configs for {intermediate.formula}, "
+                        f"but only found {len(ads_config_dict)} valid ones before hitting the attempt limit."
+                    )
+
+                intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
         elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
-            opt = BFGS(intermediate,
+            opt = self.optimizer(intermediate,
                        logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:

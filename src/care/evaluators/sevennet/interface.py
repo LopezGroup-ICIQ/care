@@ -3,17 +3,24 @@ Interface to SevenNet potentials.
 """
 
 from copy import deepcopy
+import logging
 from typing import Union
-from warnings import warn
+import warnings
 
 from ase import Atoms
-from ase.optimize import BFGS
+from ase.optimize import BFGS, LBFGS
 from ase.data import chemical_symbols
 
 from care import Intermediate, Surface
 from care.evaluators import IntermediateEnergyEstimator
 from care.adsorption import place_adsorbate
 from care.evaluators.utils import atoms_to_data
+
+try:
+    from sevenn.calculator import SevenNetCalculator, SevenNetD3Calculator
+    SEVENNET_AVAILABLE = True
+except ImportError:    
+    SEVENNET_AVAILABLE = False   
 
 class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -29,6 +36,8 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
         dispersion: bool = False,
         del_traj: bool = True,
         logfile: str = None,
+        optimizer: str = "BFGS",
+        patience: int = 3,
         **kwargs
     ):
         """Interface to the SevenNet potentials.
@@ -50,15 +59,12 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
             del_traj (bool): If True, keep relaxation trajectory and calculator for each intermediate configuration; 
                              note that this option may imply 10e6x larger CRN files!
             logfile (str): The path to the logfile for relaxation trajectories. Default is None. Use '-' for stdout.
+            optimizer (str): The optimizer to use for the relaxation. Default is "BFGS". Other options are "LBFGS".
+            patience (int): The number of steps to wait before considering a relaxation as failed. Default is 3.
         """
-        try:
-            from sevenn.calculator import SevenNetCalculator, SevenNetD3Calculator
-        except:
+        if not SEVENNET_AVAILABLE:
             raise ImportError("SevenNet not installed. "
             "Install it using pip install care-crn[sevennet]")
-        
-        warn("SevenNet depends on e3nn==0.5.6, while the other implemented models depend on previous versions. "
-             "Please create a separate conda environment to run SevenNet pre-trained models.")
 
         self.model = model
         self.modal = modal
@@ -93,11 +99,10 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
         self.num_configs = num_configs
         self.del_traj = del_traj
         self.logfile = logfile
+        self.patience = patience * num_configs
+        self.optimizer = BFGS if optimizer == "BFGS" else LBFGS
         self.is_mlp = True
         self.get_slab_energy()
-
-        warn(
-            "As SevenNet does not support parallelization, do not use for parallel evaluation. ")
 
     def __repr__(self) -> str:
         return f'SevenNet potential ({self.model}, {round(self.num_params/1e6, 1)}M params, {self.device})'
@@ -127,6 +132,14 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
     @property
     def surface_domain(self):
         return chemical_symbols[1:]
+    
+    def get_calculator(self):
+        return SevenNetD3Calculator(
+            model=self.model,
+            device=self.device,
+            modal=self.modal,
+            file_type=self.file_type,
+            dispersion=self.dispersion)
 
     def eval(
         self,
@@ -159,39 +172,61 @@ class SevenNetIntermediateEvaluator(IntermediateEnergyEstimator):
                 if self.del_traj:
                     molec_eval.calc = None
             elif intermediate.phase == "ads":  # adsorbed
+                if self.surface is None:
+                    raise ValueError("Surface must be provided for adsorbed phase evaluation.")
                 ads_config_dict = {}
                 adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                attempts = 0
+                best_broken_ads = None
+                lowest_broken_mu = float('inf')
                 for i, adsorption in enumerate(adsorptions):
                     if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
                         break
+                    attempts += 1
                     adsorption.calc = self.calc
-                    opt = BFGS(adsorption, 
+                    opt = self.optimizer(adsorption, 
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    current_energy = adsorption.get_potential_energy()
                     g = atoms_to_data(adsorption, atom_tags=adsorption.get_array("atom_tags"), surface_order=-1, filter=True)
                     if g is None:
+                        if current_energy < lowest_broken_mu:
+                            lowest_broken_mu = current_energy
+                            best_broken_ads = adsorption.copy()
                         continue
-                    ads_config_dict[str(i)] = {}
-                    ads_config_dict[str(i)]['ase'] = adsorption
-                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict[str(i)]['s'] = 0.0
+                    ads_config_dict[str(i)] = {
+                        'ase': adsorption,
+                        'mu': current_energy - self.slab_energy,  # eV
+                        's': 0.0,
+                        'connectivity': True,
+                        # 'converged': opt.converged()
+                    }
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
-                    Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
-                    ads_config_dict["0"] = {}
-                    ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy # eV
-                    ads_config_dict["0"]['s'] = 0.0
-                    # ads_config_dict["0"]['converged'] = opt.converged()
-                    ads_config_dict["0"]['connectivity'] = False
-                else:
-                    intermediate.ads_configs = ads_config_dict
+                    warnings.warn(
+                        f"Failed to find intact configuration for {intermediate.formula} "
+                        f"after {attempts} attempts. Falling back to the lowest energy broken structure."
+                    )
+                    fallback_ads = best_broken_ads if best_broken_ads is not None else adsorptions[-1]
+                    
+                    ads_config_dict["0"] = {
+                        'ase': fallback_ads,
+                        'mu': (lowest_broken_mu if best_broken_ads is not None else fallback_ads.get_potential_energy()) - self.slab_energy,
+                        's': 0.0,
+                        'connectivity': False
+                    }
+                elif len(ads_config_dict) < self.num_configs:
+                    logging.info(
+                        f"Requested {self.num_configs} configs for {intermediate.formula}, "
+                        f"but only found {len(ads_config_dict)} valid ones before hitting the attempt limit."
+                    )
+                intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
         elif isinstance(intermediate, Atoms):
             intermediate.calc = self.calc
-            opt = BFGS(intermediate,
+            opt = self.optimizer(intermediate,
                        logfile=self.logfile)
             opt.run(fmax=self.fmax, steps=self.max_steps)
             if self.del_traj:

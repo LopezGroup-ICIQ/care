@@ -2,7 +2,9 @@
 Interface to FairChemV2 UMA models.
 """
 from copy import deepcopy
+import logging
 from typing import Union
+import warnings
 
 from ase import Atoms
 from ase.optimize import BFGS, LBFGS
@@ -15,9 +17,9 @@ from care.evaluators.utils import atoms_to_data
 
 try:
     from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    FAIRCHEM_AVAILABLE = True
+    FAIRCHEMV2_AVAILABLE = True
 except ImportError:
-    FAIRCHEM_AVAILABLE = False
+    FAIRCHEMV2_AVAILABLE = False
 
 class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
     def __init__(
@@ -32,6 +34,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
         del_traj: bool = True,
         optimizer: str = 'BFGS',
         logfile: str = None,
+        patience: int = 3,
         **kwargs
     ):
         """
@@ -53,7 +56,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
 
         - The intermediate energy is stored as E_tot - E_slab in eV.
         """
-        if not FAIRCHEM_AVAILABLE:
+        if not FAIRCHEMV2_AVAILABLE:
             raise ImportError("The FairChemV2IntermediateEvaluator requires 'fairchem-core' to be installed. "
                 "Please install it using pip install fairchem-core==2.19.0.")
 
@@ -67,6 +70,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
         self.fmax = fmax
         self.max_steps = max_steps
         self.num_configs = num_configs
+        self.patience = num_configs * patience
         self.is_mlp = True
         self.del_traj = del_traj
         self.optimizer = BFGS if optimizer == 'BFGS' else LBFGS
@@ -103,6 +107,9 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
     def surface_domain(self):
         """Returns the list of surface elements that your model can handle."""
         return chemical_symbols[1:]
+    
+    def get_calculator(self) -> FAIRChemCalculator:
+        return FAIRChemCalculator(self.predictor, task_name=self.task_name)
 
     def eval(
         self,
@@ -137,34 +144,54 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
                     molec_eval.calc = None
             elif intermediate.phase == "ads":  # adsorbed
                 ads_config_dict = {}
-                adsorptions = place_adsorbate(intermediate, self.surface, self.num_configs)
+                adsorptions = place_adsorbate(intermediate, self.surface, -1)
+                attempts = 0
+                best_broken_ads = None
+                lowest_broken_mu = float('inf')
                 for i, adsorption in enumerate(adsorptions):
-                    if len(ads_config_dict) == self.num_configs or len(ads_config_dict) == len(adsorptions):
+                    if len(ads_config_dict) == self.num_configs or attempts >= self.patience:
                         break
+                    attempts += 1
                     adsorption.calc = self.calc
                     opt = self.optimizer(adsorption,
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
+                    current_energy = adsorption.get_potential_energy() - self.slab_energy
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
+                        if current_energy < lowest_broken_mu:
+                            lowest_broken_mu = current_energy
+                            best_broken_ads = adsorption.copy()
                         continue
-                    ads_config_dict[str(i)] = {}
-                    ads_config_dict[str(i)]['ase'] = adsorption
-                    ads_config_dict[str(i)]['mu'] = adsorption.get_potential_energy() - self.slab_energy
-                    ads_config_dict[str(i)]['s'] = 0.0
-                    # ads_config_dict[str(i)]['converged'] = opt.converged()
+                    ads_config_dict[str(i)] = {
+                        'ase': adsorption,
+                        'mu': current_energy,
+                        's': 0.0,
+                        'connectivity': True,
+                        # 'converged': opt.converged()
+                    }
                     if self.del_traj:
                         adsorption.calc = None
                 if len(ads_config_dict) == 0:
-                    Warning(f"No valid adsorption configuration found for {intermediate.formula}, keep the last one.")
-                    ads_config_dict["0"] = {}
-                    ads_config_dict["0"]['ase'] = adsorption
-                    ads_config_dict["0"]['mu'] = adsorption.get_potential_energy() - self.slab_energy
-                    ads_config_dict["0"]['s'] = 0.0
-                    # ads_config_dict["0"]['converged'] = opt.converged()
-                    ads_config_dict["0"]['connectivity'] = False
-                else:
-                    intermediate.ads_configs = ads_config_dict
+                    warnings.warn(
+                        f"Failed to find intact configuration for {intermediate.formula} "
+                        f"after {attempts} attempts. Falling back to the lowest energy broken structure."
+                    )
+                    fallback_ads = best_broken_ads if best_broken_ads is not None else adsorptions[-1]
+                    
+                    ads_config_dict["0"] = {
+                        'ase': fallback_ads,
+                        'mu': (lowest_broken_mu if best_broken_ads is not None else fallback_ads.get_potential_energy()) - self.slab_energy,
+                        's': 0.0,
+                        'connectivity': False
+                    }
+                elif len(ads_config_dict) < self.num_configs:
+                    logging.info(
+                        f"Requested {self.num_configs} configs for {intermediate.formula}, "
+                        f"but only found {len(ads_config_dict)} valid ones before hitting the attempt limit."
+                    )
+
+                intermediate.ads_configs = ads_config_dict
             else:
                 raise ValueError("Phase not supported by the current estimator.")
         elif isinstance(intermediate, Atoms):
