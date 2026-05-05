@@ -108,7 +108,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
         """Returns the list of surface elements that your model can handle."""
         return chemical_symbols[1:]
     
-    def get_calculator(self) -> FAIRChemCalculator:
+    def get_calculator(self):
         return FAIRChemCalculator(self.predictor, task_name=self.task_name)
 
     def eval(
