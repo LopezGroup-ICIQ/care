@@ -9,7 +9,7 @@ import numpy as np
 from torch.cuda import empty_cache
 
 from care.crn.templates.dissociation import BondBreaking, BondFormation
-from care import ElementaryReaction
+from care import ElementaryReaction, silent_context
 from care.evaluators import ReactionEnergyEstimator, IntermediateEnergyEstimator
 from care.evaluators.utils import atoms_to_data, extract_adsorbate, is_adsorbate_fragmented, connectivity_signature
 from care.constants import CORDERO
@@ -369,12 +369,13 @@ class NEBReactionEnergyEstimator(ReactionEnergyEstimator):
         reaction.e_act = reaction.e_ts[0] - reaction.e_is[0], 0.0
 
     def _assign_calculator(self, atoms):
-        if self.allow_shared_calculator:
-            atoms.calc = self.mlp.calc
-        elif hasattr(self.mlp, "get_calculator"):
-            atoms.calc = self.mlp.get_calculator()
-        else:
-            try:
-                atoms.calc = deepcopy(self.mlp.calc)
-            except Exception:
-                atoms.calc = copy(self.mlp.calc)
+        with silent_context():
+            if self.allow_shared_calculator:
+                atoms.calc = self.mlp.calc
+            elif hasattr(self.mlp, "get_calculator"):
+                atoms.calc = self.mlp.get_calculator()
+            else:
+                try:
+                    atoms.calc = deepcopy(self.mlp.calc)
+                except Exception:
+                    atoms.calc = copy(self.mlp.calc)

@@ -30,6 +30,8 @@ def plot_crn(graph: ReactionNetwork,
             fontsize: int=50, 
             layout_engine: str="dot", 
             show_species_labels: bool=True,
+            arrowhead = "normal",
+            fontname: str = "Arial",
             dpi:int=100):
     """
     Write a dot graph representing the reaction network.
@@ -45,6 +47,11 @@ def plot_crn(graph: ReactionNetwork,
         node_sep (float): Separation between nodes in the graph.
         fontsize (int): Font size for the graph labels.
         layout_engine (str): Layout engine to use (e.g., "dot", "neato", "fdp", "circo", "twopi").
+        show_species_labels (bool): Whether to show labels for species nodes.
+        arrowhead (str): Style of the arrowheads (e.g., "normal", "vee", "diamond", "odot", "none").
+        fontname (str): Font name to use for graph labels. Default is "Arial".
+        dpi (int): Dots per inch for the output image when filename is provided. Ignored if filename is None.
+        
     """
     if shutil.which(layout_engine) is None:
         raise RuntimeError("Graphviz binaries not found. You must install Graphviz "
@@ -64,6 +71,9 @@ def plot_crn(graph: ReactionNetwork,
             pass
     g.remove_node("*")
     plot = nx.drawing.nx_pydot.to_pydot(g)
+    plot.set_fontname(fontname)
+    plot.set_node_defaults(fontname=fontname)
+    plot.set_edge_defaults(fontname=fontname)
     subgraph_source = Subgraph("source", rank="source")
     subgraph_ads = Subgraph("ads", rank="same")
     subgraph_sink = Subgraph("sink", rank="sink")
@@ -71,6 +81,7 @@ def plot_crn(graph: ReactionNetwork,
     subgraph_same = Subgraph("same", rank="same")
     color_code_species = {"gas": "lightpink", "ads": "wheat"}
     for node in plot.get_nodes():
+        node.set_fontname(fontname)
         try:
             node.set_orientation("portrait")
             attrs = node.get_attributes()
@@ -107,9 +118,10 @@ def plot_crn(graph: ReactionNetwork,
         except KeyError:
             pass
     for edge in plot.get_edges():
+        edge.set_fontname(fontname)
         edge.set_penwidth("2")      
         edge.set_arrowsize("1.5")   
-        edge.set_arrowhead("vee")
+        edge.set_arrowhead(arrowhead)
 
     plot.add_subgraph(subgraph_source)
     plot.add_subgraph(subgraph_sink)
@@ -124,7 +136,7 @@ def plot_crn(graph: ReactionNetwork,
     plot.set_nodesep(node_sep)
     plot.set_ranksep(rank_sep)
     plot.set_rankdir(rankdir)
-    plot.set_fontname("Arial")
+    plot.set_fontname(fontname)
     plot.set_fontsize(str(fontsize))
     plot.set_dpi(str(dpi))
     if filename is None: # print to notebook
