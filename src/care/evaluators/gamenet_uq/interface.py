@@ -3,7 +3,7 @@ Interface to GAME-Net-UQ model.
 """
 
 import os
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 from ase import Atoms
 from ase.db import connect
@@ -16,7 +16,6 @@ try:
     from gamenet_uq.graph import atoms_to_data
     from gamenet_uq.graph_filters import extract_adsorbate
     from gamenet_uq.graph_tools import convert_pyg_to_nx
-    from torch_geometric.data import Data
     from torch_geometric.loader import DataLoader
     import torch
     torch.set_float32_matmul_precision('high')
@@ -411,7 +410,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
         else:
             raise ValueError("Reaction stoichiometry not supported.")
 
-    def _find_potential_edges(self, graph: Data, bond: tuple[str, str]) -> list[int]:
+    def _find_potential_edges(self, graph: Any, bond: tuple[str, str]) -> list[int]:
         potential_edges = []
         for i in range(graph.num_edges):
             edge_idxs = graph.edge_index[:, i]
@@ -420,7 +419,7 @@ class GameNetUQRxn(ReactionEnergyEstimator):
                 potential_edges.append(i)
         return potential_edges
 
-    def ts_graph(self, step: ElementaryReaction) -> Data:
+    def ts_graph(self, step: ElementaryReaction) -> Any:
         """
         Generate transition state graph representing the surface bond-breaking
         elementary reaction A* + * -> B* + C*.

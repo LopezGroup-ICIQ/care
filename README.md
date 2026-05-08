@@ -33,7 +33,7 @@ pip install care-crn
 pip install care-crn[mace]
 pip install care-crn[fairchemv1]
 pip install care-crn[fairchemv2]
-pip install care-crn[petmad]
+pip install care-crn[upet]
 pip install care-crn[orb]
 pip install care-crn[sevennet]
 pip install care-crn[gamenetuq]
