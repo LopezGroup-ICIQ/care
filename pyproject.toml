@@ -16,7 +16,7 @@ dependencies = [
   "prettytable==3.9.0",
   "pydot==4.0.1",
   "mp-api==0.46.0",
-  "pymatgen",
+  "pymatgen==2025.6.14",
   "rdkit==2025.9.1",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
@@ -27,7 +27,8 @@ dependencies = [
   "psutil",
   "dask[complete]==2025.3.0",
   "juliacall==0.9.27", 
-  "openpyxl==3.1.5"
+  "openpyxl==3.1.5",
+  "autoadsorbate==0.2.5"
 ]
 
 authors = [

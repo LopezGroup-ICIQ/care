@@ -13,9 +13,15 @@ from care.constants import INTER_ELEMS
 from tests import co2_from_poscar, ammonia_from_poscar
 
 
-net = gen_blueprint(1, 2, None, False, True, True)
+net = gen_blueprint(ncc=1, 
+                    noc=2, 
+                    additional_rxns=True, 
+                    electro=True, 
+                    cyclic=False)
 inters = net.intermediates
 steps = net.reactions
+
+print(net)
 
 
 class TestElementaryReaction(unittest.TestCase):
@@ -251,25 +257,6 @@ class TestIntermediate(unittest.TestCase):
         self.assertEqual(co2_from_poscar.code, "CO2g")
         self.assertEqual(co2_from_poscar.phase, "gas")
         self.assertIsInstance(co2_from_poscar.molecule, Atoms)
-
-    def test_gen_gas_configs(self):
-        """
-        Check that the gen_gas_configs method works correctly
-        """
-        for x in inters.values():
-            formula = x.formula
-            gas_configs = x.gen_gas_configs()
-            for config in gas_configs:
-                self.assertIsInstance(config, Atoms)
-                self.assertEqual(config.get_chemical_formula(), formula)
-        for n, molecule in dict(zip([4], [ammonia_from_poscar])).items():
-            self.assertEqual(len(molecule.molecule), n)
-            gas_configs = molecule.gen_gas_configs()
-            formula = molecule.formula
-            for config in gas_configs:
-                self.assertIsInstance(config, Atoms)
-                self.assertEqual(config.get_chemical_formula(), formula)
-                self.assertEqual(len(config), n)
 
     def test_electrons(self):
         self.assertEqual(co2_from_poscar.electrons, 8)

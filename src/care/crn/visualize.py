@@ -151,11 +151,11 @@ def plot_crn(graph: ReactionNetwork,
         print(f"Writing graph to {filename} using layout engine: {layout_engine}")
         try:
             if filename.endswith(".svg"):
-                plot.write_svg("./" + filename, prog=layout_engine)
+                plot.write_svg(filename, prog=layout_engine)
             elif filename.endswith(".png"):
-                plot.write_png("./" + filename, prog=layout_engine)
+                plot.write_png(filename, prog=layout_engine)
             elif filename.endswith(".dot"):
-                plot.write_dot("./" + filename, prog=layout_engine)
+                plot.write_dot(filename, prog=layout_engine)
             else:
                 print(f"Warning: Unknown file extension. Writing to {filename}.svg")
                 plot.write_svg("./" + filename + ".svg", prog=layout_engine)

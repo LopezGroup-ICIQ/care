@@ -65,6 +65,66 @@ class ReactionNetwork(nx.DiGraph):
         self._es = self.build_es_matrix()
         self._elements = self.get_elements()
 
+    @classmethod
+    def from_cutoffs(
+        cls, 
+        ncc: int, 
+        noc: int, 
+        cyclic: bool = False,
+        additional_rxns: bool = False,
+        electro: bool = False,
+        **kwargs
+    ) -> "ReactionNetwork":
+        """Generate a network based on carbon and oxygen cutoffs."""
+        from care.crn.utils.blueprint import gen_blueprint  # to avoid circular imports
+        
+        return gen_blueprint(
+            ncc=ncc, 
+            noc=noc, 
+            cyclic=cyclic,
+            additional_rxns=additional_rxns,
+            electro=electro,
+            **kwargs
+        )
+
+    @classmethod
+    def from_species(
+        cls, 
+        reactants: list[str], 
+        products: list[str],
+        additional_rxns: bool = False,
+        electro: bool = False,
+        **kwargs
+    ) -> "ReactionNetwork":
+        """Generate a network to connect specific reactants and products."""
+        from care.crn.utils.blueprint import gen_blueprint
+        
+        return gen_blueprint(
+            reactants=reactants, 
+            products=products,
+            additional_rxns=additional_rxns,
+            electro=electro,
+            **kwargs
+        )
+        
+    @classmethod
+    def from_chemical_space(
+        cls, 
+        cs: list[str],
+        additional_rxns: bool = False,
+        electro: bool = False,
+        **kwargs
+    ) -> "ReactionNetwork":
+        """Generate a network from an explicit list of SMILES."""
+        from care.crn.utils.blueprint import gen_blueprint
+        
+        return gen_blueprint(
+            cs=cs,
+            additional_rxns=additional_rxns,
+            electro=electro,
+            **kwargs
+        )
+
     def get_intermediates(self):
         return {x.code: x for x in self.nodes if isinstance(x, Intermediate) and x.phase in ("ads", "gas")}
 
@@ -303,9 +363,8 @@ class ReactionNetwork(nx.DiGraph):
             self.num_closed_shell_mols,
             self.num_reactions,
         )
+        string += f"Elements: {', '.join(self.elements)}\n"
         string += "Surface: {}\n".format(self.surface)
-        string += "Network Carbon cutoff: {}\n".format(self.ncc)
-        string += "Network Oxygen cutoff: {}\n".format(self.noc)
         string += "Type: {}\n".format(self.crn_type)
         string += "Energetically evaluated: {}\n".format(self.is_evaluated)
         return string

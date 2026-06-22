@@ -1,10 +1,11 @@
 [![PyPI version](https://img.shields.io/pypi/v/care-crn.svg)](https://pypi.org/project/care-crn/)
 [![DOI](https://img.shields.io/badge/DOI-10.1038%2Fs44286--026--00361--8-blue)](https://doi.org/10.1038/s44286-026-00361-8)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-![Python 3.11](https://img.shields.io/badge/python-3.12-blue.svg)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
 [![codecov](https://codecov.io/gh/LopezGroup-ICIQ/care/graph/badge.svg)](https://codecov.io/gh/LopezGroup-ICIQ/care)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/care-crn?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/care-crn)
+[![GitHub last commit](https://img.shields.io/github/last-commit/LopezGroup-ICIQ/care)](https://github.com/LopezGroup-ICIQ/care/commits/main)
 [![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
 
 # CARE: Catalysis Automated Reaction Evaluator
@@ -50,15 +51,12 @@ To run microkinetic simulations, the workflow relies on a [Julia](https://julial
 
 *Note: The very first time you run a simulation, it may take a few extra minutes to download and precompile these dependencies. Subsequent runs will be instantaneous.*
 
-*⏲ Julia setup time estimate: \~13min (Ubuntu), \~9min (macOS)*
-
 -----
 
 ### 4\. Developer Installation
 
 If you want to contribute to the code or use the very latest (unstable) version, you can install from the source.
 
-  * ⏲ **Total installation time estimates:** \~18min (Ubuntu), \~11min (macOS).
   * 💾 **Required disk space:** \~6.5 GB (Conda environment), \~4.3 GB (Julia+dependencies)
 
 <!-- end list -->
@@ -80,67 +78,56 @@ If you want to contribute to the code or use the very latest (unstable) version,
 3.  **Install the package in "editable" mode:**
 
     ```bash
-    python3 -m pip install -e .
-    ```
-
-    *NOTE: macOS users might need to launch a new shell at this point in order for the entry points to work correctly.*
-
-4.  **Install optional dependencies:**
-
-    ```bash
-    python3 -m pip install -e .[mace]
-    python3 -m pip install -e .[fairchemv2]
-    # etc.
+    python3 -m pip install -e .[gamenetuq,mace,etc.]  # with ML evaluators of choice
     ```
 
 ## 💥 Usage
 
-### Blueprint generation
+### Network blueprint generation
 
-The blueprint can be constructed in two ways, by providing (i) the network carbon and oxygen cutoffs *ncc* and *noc*, or (ii) the chemical space as list of SMILES.
-
-```bash
-gen_crn_blueprint -h  # documentation
-gen_crn_blueprint -ncc 2 -noc 1 -o output_name  # Example from ncc and noc
-gen_crn_blueprint -cs "CCO" "C(CO)O" -o output_name # Example from user-defined chemical space
-```
-
-<div style="display: flex; justify-content: center; align-items: center;">
-    <p align="center">
-     <img src="https://raw.githubusercontent.com/LopezGroup-ICIQ/care/main/care_bp_screenshot.png" width="70%" height="70%" />
-    </p>
-</div>
-
-CRNs in CARE are stored as compressed .json files.
+The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES.
 
 ```python
-from care.io import load_network
+from care import ReactionNetwork
 
-crn = load_network("blueprint.json.gz")
+# from reactants and products (e.g., CO2 to Methanol)
+crn = ReactionNetwork.from_species(reactants=["O=C=O", "[H][H]"], products=["CO", "O"])
+
+# from carbon and oxygen cutoffs
+crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
+
+# from chemical space (e.g., Ethanol decomposition network)
+crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
 ```
 
-### Evaluation of intermediate and reaction properties
+### ML-based energy evaluation
 
-The range of catalyst materials on which CRNs can be evaluated depends on the domain of the data-driven energy evaluator employed.
-Currently, CARE provides interfaces to GAME-Net-UQ, FairChem-v1 potentials, MACE, Orb, PET-MAD, and SevenNet.
+The range of catalyst materials on which CRNs can be evaluated depends on the domain of the employed ML model.
+CARE currently provides interfaces to GAME-Net-UQ and MLIPs such as FairChem-v1/v2, MACE, Orb, UPET, and SevenNet.
 
-```bash
-eval_crn -h  # documentation
-eval_crn [-i INPUT] [-bp BP] [-o OUTPUT] [-ncpu NUM_CPU]
+```python
+from care import Surface 
+from care.evaluators import MACEIntermediateEvaluator, NEBReactionEnergyEstimator
+
+catalyst = Surface.from_mp("mp-2", mp_api_key="your_key", hkl="110", xy_repeat=2)  # Pt(110)
+ml_evaluator = MACEIntermediateEvaluator(catalyst, device="cuda", num_configs=2, max_steps=5, fmax=0.5)
+neb_evaluator = NEBReactionEnergyEstimator(mlp=ml_evaluator, num_images=3, max_steps=5)
+
+for intermediate in crn.intermediates.values():
+    ml_evaluator(intermediate)
+
+for reaction in crn.reactions:
+    neb_evaluator(reaction)
 ```
-
-This script requires an input toml file defining the material/surface of interest, the model of choice and its settings. The output is a ``ReactionNetwork`` object stored as pickle file. You can find examples of input files [here](./src/care/scripts/input_examples/eval_crn/). 
-
-For macOS we noticed a lower performance in the CRN generation due to Python multiprocessing (see *Contexts and start methods* in the [documentation](https://docs.python.org/3/library/multiprocessing.html))
-
 
 ### Microkinetic simulation
 
-```bash
-run_kinetic [-i INPUT] [-crn CRN] [-o OUTPUT]
-```
+```python
+operating_conditions = {'T': 473, 'P': 1e6}  # T in K, P in Pa
+y0 = {"CO2": 0.33, "H2": 0.67}  # reactants composition (mole fraction)
 
-This script runs microkinetic simulation starting from the evaluated reaction network and an input toml file defining the reaction conditions, solver, inlet conditions. The results are stored as a pickle object file.
+results = crn.run_kinetics(iv=y0, oc=operating_conditions)
+```
 
 ### Run all together
 
@@ -158,7 +145,7 @@ Examples of input .toml files can be found [here](./src/care/scripts/input_examp
 
 We currently provide two tutorials, available in the ``notebooks`` directory:
 - [CARE tutorial](./notebooks/care_demo.ipynb) <br/>
-- [Adsorbate placement](./notebooks/adsorbate_placement.ipynb).
+- [Adsorbate placement](./notebooks/adsorbate_placement.ipynb)
 
 ## ✒️ License
 

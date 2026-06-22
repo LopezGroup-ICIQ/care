@@ -60,6 +60,7 @@ class UPETIntermediateEvaluator(IntermediateEnergyEstimator):
             "Install it using pip install care-crn[upet]")
 
         self.surface = surface
+        self.n_slab = len(surface.slab)  # required in cases when slab is resized to fit larger adsorbates
         self.slab_energy = 0.0
         self.model = model
         self.version = version
@@ -166,7 +167,7 @@ class UPETIntermediateEvaluator(IntermediateEnergyEstimator):
                         continue
                     ads_config_dict[str(i)] = {
                         'ase': adsorption,
-                        'mu': current_energy - self.slab_energy,  # eV
+                        'mu': current_energy - ((len(adsorption) - len(intermediate.molecule))/self.n_slab) * self.slab_energy,  # eV
                         's': 0.0,
                         'connectivity': True,
                         # 'converged': opt.converged()

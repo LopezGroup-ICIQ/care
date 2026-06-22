@@ -72,6 +72,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
             raise ValueError(f"Version {version} not existing. Choose from {list(ORB_PRETRAINED_MODELS.keys())}.")
         self.version = version
         self.surface = surface
+        self.n_slab = len(surface.slab)  # required in cases when slab is resized to fit larger adsorbates
         self.slab_energy = 0.0
         self.dtype = dtype
         self.device = device
@@ -184,7 +185,7 @@ class ORBIntermediateEvaluator(IntermediateEnergyEstimator):
                         continue
                     ads_config_dict[str(i)] = {
                         'ase': adsorption,
-                        'mu': current_energy - self.slab_energy,  # eV
+                        'mu': current_energy - ((len(adsorption) - len(intermediate.molecule)) / self.n_slab) * self.slab_energy,  # eV
                         's': 0.0,
                         'connectivity': True,
                         # 'converged': opt.converged()

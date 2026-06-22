@@ -62,6 +62,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
 
         self.model_name = name
         self.surface = surface
+        self.n_slab = len(surface.slab)  # required in cases when slab is resized to fit larger adsorbates
         self.device = device
         self.task_name = task_name
         self.predictor = pretrained_mlip.get_predict_unit(name, device=device)
@@ -156,7 +157,7 @@ class FairChemV2IntermediateEvaluator(IntermediateEnergyEstimator):
                     opt = self.optimizer(adsorption,
                             logfile=self.logfile)
                     opt.run(fmax=self.fmax, steps=self.max_steps)
-                    current_energy = adsorption.get_potential_energy() - self.slab_energy
+                    current_energy = adsorption.get_potential_energy() - ((len(adsorption) - len(intermediate.molecule))/self.n_slab) * self.slab_energy
                     g = atoms_to_data(adsorption, adsorption.get_array("atom_tags"), -1, True)
                     if g is None:
                         if current_energy < lowest_broken_mu:

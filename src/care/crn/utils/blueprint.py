@@ -3,7 +3,7 @@ import warnings
 import multiprocessing as mp
 
 from prettytable import PrettyTable
-from rdkit.Chem import MolFromSmiles
+from rdkit.Chem import MolFromSmiles, AddHs
 
 from care import ReactionNetwork
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
@@ -17,6 +17,8 @@ def gen_blueprint(
     ncc: int = None,
     noc: int = None,
     cs: list[str] = None,
+    reactants: list[str] = None,
+    products: list[str] = None,
     cyclic: bool = None,
     additional_rxns: bool = None,
     electro: bool = None,
@@ -36,10 +38,16 @@ def gen_blueprint(
     cs : list[str]
         List of SMILES of the molecules defining the Chemical Space of the CRN.
         You can provide cs or ncc and noc. If both are provided, cs is used.
+    reactants : list[str]
+        List of SMILES of the reactant molecules. If provided, the function will attempt to
+        orient the reactions such that these molecules are reactants. This is a heuristic and may not always be correct, especially if the same molecule appears in both reactants and products.
+    products : list[str]
+        List of SMILES of the product molecules. If provided, the function will attempt to
+        orient the reactions such that these molecules are products. This is a heuristic and may not always be correct, especially if the same molecule appears in both reactants and products.
     cyclic : bool
-        If True, generates cyclic compounds (epoxides). Only used with ncc and noc.
+        If True, generates cyclic compounds (epoxides). Only used with ncc/noc.
     additional_rxns : bool
-        If True, additional reactions are generated (rearrangement reactions).
+        If True, 1-2-H shift rearrangement reactions are generated.
     electro : bool
         If True, proton-coupled electron transfer reactions are generated.
     num_cpu : int, optional
@@ -50,8 +58,14 @@ def gen_blueprint(
     Returns
     -------
     ReactionNetwork
-        The generated Reaction Network object. Reactions are stored in the bond-breaking
-        and adsorption directions (no bond-forming and desorption).
+        The reaction network blueprint.
+
+    Notes
+    -----
+    - The function accepts three main ways to build the blueprint:
+        1. Provide a chemical space (cs) as a list of SMILES.
+        2. Provide network carbon and oxygen cutoffs (ncc and noc) to generate a chemical space.
+        3. Provide reactants and products as lists of SMILES, which will be used to infer the chemical space and orient the reactions.
     """
     intermediates, reactions = {}, []
 
@@ -60,32 +74,45 @@ def gen_blueprint(
 
     # Generate the chemical space (CS)
     t0cs = time.time()
-    if cs and (ncc and noc):
-        warnings.warn("You provided both a Chemical Space and a Network Carbon and Oxygen Cutoffs. The Chemical Space (input SMILES) will be used.", UserWarning)
-        cs_filtered = []
-        for smiles in cs:
-            mol = MolFromSmiles(smiles)
-            if mol:
-                cs_filtered.append(smiles)
-            else:
-                warnings.warn(f"Invalid SMILES: {smiles}. Filtered from CRN Chemical Space.", UserWarning)
-        chemical_space = cs_filtered
-    elif not cs and not ncc and not noc:
-        raise ValueError("You must provide either a Chemical Space (cs) or Network Carbon and Oxygen Cutoffs (ncc and noc).")
+    if reactants and products:
+        reactants_mols = [AddHs(MolFromSmiles(smiles, True), False) for smiles in reactants]
+        products_mols = [AddHs(MolFromSmiles(smiles, True), False) for smiles in products]
+
+        def get_elements(mol_list):
+            elements = set()
+            for mol in mol_list:
+                if mol:
+                    for atom in mol.GetAtoms():
+                        elements.add(atom.GetSymbol())
+            return elements
+
+        reactants_elements = get_elements(reactants_mols)
+        products_elements = get_elements(products_mols)
+
+        if reactants_elements != products_elements:
+            missing_in_prod = reactants_elements - products_elements
+            missing_in_react = products_elements - reactants_elements
+            error_msg = "Element mismatch between reactants and products!\n"
+            if missing_in_prod:
+                error_msg += f"Elements in reactants but missing in products: {missing_in_prod}\n"
+            if missing_in_react:
+                error_msg += f"Elements in products but missing in reactants: {missing_in_react}"
+            raise ValueError(error_msg)
+        
+        is_forming = max(m.GetNumAtoms() for m in products_mols) > max(m.GetNumAtoms() for m in reactants_mols)
+        chemical_space = reactants + products
     elif cs:
-        cs_filtered = []
-        for smiles in cs:
-            mol = MolFromSmiles(smiles)
-            if mol:
-                cs_filtered.append(smiles)
-            else:
-                warnings.warn(f"Invalid SMILES: {smiles}. Filtered from CRN Chemical Space.", UserWarning)
-        chemical_space = cs_filtered
-    else:
+        chemical_space = [s for s in cs if MolFromSmiles(s)]
+        is_forming = False
+        if len(chemical_space) < len(cs):
+            warnings.warn("Some SMILES in 'cs' were invalid and removed.", UserWarning)
+    elif ncc is not None and noc is not None:
         chemical_space = chemspace.gen_chemical_space(ncc, noc, cyclic, show_progress)
-    ncs = len(chemical_space)
+        is_forming = False
+    else:
+        raise ValueError("Insufficient parameters. Provide (reactants/products), (cs), or (ncc/noc).")
     tcs = time.time() - t0cs
-    table.add_row(["Chemical Space", ncs, f"{tcs:.2f}"])
+    table.add_row(["Chemical Space", len(chemical_space), f"{tcs:.2f}"])
 
     # Extend CS with molecules originating from dissociation of CS species
     t0ecs = time.time()
@@ -136,4 +163,24 @@ def gen_blueprint(
 
     print(f"\n{table}")
 
+    if reactants and products:
+        for rxn in reactions:
+            if isinstance(rxn, dissociation.BondBreaking) and is_forming:
+                rxn.reverse()
+            if isinstance(rxn, adsorption.Adsorption):
+                if rxn.adsorbate.get_smiles() in reactants:
+                    pass
+                else:
+                    rxn.reverse()
+
+    def rxn_sort_key(rxn):
+        if isinstance(rxn, adsorption.Adsorption):
+            category = 0
+        elif isinstance(rxn, adsorption.Desorption):
+            category = 2
+        else:
+            category = 1
+        return (category, len(rxn.reactants), len(rxn.products))
+
+    reactions.sort(key=rxn_sort_key)
     return ReactionNetwork(reactions)

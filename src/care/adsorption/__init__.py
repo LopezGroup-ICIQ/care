@@ -5,18 +5,19 @@ These include DockOnSurf and ASE functionalities.
 from collections import defaultdict
 from typing import Any, List
 
-from acat.adsorption_sites import SlabAdsorptionSites
-from acat.settings import CustomSurface
 from ase import Atoms
 from ase.build import add_adsorbate
 from ase.constraints import FixAtoms
 import networkx as nx
 from numpy import max
+import numpy as np
+from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.io.ase import AseAtomsAdaptor
 
 import care.adsorption.dockonsurf.dockonsurf as dos
 from care.crn.utils.species import atoms_to_graph
 from care import Intermediate, Surface, BOND_ORDER, CORDERO, silent_context
+from care.crn.surface import bottom_half_indices
 
 
 def connectivity_analysis(graph: nx.Graph) -> List[int]:
@@ -131,7 +132,7 @@ def generate_inp_vars(
 
 def adapt_surface(molec_ase: Atoms, 
                   surface: Surface, 
-                  tolerance: float = 2.0) -> Atoms:
+                  tolerance: float = 2.0) -> Surface:
     """
     Adapts the surface slab size to fit the adsorbate size
     by measuring the longest distance between atoms in the molecule and 
@@ -148,70 +149,93 @@ def adapt_surface(molec_ase: Atoms,
 
     Returns
     -------
-    Atoms
-        Atoms object of the surface.
+    Surface
+        Surface instance of the adapted surface.
     """
     molec_dist_mat = molec_ase.get_all_distances(mic=True)
     max_dist_molec = max(molec_dist_mat)
-    condition = surface.shortest_side - tolerance > max_dist_molec
-    if condition:
-        new_slab = surface.slab
-    else:
-        counter = 1.0
-        while not condition:
-            counter += 1.0
-            pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
-            pymatgen_slab.make_supercell([counter, counter, 1])
-            new_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
-            aug_surf = Surface(new_slab, surface.facet)
-            condition = aug_surf.slab_diag - tolerance > max_dist_molec
-    return new_slab
+    if surface.shortest_side - tolerance > max_dist_molec:
+        return surface
+    
+    counter = 1.0
+    condition = False
+    while not condition:
+        counter += 1.0
+        pymatgen_slab = AseAtomsAdaptor.get_structure(surface.slab)
+        pymatgen_slab.make_supercell([counter, counter, 1])
+        new_slab = AseAtomsAdaptor.get_atoms(pymatgen_slab)
+        aug_surf = Surface(new_slab, surface.facet)
+        condition = aug_surf.shortest_side - tolerance > max_dist_molec
+
+    aug_surf.slab.set_constraint(FixAtoms(indices=bottom_half_indices(aug_surf.slab)))
+    
+    return aug_surf
 
 def get_active_sites(surface: Surface) -> list[dict]:
     """
-    Get surface active sites with ACAT.
+    Get surface active sites with ACAT or pymatgen
     """
-    surf = surface.crystal_structure + surface.facet
-    if surface.facet == "10m10":
-        surf += "h"
-    tol_dict = defaultdict(lambda: 0.5)
-    tol_dict["Cd"] = 1.5
-    tol_dict["Co"] = 0.75
-    tol_dict["Os"] = 0.75
-    tol_dict["Ru"] = 0.75
-    tol_dict["Zn"] = 1.25
-    if surface.facet == "10m11" or (
-        surface.crystal_structure == "bcp" and surface.facet in ("111", "100")
-    ):
-        tol = 2.0
-        sas = SlabAdsorptionSites(
-            surface.slab, surface=surf, tol=tol, label_sites=True
-        )
-    elif surface.crystal_structure == "fcc" and surface.facet == "110":
-        tol = 1.5
-        sas = SlabAdsorptionSites(
-            surface.slab, surface=surf, tol=tol, label_sites=True
-        )
-    else:
-        try:
+    try:
+        from acat.adsorption_sites import SlabAdsorptionSites
+        from acat.settings import CustomSurface
+        surf = surface.crystal_structure + surface.facet
+        if surface.facet == "10m10":
+            surf += "h"
+        tol_dict = defaultdict(lambda: 0.5)
+        tol_dict["Cd"] = 1.5
+        tol_dict["Co"] = 0.75
+        tol_dict["Os"] = 0.75
+        tol_dict["Ru"] = 0.75
+        tol_dict["Zn"] = 1.25
+        if surface.facet == "10m11" or (
+            surface.crystal_structure == "bcp" and surface.facet in ("111", "100")
+        ):
             sas = SlabAdsorptionSites(
-                surface.slab,
-                surface=surf,
-                tol=tol_dict[surface.metal],
-                label_sites=True,
-                optimize_surrogate_cell=True,
+                surface.slab, surface=surf, tol=2.0, label_sites=True
             )
-        except ValueError:
+        elif surface.crystal_structure == "fcc" and surface.facet == "110":
             sas = SlabAdsorptionSites(
-                surface.slab,
-                surface=CustomSurface(surf),
-                tol=tol_dict[surface.metal],
-                label_sites=True,
-                optimize_surrogate_cell=True,
+                surface.slab, surface=surf, tol=1.5, label_sites=True
             )
-    sas = sas.get_unique_sites()
-    sas = [site for site in sas if site["position"][2] > 0.65 * surface.slab_height]
-    return sas
+        else:
+            try:
+                sas = SlabAdsorptionSites(
+                    surface.slab,
+                    surface=surf,
+                    tol=tol_dict[surface.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+            except ValueError:
+                sas = SlabAdsorptionSites(
+                    surface.slab,
+                    surface=CustomSurface(ref_atoms=surface.slab),
+                    tol=tol_dict[surface.metal],
+                    label_sites=True,
+                    optimize_surrogate_cell=True,
+                )
+        sas = sas.get_unique_sites()
+        sas = [site for site in sas if site["position"][2] > 0.65 * surface.slab_height]
+        return sas
+    except Exception as e:
+        pmg_struct = AseAtomsAdaptor.get_structure(surface.slab)
+        asf = AdsorbateSiteFinder(pmg_struct)
+        site_coords = asf.find_adsorption_sites()["all"]
+        surface_positions = surface.slab.get_positions()
+        sites_formatted = []
+        
+        for coord in site_coords:
+            if coord[2] > 0.65 * surface.slab_height:
+                distances = np.linalg.norm(surface_positions - coord, axis=1)
+                min_dist = np.min(distances)
+                tolerance = 0.3
+                indices = np.where(distances <= min_dist + tolerance)[0].tolist()
+                sites_formatted.append({
+                    "position": coord,
+                    "indices": indices
+                })
+                
+        return sites_formatted
 
 def place_adsorbate(
     intermediate: Intermediate, 
@@ -248,19 +272,21 @@ def place_adsorbate(
         List of Atoms objects with the initial adsorption structures.
     """
     adsorptions = []
-    n_slab = len(surface.slab)
     n_adsorbate = len(intermediate.molecule)
-    slab = adapt_surface(intermediate.molecule, surface)
+    surface = adapt_surface(intermediate.molecule, surface)
+    slab = surface.slab
+    n_slab = len(surface.slab)
 
     if surface_sites:
         if all(x in surface.surface_atoms for x in surface_sites):
-            active_sites = [surface_sites]
+            pos = np.mean(surface.slab.get_positions()[surface_sites], axis=0)
+            active_sites = [{"indices": surface_sites, "position": pos}]
         else:
             raise ValueError("Some specified atoms indices do not belong to the surface.")
     else:
-        active_sites = [site["indices"] for site in get_active_sites(surface)]
+        active_sites = get_active_sites(surface)
     
-    configs = intermediate.gen_gas_configs()
+    configs = [intermediate.molecule]
     if adsorbate_atom:
         if adsorbate_atom < 0 or adsorbate_atom >= n_adsorbate:
             raise ValueError("adsorbate_atom index is out of bounds.")
@@ -284,7 +310,7 @@ def place_adsorbate(
                             ads_height=ads_height,
                             max_structures=3 if n_adsorbate >10 else 1,
                             molec_ctrs=anchor_atoms,
-                            sites=active_site,
+                            sites=active_site["indices"],
                         )
                         with silent_context():
                             config_list = dos.dockonsurf(x)

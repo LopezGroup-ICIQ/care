@@ -3,10 +3,10 @@ import unittest
 import networkx as nx
 
 from care.crn.surface import bottom_half_indices
-from care.adsorption import place_adsorbate
+from care.adsorption import place_adsorbate, get_active_sites
 from care.evaluators.utils import atoms_to_data, extract_adsorbate
 
-from tests import test_inters, surface, co2_from_poscar, surface_from_slab, ammonia_from_poscar
+from tests import test_inters, surface, co2_from_poscar, surface_from_slab, ammonia_from_poscar, surface_from_bulk, surface
 
 n_slab = len(surface.slab)
 num_configs = 3
@@ -36,8 +36,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
                     self.assertTrue(len(gg) == n_adsorbate)
                     self.assertTrue(all([data["elem"] == structure[data["idx"]].symbol for i, data in g.nodes(data=True)]))  # check on preserved mapping
                     self.assertEqual(surface.fixed_atoms, list(structure.constraints[0].index))  # check on preserved fixed atoms
-
-    @unittest.skip("Skipping targeted placement tests for user-defined CO2 placement")                
+         
     def test_CO2_placement(self):
         """
         Assert that specific adsorbate placement on specific surface sites works correctly
@@ -46,9 +45,9 @@ class TestAdsorbatePlacement(unittest.TestCase):
         adsorptions = place_adsorbate(co2_from_poscar, surface_from_slab, 1, surface_sites=[38,39,40], adsorbate_atom=0)
         self.assertEqual(len(adsorptions), 1)
         graph = atoms_to_data(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
-        self.assertTrue(all([x in graph.idx for x in [38,39,40]]))  # check on surface atoms
-        adsorbate_anchoring_atom_graph_idx = graph.idx.index(n_slab)  # adsorbate atom used for placement
-        self.assertTrue(any([edge[0] == adsorbate_anchoring_atom_graph_idx and edge[1] in [graph.idx.index(i) for i in [38,39,40]] for edge in graph.edge_index.T]))
+        self.assertTrue(all([x in list(nx.get_node_attributes(graph, 'idx').values()) for x in [38,39,40]]))  # check on surface atoms
+        adsorbate_anchoring_atom_graph_idx = next(node_id for node_id, data in graph.nodes(data=True) if data['idx'] == n_slab)
+        self.assertTrue(any(neighbor_id in [38,39,40] for neighbor_id in graph.neighbors(adsorbate_anchoring_atom_graph_idx)))
 
     def test_NH3_placement(self):
         """
@@ -70,3 +69,14 @@ class TestAdsorbatePlacement(unittest.TestCase):
         self.assertTrue(all([x in list(nx.get_node_attributes(graph, 'idx').values()) for x in [43,44,45]]))  # check on surface atoms
         adsorbate_anchoring_atom_graph_idx = next(node_id for node_id, data in graph.nodes(data=True) if data['idx'] == n_slab)
         self.assertTrue(any(neighbor_id in [43,44,45] for neighbor_id in graph.neighbors(adsorbate_anchoring_atom_graph_idx)))
+
+    def test_active_sites(self):
+        for x in [surface_from_bulk, surface, surface_from_slab]:
+            sites = get_active_sites(x)
+            self.assertIsInstance(sites, list)
+            self.assertIsInstance(sites[0], dict)
+            self.assertTrue("indices" in sites[0].keys())
+            self.assertTrue("position" in sites[0].keys())
+
+
+

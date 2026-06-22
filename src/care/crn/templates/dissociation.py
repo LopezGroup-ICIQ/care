@@ -138,11 +138,11 @@ def dissociate(
             task = progress.add_task(task_desc, total=len(unique_reactions))
 
             for reaction in unique_reactions:
-                reactant = inters[MolToInchiKey(MolFromSmiles(reaction[0])) + "*"]
-                product1 = inters[MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"]
+                reactant = inters[reaction[0] + "*"]
+                product1 = inters[reaction[1][0] + "*"]
 
                 if len(reaction[1]) == 2:
-                    product2 = inters[MolToInchiKey(MolFromSmiles(reaction[1][1])) + "*"]
+                    product2 = inters[reaction[1][1] + "*"]
                     reaction_components = [[active_site, reactant], [product1, product2]]
                 else:
                     reaction_components = [[reactant], [product1]]
@@ -153,11 +153,11 @@ def dissociate(
                 progress.update(task, advance=1)
     else:
         for reaction in unique_reactions:
-            reactant = inters[MolToInchiKey(MolFromSmiles(reaction[0])) + "*"]
-            product1 = inters[MolToInchiKey(MolFromSmiles(reaction[1][0])) + "*"]
+            reactant = inters[reaction[0] + "*"]
+            product1 = inters[reaction[1][0] + "*"]
 
             if len(reaction[1]) == 2:
-                product2 = inters[MolToInchiKey(MolFromSmiles(reaction[1][1])) + "*"]
+                product2 = inters[reaction[1][1] + "*"]
                 reaction_components = [[active_site, reactant], [product1, product2]]
             else:
                 reaction_components = [[reactant], [product1]]
@@ -410,12 +410,11 @@ def break_bonds(
                     bbtype_str = f"{bbtype[0]}-{bbtype[1]}"
 
                     if len(frag_smiles_list) >= 1:
-                        rxn_tuple = (current_smiles, tuple(sorted(frag_smiles_list)))
-
+                        current_inchi = MolToInchiKey(MolFromSmiles(current_smiles))
+                        frag_inchis = tuple(sorted([MolToInchiKey(MolFromSmiles(s)) for s in frag_smiles_list]))
+                        rxn_tuple = (current_inchi, frag_inchis, bbtype_str)
                         if rxn_tuple not in unique_reactions:
-                            unique_reactions.add(
-                                (rxn_tuple[0], rxn_tuple[1], bbtype_str)
-                            )
+                            unique_reactions.add(rxn_tuple)
                             total_bond_counter += 1
                         
     processed_molecules.add(current_smiles)

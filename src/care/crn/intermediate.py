@@ -36,7 +36,6 @@ class Intermediate:
     "phase",
     "charge",
     "closed_shell",
-    "_gas_configs",
     ]
     phases = INTER_PHASES
 
@@ -66,8 +65,7 @@ class Intermediate:
             self.molecule = molecule
         self.ads_configs = {}
         self.charge = 0
-        self.closed_shell = None if self.is_surface else self.is_closed_shell()            
-        self._gas_configs = None
+        self.closed_shell = None if self.is_surface else self.is_closed_shell()
 
     @property
     def formula(self):
@@ -190,12 +188,6 @@ class Intermediate:
             cycles = list(cycle_basis(self.graph))
             self._cyclic = True if len(cycles) != 0 else False
         return self._cyclic
-
-    @property
-    def gas_configs(self) -> list[Atoms]:
-        if self._gas_configs is None:
-            self._gas_configs = self.gen_gas_configs()
-        return self._gas_configs
     
     @property    
     def is_evaluated(self) -> bool:
@@ -320,43 +312,6 @@ class Intermediate:
                 return False
 
             return True
-
-    def gen_gas_configs(self) -> list[Atoms]:
-        """
-        Generate a list of gas-phase ASE Atoms object from an RDKit molecule.
-        Needed for adsorbate placement (if a better scan is preferred)
-
-        """
-        rdkit_molecule = self.rdkit
-        if rdkit_molecule is None:
-            return Atoms()
-
-        rdkit_molecule = Chem.AddHs(
-            rdkit_molecule
-        ) 
-        
-        n = {k: self[k] for k in BOND_ORDER.keys()}
-
-        def conformer_to_ase(mol, confId):
-            conf = mol.GetConformer(confId)
-            symbols = [a.GetSymbol() for a in mol.GetAtoms()]
-            positions = np.array([list(conf.GetAtomPosition(i)) for i in range(mol.GetNumAtoms())])
-            ase_atoms = Atoms(symbols=symbols, positions=positions)
-            ase_atoms.set_cell([20, 20, 20])
-            ase_atoms.set_pbc(True)
-            return ase_atoms
-
-        num_conformers = 50 * (1+n["C"]) + 10 * n["O"] + 2 * n["H"]
-        randomseed = 42
-        if rdkit_molecule.GetNumAtoms() > 2:
-            AllChem.EmbedMultipleConfs(rdkit_molecule, numConfs=num_conformers, randomSeed=randomseed)
-            results = AllChem.MMFFOptimizeMoleculeConfs(rdkit_molecule, numThreads=1)
-            sorted_confs = sorted(enumerate(results), key=lambda x: x[1][1])
-            lowest_confIds = [confId for confId, _ in sorted_confs[:3]]
-            return [conformer_to_ase(rdkit_molecule, confId) for confId in lowest_confIds]
-        else:
-            AllChem.EmbedMolecule(rdkit_molecule, randomSeed=randomseed)
-            return [conformer_to_ase(rdkit_molecule, 0)]
 
     def rdkit_to_ase(self, rdkit_molecule) -> Atoms:
         """
