@@ -7,7 +7,7 @@ from care import Surface, gen_blueprint, Intermediate
 from care.io import load_network
 
 TEST_DIR = pathlib.Path(__file__).parent
-crn = gen_blueprint(1, 1, False, False, False)
+crn = gen_blueprint(ncc=1, noc=1)
 intermediates = crn.intermediates
 adsorbed_inters = {k:v for k,v in intermediates.items() if v.phase == "ads"}
 rxns = crn.reactions

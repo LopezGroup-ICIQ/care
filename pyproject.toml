@@ -16,7 +16,7 @@ dependencies = [
   "prettytable==3.9.0",
   "pydot==4.0.1",
   "mp-api==0.46.0",
-  "pymatgen==2025.6.14",
+  "pymatgen",
   "rdkit==2025.9.1",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",

@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix
 import numpy as np
 from networkx import DiGraph
 
-from care import Intermediate, ElementaryReaction, ReactionMechanism, gen_blueprint
+from care import Intermediate, ElementaryReaction, ReactionMechanism, gen_blueprint, ReactionNetwork
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.constants import INTER_ELEMS
 
@@ -263,6 +263,24 @@ class TestIntermediate(unittest.TestCase):
         self.assertEqual(ammonia_from_poscar.electrons, 6)
 
 class TestReactionNetwork(unittest.TestCase):
+    def test_creation_from_species(self):
+        crn = ReactionNetwork.from_species(reactants=["O=C=O", "[H][H]"], products=["CO", "O"])
+        self.assertIsInstance(crn, ReactionNetwork)
+        num_desorptions = len([x for x in crn.reactions if isinstance(x, Desorption)])
+        self.assertGreaterEqual(num_desorptions, 2)
+
+    def test_creation_from_cs(self):
+        crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
+        self.assertIsInstance(crn, ReactionNetwork)
+        num_desorptions = len([x for x in crn.reactions if isinstance(x, Desorption)])
+        self.assertEqual(num_desorptions, 0)
+
+    def test_creation_from_cutoffs(self):
+        crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
+        self.assertIsInstance(crn, ReactionNetwork)
+        num_desorptions = len([x for x in crn.reactions if isinstance(x, Desorption)])
+        self.assertEqual(num_desorptions, 0)
+        
     def test_reaction_network(self):
         self.assertIsInstance(net, DiGraph)
         self.assertGreater(net.number_of_edges(), 2 * len(net))

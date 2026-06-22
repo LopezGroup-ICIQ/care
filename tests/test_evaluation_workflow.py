@@ -4,7 +4,7 @@ from care import gen_blueprint, Intermediate
 
 class TestReactionNetwork(unittest.TestCase):
     def test_reaction_network_unified_intermediates(self):
-        crn = gen_blueprint(1, 2, False, False, False)
+        crn = gen_blueprint(ncc=1, noc=2)
         self.assertGreater(len(crn.reactions), 0, "Blueprint generated 0 reactions.")
         self.assertGreater(len(crn.nodes), 0, "Blueprint generated 0 nodes.")
         phases_modified = set()
