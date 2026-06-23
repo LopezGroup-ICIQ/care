@@ -114,7 +114,7 @@ class Surface:
         Create a Surface object from a bulk in the Materials Project database.
         """
         os.environ["MP_API_KEY"] = mp_api_key
-        with MPRester(os.environ.get("MP_API_KEY")) as mpr:
+        with MPRester(api_key=os.environ.get("MP_API_KEY"), mute_progress_bars=True) as mpr:
             bulk = mpr.get_structure_by_material_id(mp_id, final=True, conventional_unit_cell=True)
             ase_adaptor = AseAtomsAdaptor()
             bulk = ase_adaptor.get_atoms(bulk, msonable=False)
