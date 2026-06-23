@@ -152,14 +152,16 @@ p = SparsePFR.SparsePFRParams(
     jvec(pfr.v_backward_sparse.data.astype('int8')), jvec(pfr.v_backward_sparse.indices.astype('int64')), jvec(pfr.v_backward_sparse.indptr.astype('int64')),
 )
 
-output = pfr.integrate(y0=y0, 
-                solver='Python', 
-                rtol=1e-9, 
-                atol=1e-12, 
-                tfin=1e20)
-
-
 class TestDifferentialPFR(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.output = pfr.integrate(y0=y0, 
+                                   solver='Python', 
+                                   rtol=1e-9, 
+                                   atol=1e-12, 
+                                   tfin=1e20)
+
 
     def test_stoic_forward(self):
         """
@@ -229,14 +231,14 @@ class TestDifferentialPFR(unittest.TestCase):
         """
         Check that the integration with scipy is correctly implemented
         """
-        self.assertTrue(output['y'].shape == (7,))
-        self.assertTrue(output['forward_rate'].shape == (4,))
-        self.assertTrue(output['backward_rate'].shape == (4,))
-        self.assertTrue(output['net_rate'].shape == (4,))
-        self.assertTrue(output["consumption_rate"].shape == (7,4))
-        self.assertTrue(output["total_consumption_rate"].shape == (7,1))
+        self.assertTrue(self.output['y'].shape == (7,))
+        self.assertTrue(self.output['forward_rate'].shape == (4,))
+        self.assertTrue(self.output['backward_rate'].shape == (4,))
+        self.assertTrue(self.output['net_rate'].shape == (4,))
+        self.assertTrue(self.output["consumption_rate"].shape == (7,4))
+        self.assertTrue(self.output["total_consumption_rate"].shape == (7,1))
         for elem in elements:
-            self.assertAlmostEqual(output[f"in_div_out_{elem}"], 1.0, places=1, msg=f"Elemental balance for {elem} not respected.")
+            self.assertAlmostEqual(self.output[f"in_div_out_{elem}"], 1.0, places=1, msg=f"Elemental balance for {elem} not respected.")
 
     def test_integration_reversed_reactions(self):
         """
@@ -255,8 +257,8 @@ class TestDifferentialPFR(unittest.TestCase):
                           rtol=1e-9, 
                           atol=1e-12, 
                           tfin=1e20)
-        np.testing.assert_allclose(output['y'], output_rev_partial['y'], rtol=1e-7, atol=1e-3)
-        np.testing.assert_allclose(output['y'], output_rev_full['y'], rtol=1e-7, atol=1e-3)
+        np.testing.assert_allclose(self.output['y'], output_rev_partial['y'], rtol=1e-7, atol=1e-3)
+        np.testing.assert_allclose(self.output['y'], output_rev_full['y'], rtol=1e-7, atol=1e-3)
 
     def test_ode_jl(self):
         dydt0 = np.zeros_like(y0)
@@ -303,7 +305,7 @@ class TestDifferentialPFR(unittest.TestCase):
         """Verify that the Excel file is created with the correct sheets."""
         with tempfile.TemporaryDirectory() as tmpdirname:
             output_path = os.path.join(tmpdirname, "test_report.xlsx")
-            generate_simulation_report(output, output_filename=output_path)
+            generate_simulation_report(self.output, output_filename=output_path)
             self.assertTrue(os.path.exists(output_path))
             
             # Check if all sheets are present
