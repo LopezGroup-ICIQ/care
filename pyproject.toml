@@ -17,6 +17,7 @@ dependencies = [
   "pydot==4.0.1",
   "mp-api==0.46.2",
   "pymatgen==2025.4.10",
+  "emmet-core==0.87.1",
   "rdkit==2025.9.1",
   "scikit_learn==1.5.1",
   "scipy==1.15.1",
