@@ -4,6 +4,7 @@ import pytest
 from tests import surface, surface_from_bulk, surface_from_slab
 
 from ase import Atoms
+from ase.build import bulk
 import numpy as np
 
 from care.crn.surface import parse_hkl_string, bottom_half_indices, Surface
@@ -52,3 +53,36 @@ class TestSurface(unittest.TestCase):
         slab_elements = set([x.symbol for x in surf.slab])
         self.assertTrue("Cu" in slab_elements)
         self.assertTrue(len(slab_elements)==1)
+
+    def test_slab_diag(self):
+        atoms = Atoms('Cu', cell=[(3, 0, 0), (0, 4, 0), (0, 0, 10)], pbc=True)
+        surf = Surface(ase_atoms_slab=atoms, facet="111")
+        self.assertEqual(surf.slab_diag, 5.0)
+
+    def test_from_bulk_poscar_with_float_num_layers_and_hkl_str(self):
+        """Test generation using float num_layers (height-based) and hkl as a string."""
+        dummy_bulk = bulk('Cu', 'fcc', a=3.6)
+        target_height = 4.0
+        surf = Surface.from_bulk_poscar(
+            bulk_poscar_path=dummy_bulk, 
+            hkl="100", 
+            num_layers=target_height
+        )        
+        self.assertEqual(surf.facet, "100")
+        self.assertGreater(surf.slab_height, target_height)
+
+    def test_from_bulk_poscar_invalid_hkl_list(self):
+        dummy_bulk = bulk('Cu', 'fcc', a=3.6)
+        
+        with self.assertRaisesRegex(ValueError, "Miller index hkl must be a string or a list of 3 integers."):
+            Surface.from_bulk_poscar(bulk_poscar_path=dummy_bulk, hkl=[1, 1], num_layers=3)
+            
+        with self.assertRaisesRegex(ValueError, "Miller index hkl must be a string or a list of 3 integers."):
+            Surface.from_bulk_poscar(bulk_poscar_path=dummy_bulk, hkl=[1, 1, 1.5], num_layers=3)
+
+    def test_from_bulk_poscar_invalid_num_layers(self):
+        """Test that passing a non-int/float to num_layers raises an error."""
+        dummy_bulk = bulk('Cu', 'fcc', a=3.6)
+        
+        with self.assertRaisesRegex(ValueError, "num_layers must be an int or float."):
+            Surface.from_bulk_poscar(bulk_poscar_path=dummy_bulk, hkl="111", num_layers="three")

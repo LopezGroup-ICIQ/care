@@ -132,12 +132,12 @@ class Surface:
         Create a Surface object from a bulk material stored as POSCAR.
         """
         if isinstance(hkl, list):
-            if len(hkl) != 3 and not all(isinstance(i, int) for i in hkl):
-                raise ValueError("Miller index hkl must be a list of length 3 integers.")
+            if len(hkl) != 3 or not all(isinstance(i, int) for i in hkl):
+                raise ValueError("Miller index hkl must be a string or a list of 3 integers.")
             h, k, l = hkl
         else:
             if not isinstance(hkl, str):
-                raise ValueError("Miller index hkl must be a string or a list of integers.")
+                raise ValueError("Miller index hkl must be a string or a list of 3 integers.")
             h, k, l = parse_hkl_string(hkl)
         bulk = read(bulk_poscar_path, format="vasp") if isinstance(bulk_poscar_path, str) else bulk_poscar_path
 

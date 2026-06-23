@@ -4,6 +4,7 @@ from random import randint
 from ase import Atoms
 from scipy.sparse import csr_matrix
 import numpy as np
+import pytest
 from networkx import DiGraph
 
 from care import Intermediate, ElementaryReaction, ReactionMechanism, gen_blueprint, ReactionNetwork
@@ -268,6 +269,33 @@ class TestReactionNetwork(unittest.TestCase):
         self.assertIsInstance(crn, ReactionNetwork)
         num_desorptions = len([x for x in crn.reactions if isinstance(x, Desorption)])
         self.assertGreaterEqual(num_desorptions, 2)
+        # test mismatch: oxygen missing in products
+        with pytest.raises(ValueError) as exc_info:
+            gen_blueprint(reactants=["C=O", "[H][H]"], products=["CCC"])
+        error_msg = str(exc_info.value)
+        self.assertIn("Element mismatch between reactants and products!", error_msg)
+        self.assertIn("Elements in reactants but missing in products:", error_msg)
+        self.assertIn("'O'", error_msg)
+        self.assertNotIn("missing in reactants", error_msg)
+        # test mismatch: oxygen missing in reactants
+        with pytest.raises(ValueError) as exc_info:
+            gen_blueprint(reactants=["C"], products=["CO"])
+        error_msg = str(exc_info.value)
+        self.assertIn("Element mismatch between reactants and products!", error_msg)
+        self.assertIn( "Elements in products but missing in reactants:", error_msg)
+        self.assertIn("'O'", error_msg)
+        self.assertNotIn("missing in products", error_msg)
+
+    def test_invalid_smiles_in_cs_issues_warning(self):
+        with pytest.warns(UserWarning, match="Some SMILES in 'cs' were invalid and removed."):
+            gen_blueprint(cs=["C", "Ciao"])
+
+    def test_insufficient_parameters_raises_error(self):
+        error_pattern = r"Insufficient parameters\. Provide \(reactants/products\), \(cs\), or \(ncc/noc\)\."        
+        with pytest.raises(ValueError, match=error_pattern):
+            gen_blueprint() 
+        with pytest.raises(ValueError, match=error_pattern):
+            gen_blueprint(cyclic=True, electro=True, additional_rxns=True)
 
     def test_creation_from_cs(self):
         crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
