@@ -5,13 +5,21 @@ import multiprocessing as mp
 from prettytable import PrettyTable
 from rdkit.Chem import MolFromSmiles, AddHs
 
-from care import ReactionNetwork
+from care import ReactionNetwork, INTER_ELEMS
 from care.crn.templates import adsorption, pcet, rearrengement, dissociation, chemspace
+
 
 def format_description(description, width=45):
     """Format the progress bar description to a fixed width."""
     return description.ljust(width)[:width]
 
+def get_elements(mol_list):
+            elements = set()
+            for mol in mol_list:
+                if mol:
+                    for atom in mol.GetAtoms():
+                        elements.add(atom.GetSymbol())
+            return elements
 
 def gen_blueprint(
     ncc: int = None,
@@ -77,15 +85,6 @@ def gen_blueprint(
     if reactants and products:
         reactants_mols = [AddHs(MolFromSmiles(smiles, True), False) for smiles in reactants]
         products_mols = [AddHs(MolFromSmiles(smiles, True), False) for smiles in products]
-
-        def get_elements(mol_list):
-            elements = set()
-            for mol in mol_list:
-                if mol:
-                    for atom in mol.GetAtoms():
-                        elements.add(atom.GetSymbol())
-            return elements
-
         reactants_elements = get_elements(reactants_mols)
         products_elements = get_elements(products_mols)
 
@@ -113,6 +112,16 @@ def gen_blueprint(
         raise ValueError("Insufficient parameters. Provide (reactants/products), (cs), or (ncc/noc).")
     tcs = time.time() - t0cs
     table.add_row(["Chemical Space", len(chemical_space), f"{tcs:.2f}"])
+
+    cs_mols = [AddHs(MolFromSmiles(smiles, True), False) for smiles in chemical_space]
+    elements = get_elements(cs_mols)
+    unsupported_elements = set(elements) - set(INTER_ELEMS)
+    
+    if unsupported_elements:
+        raise ValueError(
+            f"Chemical space contains unsupported elements: {unsupported_elements}. "
+            f"CARE currently supports only: {set(INTER_ELEMS)}"
+        )
 
     # Extend CS with molecules originating from dissociation of CS species
     t0ecs = time.time()

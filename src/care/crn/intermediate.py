@@ -1,14 +1,14 @@
 from typing import Union
 from io import StringIO
-import numpy as np
 
 from ase import Atom, Atoms
 from ase.io import read, write
 from networkx import cycle_basis
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-from care.constants import INTER_PHASES, BOND_ORDER
+from care.constants import INTER_PHASES, INTER_ELEMS, BOND_ORDER
 from care.crn.utils.species import atoms_to_graph
 
 
@@ -203,7 +203,8 @@ class Intermediate:
         Check if molecule is a neutral closed-shell species using RDKit.
         Returns True if neutral and no unpaired electrons, False otherwise.
         """
-        use_old = True if self["N"] == 0 else False
+        x = sum([self[elem] for elem in INTER_ELEMS if elem not in ["C", "H", "O"]])
+        use_old = True if x == 0 else False
         if use_old:
             graph = self.graph
 

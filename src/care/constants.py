@@ -99,15 +99,18 @@ CORDERO = {
     "Zr": 1.75,
 }  
 
-BOND_ORDER = {"C": 4, "O": 2, "H": 1, "N": 3, "S": 2}
+BOND_ORDER = {"C": 4, "O": 2, "H": 1, "N": 3, "S": 2, "Cl": 1, "Br": 1, "F": 1}
 
-ELEM_WEIGTHS = {"H": 1.0, "C": 12.0, "O": 16.0, "N":14.0, "S": 32.0}
+ELEM_WEIGTHS = {"H": 1.0, "C": 12.0, "O": 16.0, "N":14.0, "S": 32.0, "Cl": 35.5, "Br": 79.9, "F": 19.0}
 
-INTER_ELEMS = ["C", "H", "O", "N", "S", "*", "q"]
+INTER_ELEMS = ["C", "H", "O", "N", "S", "Cl", "Br", "F", "*", "q"]
 
 BOND_TYPES = [
     (6, 6), (6, 1), (6, 8), (8, 8), (1, 1), (8, 1), (6, 7), (7, 7), (7, 1), (7, 8),
-    (16, 16), (6, 16), (1, 16), (8, 16), (7, 16)
+    (16, 16), (6, 16), (1, 16), (8, 16), (7, 16), 
+    (9, 9), (6, 9), (1, 9),          # F-F, C-F, H-F
+    (17, 17), (6, 17), (1, 17),      # Cl-Cl, C-Cl, H-Cl
+    (35, 35), (6, 35), (1, 35)       # Br-Br, C-Br, H-Br
 ]
 
 INTER_PHASES = ["gas", "ads", "surf", "solv", "electro"]
@@ -117,14 +120,20 @@ COORD_DICT = {
     "H": 1,
     "O": 3,
     "N": 3, 
-    "S": 3
+    "S": 3, 
+    "Cl": 1, 
+    "Br": 1, 
+    "F": 1
 }
 
-R_TYPES = [
+R_TYPES = [  # X-Y are sorted alphabetically! C-H ok, H-C not ok
     "desorption",
     "C-O", "C-H", "H-H", "O-O", "C-C", "H-O",
     "C-N", "N-N", "H-N", "N-O",
     "C-S", "H-S", "S-S", "O-S", "N-S",
+    "C-F", "F-H", "F-F",
+    "C-Cl", "Cl-H", "Cl-Cl",
+    "Br-C", "Br-H", "Br-Br",
     "eley_rideal",
     "adsorption",
     "pseudo",

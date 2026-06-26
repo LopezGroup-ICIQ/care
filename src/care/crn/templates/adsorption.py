@@ -176,17 +176,33 @@ def gen_adsorption_reactions(
         set([rxn for sublist in result_async.get() for rxn in sublist])
     )
 
-    # Dissociative adsorptions (H2, O2, N2)
-    for molecule in ["UFHFLCQGNIYNRP-UHFFFAOYSA-N", "MYMOFIZGZYHOMD-UHFFFAOYSA-N", "IJGRMHOSHXDMSA-UHFFFAOYSA-N"]:
-        if molecule+'*' not in intermediates.keys():
+    # Dissociative adsorptions (H2, O2, N2, Cl2, Br2, F2)
+    diatomic_molecules = [
+        "UFHFLCQGNIYNRP-UHFFFAOYSA-N",  # H2
+        "MYMOFIZGZYHOMD-UHFFFAOYSA-N",  # O2
+        "IJGRMHOSHXDMSA-UHFFFAOYSA-N",  # N2
+        "KZBUYRJDOAKODT-UHFFFAOYSA-N",  # Cl2
+        "GDTBXPJZTBHREO-UHFFFAOYSA-N",  # Br2
+        "PXGOKWXKJXAPGV-UHFFFAOYSA-N"   # F2
+    ]
+
+    for molecule in diatomic_molecules:
+        if molecule + '*' not in intermediates.keys():
             continue
         else:
             if molecule == "UFHFLCQGNIYNRP-UHFFFAOYSA-N":  # H2
                 ads_code = "YZCKVEUIGOORGS-UHFFFAOYSA-N*"  # H
             elif molecule == "MYMOFIZGZYHOMD-UHFFFAOYSA-N":  # O2
                 ads_code = "QVGXLLKOCUKJST-UHFFFAOYSA-N*"  # O
-            else:  # N2
+            elif molecule == "IJGRMHOSHXDMSA-UHFFFAOYSA-N":  # N2
                 ads_code = "QJGQUHMNIGDVPM-UHFFFAOYSA-N*"  # N
+            elif molecule == "KZBUYRJDOAKODT-UHFFFAOYSA-N":  # Cl2
+                ads_code = "ZAMOUSCENKQFHK-UHFFFAOYSA-N*"  # Cl
+            elif molecule == "GDTBXPJZTBHREO-UHFFFAOYSA-N":  # Br2
+                ads_code = "WKBOTKDWSSQWDR-UHFFFAOYSA-N*"  # Br
+            elif molecule == "PXGOKWXKJXAPGV-UHFFFAOYSA-N":  # F2
+                ads_code = "YCKRFDGAMUMZLT-UHFFFAOYSA-N*"  # F
+
             adsorption_steps.append(
                 Adsorption(
                     components=(

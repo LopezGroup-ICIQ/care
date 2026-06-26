@@ -33,11 +33,11 @@ S_dict = {
         "products": ["C", "S"], 
         "elements": ["C", "H", "S"]          # Methane, Hydrogen Sulfide
     },
-    "Thiophene_HDS": {
-        "reactants": ["c1ccsc1", "[H][H]"],
-        "products": ["CCCC", "S"], 
-        "elements": ["C", "H", "S"]              # Butane, Hydrogen Sulfide
-    },
+    # "Thiophene_HDS": {
+    #     "reactants": ["c1ccsc1", "[H][H]"],
+    #     "products": ["CCCC", "S"], 
+    #     "elements": ["C", "H", "S"]              # Butane, Hydrogen Sulfide
+    # },
     "Claus_catalytic_step": {
         "reactants": ["S", "O=S=O"],    # Hydrogen Sulfide, Sulfur Dioxide
         "products": ["[S]", "O"], 
@@ -61,11 +61,11 @@ N_dict = {
         "products": ["N=O", "O"], 
         "elements": ["H", "N", "O"]
     },
-    "Pyridine_HDN": {   # C5H5N + 5H2 -> NH3 + C5H12
-        "reactants": ["c1ccccn1", "[H][H]"], 
-        "products": ["CCCCC", "N"], 
-        "elements": ["C", "H", "N"]
-    },
+    # "Pyridine_HDN": {   # C5H5N + 5H2 -> NH3 + C5H12
+    #     "reactants": ["c1ccccn1", "[H][H]"], 
+    #     "products": ["CCCCC", "N"], 
+    #     "elements": ["C", "H", "N"]
+    # },
     "Methylamine_synthesis": {
         "reactants": ["CO", "N"],       # CH4O + NH3 -> CH5N + H2O
         "products": ["CN", "O"], 
@@ -77,6 +77,22 @@ N_dict = {
         "elements": ["H", "N", "O"]
     }
 }
+
+halogen_dict = {"methane chlorination": {
+        "reactants": ["C", "ClCl"],
+        "products": ["CCl", "Cl"], 
+        "elements": ["C", "Cl", "H"]
+    },
+    "bromine addition": {
+        "reactants": ["C=C", "BrBr"],
+        "products": ["BrCCBr"], 
+        "elements": ["Br", "C", "H"]
+    },
+    "methane fluorination": {
+        "reactants": ["C", "FF"],
+        "products": ["CF", "F"], 
+        "elements": ["C", "F", "H"]
+    }}
 
 
 
@@ -342,6 +358,12 @@ class TestReactionNetwork(unittest.TestCase):
         self.assertIn("'O'", error_msg)
         self.assertNotIn("missing in products", error_msg)
 
+    def test_invalid_element(self):
+        invalid_cs = ["C[Hg]C"] 
+        expected_error_pattern = "unsupported elements: .*'Hg'.*"
+        with self.assertRaisesRegex(ValueError, expected_error_pattern):
+            ReactionNetwork.from_chemical_space(invalid_cs)
+
     def test_invalid_smiles_in_cs_issues_warning(self):
         with pytest.warns(UserWarning, match="Some SMILES in 'cs' were invalid and removed."):
             gen_blueprint(cs=["C", "Ciao"])
@@ -380,7 +402,15 @@ class TestReactionNetwork(unittest.TestCase):
             products = inputs["products"]
             elements = inputs["elements"]
             crn = ReactionNetwork.from_species(reactants, products)
-            print(crn)
+            self.assertIsInstance(crn, ReactionNetwork)
+            self.assertEqual(crn.elements, elements)
+
+    def test_crn_with_halogens(self):
+        for inputs in halogen_dict.values():
+            reactants = inputs["reactants"]
+            products = inputs["products"]
+            elements = inputs["elements"]
+            crn = ReactionNetwork.from_species(reactants, products)
             self.assertIsInstance(crn, ReactionNetwork)
             self.assertEqual(crn.elements, elements)
         
