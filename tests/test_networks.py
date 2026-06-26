@@ -22,7 +22,63 @@ net = gen_blueprint(ncc=1,
 inters = net.intermediates
 steps = net.reactions
 
-print(net)
+S_dict = {
+    "DMS_hydrogenation": {
+        "reactants": ["CSC", "[H][H]"],
+        "products": ["C", "S"], 
+        "elements": ["C", "H", "S"]          # Methane, Hydrogen Sulfide
+    },
+    "Methanethiol_HDS": {
+        "reactants": ["CS", "[H][H]"],
+        "products": ["C", "S"], 
+        "elements": ["C", "H", "S"]          # Methane, Hydrogen Sulfide
+    },
+    "Thiophene_HDS": {
+        "reactants": ["c1ccsc1", "[H][H]"],
+        "products": ["CCCC", "S"], 
+        "elements": ["C", "H", "S"]              # Butane, Hydrogen Sulfide
+    },
+    "Claus_catalytic_step": {
+        "reactants": ["S", "O=S=O"],    # Hydrogen Sulfide, Sulfur Dioxide
+        "products": ["[S]", "O"], 
+        "elements": ["H", "O", "S"]        # Elemental Sulfur, Water
+    },
+    "Mercaptan_sweetening": {
+        "reactants": ["CS", "O=O"],     # Methanethiol, Oxygen
+        "products": ["CSSC", "O"], 
+        "elements": ["C", "H", "O", "S"]       # Dimethyl disulfide, Water
+    }
+}
+
+N_dict = {
+    "Haber_Bosch": {
+        "reactants": ["N#N", "[H][H]"],
+        "products": ["N"], 
+        "elements": ["H", "N"]   # N2 + 3H2 -> NH3
+    },
+    "Ostwald_oxidation": {
+        "reactants": ["N", "O=O"],      # 4NH3 + 5O2 -> 4NO + 6H2O
+        "products": ["N=O", "O"], 
+        "elements": ["H", "N", "O"]
+    },
+    "Pyridine_HDN": {   # C5H5N + 5H2 -> NH3 + C5H12
+        "reactants": ["c1ccccn1", "[H][H]"], 
+        "products": ["CCCCC", "N"], 
+        "elements": ["C", "H", "N"]
+    },
+    "Methylamine_synthesis": {
+        "reactants": ["CO", "N"],       # CH4O + NH3 -> CH5N + H2O
+        "products": ["CN", "O"], 
+        "elements": ["C", "H", "N", "O"]
+    },
+    "SCR_NOx_reduction": {
+        "reactants": ["N=O", "N", "O=O"],  # 4NO + 4NH3 + O2 -> 4N2 + 6H2O
+        "products": ["N#N", "O"], 
+        "elements": ["H", "N", "O"]
+    }
+}
+
+
 
 
 class TestElementaryReaction(unittest.TestCase):
@@ -308,6 +364,25 @@ class TestReactionNetwork(unittest.TestCase):
         self.assertIsInstance(crn, ReactionNetwork)
         num_desorptions = len([x for x in crn.reactions if isinstance(x, Desorption)])
         self.assertEqual(num_desorptions, 0)
+
+    def test_crn_with_S(self):
+        for inputs in S_dict.values():
+            reactants = inputs["reactants"]
+            products = inputs["products"]
+            elements = inputs["elements"]
+            crn = ReactionNetwork.from_species(reactants, products)
+            self.assertIsInstance(crn, ReactionNetwork)
+            self.assertEqual(crn.elements, elements)
+
+    def test_crn_with_N(self):
+        for inputs in N_dict.values():
+            reactants = inputs["reactants"]
+            products = inputs["products"]
+            elements = inputs["elements"]
+            crn = ReactionNetwork.from_species(reactants, products)
+            print(crn)
+            self.assertIsInstance(crn, ReactionNetwork)
+            self.assertEqual(crn.elements, elements)
         
     def test_reaction_network(self):
         self.assertIsInstance(net, DiGraph)

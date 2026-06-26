@@ -83,9 +83,9 @@ If you want to contribute to the code or use the very latest (unstable) version,
 
 ## 💥 Usage
 
-### Network blueprint generation
+### Network generation
 
-The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES.
+The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES. Current version allows generation of CRNs with CHONS-containing species.
 
 ```python
 from care import ReactionNetwork
@@ -100,7 +100,7 @@ crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
 crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
 ```
 
-### ML-based energy evaluation
+### ML energy evaluation
 
 The range of catalyst materials on which CRNs can be evaluated depends on the domain of the employed ML model.
 CARE currently provides interfaces to GAME-Net-UQ and MLIPs such as FairChem-v1/v2, MACE, Orb, UPET, and SevenNet.
@@ -120,7 +120,7 @@ for reaction in crn.reactions:
     neb_evaluator(reaction)
 ```
 
-### Microkinetic simulation
+### Microkinetic run
 
 ```python
 operating_conditions = {'T': 473, 'P': 1e6}  # T in K, P in Pa

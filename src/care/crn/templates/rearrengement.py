@@ -298,7 +298,7 @@ def is_hydrogen_rearranged(smiles_1: str, smiles_2: str) -> bool:
     """
 
     # Condition for splitting the smiles string
-    re_var = r"(\(?\[?[C,O][H]?[0-9]{0,1}\]?\)?[0-9]{0,1})"
+    re_var = r"(\(?\[?[C,O,N,S][H]?[0-9]{0,1}\]?\)?[0-9]{0,1})"
 
     chpped_smiles_1 = re.findall(re_var, smiles_1)
     chpped_smiles_2 = re.findall(re_var, smiles_2)

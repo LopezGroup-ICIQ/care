@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
 
-from care import Intermediate
+from care import Intermediate, INTER_ELEMS
 from care.reactors import DifferentialPFR
 from care.reactors.utils import net_rate, generate_simulation_report
 
@@ -21,7 +21,7 @@ from care.reactors.utils import net_rate, generate_simulation_report
 # ----------------------
 
 inters = ['CO(g)', 'O2(g)', 'CO2(g)', 'CO*', 'O*', 'CO2*', '*']
-elements = ["C", "H", "O", "N"]
+elements = [e for e in INTER_ELEMS if e not in ["*", "q"]]
 gas_mask = np.array([1, 1, 1, 0, 0, 0, 0]).astype(bool)
 y0 = np.array([1e6, 3e6, 0.0, 0.5, 0.05, 0.2, 0.25])
 pCO, pO2, pCO2, thetaCO, thetaO, thetaCO2, thetastar = y0
@@ -34,9 +34,9 @@ intermediates = [Intermediate("CO(g)", Atoms("CO"), phase="gas"),
                  Intermediate("*", Atoms(), phase="surf")]
 intermediates = {inter.code: inter for inter in intermediates}
 inters = {"codes": inters, "formulas": inters}
-for elem in ["C", "H", "O", "N"]:
+for elem in elements:
     inters[elem] = [x[elem] for x in intermediates.values()]
-inters["elements"] = ["C", "H", "O", "N"]
+inters["elements"] = elements
 
 v_matrix = np.array(
     [
