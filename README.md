@@ -7,6 +7,7 @@
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/care-crn?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/care-crn)
 [![GitHub last commit](https://img.shields.io/github/last-commit/LopezGroup-ICIQ/care)](https://github.com/LopezGroup-ICIQ/care/commits/main)
 [![Powered by RDKit](https://img.shields.io/badge/Powered%20by-RDKit-3838ff.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQBAMAAADt3eJSAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAFVBMVEXc3NwUFP8UPP9kZP+MjP+0tP////9ZXZotAAAAAXRSTlMAQObYZgAAAAFiS0dEBmFmuH0AAAAHdElNRQfmAwsPGi+MyC9RAAAAQElEQVQI12NgQABGQUEBMENISUkRLKBsbGwEEhIyBgJFsICLC0iIUdnExcUZwnANQWfApKCK4doRBsKtQFgKAQC5Ww1JEHSEkAAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyMi0wMy0xMVQxNToyNjo0NyswMDowMDzr2J4AAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjItMDMtMTFUMTU6MjY6NDcrMDA6MDBNtmAiAAAAAElFTkSuQmCC)](https://www.rdkit.org/)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LopezGroup-ICIQ/care/blob/main/notebooks/care_demo.ipynb)
 
 # CARE: Catalysis Automated Reaction Evaluator
 
@@ -144,7 +145,7 @@ Examples of input .toml files can be found [here](./src/care/scripts/input_examp
 ## 📖 Tutorials
 
 We currently provide two tutorials, available in the ``notebooks`` directory:
-- [CARE tutorial](./notebooks/care_demo.ipynb) <br/>
+- [CARE tutorial](./notebooks/care_demo.ipynb)  (run it on Google Colab by clicking the badge on top of the README) <br/>
 - [Adsorbate placement](./notebooks/adsorbate_placement.ipynb)
 
 ## ✒️ License
