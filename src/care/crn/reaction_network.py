@@ -6,10 +6,12 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from scipy.sparse import vstack, coo_matrix
+import scipy.optimize
 
 from care import ElementaryReaction, Intermediate, Surface
 from care.constants import OC_KEYS, INTER_ELEMS
 from care.crn.utils.electro import Electron
+from care.crn.global_reaction import GlobalReaction
 
 class ReactionNetwork(nx.DiGraph):
     """
@@ -364,9 +366,13 @@ class ReactionNetwork(nx.DiGraph):
             self.num_reactions,
         )
         string += f"Elements: {', '.join(self.elements)}\n"
-        string += "Surface: {}\n".format(self.surface)
+        string += "Catalyst: {}\n".format(self.surface)
         string += "Type: {}\n".format(self.crn_type)
         string += "Energetically evaluated: {}\n".format(self.is_evaluated)
+        if self.global_reactions:
+            string += "Global reactions:\n"
+            for i, rxn in enumerate(self.global_reactions):
+                string += f"  {i+1}: {rxn.repr_hr}\n"
         return string
 
     def __repr__(self):
@@ -666,3 +672,110 @@ class ReactionNetwork(nx.DiGraph):
             return False
               
         return set(self.reactions) == set(other.reactions)
+    
+    @property
+    def global_reactions(self) -> list[GlobalReaction]:
+        """
+        Identifies and balances the global chemical reactions represented by the network.
+        Strictly enforces that gas_reactants are on the left (reactants) and 
+        gas_products are on the right (products).
+        
+        Returns:
+            list[GlobalReaction]: A list of balanced global reactions.
+        """
+        gas_inters = [x for x in self.intermediates.values() if x.phase == "gas"]
+        if not gas_inters:
+            return []
+
+        ads_rxns = self.adsorptions
+        gas_reactants = []
+        gas_products = []
+
+        for g in gas_inters:
+            is_reactant = any(g in rxn.reactants for rxn in ads_rxns)
+            if is_reactant:
+                gas_reactants.append(g)
+            else:
+                gas_products.append(g)
+
+        if not gas_reactants or not gas_products:
+            return []
+
+        elements = self.elements
+        E_R = np.zeros((len(elements), len(gas_reactants)))
+        for j, g in enumerate(gas_reactants):
+            for i, elem in enumerate(elements):
+                E_R[i, j] = g[elem]
+
+        E_P = np.zeros((len(elements), len(gas_products)))
+        for j, g in enumerate(gas_products):
+            for i, elem in enumerate(elements):
+                E_P[i, j] = g[elem]
+
+        unique_reactions = []
+
+        for t, _ in enumerate(gas_products):
+            
+            other_products = [g for i, g in enumerate(gas_products) if i != t]
+            
+            E_P_other = np.zeros((len(elements), len(other_products)))
+            for j, g in enumerate(other_products):
+                for i, elem in enumerate(elements):
+                    E_P_other[i, j] = g[elem]
+
+            A_eq = np.hstack([E_P_other, -E_R])
+            b_eq = -E_P[:, t]
+            c = np.ones(A_eq.shape[1])
+            res = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=(0, None), method='highs')
+
+            if res.success:
+                vec = np.zeros(len(gas_products) + len(gas_reactants))
+                vec[t] = 1.0
+                idx_other = 0
+                for i in range(len(gas_products)):
+                    if i != t:
+                        vec[i] = res.x[idx_other]
+                        idx_other += 1                        
+                for j in range(len(gas_reactants)):
+                    vec[len(gas_products) + j] = -res.x[len(other_products) + j]
+
+                non_zero = vec[np.abs(vec) > 1e-5]
+                if len(non_zero) == 0:
+                    continue
+                    
+                vec = vec / np.min(np.abs(non_zero))
+                for multiplier in range(1, 40):
+                    test_vec = vec * multiplier
+                    if np.allclose(test_vec, np.round(test_vec), atol=1e-2):
+                        vec = np.round(test_vec)
+                        break
+
+                vec_tuple = tuple(np.round(vec, 2))
+                if vec_tuple not in [tuple(np.round(v, 2)) for v in unique_reactions]:
+                    unique_reactions.append(vec)
+
+        global_rxns = []
+        all_gas = gas_products + gas_reactants
+
+        for vec in unique_reactions:
+            left_side = []
+            right_side = []
+            stoic_dict = {}
+
+            for idx, coeff in enumerate(vec):
+                if np.abs(coeff) < 1e-2:
+                    continue
+                
+                species = all_gas[idx]
+                coeff_val = int(abs(coeff))
+                
+                if coeff < 0:
+                    left_side.append(species)
+                else:
+                    right_side.append(species)
+                stoic_dict[species.code] = coeff_val
+
+            if left_side and right_side:
+                global_rxns.append(GlobalReaction([left_side, right_side], stoic_dict))
+
+        return global_rxns
