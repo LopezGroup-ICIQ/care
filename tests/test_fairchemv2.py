@@ -12,7 +12,7 @@ class TestEvaluator(unittest.TestCase):
     def setUpClass(cls):
         try:
             from care.evaluators.fairchemv2 import FairChemV2evaluator
-            cls.model_inter = FairChemV2evaluator(num_configs=2, max_steps=2, device="cuda")
+            cls.model_inter = FairChemV2evaluator(num_configs=2, max_steps=2, device="cpu")
         except ImportError:
             pytest.skip("Fairchem-core not installed, skipping these tests.")
 

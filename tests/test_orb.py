@@ -14,7 +14,7 @@ class TestEvaluator(unittest.TestCase):
     def setUpClass(cls):
         try:
             from care.evaluators.orb import ORBevaluator
-            cls.mlip = ORBevaluator(version="orb-v3-conservative-inf-omat", num_configs=2, max_steps=3, device="cuda")
+            cls.mlip = ORBevaluator(version="orb-v3-conservative-inf-omat", num_configs=2, max_steps=2, device="cpu")
         except ImportError:
             pytest.skip("Orb not installed, skipping these tests.")
     

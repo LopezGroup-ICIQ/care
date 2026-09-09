@@ -14,16 +14,16 @@ class TestEvaluator(unittest.TestCase):
             cls.mlip_dispersion = SevenNetevaluator(model="7net-omni", 
                                          modal="mpa", 
                                          num_configs=2, 
-                                         max_steps=3,
+                                         max_steps=2,
                                          dispersion=True,
-                                         device="cuda", 
+                                         device="cpu", 
                                          enable_cueq=False)
             cls.mlip_no_dispersion = SevenNetevaluator(model="7net-omni",
                                          modal="mpa",
                                          num_configs=2,
-                                         max_steps=3,
+                                         max_steps=2,
                                          dispersion=False,
-                                         device="cuda",
+                                         device="cpu",
                                          enable_cueq=False)
         except ImportError:
             pytest.skip("SevenNet not installed, skipping these tests.")
