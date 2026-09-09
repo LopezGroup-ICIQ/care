@@ -1,6 +1,6 @@
-from care.evaluators.upet.interface import UPETIntermediateEvaluator, UPET_AVAILABLE
+from care.evaluators.upet.interface import UPETevaluator, UPET_AVAILABLE
 
 __all__ = [
-    "UPETIntermediateEvaluator", 
+    "UPETevaluator", 
     "UPET_AVAILABLE",
 ]

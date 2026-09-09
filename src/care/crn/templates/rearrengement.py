@@ -10,6 +10,7 @@ from rdkit.Chem import rdMolDescriptors
 from rich.progress import Progress
 
 from care import Intermediate, ElementaryReaction
+from care.crn.intermediate import AdsorbedSpecies
 
 
 class Rearrangement(ElementaryReaction):
@@ -17,20 +18,6 @@ class Rearrangement(ElementaryReaction):
 
     def __init__(self, components, r_type, stoic=None):
         super().__init__(components=components, r_type=r_type, stoic=stoic)
-
-    def reverse(self):
-        self.components = self.components[::-1]
-        for k, v in self.stoic.items():
-            self.stoic[k] = -v
-        if self.e_rxn != None:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
-
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0],
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
 
     def bb_order(self):
         """
@@ -126,7 +113,7 @@ def gen_rearrangement_reactions(
     return [rxn for sublist in result_async.get() for rxn in sublist]
 
 
-def check_rearrangement(pair: tuple[Intermediate, Intermediate]) -> Rearrangement:
+def check_rearrangement(pair: tuple[AdsorbedSpecies, AdsorbedSpecies]) -> Rearrangement:
     """
     Check if a pair of intermediates is a 1,2-rearrangement reaction.
 

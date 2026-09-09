@@ -1,6 +1,6 @@
-from care.evaluators.orb.interface import ORBIntermediateEvaluator, ORB_AVAILABLE
+from care.evaluators.orb.interface import ORBevaluator, ORB_AVAILABLE
 
 __all__ = [
-    "ORBIntermediateEvaluator", 
+    "ORBevaluator", 
     "ORB_AVAILABLE",
 ]

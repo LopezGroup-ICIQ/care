@@ -1,6 +1,5 @@
-from care.evaluators.gamenet_uq.interface import GameNetUQInter, GameNetUQRxn, GAMENETUQ_AVAILABLE
+from care.evaluators.gamenet_uq.interface import GameNetUQevaluator, GAMENETUQ_AVAILABLE
 
 __all__ = [
-    "GameNetUQInter",
-    "GameNetUQRxn", 
+    "GameNetUQevaluator", 
     "GAMENETUQ_AVAILABLE",]

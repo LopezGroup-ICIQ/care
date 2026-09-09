@@ -1,5 +1,5 @@
-from care.evaluators.sevennet.interface import SevenNetIntermediateEvaluator, SEVENNET_AVAILABLE
+from care.evaluators.sevennet.interface import SevenNetevaluator, SEVENNET_AVAILABLE
 __all__ = [
-    "SevenNetIntermediateEvaluator", 
+    "SevenNetevaluator", 
     "SEVENNET_AVAILABLE",
 ]
