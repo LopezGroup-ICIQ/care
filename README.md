@@ -37,7 +37,7 @@ pip install care-crn[fairchemv1]
 pip install care-crn[fairchemv2]
 pip install care-crn[upet]
 pip install care-crn[orb]
-pip install care-crn[sevennet]
+pip install care-crn[sevenn]
 pip install care-crn[gamenetuq]
 ```
 
@@ -46,11 +46,11 @@ Note: as each ML model depends on specific versions of Python packages (pytorch,
 
 ### 3\. Julia microkinetic solver
 
-To run microkinetic simulations, the workflow relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration. **No manual installation is required**. Thanks to `juliapkg`, the first time you execute a simulation that requires the Julia solver, the package will automatically:
-1. Download a private, compatible version of Julia (if you don't already have one).
+To run microkinetic simulations, the workflow relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration. **No manual installation is required**. The first time you execute a simulation that requires the Julia solver, the `juliapkg` package will automatically:
+1. Download a private, compatible version of Julia if you don't already have one.
 2. Install the necessary Julia packages (`DifferentialEquations.jl`, etc.) defined in ``src/care/juliapkg.json`` into an isolated environment.
 
-*Note: The very first time you run a simulation, it may take a few extra minutes to download and precompile these dependencies. Subsequent runs will be instantaneous.*
+*Note: The very first time you run a kinetic simulation, it may take a few extra minutes to download and precompile these dependencies. Subsequent runs will be instantaneous.*
 
 -----
 
@@ -99,35 +99,48 @@ crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
 
 # from chemical space (e.g., Ethanol decomposition network)
 crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
+
+# Get CRN overview
+print(crn)
+
+# Get reaction table
+crn.get_reaction_table()
+
+# visualize network
+crn.plot()
 ```
 
-### ML energy evaluation
+### Energy evaluation
 
 The range of catalyst materials on which CRNs can be evaluated depends on the domain of the employed ML model.
 CARE currently provides interfaces to GAME-Net-UQ and MLIPs such as FairChem-v1/v2, MACE, Orb, UPET, and SevenNet.
 
 ```python
 from care import Surface 
-from care.evaluators import MACEIntermediateEvaluator, NEBReactionEnergyEstimator
+from care.evaluators import MACEevaluator
 
 catalyst = Surface.from_mp("mp-2", mp_api_key="your_key", hkl="110", xy_repeat=2)  # Pt(110)
-ml_evaluator = MACEIntermediateEvaluator(catalyst, device="cuda", num_configs=2, max_steps=5, fmax=0.5)
-neb_evaluator = NEBReactionEnergyEstimator(mlp=ml_evaluator, num_images=3, max_steps=5)
+crn.add_catalyst(surface)
+ml_evaluator = MACEevaluator(device="cuda", num_configs=3, max_steps=50, fmax=0.05)
 
-for intermediate in crn.intermediates.values():
+for intermediate in crn.intermediates.values():  # relaxation
     ml_evaluator(intermediate)
 
-for reaction in crn.reactions:
-    neb_evaluator(reaction)
+for reaction in crn.reactions:  # neb for transition state search
+    ml_evaluator(reaction, num_images=3)
 ```
 
 ### Microkinetic run
 
 ```python
-operating_conditions = {'T': 473, 'P': 1e6}  # T in K, P in Pa
+from care.reactors import DifferentialPFR
+reactor = DifferentialPFR(crn)
+reactor.T = 473  # Temperature in K
+reactor.P = 1e6  # Pressure in Pa
 y0 = {"CO2": 0.33, "H2": 0.67}  # reactants composition (mole fraction)
 
-results = crn.run_kinetics(iv=y0, oc=operating_conditions)
+mkm = reactor.run(iv=y0, eapp=True, napp=True)
+print(mkm.get_performance_summary())
 ```
 
 ### Run all together
@@ -154,4 +167,19 @@ The code is released under the [MIT](./LICENSE) license.
 
 ## 📜 Reference
 
+If you use CARE in your research, please cite the following paper and consider starring the repository.
+
 Morandi, S., Loveday, O., Renningholtz, T. *et al.* An end-to-end framework for reactivity in heterogeneous catalysis. *Nat. Chem. Eng.* (2026). [https://doi.org/10.1038/s44286-026-00361-8](https://doi.org/10.1038/s44286-026-00361-8)
+
+```bibtex
+@article{CARE,
+  title = {An End-to-End Framework for Reactivity in Heterogeneous Catalysis},
+  author = {Morandi, Santiago and Loveday, Oliver and Renningholtz, Tim and {Pablo-Garc{\'i}a}, Sergio and {Vargas-Hern{\'a}ndez}, Rodrigo A. and Seemakurthi, Ranga Rohit and Sanz Berman, Pol and {Garc{\'i}a-Muelas}, Rodrigo and {Aspuru-Guzik}, Al{\'a}n and L{\'o}pez, N{\'u}ria},
+  year = {2026},
+  journal = {Nature Chemical Engineering},
+  volume = {3},
+  number = {3},
+  pages = {169--180},
+  doi = {10.1038/s44286-026-00361-8},
+}
+```

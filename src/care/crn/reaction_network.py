@@ -84,7 +84,7 @@ class ReactionNetwork(nx.DiGraph):
         **kwargs
     ) -> "ReactionNetwork":
         """Generate a network based on carbon and oxygen cutoffs."""
-        from care.crn.utils.blueprint import gen_blueprint  # to avoid circular imports
+        from care.crn.utils.blueprint import gen_blueprint
         
         return gen_blueprint(
             ncc=ncc, 
@@ -141,7 +141,7 @@ class ReactionNetwork(nx.DiGraph):
             filepath (str): The path where the network will be saved.
             compress (bool): If True, compresses the file using gzip. Defaults to True.
         """
-        from care.io import save_network  # Imported locally to prevent circular dependencies with care.io
+        from care.io import save_network
         save_network(self, filepath, compress=compress)
 
     @classmethod
@@ -155,7 +155,7 @@ class ReactionNetwork(nx.DiGraph):
         Returns:
             ReactionNetwork: The loaded network instance.
         """
-        from care.io import load_network  # Imported locally to prevent circular dependencies with care.io
+        from care.io import load_network
         return load_network(filepath)
 
     def get_intermediates(self):
@@ -674,7 +674,7 @@ class ReactionNetwork(nx.DiGraph):
     
     def get_route_stoichiometry(self, global_rxn: GlobalReaction) -> dict[int, float]:
         """
-        Calculates the stoichiometric number (σ) for each elementary reaction 
+        Calculates the stoichiometric number for each elementary reaction 
         required to complete one cycle of the given global reaction.
         Uses L1-norm minimization to find the sparsest valid pathway.
         """
@@ -713,3 +713,36 @@ class ReactionNetwork(nx.DiGraph):
                 route[i] = round(sigma[i], 4)
                 
         return route
+    
+    def plot(
+        self,
+        filename: str = None,
+        figsize: tuple = (18, 15),
+        rankdir: str = "TB",
+        rank_sep: float = 0.3,
+        node_sep: float = 0.15,
+        fontsize: int = 50,
+        legend_fontsize: int = 20,
+        layout_engine: str = "dot",
+        show_species_labels: bool = True,
+        arrowhead: str = "normal",
+        fontname: str = "Arial",
+        dpi: int = 200
+    ) -> None:
+        from care.crn.visualize import plot_crn
+        
+        plot_crn(
+            graph=self,
+            filename=filename,
+            figsize=figsize,
+            rankdir=rankdir,
+            rank_sep=rank_sep,
+            node_sep=node_sep,
+            fontsize=fontsize,
+            legend_fontsize=legend_fontsize,
+            layout_engine=layout_engine,
+            show_species_labels=show_species_labels,
+            arrowhead=arrowhead,
+            fontname=fontname,
+            dpi=dpi
+        )

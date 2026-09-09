@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `CHANGELOG.md` file to track changes in the project.
 - `CONTRIBUTING.md` file to provide guidelines for contributing to the project.
+- setters/getters for energy properties of `care.Intermediate` and `care.ElementaryReaction` classes, enabling direct setting of energy properties for both species and reactions (e.g., from DFT).
+- `AdsorbedSpecies`, `GasSpecies`, and `ActiveSite` child classes of `care.Intermediate` class.
+- `MKMRun` dataclass for storing MKM results.
+- direct evaluation of apparent activation energy of global reactions `eapp` in `DifferentialPFR.run()` method.
+- direct evaluation of apparent reaction orders of reactants `napp` in `DifferentialPFR.run()` method.
+- direct evaluation of degree of rate control of elementary reactions `drc` in `DifferentialPFR.run()` method.
+- Orb-v3 MLIP support by adapting `care.evaluators.orb.OrbEvaluator` interface to orb-models v0.7.0.
+- Color legend for CRN visualization with `care.crn.visualize.plot_crn` function.
+- `cov0` argument to the MKM run function `DifferentialPFR.run()`, enabling to set the initial coverage population of the catalyst surface (before always assumed empty surface at time zero).
+
+
+### Changed
+
+- Deleted `run_kinetic` method from `ReactionNetwork` class, and rewritten `DifferentialPFR` reactor class accepting `ReactionNetwork` instances as input, instead of a list of matrix/vectors representing the network.
+- `DifferentialPFR.run()` method to run MKM simulations, returning a `MKMRun` dataclass storing all output results.
+- Energy propreties of `care.Intermediate` and `care.ElementaryReaction` are changed to float types and not anymore tuple with 2 elements for energy and uncertainty values. This allows for easier manipulation, especially when using MLIPs. This feature was mainly present for GAME-Net-UQ.
+- Merged `care.evaluators.IntermediateEnergyEvaluator` and `care.evaluators.ReactionEnergyEvaluator` into a single `care.evaluators.UniversalEvaluator` class, which evaluates both intermediates and reactions. This simplifies the codebase and reduces redundancy.
+- NEB initial and final structure generation of elementary reactions now incorporated into elementary reaction template classes.
+- `ReactionNetwork` now has the `get_route_stoichiometry` method to get the stoichiometry number for all elementary reaction wrt a global reaction.
+- Bump optional MLIP Sevenn from v0.11.0 to v0.13.0.
+- Bump optional MLIP Orb from v0.4.2 to v0.7.0.
+- `care.crn.utils.graph.atoms_to_data` function renamed to `care.crn.utils.graph.atoms_to_graph` (`data` was referring to the PyG `Data` class for representing graphs).
+
 
 ## [0.8.0] - 2026-07-06
 

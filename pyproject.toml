@@ -68,11 +68,10 @@ upet = [
     "upet == 0.2.2",
 ]
 orb =  [
-    "orb-models == 0.4.2", 
-    "pynanoflann == 0.10.0",
+    "orb-models == 0.7.0", 
 ]
-sevennet = [
-    "sevenn == 0.11.2"
+sevenn = [
+    "sevenn == 0.13.0"
 ]
 
 dev = ["pytest", 
