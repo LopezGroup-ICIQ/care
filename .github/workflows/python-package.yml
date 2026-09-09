@@ -51,10 +51,12 @@ jobs:
     - name: pytest
       env:
         MP_API_KEY: ${{ secrets.MP_API_KEY }}
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         source $CONDA/etc/profile.d/conda.sh
         conda activate care_test
         pip install pytest pytest-cov
+        huggingface-cli login --token $HF_TOKEN
         pytest --cov --cov-branch --cov-report=xml
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5

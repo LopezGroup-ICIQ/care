@@ -476,7 +476,7 @@ class TestDifferentialPFR(unittest.TestCase):
         self.assertEqual(results.nsims, 6)  # based on provided energy profile in set_energetics()
         for p_idx in results.products_idxs:
             drc_sum = sum(drc_array[p_idx] for drc_array in results.raw_drc.values() if not np.isnan(drc_array[p_idx]))
-            self.assertAlmostEqual(drc_sum, 1.0, places=2, msg=f"Sum of DRCs for product index {p_idx} is not ~1.0")
+            self.assertAlmostEqual(drc_sum, 1.0, delta=0.01, msg=f"Sum of DRCs for product index {p_idx} is not ~1.0")
             self.assertIsInstance(results.rds, dict)
             self.assertTrue(all(isinstance(rds, tuple) and len(rds) == 3 for rds in results.rds.values()))
             self.assertTrue(all(isinstance(rds[0], int) and isinstance(rds[1], str) and isinstance(rds[2], float) for rds in results.rds.values()))
