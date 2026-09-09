@@ -64,9 +64,7 @@ from care.constants import *
 from care.crn.surface import Surface, load_surface
 from care.crn.intermediate import Intermediate
 from care.crn.elementary_reaction import ElementaryReaction, ReactionMechanism
-from care.crn.reaction_network import ReactionNetwork
-from care.crn.utils.blueprint import gen_blueprint
-from care.crn.templates.dissociation import dissociate        
+from care.crn.reaction_network import ReactionNetwork        
 
 __all__ = [
     "Intermediate",
@@ -74,8 +72,6 @@ __all__ = [
     "ReactionNetwork",
     "Surface",
     "ReactionMechanism",
-    "gen_blueprint",
-    "dissociate",
     "load_surface",
 ]
 

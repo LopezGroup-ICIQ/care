@@ -4,7 +4,8 @@ from typing import Optional
 import numpy as np
 from scipy.linalg import null_space
 
-from care import Intermediate, format_reaction
+from care import format_reaction
+from care.crn.intermediate import GasSpecies
 from care.constants import INTER_ELEMS
 
 
@@ -18,33 +19,26 @@ class GlobalReaction:
     """
     __slots__ = (
         "_components", "_reactants", "_products", "stoic",
-        "e_is", "e_ts", "e_fs", "e_rxn", "e_act",
         "k_dir", "k_rev", "k_eq", "rate",
         "_repr_str",
         "is_graph", "fs_graph",
-        "is_atoms", "fs_atoms", "_code", "_repr_hr"
+        "is_atoms", "fs_atoms", "_code", "_repr_hr", "_e_ts"
     )
 
     def __init__(
         self,
-        components: tuple[frozenset[Intermediate]] = None,
+        components: tuple[frozenset[GasSpecies]] = None,
         stoic: dict[str, float] = None,
     ):
         self._components = None
         self.components = components
         self._code = None
 
-        # enthalpy attributes (mu, std)
-        self.e_is: Optional[tuple[float, float]] = None  # initial state
-        self.e_ts: Optional[tuple[float, float]] = None  # transition state
-        self.e_fs: Optional[tuple[float, float]] = None  # final state
-        self.e_rxn: Optional[tuple[float, float]] = None  # reaction energy
-        self.e_act: Optional[tuple[float, float]] = None  # activation energy
-
         # Kinetic constants
         self.k_dir: Optional[float] = None  # direct rate constant
         self.k_rev: Optional[float] = None  # reverse rate constant
         self.k_eq: Optional[float] = None  # equilibrium constant
+        self.rate: Optional[float] = None
 
         self.stoic = stoic
         if self.stoic is None:
@@ -54,6 +48,8 @@ class GlobalReaction:
         self.fs_graph = None
         self.is_atoms = None
         self.fs_atoms = None
+        
+        self._e_ts = None
 
     @property
     def reactants(self):
@@ -62,6 +58,58 @@ class GlobalReaction:
     @property
     def products(self):
         return self.components[1] if self.components else []
+
+    @property
+    def e_is(self) -> float:
+        """Dynamically sums the energies of the reactants."""
+        for species in self.reactants:
+            if getattr(species, 'phase', None) != "surf" and getattr(species, 'E', None) is None:
+                return None
+                
+        return sum(abs(self.stoic[species.code]) * species.E for species in self.reactants)
+
+    @property
+    def e_fs(self) -> float:
+        """Dynamically sums the energies of the products."""
+        for species in self.products:
+            if getattr(species, 'phase', None) != "surf" and getattr(species, 'E', None) is None:
+                return None
+                
+        return sum(abs(self.stoic[species.code]) * species.E for species in self.products)
+    
+    @property
+    def e_ts(self) -> float:
+        """
+        APPARENT transition state energy of the global reaction.
+        Returns the explicitly set TS energy, or falls back to the maximum 
+        of IS/FS energies (barrierless) if no explicit barrier was set.
+        """
+        if self.e_is is None or self.e_fs is None:
+            return None
+            
+        if self._e_ts is None:
+            return self.e_is if self.e_is > self.e_fs else self.e_fs
+
+        return self._e_ts
+
+    @e_ts.setter
+    def e_ts(self, value: float):
+        self._e_ts = value
+
+    @property
+    def e_rxn(self) -> float:
+        """Thermodynamic reaction energy: E_FS - E_IS"""
+        if self.e_fs is None or self.e_is is None:
+            return None
+        return self.e_fs - self.e_is
+
+    @property
+    def e_act(self) -> float:
+        """Apparent activation energy."""
+        if self.e_ts is None or self.e_is is None:
+            return None
+            
+        return self.e_ts - self.e_is
 
     def __lt__(self, other):
         return self.code < other.code
@@ -228,16 +276,7 @@ class GlobalReaction:
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        if self.e_rxn:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
-
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0], # As e_rxn already stores the reverse rxn energy, we add, not substract!
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
-
+            
         self.code = self.__repr__()
 
     @property

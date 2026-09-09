@@ -1,17 +1,18 @@
-import os
-from pickle import load
 from typing import Union, Optional
 
 import networkx as nx
 import numpy as np
 import pandas as pd
-from scipy.sparse import vstack, coo_matrix
+from scipy.sparse import coo_matrix
 import scipy.optimize
 
 from care import ElementaryReaction, Intermediate, Surface
+from care.crn.intermediate import SurfaceSite, AdsorbedSpecies, GasSpecies
+from care.crn.templates.adsorption import Adsorption, Desorption
 from care.constants import OC_KEYS, INTER_ELEMS
-from care.crn.utils.electro import Electron
+from care.crn.templates.pcet import PCET
 from care.crn.global_reaction import GlobalReaction
+
 
 class ReactionNetwork(nx.DiGraph):
     """
@@ -61,11 +62,16 @@ class ReactionNetwork(nx.DiGraph):
                 self.add_edge(r, rxn)
             for p in rxn.products:
                 self.add_edge(rxn, p)
+
+        self._reset_state()
+
+    def _reset_state(self):
         self._intermediates = self.get_intermediates()
         self._reactions = self.get_reactions()
         self._v = self.build_stoichiometry()
         self._es = self.build_es_matrix()
         self._elements = self.get_elements()
+        self._global_reactions_cache = None
 
     @classmethod
     def from_cutoffs(
@@ -126,12 +132,49 @@ class ReactionNetwork(nx.DiGraph):
             electro=electro,
             **kwargs
         )
+    
+    def save_to(self, filepath: str, compress: bool = True) -> None:
+        """
+        Saves the ReactionNetwork to a JSON or compressed JSON file.
+        
+        Args:
+            filepath (str): The path where the network will be saved.
+            compress (bool): If True, compresses the file using gzip. Defaults to True.
+        """
+        from care.io import save_network  # Imported locally to prevent circular dependencies with care.io
+        save_network(self, filepath, compress=compress)
+
+    @classmethod
+    def load_from(cls, filepath: str) -> "ReactionNetwork":
+        """
+        Loads a ReactionNetwork from a JSON or compressed JSON file.
+        
+        Args:
+            filepath (str): The path to the saved network file.
+            
+        Returns:
+            ReactionNetwork: The loaded network instance.
+        """
+        from care.io import load_network  # Imported locally to prevent circular dependencies with care.io
+        return load_network(filepath)
 
     def get_intermediates(self):
-        return {x.code: x for x in self.nodes if isinstance(x, Intermediate) and x.phase in ("ads", "gas")}
+        return {x.code: x for x in self.nodes if isinstance(x, (GasSpecies, AdsorbedSpecies))}
 
     def get_reactions(self):
-        return [x for x in self.nodes if isinstance(x, ElementaryReaction)]
+        rxns = [x for x in self.nodes if isinstance(x, ElementaryReaction)]
+        
+        def sort_key(rxn):
+            if isinstance(rxn, Adsorption):
+                rank = 0
+            elif isinstance(rxn, Desorption):
+                rank = 2
+            else:
+                rank = 1
+            class_name = rxn.__class__.__name__
+            return (rank, class_name, rxn.code)
+            
+        return sorted(rxns, key=sort_key)  # keep deterministic order
 
     @property
     def intermediates(self):
@@ -147,11 +190,11 @@ class ReactionNetwork(nx.DiGraph):
     
     @property
     def adsorptions(self):
-        return [x for x in self.reactions if isinstance(x, ElementaryReaction) and x.r_type == "adsorption"]
+        return [x for x in self.reactions if isinstance(x, Adsorption)]
     
     @property
     def desorptions(self):
-        return [x for x in self.reactions if isinstance(x, ElementaryReaction) and x.r_type == "desorption"]    
+        return [x for x in self.reactions if isinstance(x, Desorption)]    
 
     @property
     def num_intermediates(self):
@@ -163,7 +206,7 @@ class ReactionNetwork(nx.DiGraph):
 
     @property
     def num_closed_shell_mols(self):
-        return len([x for x in self.intermediates.values() if x.closed_shell and x.phase == "gas"])
+        return len([x for x in self.intermediates.values() if isinstance(x, GasSpecies)])
 
     @property
     def temperature(self):
@@ -199,7 +242,7 @@ class ReactionNetwork(nx.DiGraph):
     
     @property
     def crn_type(self):
-        return "thermal" if Electron() not in self.intermediates else "electro"
+        return "electro" if any(isinstance(x, PCET) for x in self.reactions) else "thermal"
     
     @property
     def elements(self):
@@ -212,19 +255,40 @@ class ReactionNetwork(nx.DiGraph):
     @property
     def es(self):
         return self._es
+
+    @property
+    def catalyst(self):
+        return self.surface
+    
+    def add_catalyst(self, catalyst: Surface):
+        self.surface = catalyst
+        for inter in self.intermediates.values():
+            if isinstance(inter, (AdsorbedSpecies, SurfaceSite)):
+                inter.catalyst = catalyst
+        for reaction in self.reactions:
+            reaction.catalyst = catalyst
+
+    @property
+    def is_thermo_evaluated(self) -> bool:
+        if not self.reactions:
+            return False
+        return all(rxn.is_thermo_evaluated for rxn in self.reactions)
+
+    @property
+    def is_kinetic_evaluated(self) -> bool:
+        if not self.reactions:
+            return False
+        return all(rxn.is_kinetic_evaluated for rxn in self.reactions)
     
     @property
     def is_evaluated(self) -> bool:
-        """
-        Check if all reactions and intermediates in the network have been energetically evaluated.
-        """
         for rxn in self.reactions:
             if not rxn.is_evaluated:
                 return False
         return True
 
     def build_stoichiometry(self):
-        inters = list(self.intermediates.keys()) + ["*"]
+        inters = sorted(list(self.intermediates.keys())) + ["*"]
         index_map = {code: idx for idx, code in enumerate(inters)}
 
         max_edges = 8
@@ -238,13 +302,13 @@ class ReactionNetwork(nx.DiGraph):
         k = 0
         for i, reaction in enumerate(self.reactions):
             for reactant in self.predecessors(reaction):
-                if reactant.phase in ("ads", "gas", "surf"):
+                if isinstance(reactant, (GasSpecies, AdsorbedSpecies, SurfaceSite)):
                     rows[k] = index_map[reactant.code]
                     cols[k] = i
                     data[k] = reaction.stoic[reactant.code]
                     k += 1
             for product in self.successors(reaction):
-                if product.phase in ("ads", "gas", "surf"):
+                if isinstance(product, (GasSpecies, AdsorbedSpecies, SurfaceSite)):
                     rows[k] = index_map[product.code]
                     cols[k] = i
                     data[k] = reaction.stoic[product.code]
@@ -280,7 +344,7 @@ class ReactionNetwork(nx.DiGraph):
     def noc(self):
         return max([x["O"] for x in self.intermediates.values() if x.formula != "O2"], default=0)
     
-    def reverse_reaction(self, i):
+    def reverse_reaction(self, i: int) -> None:
         rxn = self.reactions[i]
         self.remove_edges_from(list(self.in_edges(rxn)) + list(self.out_edges(rxn)))
         rxn.reverse()
@@ -291,7 +355,7 @@ class ReactionNetwork(nx.DiGraph):
             self.add_edge(rxn, p)
         self._v[:, i] *= -1
 
-    def remove_intermediate(self, intermediate: Union[Intermediate, list[Intermediate]]):
+    def remove_intermediate(self, intermediate: Union[Intermediate, list[Intermediate]]) -> None:
         reactions_to_remove = []
         if isinstance(intermediate, Intermediate):
             reactions_to_remove += list(self.pred[intermediate]) 
@@ -304,34 +368,35 @@ class ReactionNetwork(nx.DiGraph):
             self.remove_nodes_from(intermediate)        
         self.remove_reaction(reactions_to_remove)
 
-    def remove_reaction(self, reaction: Union[ElementaryReaction, list[ElementaryReaction]]):
+    def remove_reaction(self, reaction: Union[ElementaryReaction, list[ElementaryReaction]]) -> None:
         """
         Removes reaction nodes and then any resulting isolated species nodes.
 
         Args:
-            threshold (float): The value to compare against.
+            reaction (ElementaryReaction or list of ElementaryReaction): The reaction(s) to remove from the network.
         """
+
         if isinstance(reaction, ElementaryReaction):
             self.remove_node(reaction)
+            initial_removed_count = 1
         elif isinstance(reaction, list):
             self.remove_nodes_from(reaction)
+            initial_removed_count = len(reaction)
 
         num_removed_in_pass = 1
-        tot_gas_removed, tot_ads_removed, tot_rxns_removed = 0, 0, len(reaction)
+        tot_gas_removed, tot_ads_removed = 0, 0
+        tot_rxns_removed = initial_removed_count
         while num_removed_in_pass > 0:
             num_removed_in_pass = 0
             deg_dict = self.degree()
             isolated_species_gas, isolated_species_surf, isolated_rxns = [], [], []
             for x, deg in deg_dict:
-                if isinstance(x, Intermediate):
-                    if x.phase == "gas" and deg == 0:
-                        isolated_species_gas.append(x)
-                    if x.phase == "ads":
-                        if deg < 2:
-                            isolated_species_surf.append(x)
-                else:
-                    if deg < len(x.reactants) + len(x.products):
-                        isolated_rxns.append(x)
+                if isinstance(x, GasSpecies) and deg == 0:
+                    isolated_species_gas.append(x)
+                if isinstance(x, AdsorbedSpecies) and deg < 2:
+                    isolated_species_surf.append(x)
+                if isinstance(x, ElementaryReaction) and deg < len(x.reactants) + len(x.products):
+                    isolated_rxns.append(x)
             if isolated_species_gas:
                 self.remove_nodes_from(isolated_species_gas)
                 num_removed_in_pass += len(isolated_species_gas)
@@ -345,10 +410,8 @@ class ReactionNetwork(nx.DiGraph):
                 num_removed_in_pass += len(isolated_rxns)
                 tot_rxns_removed += len(isolated_rxns)
                 
-        self._intermediates = self.get_intermediates()
-        self._reactions = self.get_reactions()
-        self._v = self.build_stoichiometry()
-        self._es = self.build_es_matrix()
+        self._reset_state()
+
         print(f"Removed {tot_rxns_removed} reactions, {tot_gas_removed} gas species, and {tot_ads_removed} adsorbed intermediates")
 
     def __getitem__(self, other: Union[str, int]):
@@ -368,7 +431,11 @@ class ReactionNetwork(nx.DiGraph):
         string += f"Elements: {', '.join(self.elements)}\n"
         string += "Catalyst: {}\n".format(self.surface)
         string += "Type: {}\n".format(self.crn_type)
-        string += "Energetically evaluated: {}\n".format(self.is_evaluated)
+
+        thermo_status = "Yes" if self.is_thermo_evaluated else "No"
+        kinetic_status = "Yes" if self.is_kinetic_evaluated else "No"
+        string += f"Evaluated: Thermodynamics ({thermo_status}) | Kinetics ({kinetic_status})\n"
+        
         if self.global_reactions:
             string += "Global reactions:\n"
             for i, rxn in enumerate(self.global_reactions):
@@ -401,13 +468,13 @@ class ReactionNetwork(nx.DiGraph):
         label_dh = "ΔE (eV)"
         label_ea = "Eₐ (eV)"
 
+        def format_energy(val):
+            if val is not None:
+                return f"{val:+.2f}"
+            return "N/A"
+
         data = []
         for idx, step in enumerate(rxns):
-            def format_energy(val_list):
-                if val_list is not None and len(val_list) > 0 and val_list[0] is not None:
-                    return f"{val_list[0]:+.2f}"
-                return "N/A"
-
             row = {
                 "Idx": idx,
                 "Step": step.repr_hr,
@@ -418,15 +485,31 @@ class ReactionNetwork(nx.DiGraph):
             }
             data.append(row)
 
-        if return_df:
-            return pd.DataFrame(data).set_index("Idx")
+        gr_data = []
+        global_rxns = getattr(self, "global_reactions", [])
+        if global_rxns:
+            for idx, step in enumerate(global_rxns, start=1):
+                row = {
+                    "Idx": f"GR{idx}",
+                    "Step": step.repr_hr,
+                    "r-type": getattr(step, 'r_type', "-") if "-" in getattr(step, 'r_type', "-") else "-",
+                    label_dh: format_energy(getattr(step, 'e_rxn', None)),
+                    label_ea: format_energy(getattr(step, 'e_act', None)),
+                    "Class": type(step).__name__
+                }
+                gr_data.append(row)
 
-        repr_hr_width = max((len(step.repr_hr) for step in rxns), default=10) + 2
+        if return_df:
+            combined_data = data + gr_data
+            return pd.DataFrame(combined_data).set_index("Idx")
+
+        all_steps = rxns + global_rxns
+        repr_hr_width = max((len(step.repr_hr) for step in all_steps), default=10) + 2
 
         header = (
             f"{'Idx':<5} {'Reaction':<{repr_hr_width}} "
             f"{'r-type':<10} {label_dh:<10} "
-            f"{label_ea:<10} {'Class'}"
+            f"{label_ea:<10} Class"
         )
         
         print(header)
@@ -436,8 +519,17 @@ class ReactionNetwork(nx.DiGraph):
             print(
                 f"{str(r['Idx']):<5} {r['Step']:<{repr_hr_width}} "
                 f"{r['r-type']:<10} {r[label_dh]:<10} "
-                f"{r[label_ea]:<10}{r['Class']}"
+                f"{r[label_ea]:<10} {r['Class']}"
             )
+            
+        if gr_data:
+            print("-" * len(header))
+            for r in gr_data:
+                print(
+                    f"{str(r['Idx']):<5} {r['Step']:<{repr_hr_width}} "
+                    f"{r['r-type']:<10} {r[label_dh]:<10} "
+                    f"{r[label_ea]:<10} {r['Class']}"
+                )
 
     def get_hubs(self, n: int = None) -> dict[str, int]:
         """
@@ -453,208 +545,6 @@ class ReactionNetwork(nx.DiGraph):
             return dict(sorted(hubs.items(), key=lambda item: item[1], reverse=True)[:n])
         else:   
             return hubs
-        
-    def run_microkinetic(
-        self,
-        iv: dict[str, float] = None,
-        oc: dict[str, float] = None,
-        mkm_path: Optional[str] = None,
-        nruns: int = 1,
-        solver: str = "Julia",
-        tfin: float = 1e30,
-        atol: float = 1e-15,
-        rtol: float = 1e-12,
-        clip_eact: float = -1.0,
-        rewire_network: bool = True,
-        **kwargs
-    ) -> dict:
-        """
-        Run microkinetic simulation on the CRN.
-        Args:
-            iv (dict of str: float): Dictionary containing the inlet molar
-                fractions of gas phase species. Keys are the chemical formulas
-                of the species, values are the molar fractions. Sum of all
-                values must be 1.0.
-            oc (dict of str: float): Dictionary containing the operating
-                conditions. Keys must be in OC_KEYS. e.g. {"T": 600,
-                "P": 1.0, "U": 0.0, "pH": 0.0}. If the network is thermal,
-                U and pH are ignored.
-            mkm_path (str, optional): Path to checkpoint from previous
-                MKM results stored as .pkl. If provided, iv and oc are ignored.
-            nruns (int, optional): Number of runs for uncertainty quantification.
-                If > 1, uncertainty quantification is performed. Default to 1 (no uq).
-            solver (str, optional): Solver to use. Default is "Julia".
-            tfin (float, optional): Final time for integration in seconds. Default is 1e30 [s].
-            atol (float, optional): Absolute tolerance for ODE integration.
-                Default is 1e-15.
-            rtol (float, optional): Relative tolerance for ODE integration.
-                Default is 1e-12.
-            clip_eact (float, optional): If positive, reactions with activation barrier 
-                eact > clip_eact in both directions will be clipped such that the smallest barrier
-                between the two directions is equal to clip_eact. Useful to reduce stiffness of the ODEs.
-                If set to zero, reaction will be assumed to be barrierless. Default is -1 (no clipping)
-            rewire_network (bool, optional): If True, the network will be rewired based on the reaction rates   
-                obtained from the kinetic simulation. Default is True.
-            **kwargs: Additional keyword arguments to pass to the Reactor.integrate() method.
-        Returns:
-            results (dict): Dictionary containing the results of the
-                microkinetic simulation.
-        """
-        if not self.is_evaluated:
-            raise ValueError("All reactions (and therefore intermediates) in the network must be energetically evaluated before running microkinetic simulations.")
-        from care.reactors import DifferentialPFR
-        from scipy.sparse import csr_matrix
-        
-        reactions = self.reactions
-        intermediates = self.intermediates
-        
-        if mkm_path is not None:
-            if os.path.isfile(mkm_path):
-                with open(mkm_path, "rb") as f:
-                    inputs = load(f)
-                v = inputs["v"]
-                T = inputs["T"]
-                P = inputs["P"]
-                y0 = inputs["y"]
-                gas_mask = inputs["gas_mask"]
-                inters_info = inputs["inters_info"]
-                inters_formula = inputs["formulas"]
-                print(f"Starting integration from loaded MKM checkpoint {mkm_path}")
-                uq = True if nruns > 1 else False
-                n_reactions = v.shape[1]
-            else:
-                raise ValueError("mkm_path does not point to a valid file")
-        elif oc is None:
-            raise ValueError("Either mkm_path or both iv and oc must be provided")
-        else:
-            n_reactions = len(reactions)
-            uq = True if nruns > 1 else False
-
-            if not np.isclose(sum(iv.values()), 1.0):
-                raise ValueError("Sum of molar fractions is not 1.0")
-
-            T = oc.get("T", self.temperature)
-            if T is None:
-                raise ValueError("temperature not specified")
-
-            P = oc.get("P", self.pressure)
-            if P is None:
-                raise ValueError("pressure not specified")
-
-            if self.crn_type == "electro":
-                U = oc.get("U")
-                PH = oc.get("pH")
-                if U is None or PH is None:
-                    raise ValueError("electrochemical conditions require U and pH")
-                
-            inters = list(intermediates.keys())
-            inters_formula = [intermediates[x].formula for x in inters] + ["*"]
-            gas_mask = np.array([inter.phase == "gas" for inter in intermediates.values()] + [False])
-            inters.append("*")
-            inters_dict = {}
-            inters_dict["formulas"] = inters_formula
-            inters_dict["codes"] = inters
-            for elem in self.elements:
-                inters_dict[elem] = [x[elem] for x in intermediates.values()] + [0] # surface site
-            inters_dict["elements"] = self.elements
-            inters_info = inters_dict
-            inlet_molecules = [inter for inter in iv.keys() if inter in inters_formula]            
-            inlet_molecules = set(inlet_molecules)        
-
-            for i, reaction in enumerate(self.adsorptions):
-                if not any(inter.formula in inlet_molecules for inter in self.predecessors(reaction)):
-                    self.reverse_reaction(i)
-            for i, reaction in enumerate(self.desorptions):
-                if any(inter.formula in inlet_molecules for inter in self.successors(reaction)):
-                    self.reverse_reaction(i)
-
-            v = self.v.copy()
-            y0 = np.zeros(len(inters), dtype=np.float64)
-            y0[-1] = 1.0
-
-            inerts, inert_idx, inert_y0 = [], [], []
-            formula_set = set(inters_formula)
-            for k, val in iv.items():
-                if k not in formula_set:
-                    inerts.append(k)
-                    inert_idx.append(len(y0))
-                    inert_y0.append(P * val)
-                else:
-                    idx = next(i for i, (_, formula) in enumerate(zip(inters, inters_formula)) if formula == k and gas_mask[i])
-                    y0[idx] = P * val
-
-            if inerts:
-                y0 = np.concatenate([y0, inert_y0])
-                gas_mask = np.concatenate([gas_mask, np.ones(len(inerts), dtype=bool)])
-                inters += inerts
-                v = vstack([v, csr_matrix((len(inerts), n_reactions), dtype=np.int8)]).tocsr()
-
-        if uq:
-            kf = np.zeros((n_reactions, nruns))
-            kr = np.zeros((n_reactions, nruns))
-            for j, rxn in enumerate(reactions):
-                for run in range(nruns):
-                    kf[j, run], kr[j, run] = rxn.get_kinetic_constants(t=T, uq=True, clip_eact=clip_eact)
-        else:
-            kf = np.zeros(n_reactions)
-            kr = np.zeros(n_reactions)
-            for j, rxn in enumerate(reactions):
-                kf[j], kr[j] = rxn.get_kinetic_constants(t=T, uq=False, clip_eact=clip_eact)
-
-        reactor = DifferentialPFR(v=v, kd=kf, kr=kr, gas_mask=gas_mask,
-                                inters=inters_info, pressure=P, temperature=T)
-        print(reactor)
-        RTOL, ATOL, TFIN = rtol, atol, tfin
-        settings_str = f"rtol={RTOL}, atol={ATOL}, tfin={TFIN}s"
-        if "precision" in kwargs:
-            precision = kwargs["precision"]
-            settings_str += f", prec={kwargs['precision']} bits"
-        else: 
-            precision = 64
-        if not isinstance(clip_eact, dict):
-            if clip_eact >= 0:
-                if clip_eact == 0:
-                    settings_str += f", barrierless reactions"
-                else:
-                    settings_str += f", clip_Eact={clip_eact} eV"
-        else:
-            settings_str += f", user-defined BEPs"
-        if "jl_solver" in kwargs:
-            settings_str += f", jl_solver={kwargs['jl_solver']}"
-
-        print(f"ODE settings: {settings_str}")
-        results = {}
-
-        if uq:
-            results_runs = []
-            for run in range(nruns):
-                reactor.kd = kf[:, run]
-                reactor.kr = kr[:, run]
-                results_runs.append(reactor.integrate(y0, solver, RTOL, ATOL, TFIN, **kwargs))
-            keys = results_runs[0].keys()
-            results = {k: np.mean([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)}
-            results.update({k+"_std": np.std([r[k] for r in results_runs], axis=0) for k in keys if isinstance(results_runs[0][k], np.ndarray)})
-            results["runs"] = results_runs
-        else:
-            results = reactor.integrate(y0, 
-                                        solver, 
-                                        RTOL, 
-                                        ATOL, 
-                                        TFIN,
-                                        **kwargs)
-        results["U"] = oc.get("U", None)
-        results["pH"] = oc.get("pH", None)
-        results["rxn_strings"] = [rxn.repr_hr for rxn in reactions]
-        results["Material"] = self.surface.slab.get_chemical_formula() if self.surface else "N/A"
-        results["precision"] = f"float{precision}"
-        results["clip_eact"] = clip_eact
-
-        if rewire_network:
-            r = results["net_rate"]
-            for i, rxn in enumerate(self.reactions):
-                if r[i] < 0:
-                    self.reverse_reaction(i)
-        return results
     
     def __eq__(self, other):
         # compare for structural equivalence, not state equivalence
@@ -683,7 +573,7 @@ class ReactionNetwork(nx.DiGraph):
         Returns:
             list[GlobalReaction]: A list of balanced global reactions.
         """
-        gas_inters = [x for x in self.intermediates.values() if x.phase == "gas"]
+        gas_inters = [x for x in self.intermediates.values() if isinstance(x, GasSpecies)]
         if not gas_inters:
             return []
 
@@ -777,5 +667,49 @@ class ReactionNetwork(nx.DiGraph):
 
             if left_side and right_side:
                 global_rxns.append(GlobalReaction([left_side, right_side], stoic_dict))
+        
+        global_rxns = sorted(global_rxns)
+        self._global_reactions_cache = global_rxns
+        return self._global_reactions_cache
+    
+    def get_route_stoichiometry(self, global_rxn: GlobalReaction) -> dict[int, float]:
+        """
+        Calculates the stoichiometric number (σ) for each elementary reaction 
+        required to complete one cycle of the given global reaction.
+        Uses L1-norm minimization to find the sparsest valid pathway.
+        """
+        inters_keys = sorted(list(self.intermediates.keys())) + ["*"]
+        nu_net = np.zeros(len(inters_keys))
+        
+        for r in global_rxn.reactants:
+            if r.code in inters_keys:
+                nu_net[inters_keys.index(r.code)] = -abs(global_rxn.stoic[r.code])
+                
+        for p in global_rxn.products:
+            if p.code in inters_keys:
+                nu_net[inters_keys.index(p.code)] = abs(global_rxn.stoic[p.code])
+                
+        # L1 minimization: Min sum(|σ|) subject to V * σ = nu_net
+        # σ = u - w (u >= 0, w >= 0). Min sum(u + w)
+        V = self.v.toarray()
+        nr = self.num_reactions
+        
+        c = np.ones(2 * nr)
+        A_eq = np.hstack([V, -V])
+        b_eq = nu_net
+        
+        res = scipy.optimize.linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=(0, None), method='highs')
+        
+        if not res.success:
+            raise ValueError("Could not find a valid elementary route for the given global reaction.")
+            
+        # Reconstruct σ array and filter out numerical noise
+        sigma = res.x[:nr] - res.x[nr:]
+        sigma[np.abs(sigma) < 1e-5] = 0.0
 
-        return global_rxns
+        route = {}
+        for i, _ in enumerate(self.reactions):
+            if sigma[i] != 0:
+                route[i] = round(sigma[i], 4)
+                
+        return route

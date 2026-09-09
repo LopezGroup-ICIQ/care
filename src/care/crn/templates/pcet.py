@@ -1,34 +1,49 @@
 """Proton-coupled electron transfer (PCET) reaction template, implemented
 according to the Computational Hydrogen Electrode (CHE) reference."""
 
-from ase import Atoms
 from rich.progress import Progress
 
+from care.constants import K_B
+
 from care import ElementaryReaction, Intermediate
+from care.crn.intermediate import SurfaceSite, GasSpecies
 from care.crn.utils.electro import Proton, Electron, Water
 
 
 class PCET(ElementaryReaction):
     """Class for proton-coupled electron transfer reactions."""
-    __slots__ = ("alpha", "_bader_energy")
-    def __init__(self, components, r_type, stoic=None):
+    
+    __slots__ = (
+        "alpha", 
+        "_bader_energy", 
+        "extra_intermediates", 
+        "T", 
+        "pH", 
+        "U", 
+        "ref_electrode"
+    )
+
+    def __init__(
+        self, 
+        components, 
+        r_type, 
+        stoic=None,
+        extra_intermediates=None,
+        T: float=298.0,
+        pH: float=7.0,
+        U: float=0.0,
+        ref_electrode: str="SHE"
+    ):
         super().__init__(components=components, r_type=r_type, stoic=stoic)
         self.alpha = 0.5  # charge transfer coefficient
         self._bader_energy = None
-
-    def reverse(self):
-        self.components = self.components[::-1]
-        for k, v in self.stoic.items():
-            self.stoic[k] = -v
-        if self.e_rxn:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
-
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0],  # Reverse the activation energy
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
+        
+        # Thermodynamic state variables
+        self.extra_intermediates = extra_intermediates or {}
+        self.T = T
+        self.pH = pH
+        self.U = U
+        self.ref_electrode = ref_electrode
 
     @property
     def bader_energy(self):
@@ -42,14 +57,78 @@ class PCET(ElementaryReaction):
 
     def bb_order(self):
         """
-        Set the elementary reaction in the bond-breaking direction, e.g.:
-        CH4 + * -> CH3 + H*
-
         Note: PCET electron transfer steps do not have an intrinsic bond-breaking direction.
         """
         if Proton() not in self.products:
             self.reverse()
 
+    @property
+    def e_is(self) -> float:
+        """Dynamically calculates the initial state energy or returns explicit override."""
+        if self._e_is is not None:
+            return self._e_is
+
+        for species in self.reactants:
+            if self._get_species_energy(species) is None:
+                return None
+                
+        return sum(
+            abs(min(0, self.stoic[species.code])) * self._get_species_energy(species)
+            for species in self.reactants
+        )
+
+    @e_is.setter
+    def e_is(self, value: float):
+        self._e_is = value
+        self._e_rxn = None  
+        self._e_act = None  
+
+    @property
+    def e_fs(self) -> float:
+        """Dynamically calculates the final state energy or returns explicit override."""
+        if self._e_fs is not None:
+            return self._e_fs
+
+        for species in self.products:
+            if self._get_species_energy(species) is None:
+                return None
+                
+        return sum(
+            abs(max(0, self.stoic[species.code])) * self._get_species_energy(species)
+            for species in self.products
+        )
+
+    @e_fs.setter
+    def e_fs(self, value: float):
+        self._e_fs = value
+        self._e_rxn = None  
+        self._e_act = None
+
+    def _get_species_energy(self, species: Intermediate) -> float:
+        """Helper method to extract CHE thermodynamic energy for a species."""
+        if isinstance(species, SurfaceSite):
+            return 0.0
+            
+        if isinstance(species, Electron):
+            ph_correction = (1 if self.ref_electrode == "SHE" else 0) * 2.303 * K_B * self.T * self.pH
+            return -self.U + ph_correction
+            
+        if isinstance(species, (Water, Proton)):
+            species_formula = "H2O" if isinstance(species, Water) else "H2"
+            fraction = 0.5 if species_formula == "H2" else 1.0
+
+            ref_gas = next(
+                (inter for inter in self.extra_intermediates.values()
+                if inter.formula == species_formula and isinstance(inter, GasSpecies)),
+                None
+            )
+            
+            if ref_gas is None or ref_gas.E is None:
+                return None
+                
+            return ref_gas.E * fraction
+            
+        return getattr(species, 'E', None)
 
 def gen_pcet_reactions(
     intermediates: dict[str, Intermediate], reactions: list[ElementaryReaction], show_progress: bool=False
@@ -84,12 +163,10 @@ def gen_pcet_reactions(
         for inter in intermediates.values()
         if inter.formula == "H" and inter.phase == "ads"
     ][0]
-    active_site = Intermediate(
-        code="*", molecule=Atoms(), phase="surf")
 
     pcets.append(
         PCET(
-            components=[[Proton(), Electron(), active_site], [h_ads]], r_type=rtype
+            components=[[Proton(), Electron(), SurfaceSite()], [h_ads]], r_type=rtype
         )
     )  # H+ + e- + * -> H*
 
@@ -105,13 +182,13 @@ def gen_pcet_reactions(
                         if reactant.formula == "H":
                             new_reactants.extend([Proton(), Electron()])
                         else:
-                            if not reactant.is_surface:
+                            if not isinstance(reactant, SurfaceSite):
                                 new_reactants.append(reactant)
                     for product in rxn.products:
                         if product.formula == "H":
                             new_products.extend([Proton(), Electron()])
                         else:
-                            if not product.is_surface:
+                            if not isinstance(product, SurfaceSite):
                                 new_products.append(product)
 
                     pcets.append(
@@ -122,14 +199,14 @@ def gen_pcet_reactions(
                 elif rxn.r_type in ("C-O", "O-O"):
                     if oh_code in [inter.code for inter in rxn]:
                         for reactant in rxn.reactants:
-                            if reactant.is_surface:
+                            if isinstance(reactant, SurfaceSite):
                                 new_reactants.extend([Electron(), Proton()])
                             elif reactant.formula == "HO":
                                 new_reactants.append(Water())
                             else:
                                 new_reactants.append(reactant)
                         for product in rxn.products:
-                            if product.is_surface:
+                            if isinstance(product, SurfaceSite):
                                 new_products.extend([Electron(), Proton()])
                             elif product.formula == "HO":
                                 new_products.append(Water())
@@ -154,13 +231,13 @@ def gen_pcet_reactions(
                     if reactant.formula == "H":
                         new_reactants.extend([Proton(), Electron()])
                     else:
-                        if not reactant.is_surface:
+                        if not isinstance(reactant, SurfaceSite):
                             new_reactants.append(reactant)
                 for product in rxn.products:
                     if product.formula == "H":
                         new_products.extend([Proton(), Electron()])
                     else:
-                        if not product.is_surface:
+                        if not isinstance(product, SurfaceSite):
                             new_products.append(product)
 
                 pcets.append(
@@ -171,14 +248,14 @@ def gen_pcet_reactions(
             elif rxn.r_type in ("C-O", "O-O"):
                 if oh_code in [inter.code for inter in rxn]:
                     for reactant in rxn.reactants:
-                        if reactant.is_surface:
+                        if isinstance(reactant, SurfaceSite):
                             new_reactants.extend([Electron(), Proton()])
                         elif reactant.formula == "HO":
                             new_reactants.append(Water())
                         else:
                             new_reactants.append(reactant)
                     for product in rxn.products:
-                        if product.is_surface:
+                        if isinstance(product, SurfaceSite):
                             new_products.extend([Electron(), Proton()])
                         elif product.formula == "HO":
                             new_products.append(Water())

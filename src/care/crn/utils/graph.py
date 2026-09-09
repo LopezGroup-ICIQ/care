@@ -1,6 +1,6 @@
 """
 This module contains functions and classes for creating, manipulating and analyzing graphs
-from ASE Atoms objects to PyG Graph format. Readapted from GAME-Net-UQ, but general for any structure.
+representing adsorption/molecular structures.
 """
 
 from collections import defaultdict
@@ -92,7 +92,7 @@ def get_voronoi_neighbourlist(
         increment += 0.2
 
 
-def atoms_to_data(
+def atoms_to_graph(
     atoms: Atoms,
     atom_tags: list[int] = None,
     surface_order: int = -1,
@@ -272,7 +272,7 @@ def adsorption_filter(graph: Graph) -> bool:
     Check presence of surface atoms in the adsorption graph.
 
     Args:
-        graph(networkx.Graph): Graph of the adsorption structure obtained with atoms_to_data.
+        graph(networkx.Graph): Graph of the adsorption structure obtained with atoms_to_graph.
     Returns:
         (bool): True = Surface atoms present in the adsorption graph
                 False = No surface atoms in the adsorption graph
@@ -323,7 +323,7 @@ def graph_plotter(
     Visualize graph with atom labels and colors. Working also for TSs.
     Kamada_kawai_layout engine gives the best visualization appearance.
     Args:
-        graph(networkx.Graph): Input graph obtained with atoms_to_data.
+        graph(networkx.Graph): Input graph obtained with atoms_to_graph.
     """
     labels = get_node_attributes(g, "elem")
     node_colors = {i: RGB_COLORS[labels[i]] for i in g.nodes}
@@ -396,7 +396,7 @@ def get_connectivity_dict(atoms: Atoms, atom_tags: list[int], target: str="as") 
     Returns:
         dict: Canonical connectivity signature dictionary.
     """
-    graph = atoms_to_data(atoms, atom_tags=atom_tags, surface_order=1, filter=False)
+    graph = atoms_to_graph(atoms, atom_tags=atom_tags, surface_order=1, filter=False)
     connectivity_dict = defaultdict(set)
     for node1, node2 in graph.edges():
         data1 = graph.nodes[node1]

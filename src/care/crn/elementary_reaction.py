@@ -6,6 +6,7 @@ import numpy as np
 from scipy.linalg import null_space
 
 from care import Intermediate, format_reaction
+from care.crn.intermediate import AdsorbedSpecies, GasSpecies, SurfaceSite
 from care.constants import INTER_ELEMS, R_TYPES, K_B, H
 
 
@@ -19,12 +20,12 @@ class ElementaryReaction:
     """
     __slots__ = (
         "_components", "_reactants", "_products", "r_type", "stoic",
-        "e_is", "e_ts", "e_fs", "e_rxn", "e_act",
         "k_dir", "k_rev", "k_eq", "rate",
         "_repr_str", "extra_intermediates",
         "neb_images", "neb_energies",
         "is_graph", "ts_graph", "fs_graph",
-        "is_atoms", "fs_atoms", "_code", "_repr_hr"
+        "is_atoms", "fs_atoms", "_code", "_repr_hr", "_catalyst", "requires_neb", "_e_ts", 
+        "_e_is", "_e_fs", "_e_rxn", "_e_act"
     )
     r_types: list[str] = R_TYPES
 
@@ -38,21 +39,12 @@ class ElementaryReaction:
         self.components = components
         self._code = None
 
-        # enthalpy attributes (mu, std)
-        self.e_is: Optional[tuple[float, float]] = None  # initial state
-        self.e_ts: Optional[tuple[float, float]] = None  # transition state
-        self.e_fs: Optional[tuple[float, float]] = None  # final state
-        self.e_rxn: Optional[tuple[float, float]] = None  # reaction energy
-        self.e_act: Optional[tuple[float, float]] = None  # activation energy
-
         # Kinetic constants
         self.k_dir: Optional[float] = None  # direct rate constant
         self.k_rev: Optional[float] = None  # reverse rate constant
         self.k_eq: Optional[float] = None  # equilibrium constant
 
         self.r_type: str = r_type
-        if self.r_type not in self.r_types:
-            raise ValueError(f"Invalid reaction type: {self.r_type}")
         self.stoic = stoic
         if self.r_type != "pseudo" and self.stoic is None:
             self.stoic = self.solve_stoichiometry()
@@ -66,6 +58,14 @@ class ElementaryReaction:
         self.fs_atoms = None
         self.extra_intermediates = {}
 
+        self._catalyst = None
+        self.requires_neb = False
+        self._e_ts = None
+        self._e_is = None 
+        self._e_fs = None 
+        self._e_rxn = None
+        self._e_act = None
+
     @property
     def reactants(self):
         return self.components[0] if self.components else []
@@ -73,6 +73,126 @@ class ElementaryReaction:
     @property
     def products(self):
         return self.components[1] if self.components else []
+    
+    @property
+    def catalyst(self):
+        return self._catalyst
+    
+    @catalyst.setter
+    def catalyst(self, catalyst):
+        self._catalyst = catalyst
+        for species in self:
+            if isinstance(species, AdsorbedSpecies):
+                species.catalyst = catalyst
+
+    @property
+    def e_is(self) -> float:
+        """Dynamically sums the energies of the reactants or returns explicit override."""
+        if self._e_is is not None:
+            return self._e_is
+            
+        for species in self.reactants:
+            if getattr(species, 'phase', None) != "surf" and getattr(species, 'E', None) is None:
+                return None
+                
+        return sum(
+            abs(min(0, self.stoic[species.code])) * species.E 
+            for species in self.reactants if getattr(species, 'phase', None) != "surf"
+        )
+
+    @e_is.setter
+    def e_is(self, value: float):
+        self._e_is = value
+        self._e_rxn = None  # Reset reaction energy when IS energy is set
+        self._e_act = None  # Reset activation energy when IS energy is set
+
+    @property
+    def e_fs(self) -> float:
+        """Dynamically sums the energies of the products or returns explicit override."""
+        if self._e_fs is not None:
+            return self._e_fs
+            
+        for species in self.products:
+            if getattr(species, 'phase', None) != "surf" and getattr(species, 'E', None) is None:
+                return None
+                
+        return sum(
+            abs(max(0, self.stoic[species.code])) * species.E 
+            for species in self.products if getattr(species, 'phase', None) != "surf"
+        )
+
+    @e_fs.setter
+    def e_fs(self, value: float):
+        self._e_fs = value
+        self._e_rxn = None  # Reset reaction energy when FS energy is set
+        self._e_act = None  # Reset activation energy when FS energy is set
+
+    @property
+    def e_rxn(self) -> float:
+        """Thermodynamic reaction energy: E_FS - E_IS or explicit override."""
+        if self._e_rxn is not None:
+            return self._e_rxn
+        if self.e_fs is None or self.e_is is None:
+            return None
+        return self.e_fs - self.e_is
+
+    @e_rxn.setter
+    def e_rxn(self, value):
+        if self.e_is is not None and self.e_fs is not None:
+            raise ValueError(
+                "Cannot explicitly set e_rxn when both e_is and e_fs are already defined. "
+                "Modify the absolute state energies to update the reaction energy."
+            )
+        self._e_rxn = value
+        self._e_is = None
+        self._e_fs = None
+    
+    @property
+    def e_ts(self) -> float:
+        """
+        Transition state energy.
+        Returns the explicitly set TS energy (from NEB/GNN), 
+        or falls back to the maximum of IS/FS energies (barrierless).
+        """
+        if self.e_is is None or self.e_fs is None:
+            return None
+
+        if self._e_ts is None or self._e_ts < max(self.e_is, self.e_fs):
+            return self.e_is if self.e_is > self.e_fs else self.e_fs
+
+        return self._e_ts
+    
+    @e_ts.setter
+    def e_ts(self, value: float):
+        self._e_ts = value
+        self._e_act = None
+
+    @property
+    def e_act(self) -> float:
+        """Activation energy: E_TS - E_IS or explicit override."""
+        if self._e_act is not None:
+            return self._e_act
+        if self.e_ts is None or self.e_is is None:
+            return None            
+        return self.e_ts - self.e_is
+    
+    @e_act.setter
+    def e_act(self, value: float):
+        if self.e_is is not None and self.e_ts is not None:
+            raise ValueError(
+                "Cannot explicitly set e_act when both e_is and e_ts are already defined. "
+                "Modify the absolute state energies to update the activation barrier."
+            )
+        self._e_act = value
+        self._e_ts = None
+    
+    @property 
+    def e_act_rev(self) -> float:
+        return self.e_act - self.e_rxn
+    
+    @property
+    def e_rxn_rev(self) -> float:
+        return -self.e_rxn
 
     def __lt__(self, other):
         return self.code < other.code
@@ -239,17 +359,25 @@ class ElementaryReaction:
         self.components = self.components[::-1]
         for k, v in self.stoic.items():
             self.stoic[k] = -v
-        if self.e_rxn:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
+        self._code = self.__repr__()
+        self.is_atoms, self.fs_atoms = self.fs_atoms, self.is_atoms
+        self.is_graph, self.fs_graph = self.fs_graph, self.is_graph
+        if self.neb_images is not None:
+            self.neb_images = self.neb_images[::-1]
+        if self.neb_energies is not None:
+            self.neb_energies = self.neb_energies[::-1]
 
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0], # As e_rxn already stores the reverse rxn energy, we add, not substract!
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
+        self.k_dir, self.k_rev = self.k_rev, self.k_dir
+        
+        if self.k_eq is not None:
+            self.k_eq = 1.0 / self.k_eq if self.k_eq != 0 else float('inf')
+            
+        if getattr(self, "rate", None) is not None:
+            self.rate = -self.rate
 
-        self.code = self.__repr__()
+        self._e_is, self._e_fs = self._e_fs, self._e_is
+        if self._e_rxn is not None:
+            self._e_rxn = -self._e_rxn
 
     def bb_order(self):
         """
@@ -268,25 +396,16 @@ class ElementaryReaction:
         """
         self.bb_order()
         self.reverse()
-
+    
     def get_kinetic_constants(
-        self, t: float, uq: bool = False, clip_eact: float = -1.0
+        self, t: float, clip_eact: float = -1.0
     ) -> tuple:
         """
         Evaluate the kinetic constants of the reactions in the network
-        with transition state theory and Hertz-Knudsen equation.
-
-        Args:
-            t (float): Temperature in Kelvin.
-            uq (bool, optional): If True, the uncertainty of the activation
-                energy and the reaction energy will be considered. Defaults to
-                False.
-            clip_eact (float, optional): If > 0.0, the activation energy will be clipped, only if 
-                both the forward and reverse activation energies are > clip_eact.
-                if zero, the reaction will be assumed to be barrierless.
+        with transition state theory.
         """
-        e_act = np.random.normal(self.e_act[0], self.e_act[1]) if uq else self.e_act[0]
-        e_rxn = np.random.normal(self.e_rxn[0], self.e_rxn[1]) if uq else self.e_rxn[0]
+        e_act = self.e_act
+        e_rxn = self.e_rxn
         e_act_rev = e_act - e_rxn
         
         if isinstance(clip_eact, (float, int)):
@@ -302,15 +421,13 @@ class ElementaryReaction:
             x = self.r_type
             alpha, beta = clip_eact.get(x, (1, 0))
             if "BondFormation" in self.__class__.__name__:
-                e_act = beta - self.e_rxn[0] * alpha + self.e_rxn[0]
+                e_act = beta - e_rxn * alpha + e_rxn
             elif "BondBreaking" in self.__class__.__name__:
-                e_act = beta + self.e_rxn[0] * alpha
+                e_act = beta + e_rxn * alpha
             else:
                 pass
             e_act = max(0, e_act)
-        else:
-            pass
-        
+            
         k_dir = (K_B * t / H) * np.exp(-e_act / t / K_B)
         k_eq = np.exp(-e_rxn / t / K_B)
         return k_dir, k_dir / k_eq
@@ -326,7 +443,13 @@ class ElementaryReaction:
         for component in self.components:
             for inter in component:
                 if inter.code in evaluated_dict:
-                    inter.ads_configs = evaluated_dict[inter.code].ads_configs
+                    if isinstance(inter, AdsorbedSpecies):
+                        inter.ads_configs = evaluated_dict[inter.code].ads_configs
+                    elif isinstance(inter, GasSpecies):
+                        inter.molecule = evaluated_dict[inter.code].molecule
+                        inter.E = evaluated_dict[inter.code].E
+                    elif isinstance(inter, SurfaceSite):
+                        inter.E = evaluated_dict[inter.code].E
         if self.r_type == "PCET":
             self.extra_intermediates["XLYOFNOQVPJJNP-UHFFFAOYSA-Ng"] = evaluated_dict.get("XLYOFNOQVPJJNP-UHFFFAOYSA-Ng")  # H2O
             self.extra_intermediates["UFHFLCQGNIYNRP-UHFFFAOYSA-N"] = evaluated_dict.get("UFHFLCQGNIYNRP-UHFFFAOYSA-Ng")  # H2
@@ -366,10 +489,7 @@ class ElementaryReaction:
             if self.e_rxn is None or other.e_rxn is None:
                 step.e_rxn = None
             else:
-                step.e_rxn = (
-                    self.e_rxn[0] + other.e_rxn[0],
-                    (self.e_rxn[1] ** 2 + other.e_rxn[1] ** 2) ** 0.5,
-                )
+                step.e_rxn = self.e_rxn + other.e_rxn
             return step
         else:
             raise TypeError("The object is not an ElementaryReaction")
@@ -390,7 +510,7 @@ class ElementaryReaction:
                 if self.e_rxn is None:
                     step.e_rxn = None
                 else:
-                    step.e_rxn = self.e_rxn[0] * other, abs(other) * self.e_rxn[1]
+                    step.e_rxn = self.e_rxn * other
                 return step
             else:
                 rev = deepcopy(self)
@@ -404,7 +524,7 @@ class ElementaryReaction:
                 if rev.e_rxn is None:
                     step.e_rxn = None
                 else:
-                    step.e_rxn = rev.e_rxn[0] * abs(other), abs(other) * rev.e_rxn[1]
+                    step.e_rxn = rev.e_rxn * abs(other)
                 return step
         else:
             raise TypeError("other is not a scalar value")
@@ -422,15 +542,20 @@ class ElementaryReaction:
         else:
             raise TypeError("The object is not an ElementaryReaction")
     
+    @property
+    def is_thermo_evaluated(self) -> bool:
+        """Check if thermodynamic states (IS, FS, reaction energy) are evaluated."""
+        return all(attr is not None for attr in [self.e_is, self.e_fs])
+
+    @property
+    def is_kinetic_evaluated(self) -> bool:
+        """Check if kinetic states are evaluated."""
+        return self._e_ts is not None if self.requires_neb else True
+
     @property    
     def is_evaluated(self) -> bool:
-        """
-        Check if all intermediates in the reaction have been energetically evaluated.
-        """
-        for attr in [self.e_is, self.e_fs, self.e_rxn, self.e_act, self.e_ts]:
-            if attr is None:
-                return False
-        return True
+        """Check if both thermodynamics and kinetics are fully evaluated."""
+        return self.is_thermo_evaluated and self.is_kinetic_evaluated
 
 
 class ReactionMechanism(ElementaryReaction):

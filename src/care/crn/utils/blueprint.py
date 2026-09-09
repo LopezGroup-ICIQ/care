@@ -31,7 +31,8 @@ def gen_blueprint(
     additional_rxns: bool = None,
     electro: bool = None,
     num_cpu: int = mp.cpu_count(),
-    show_progress: bool = False
+    show_progress: bool = False, 
+    show_final_summary: bool = False,
 ) -> ReactionNetwork:
     """
     Generate the reaction network blueprint.
@@ -170,7 +171,8 @@ def gen_blueprint(
     table.add_row(["Total number of species", len(intermediates), f"{tcs+tecs:.2f}"])
     table.add_row(["Total number of reactions", len(reactions), f"{trxn:.2f}"])
 
-    print(f"\n{table}")
+    if show_final_summary:
+        print(f"\n{table}")
 
     if reactants and products:
         for rxn in reactions:
@@ -192,4 +194,15 @@ def gen_blueprint(
         return (category, len(rxn.reactants), len(rxn.products))
 
     reactions.sort(key=rxn_sort_key)
-    return ReactionNetwork(reactions)
+    crn = ReactionNetwork(reactions)
+
+    if reactants and products:
+        rxns_to_reverse = set()
+        for gr in crn.global_reactions:
+            route = crn.get_route_stoichiometry(gr)
+            for idx, sigma in route.items():
+                if sigma < 0:
+                    rxns_to_reverse.add(idx)
+        for idx in rxns_to_reverse:
+            crn.reverse_reaction(idx)
+    return crn

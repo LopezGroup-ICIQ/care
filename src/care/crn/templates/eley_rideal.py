@@ -1,4 +1,5 @@
 from care import Intermediate
+from care.crn.intermediate import GasSpecies, AdsorbedSpecies
 from care.crn.templates import Adsorption, Desorption
 
 class AssociativeAdsorption(Adsorption):
@@ -6,24 +7,12 @@ class AssociativeAdsorption(Adsorption):
     Eley-Rideal (associative adsorption) elementary reaction:
     A* + B(g) -> C*
     """
-    def __init__(self, components, r_type, stoic=None):
-        super().__init__(components, r_type, stoic)
+    def __init__(self, components, stoic=None):
+        super().__init__(components, stoic)
 
     def reverse(self):
+        super().reverse()
         self.__class__ = DissociativeDesorption
-        self.r_type = "desorption"
-        self.components = self.components[::-1]
-        for k, v in self.stoic.items():
-            self.stoic[k] = -v
-        if self.e_rxn != None:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
-
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0],
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
 
 
 class DissociativeDesorption(Desorption):
@@ -31,28 +20,15 @@ class DissociativeDesorption(Desorption):
     Dissociative desorption elementary reaction of the type:
     A* -> B(g) * C*
     """
-    def __init__(self, components, r_type, stoic=None):
-        super().__init__(components, r_type, stoic)
+    def __init__(self, components, stoic=None):
+        super().__init__(components, stoic)
 
     def reverse(self):
+        super().reverse()
         self.__class__ = AssociativeAdsorption
-        self.r_type = "eley_rideal"
-        self.components = self.components[::-1]
-        for k, v in self.stoic.items():
-            self.stoic[k] = -v
-        if self.e_rxn != None:
-            self.e_rxn = -self.e_rxn[0], self.e_rxn[1]
-            self.e_is, self.e_fs = self.e_fs, self.e_is
 
-        if self.e_act:
-            self.e_act = (
-                self.e_act[0] + self.e_rxn[0],
-                (self.e_act[1] ** 2 + self.e_rxn[1] ** 2) ** 0.5,
-            )
-
-
-def gen_eleyrideal(gas_inters: list[Intermediate],
-                   ads_inters: list[Intermediate]) -> list[AssociativeAdsorption]:
+def gen_eleyrideal(gas_inters: list[GasSpecies],
+                   ads_inters: list[AdsorbedSpecies]) -> list[AssociativeAdsorption]:
     """
     Generate Eley-Rideal reactions from a list of gas-phase intermediates and
     adsorbed intermediates.
@@ -71,7 +47,7 @@ def gen_eleyrideal(gas_inters: list[Intermediate],
             if products:
                 for product in products:
                     eleyrideal_reactions.append(AssociativeAdsorption(
-                        components=[gas, ads, product], r_type="eley_rideal"))
+                        components=[gas, ads, product]))
     return eleyrideal_reactions
 
 def check_eleyrideal(gas: Intermediate,

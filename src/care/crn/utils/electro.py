@@ -3,110 +3,143 @@
 from care import Intermediate
 from ase import Atoms
 
+# Constant for converting AMU (atomic mass units) to kilograms
+AMU_TO_KG = 1.66053906660e-27
 
-class Electron(Intermediate):
+
+class ElectroSpecies(Intermediate):
     """
-    Electron species (e-)
+    Base class bridging the Intermediate ABC with specialized electrochemical 
+    and solvent species that do not require graph-topology generation.
     """
+    __slots__ = ("_formula", "_mass", "_electrons", "molecule", "closed_shell")
+
+    def __init__(
+        self, 
+        code: str, 
+        phase: str, 
+        formula: str, 
+        charge: int, 
+        mass: float, 
+        electrons: int, 
+        molecule: Atoms
+    ):
+        super().__init__(code=code, phase=phase)
+        self._formula = formula
+        self.charge = charge
+        self._mass = mass
+        self._electrons = electrons
+        self.molecule = molecule
+        self.closed_shell = False  # Retaining original logic for electro species
+
+    @property
+    def formula(self) -> str:
+        return self._formula
+
+    @property
+    def mass(self) -> float:
+        return self._mass
+
+    @property
+    def electrons(self) -> int:
+        return self._electrons
+
+    def _get_elem_count(self, key: str) -> int:
+        if self.molecule is not None:
+            return self.molecule.get_chemical_symbols().count(key)
+        return 0
+
+
+class Electron(ElectroSpecies):
+    """Electron e-"""
 
     def __init__(self):
-        super().__init__(code="e-", molecule=Atoms(), phase="electro")
-        self.is_surface = False
-        self.closed_shell = False
-        self._mass = 9.10938356e-31  # kg
-        self._electrons = 1
-        self._charge = (
-            -1
-        )  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self._formula = "e-"
+        super().__init__(
+            code="e-", 
+            phase="electro",
+            formula="e-",
+            charge=-1,
+            mass=9.10938356e-31,  # kg
+            electrons=1,
+            molecule=Atoms()
+        )
 
     def __str__(self) -> str:
         return "Electron(e-)"
 
 
-class Proton(Intermediate):
-    """
-    Proton species (H+)
-    """
+class Proton(ElectroSpecies):
+    """Proton H+"""
 
     def __init__(self):
         super().__init__(
-            code="H+", molecule=Atoms("H", positions=[(0, 0, 0)]), phase="solv"
+            code="H+", 
+            phase="solv",
+            formula="H+",
+            charge=1,
+            mass=1.6726219e-27,  # kg
+            electrons=0,
+            molecule=Atoms("H", positions=[(0, 0, 0)])
         )
-        self.is_surface = False
-        self.closed_shell = False
-        self._mass = 1.6726219e-27  # kg
-        self._electrons = 0
-        self._charge = 1  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self._formula = "H+"
 
     def __str__(self) -> str:
         return "Proton(H+)"
 
 
-class Hydroxide(Intermediate):
-    """
-    Hydroxide species (OH-)
-    """
+class Hydroxide(ElectroSpecies):
+    """Hydroxide species (OH-)"""
 
     def __init__(self):
         super().__init__(
-            code="OH-",
-            molecule=Atoms("HO", positions=[(0, 0, 0), (0, 0, 0.96)]),
+            code="OH-", 
             phase="solv",
+            formula="OH-",
+            charge=-1,
+            mass=3.3496e-26,  # kg
+            electrons=0,
+            molecule=Atoms("HO", positions=[(0, 0, 0), (0, 0, 0.96)])
         )
-        self.is_surface = False
-        self.closed_shell = False
-        self._mass = 3.3496e-26  # kg
-        self._electrons = 0
-        self._charge = (
-            -1
-        )  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self._formula = "OH-"
 
     def __str__(self) -> str:
         return "Hydroxide(OH-)"
 
 
-class Water(Intermediate):
-    """
-    Water solvent species (H2O)
-    """
+class Water(ElectroSpecies):
+    """Water solvent species (H2O)"""
 
     def __init__(self):
         super().__init__(
-            code="H2O(aq)",
-            molecule=Atoms("H2O", positions=[(0, 0, 0), (0.96, 0, 0), (0.48, 0.83, 0)]),
+            code="H2O(aq)", 
             phase="solv",
+            formula="H2O",
+            charge=0,
+            mass=2.991e-26,  # kg
+            electrons=0,
+            molecule=Atoms("H2O", positions=[(0, 0, 0), (0.96, 0, 0), (0.48, 0.83, 0)])
         )
-        self.is_surface = False
-        self.closed_shell = False
-        self._mass = 2.991e-26  # kg
-        self._electrons = 0
-        self._charge = 0  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        self._formula = "H2O"
 
     def __str__(self) -> str:
         return "Water(H2O)"
 
 
-class Cation(Intermediate):
-    """
-    Cation species (e.g. K+, Na+, Li+)
-    """
+class Cation(ElectroSpecies):
+    """Cation species (e.g. K+, Na+, Li+)"""
 
     def __init__(self, metal: str, charge: int):
+        mol = Atoms(metal, positions=[(0, 0, 0)])
+        
+        # Calculate accurate mass in kg instead of hardcoding the proton mass
+        actual_mass_kg = mol.get_masses().sum() * AMU_TO_KG
+        
         super().__init__(
-            code=f"{metal}+", molecule=Atoms(metal, positions=[(0, 0, 0)]), phase="solv"
+            code=f"{metal}+", 
+            phase="solv",
+            formula=f"{metal}" + "+" * charge,
+            charge=charge,
+            mass=actual_mass_kg,
+            electrons=0,
+            molecule=mol
         )
-        self.is_surface = False
-        self.closed_shell = False
-        self.mass = 1.6726219e-27  # kg
-        self.electrons = 0
-        self.charge = (
-            charge  # ne (where e is the elementary charge, 1.602176634 × 10^-19 C)
-        )
-        self.formula = f"{metal}" + "+" * charge
 
     def __str__(self) -> str:
         return f"{self.code}({self.formula})"
