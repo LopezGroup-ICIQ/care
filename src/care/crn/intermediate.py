@@ -327,7 +327,7 @@ class MolecularSpecies(Intermediate):
             symbols.append(mol.GetAtomWithIdx(i).GetSymbol())
 
         ase_atoms = Atoms(symbols=symbols, positions=positions)
-        extents = positions.ptp(axis=0)  # Calculate the bounding box of the molecule (max - min in X, Y, Z)
+        extents = np.ptp(positions, axis=0)  # Calculate the bounding box of the molecule (max - min in X, Y, Z)
         cell_dims = np.maximum(20.0, extents + 10.0)
         
         ase_atoms.set_cell(cell_dims)

@@ -1,10 +1,8 @@
 import unittest
 import pytest
 
-from dask.distributed import Client, LocalCluster
-
 from care.crn.intermediate import SurfaceSite, AdsorbedSpecies, GasSpecies
-from tests import test_inters
+from tests.shared_data import test_inters
 
 
 class TestEvaluator(unittest.TestCase):
@@ -40,20 +38,3 @@ class TestEvaluator(unittest.TestCase):
             elif isinstance(inter, (SurfaceSite, GasSpecies)):
                 assert inter.E != None
             self.mlip_no_dispersion(inter)
-
-    # def test_parallel_eval(self):
-    #     cluster = LocalCluster(n_workers=4, threads_per_worker=1)
-    #     client = Client(address=cluster)
-    #     model = self.mlip
-    #     def f(inter):
-    #         model(inter)
-    #         return inter
-    #     futures = client.map(f, test_inters)
-    #     results = client.gather(futures)
-    #     for inter in results:
-    #         if isinstance(inter, AdsorbedSpecies):
-    #             assert len(inter.ads_configs) == 2
-    #             self.assertIsInstance(inter.ads_configs["0"]["mu"], float)
-    #             self.assertIsInstance(inter.ads_configs["1"]["mu"], float)
-    #         elif isinstance(inter, (SurfaceSite, GasSpecies)):
-    #             assert inter.E != None

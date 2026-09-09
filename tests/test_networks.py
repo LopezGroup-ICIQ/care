@@ -13,7 +13,7 @@ from care.constants import INTER_ELEMS
 from care.crn.utils.blueprint import gen_blueprint
 from care.crn.intermediate import AdsorbedSpecies, GasSpecies, SurfaceSite
 
-from tests import co2_from_poscar, ammonia_from_poscar
+from tests.shared_data import co2_from_poscar, ammonia_from_poscar
 
 
 net = gen_blueprint(ncc=1, 

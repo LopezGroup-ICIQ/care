@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from care import ReactionNetwork
-from tests import evaluated_network as nw
+from tests.shared_data import evaluated_network as nw
 
 class TestReactionNetwork(unittest.TestCase):
     def test_reaction_network(self):

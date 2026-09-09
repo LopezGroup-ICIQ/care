@@ -1,7 +1,7 @@
 import unittest
 import os
 import pytest
-from tests import surface, surface_from_bulk, surface_from_slab
+from tests.shared_data import surface, surface_from_bulk, surface_from_slab
 
 from ase import Atoms
 from ase.build import bulk

@@ -6,7 +6,7 @@ from care.crn.surface import bottom_half_indices
 from care.adsorption import place_adsorbate, get_active_sites
 from care.crn.utils.graph import atoms_to_graph, extract_adsorbate
 
-from tests import test_inters, surface, co2_from_poscar, surface_from_slab, ammonia_from_poscar, surface_from_bulk, surface
+from tests.shared_data import test_inters, surface, co2_from_poscar, surface_from_slab, ammonia_from_poscar, surface_from_bulk, surface
 
 n_slab = len(surface.slab)
 num_configs = 3

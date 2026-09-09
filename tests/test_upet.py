@@ -1,7 +1,7 @@
 import unittest
 import pytest
 
-from tests import test_inters
+from tests.shared_data import test_inters
 from care.crn.intermediate import AdsorbedSpecies, GasSpecies, SurfaceSite
 
 class TestEvaluator(unittest.TestCase):

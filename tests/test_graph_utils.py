@@ -4,10 +4,10 @@ from networkx import Graph
 from networkx.utils import graphs_equal
 
 from care.crn.utils.graph import atoms_to_graph, extract_adsorbate, get_connectivity_dict, connectivity_signature, is_adsorbate_fragmented, is_ring
-from tests import ase_adsorbate_linear as x1
-from tests import ase_adsorbate_ring as x2
-from tests import ase_adsorbate_fragmented as x3
-from tests import ase_adsorbate_oxide as x4
+from tests.shared_data import ase_adsorbate_linear as x1
+from tests.shared_data import ase_adsorbate_ring as x2
+from tests.shared_data import ase_adsorbate_fragmented as x3
+from tests.shared_data import ase_adsorbate_oxide as x4
 
 x11 = [0] * 48 + [1] * 12
 x22 = [0] * 48 + [1] * 15

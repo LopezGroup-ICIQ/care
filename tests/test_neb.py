@@ -5,7 +5,7 @@ from care.crn.utils.graph import is_adsorbate_fragmented, adsorption_filter
 from care.crn.templates.dissociation import BondBreaking, _build_fragment_nx
 from networkx import is_connected
 
-from tests import evaluated_network
+from tests.shared_data import evaluated_network
 
 mlp = MACEevaluator(size="small", max_steps=5, device="cuda", allow_shared_calculator=False, parallel=False)
 
