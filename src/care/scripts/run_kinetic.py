@@ -4,11 +4,12 @@ Run kinetic simulation for CRN constructed with CARE.
 
 import argparse
 import os
-from pickle import dump, load
+from pickle import dump
 import tomllib
 
 from care import ReactionNetwork
 from care.io import load_network
+from care.reactors.differential_pfr import DifferentialPFR
 
 def main():
     """
@@ -45,22 +46,19 @@ def main():
         LOGO = file.read()
         print(f"{LOGO}\n")
 
-    # Output file name
     if ARGS.output is None:
         ARGS.output = f"mkm_C{ARGS.ncc}O{ARGS.noc}_cyclic{ARGS.cyclic}_rearr{ARGS.rearr}_electro{ARGS.electro}"
 
-    # Load CRN blueprint
     crn = load_network(ARGS.crn)
 
     if not isinstance(crn, ReactionNetwork):
         raise TypeError("The input CRN file does not contain a valid ReactionNetwork object.")
 
-    # Load evaluation settings
     with open(ARGS.input, "rb") as f:
         config = tomllib.load(f)
 
     if "mkm" in config.keys() and "operating_conditions" in config.keys() and "initial_conditions" in config.keys():
-        MKM_SWITCH = True
+        pass
     else:
         raise KeyError("Running kinetic simulations requires the fields 'mkm', 'operating_conditions', and 'initial_conditions' in the input .toml file.")
 
@@ -69,16 +67,14 @@ def main():
     T = config["operating_conditions"]["temperature"]
     P = config["operating_conditions"]["pressure"]
 
+    reactor = DifferentialPFR(crn, P=P, T=T, U=U, pH=PH)
+
 
     print(
         f"\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━ Run kinetic simulation  ━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
     )
 
-    y = crn.run_microkinetic(
-            iv=config["initial_conditions"],
-            oc={"T": T, "P": P, "U": U, "pH": PH},
-            **config["mkm"]
-        )
+    y = reactor.run(iv=config["initial_conditions"], **config["mkm"])
 
     print(
             "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ Kinetic simulation ended ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
@@ -86,7 +82,7 @@ def main():
 
     print(f"Total time: {y['time']:.2f} s")
     with open(ARGS.output+'.pkl', "wb") as f:
-        dump(y, f)
+        dump(y.to_dict(), f)
         print(f"MKM results saved to {ARGS.output+'.pkl'}")
 
 if __name__ == '__main__':

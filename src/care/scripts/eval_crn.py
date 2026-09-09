@@ -14,7 +14,8 @@ import dask
 from dask.distributed import Client, LocalCluster
 
 from care import ReactionNetwork, load_surface
-from care.evaluators import load_inter_evaluator, load_reaction_evaluator
+from care.crn.intermediate import SurfaceSite
+from care.evaluators import load_evaluator
 from care.io import save_network, load_network
 from care.scripts import setup_logging, load_x, predict
 
@@ -87,11 +88,11 @@ def main():
         raise KeyError("'evaluator' field definition not found in the input .toml file. Please define the energy evaluator.")
 
     surface = load_surface(**config["surface"])
+    crn.add_catalyst(surface)
 
     model_name = config["evaluator"]["model"]
     del config["evaluator"]["model"]
-    inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
-    rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
+    ml_evaluator = load_evaluator(model_name, **config["evaluator"])
     current_dir = os.path.dirname(__file__)
     logo_path = current_dir + "/../logo.txt"
     with open(logo_path, "r") as file:
@@ -99,50 +100,72 @@ def main():
         print(f"{LOGO}\n")
 
     # 2. Evaluation of the adsorbed intermediates in the CRN with GAME-Net-UQ
-    print(
-        f"\n┏━━━━━━━━━━━━ Evaluating CRN ━━━━━━━━━━━┓\n"
-    )
+    print(f"\n┏━━━━━━━━━━━━ Evaluating CRN ━━━━━━━━━━━┓\n")
     t0 = time()
+    print("Energy evaluator: ", print(ml_evaluator))
+    
+    # =========================================================================
     # INTERMEDIATE EVALUATION
+    # =========================================================================
     print(f"Energy estimation of the {crn.num_intermediates} intermediates...")
-    print("Intermediates energy calculator: ", inter_evaluator)
-    cluster = LocalCluster(n_workers=ARGS.num_cpu,
-                           threads_per_worker=1, 
-                           ip='127.0.0.1', 
-                           scheduler_port=0, 
-                           dashboard_address=":0")
-    client = Client(address=cluster)
-    print(f"Dask dashboard available at: {cluster.dashboard_link}")
+    
     if os.path.exists(ARGS.output + "_intermediates.pkl"):
+        print("Loading intermediates from disk...")
         with open(ARGS.output + "_intermediates.pkl", "rb") as f:
-            print("Loading intermediates from disk...")
             intermediates = load(f)
     else:
-        tasks = [load_x(intermediate) for intermediate in crn.intermediates.values()]
-        dmodel = dask.delayed(inter_evaluator)
-        predictions = [predict(task, dmodel) for task in tasks]
-        predictions = dask.compute(*predictions)
-        intermediates = {inter.code: inter for inter in predictions}
+        if ml_evaluator.device == "cuda":
+            print("GPU detected: Processing intermediates sequentially.")
+            intermediates = {}
+            for inter in tqdm(crn.intermediates.values()):
+                ml_evaluator(inter)
+                intermediates[inter.code] = inter
+        else:
+            cluster = LocalCluster(n_workers=ARGS.num_cpu,
+                                   threads_per_worker=1, 
+                                   ip='127.0.0.1', 
+                                   scheduler_port=0, 
+                                   dashboard_address=":0")
+            client = Client(address=cluster)
+            print(f"Dask dashboard available at: {cluster.dashboard_link}")
+            
+            tasks = [load_x(intermediate) for intermediate in crn.intermediates.values()]
+            dmodel = dask.delayed(ml_evaluator)
+            predictions = [predict(task, dmodel) for task in tasks]
+            predictions = dask.compute(*predictions)
+            intermediates = {inter.code: inter for inter in predictions}
+            
+            client.shutdown()
+            client.close()
+            cluster.close()
+
         with open(ARGS.output+'_intermediates.pkl', "wb") as f:
             print("Saving intermediates to disk...")
             dump(intermediates, f)
-    for rxn in crn.reactions:
-        rxn.update_intermediates(intermediates)
+        
     ti = time()
     print(f"Total intermediate evaluation time: {ti - t0:.2f} s")
 
+
+    # =========================================================================
     # REACTION EVALUATION
+    # =========================================================================
     print(f"\nEnergy estimation of the {crn.num_reactions} reactions...")
-    print("Reaction properties calculator: ", rxn_evaluator)
-    if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
-        print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
-        batches = [crn.reactions[i:i + ARGS.batch_size_rxn] for i in range(0, crn.num_reactions, ARGS.batch_size_rxn)]
-        for batch in tqdm(batches):
-            rxn_evaluator(batch)
+
+    if ml_evaluator.device == "cuda":
+        rxns = []
+        print("GPU detected: Processing reactions sequentially.")
+        for rxn in tqdm(crn.reactions):
+            ml_evaluator(rxn)
+            rxns.append(rxn)
     else:
-        results  = []
+        cluster = LocalCluster(n_workers=ARGS.num_cpu,
+                               threads_per_worker=1, 
+                               ip='127.0.0.1', 
+                               scheduler_port=0)
+        client = Client(address=cluster)
         tasks = [load_x(reaction) for reaction in crn.reactions]
-        dmodel = dask.delayed(rxn_evaluator)
+        dmodel = dask.delayed(ml_evaluator)
         for i in range(0, len(tasks), ARGS.batch_size_rxn):
             batch_tasks = tasks[i:i+ARGS.batch_size_rxn]
             batch_predictions = [predict(t, dmodel) for t in batch_tasks]
@@ -153,31 +176,32 @@ def main():
             del batch_predictions, batch_results
             gc.collect()
             print(f"Finalized batch {i//ARGS.batch_size_rxn + 1}/{(len(tasks)-1)//ARGS.batch_size_rxn + 1}")
-    client.shutdown()
-    client.close()
-    cluster.close()
-    results = []
-    try:
-        with open(ARGS.output + '_reactions.pkl', 'rb') as f:
-            while True:
-                results.append(load(f))
-    except EOFError:
-        pass
-    rxns = sorted(results)
+            
+        client.shutdown()
+        client.close()
+        cluster.close()
+        
+        # Collect from Dask pickle files
+        results = []
+        try:
+            with open(ARGS.output + '_reactions.pkl', 'rb') as f:
+                while True:
+                    results.append(load(f))
+        except EOFError:
+            pass
+        rxns = sorted(results)
+
     tr = time()
     print(f"Total reaction evaluation time: {tr - ti:.2f} s")
 
-    print(
-                "\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n"
-            )
+    print("\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━ Evaluation done ━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n")
+    
     crn = ReactionNetwork(reactions=rxns, surface=surface)
 
     print(f"Total time: {(time() - t0):.2f} s")
     save_network(crn, f"{ARGS.output}.json")
+    
     if os.path.exists(ARGS.output + '_intermediates.pkl'):
         os.remove(ARGS.output + '_intermediates.pkl')
     if os.path.exists(ARGS.output + '_reactions.pkl'):
         os.remove(ARGS.output + '_reactions.pkl')
-
-if __name__ == '__main__':
-    main()

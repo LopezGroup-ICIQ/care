@@ -14,11 +14,13 @@ from tqdm import tqdm
 import dask
 from dask.distributed import Client, LocalCluster
 
-from care import gen_blueprint, load_surface
+from care import load_surface
 from care.crn.reaction_network import ReactionNetwork
-from care.evaluators import load_inter_evaluator, load_reaction_evaluator, eval_dict
+from care.evaluators import load_evaluator, eval_dict
 from care.io import save_network, load_network
 from care.scripts import setup_logging, load_x, predict
+from care.crn.utils.blueprint import gen_blueprint
+from care.reactors.differential_pfr import DifferentialPFR
 
 def main():
     """
@@ -128,6 +130,7 @@ def main():
 
         # 2. Evaluation of the adsorbed intermediates in the CRN
         surface = load_surface(**config["surface"])
+        crn.add_catalyst(surface)
         print(
             f"\n┏━━━━━━━━━━━━ Evaluating the CRN on {surface} ━━━━━━━━━━━┓\n"
         )
@@ -148,10 +151,9 @@ def main():
         t0 = time.time()
         # 2.1 Intermediate evaluator
         print(f"Energy estimation of the {crn.num_intermediates} intermediates...")
-        inter_evaluator = load_inter_evaluator(model_name, surface, **config["evaluator"])
-        print("Intermediates energy calculator: ", inter_evaluator)
+        ml_evaluator = load_evaluator(model_name, **config["evaluator"])
+        print("Intermediates energy calculator: ", ml_evaluator)
         del config["evaluator"]["model"]
-        rxn_evaluator = load_reaction_evaluator(model_name, inter_evaluator, **config["evaluator"])
 
         cluster = LocalCluster(n_workers=ARGS.num_cpu, 
                            threads_per_worker=1, 
@@ -168,7 +170,7 @@ def main():
             tasks = [load_x(intermediate)
                 for intermediate in crn.intermediates.values()
             ]
-            dmodel = dask.delayed(inter_evaluator)
+            dmodel = dask.delayed(ml_evaluator)
             predictions = [predict(task, dmodel)
                 for task in tasks
             ]
@@ -185,16 +187,16 @@ def main():
         # REACTION EVALUATION
         num_reactions = crn.num_reactions
         print(f"\nEnergy estimation of {num_reactions} reactions...")
-        print("Reaction properties calculator: ", rxn_evaluator)
-        if rxn_evaluator.device == "cuda" and rxn_evaluator.supports_batching:
+        print("Reaction properties calculator: ", ml_evaluator)
+        if ml_evaluator.device == "cuda" and ml_evaluator.supports_batching:
             print(f"Evaluating in batches of {ARGS.batch_size_rxn}")
             batches = [crn.reactions[i:i + ARGS.batch_size_rxn] for i in range(0, num_reactions, ARGS.batch_size_rxn)]
             for batch in tqdm(batches):
-                rxn_evaluator(batch)
+                ml_evaluator(batch)
         else:
             results  = []
             tasks = [load_x(reaction) for reaction in crn.reactions]
-            dmodel = dask.delayed(rxn_evaluator)
+            dmodel = dask.delayed(ml_evaluator)
             for i in range(0, len(tasks), ARGS.batch_size_rxn):
                 batch_tasks = tasks[i:i+ARGS.batch_size_rxn]
                 batch_predictions = [predict(t, dmodel) for t in batch_tasks]
@@ -229,12 +231,10 @@ def main():
         crn = load_network(f"{output_dir}/crn.json")
 
     if MKM_SWITCH:
-        print("\nRunning the microkinetic simulation...")
-        results = crn.run_microkinetic(
-            iv=config["initial_conditions"],
-            oc=config["operating_conditions"],
-            **config["mkm"]
-        )
+        print("\nRunning microkinetic simulation...")
+        oc = config["operating_conditions"]
+        reactor = DifferentialPFR(crn, T=oc["T"], P=oc["P"])
+        results = reactor.run(config["initial_conditions"], **config["mkm"])
 
         print("\nSaving the microkinetic simulation...")
 
