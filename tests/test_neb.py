@@ -7,7 +7,7 @@ from networkx import is_connected
 
 from tests.shared_data import evaluated_network
 
-mlp = MACEevaluator(size="small", max_steps=5, device="cuda", allow_shared_calculator=False, parallel=False)
+mlp = MACEevaluator(size="small", max_steps=3, device="cpu", allow_shared_calculator=False, parallel=False)
 
 reaction = None
 for rxn in evaluated_network.reactions:
