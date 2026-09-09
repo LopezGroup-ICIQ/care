@@ -48,20 +48,6 @@ class ReactorModel(ABC):
         ...
 
     @abstractmethod
-    def conversion(self):
-        """
-        Provides the conversion of reactant i.
-        """
-        ...
-
-    @abstractmethod
-    def selectivity(self):
-        """
-        Provides the selectivity of reactant i towards product j.
-        """
-        ...
-
-    @abstractmethod
     def reaction_rate(self):
         """
         Provides the production rate of the specific species.
