@@ -7,9 +7,11 @@ import numpy as np
 import pytest
 from networkx import DiGraph
 
-from care import Intermediate, ElementaryReaction, ReactionMechanism, gen_blueprint, ReactionNetwork
+from care import Intermediate, ElementaryReaction, ReactionMechanism, ReactionNetwork
 from care.crn.templates import PCET, Rearrangement, Adsorption, Desorption, BondBreaking, BondFormation
 from care.constants import INTER_ELEMS
+from care.crn.utils.blueprint import gen_blueprint
+from care.crn.intermediate import AdsorbedSpecies, GasSpecies, SurfaceSite
 
 from tests import co2_from_poscar, ammonia_from_poscar
 
@@ -17,8 +19,7 @@ from tests import co2_from_poscar, ammonia_from_poscar
 net = gen_blueprint(ncc=1, 
                     noc=2, 
                     additional_rxns=True, 
-                    electro=True, 
-                    cyclic=False)
+                    electro=True)
 inters = net.intermediates
 steps = net.reactions
 
@@ -33,11 +34,6 @@ S_dict = {
         "products": ["C", "S"], 
         "elements": ["C", "H", "S"]          # Methane, Hydrogen Sulfide
     },
-    # "Thiophene_HDS": {
-    #     "reactants": ["c1ccsc1", "[H][H]"],
-    #     "products": ["CCCC", "S"], 
-    #     "elements": ["C", "H", "S"]              # Butane, Hydrogen Sulfide
-    # },
     "Claus_catalytic_step": {
         "reactants": ["S", "O=S=O"],    # Hydrogen Sulfide, Sulfur Dioxide
         "products": ["[S]", "O"], 
@@ -61,11 +57,6 @@ N_dict = {
         "products": ["N=O", "O"], 
         "elements": ["H", "N", "O"]
     },
-    # "Pyridine_HDN": {   # C5H5N + 5H2 -> NH3 + C5H12
-    #     "reactants": ["c1ccccn1", "[H][H]"], 
-    #     "products": ["CCCCC", "N"], 
-    #     "elements": ["C", "H", "N"]
-    # },
     "Methylamine_synthesis": {
         "reactants": ["CO", "N"],       # CH4O + NH3 -> CH5N + H2O
         "products": ["CN", "O"], 
@@ -98,6 +89,12 @@ halogen_dict = {"methane chlorination": {
 
 
 class TestElementaryReaction(unittest.TestCase):
+    def test_repr(self):
+        for x in net.reactions:
+            self.assertIn("\u27F9", str(x))
+            self.assertGreaterEqual(len(str(x)), 71)
+            if not isinstance(x, Rearrangement):
+                self.assertIn("+", str(x))
 
     def test_type(self):
         """
@@ -176,8 +173,8 @@ class TestElementaryReaction(unittest.TestCase):
         for reaction in steps:
             if reaction.e_act != None and reaction.e_rxn != None:
                 self.assertGreaterEqual(reaction.e_act, 0)
-                if reaction.e_rxn[0] > 0:
-                    self.assertGreaterEqual(reaction.e_act, reaction.e_rxn[0])
+                if reaction.e_rxn > 0:
+                    self.assertGreaterEqual(reaction.e_act, reaction.e_rxn)
                 else:
                     self.assertGreaterEqual(reaction.e_act, 0)
 
@@ -211,16 +208,17 @@ class TestElementaryReaction(unittest.TestCase):
         self.assertEqual(expected_bond_formations, len([step for step in steps if isinstance(step, BondFormation)]))
         self.assertEqual(expected_desorptions, len([step for step in steps if isinstance(step, Desorption)]))
 
-    def test_addition(self):
+    def test_addition_substraction(self):
         """
-        Check that addition steps are correctly implemented
+        Check that addition and subtraction steps are correctly implemented
         """
         step1 = steps[randint(0, len(steps) - 1)]
         step2 = steps[randint(0, len(steps) - 1)]
-        step1.e_rxn = -1.0, 0.1
-        step2.e_rxn = -0.3, 0.2
+        step1.e_rxn = -1.0
+        step2.e_rxn = -0.3
         addition_step = step1 + step2
-        total = 0
+        subtraction_step = step1 - step2
+        total_add, total_sub = 0, 0
         for element in INTER_ELEMS:
             element_balance = sum(
                 [
@@ -229,19 +227,30 @@ class TestElementaryReaction(unittest.TestCase):
                     + list(addition_step.products)
                 ]
             )
-            total += element_balance
+            total_add += element_balance
+            element_balance = sum(
+                [
+                    subtraction_step.stoic[inter] * inter[element]
+                    for inter in list(subtraction_step.reactants)
+                    + list(subtraction_step.products)
+                ]
+            )
+            total_sub += element_balance
         self.assertIsInstance(addition_step, ReactionMechanism)
-        self.assertEqual(total, 0)
-        self.assertEqual(addition_step.e_rxn[0], -1.3)
-        self.assertEqual(addition_step.e_rxn[1], (0.1**2 + 0.2**2) ** 0.5)
+        self.assertIsInstance(subtraction_step, ReactionMechanism)
+        self.assertEqual(total_add, 0)
+        self.assertEqual(total_sub, 0)
+        self.assertEqual(addition_step.e_rxn, -1.3)
+        self.assertEqual(subtraction_step.e_rxn, -0.7)
         self.assertEqual(addition_step.r_type, "pseudo")
+        self.assertEqual(subtraction_step.r_type, "pseudo")
 
     def test_multiplication(self):
         """
         Check that multiplication steps are correctly implemented
         """
         step = steps[randint(0, len(steps) - 1)]
-        step.e_rxn = -1.0, 0.1
+        step.e_rxn = -1.0
         random_num = randint(1, 5)
         mul_step = step * random_num
         total = 0
@@ -255,9 +264,13 @@ class TestElementaryReaction(unittest.TestCase):
             total += element_balance
         self.assertIsInstance(mul_step, ReactionMechanism)
         self.assertEqual(total, 0)
-        self.assertEqual(mul_step.e_rxn[0], step.e_rxn[0] * random_num)
-        self.assertEqual(mul_step.e_rxn[1], abs(random_num) * step.e_rxn[1])
+        self.assertEqual(mul_step.e_rxn, step.e_rxn * random_num)
         self.assertEqual(mul_step.r_type, "pseudo")
+        # test multiplication by negative number reverses the step
+        neg_mul_step = step * -1
+        self.assertEqual(neg_mul_step.reactants, step.products)
+        self.assertEqual(neg_mul_step.products, step.reactants)
+        self.assertEqual(neg_mul_step.e_rxn, -step.e_rxn)
 
     def test_reverse(self):
         """
@@ -266,11 +279,7 @@ class TestElementaryReaction(unittest.TestCase):
         for step in steps:
             step_class = step.__class__
             reactants, products = step.reactants, step.products
-            step.e_is, step.e_fs, step.e_ts = (10.0, 0.1), (9.0, 0.1), (11.0, 0.1)
-            step.e_rxn = step.e_fs[0] - step.e_is[0], (0.1**2 + 0.1**2) ** 0.5
-            step.e_act = step.e_ts[0] - step.e_is[0], (0.1**2 + 0.1**2) ** 0.5
-            e_rxn_mu_dir = step.e_rxn[0]
-            e_act_mu_dir = step.e_act[0]
+            step.e_is, step.e_fs, step.e_ts = 10.0, 9.0, 11.0
             step.reverse()
             if step.__class__ == BondFormation:
                 self.assertEqual(step_class, BondBreaking)
@@ -286,11 +295,63 @@ class TestElementaryReaction(unittest.TestCase):
                 self.assertEqual(step_class, PCET)
             self.assertEqual(products, step.reactants)
             self.assertEqual(reactants, step.products)
-            self.assertEqual(step.e_rxn[0], -e_rxn_mu_dir)
-            self.assertEqual(step.e_act[0], e_act_mu_dir - e_rxn_mu_dir)
+            self.assertEqual(step.e_rxn, 1.0, msg=f"e_rxn for step {step}  ({type(step)}) is not 1.0 after reversal")
+            self.assertEqual(step.e_act, 2.0)
+
+    def test_energy_setters(self):
+        """
+        Check that energy setters correctly invalidate dependent states and
+        raise ValueErrors when conflicting overrides are attempted.
+        """
+        A = GasSpecies("Ag", Atoms("CHO"))
+        B = GasSpecies("Bg", Atoms("CHO"))
+
+        A.E = None 
+        B.E = None
+        
+        step = ElementaryReaction(components=([A], [B]), stoic={A.code: -1, B.code: 1})
+
+        step.e_is = 0.0
+        step.e_fs = -1.0
+        step.e_ts = 1.0
+        
+        self.assertEqual(step.e_rxn, -1.0)
+        self.assertEqual(step.e_act, 1.0)
+        
+        step.e_fs = -2.0
+        self.assertEqual(step.e_rxn, -2.0)
+        
+        step.e_is = 0.5
+        self.assertEqual(step.e_rxn, -2.5)
+        self.assertEqual(step.e_act, 0.5)
+
+        with self.assertRaises(ValueError):
+            step.e_rxn = -3.0  # Both e_is and e_fs are defined
+
+        with self.assertRaises(ValueError):
+            step.e_act = 0.8   # Both e_is and e_ts are defined
+
+        step2 = ElementaryReaction(components=([A], [B]), stoic={A.code: -1, B.code: 1})
+        step2.e_is = 0.0 
+        
+        # Setting e_rxn is valid and clears e_is.
+        step2.e_rxn = -1.5
+        self.assertIsNone(step2.e_is)
+        self.assertIsNone(step2.e_fs)
+        self.assertEqual(step2.e_rxn, -1.5)
+
+        # Restore e_is to test e_act
+        step2.e_is = 0.0
+        step2.e_act = 1.2
+        self.assertIsNone(step2.e_ts)
+        self.assertEqual(step2.e_act, 1.2)
 
 
 class TestIntermediate(unittest.TestCase):
+    def test_repr(self):
+        for k, v in inters.items():
+            self.assertTrue(len(str(v)) >= 31)  # IncHiKey (27) + phase id (1) + "(x)" (>=3)
+
     def test_uniqueness(self):
         """
         Check that no duplicated intermediates are present in the network
@@ -308,7 +369,8 @@ class TestIntermediate(unittest.TestCase):
             )  # InChI key (27) + id for adsorbed ("*") or gas ("g") phase
             self.assertIsInstance(key, str)
             self.assertIsInstance(inter, Intermediate)
-            self.assertIsInstance(inter.ads_configs, (dict, None))
+            if isinstance(inter, AdsorbedSpecies):
+                self.assertIsInstance(inter.ads_configs, (dict, None))
             self.assertIsInstance(inter.phase, str)
             self.assertIsInstance(inter.closed_shell, (bool, None))
             self.assertIsInstance(inter.molecule, (Atoms, None))
@@ -336,6 +398,19 @@ class TestIntermediate(unittest.TestCase):
         self.assertEqual(ammonia_from_poscar.electrons, 6)
 
 class TestReactionNetwork(unittest.TestCase):
+    def test_repr(self):
+        keys = ["ReactionNetwork(", 
+                "surface species,", 
+                "molecules,", 
+                "elementary reactions)", 
+                "Elements:", 
+                "Catalyst:", 
+                "Type:", 
+                "Evaluated: Thermodynamics (", 
+                "| Kinetics ("]
+        for k in keys:
+            self.assertIn(k, str(net))
+
     def test_creation_from_species(self):
         crn = ReactionNetwork.from_species(reactants=["O=C=O", "[H][H]"], products=["CO", "O"])
         self.assertIsInstance(crn, ReactionNetwork)
@@ -454,3 +529,55 @@ class TestReactionNetwork(unittest.TestCase):
         hubs = net.get_hubs(6)
         self.assertIsInstance(hubs, dict)
         self.assertEqual(list(hubs.values())[0], max(list(hubs.values())))
+
+    def test_reaction_removal(self):
+        """
+        Test that removing a reaction correctly orphans and cascades 
+        the removal of dead-end species and dependent reactions.
+        """
+        
+        star = SurfaceSite("*")
+
+        CO_atoms = Atoms("CO")
+        O_atoms = Atoms("O")
+        H2_atoms = Atoms("H2")
+        CO2_atoms = Atoms("CO2")
+        H2O_atoms = Atoms("H2O")
+
+        COg = GasSpecies("COg", CO_atoms)
+        Og = GasSpecies("Og", O_atoms)
+        H2g = GasSpecies("H2g", H2_atoms)
+        CO2g = GasSpecies("CO2g", CO2_atoms)
+        H2Og = GasSpecies("H2Og", H2O_atoms)
+
+        COs = AdsorbedSpecies("COs", CO_atoms)
+        Os = AdsorbedSpecies("Os", O_atoms)
+        H2s = AdsorbedSpecies("H2s", H2_atoms)
+        CO2s = AdsorbedSpecies("CO2s", CO2_atoms)
+        H2Os = AdsorbedSpecies("H2Os", H2O_atoms)
+
+        reactions = [
+            Adsorption(components=([COg, star], [COs])),
+            Adsorption(components=([Og, star], [Os])),
+            Adsorption(components=([H2g, star], [H2s])),
+            Desorption(components=([CO2s], [CO2g, star])),
+            Desorption(components=([H2Os], [H2Og, star])),
+            ElementaryReaction(components=([COs, Os], [CO2s, star])),
+            ElementaryReaction(components=([H2s, Os], [H2Os, star])),
+        ]
+
+        crn = ReactionNetwork(reactions)
+        
+        self.assertEqual(len(crn.reactions), 7)
+        self.assertIn(H2Og.code, crn.intermediates)
+        
+        crn.remove_reaction(crn.reactions[-1])
+        self.assertEqual(len(crn.reactions), 4)
+        
+        self.assertNotIn(H2g.code, crn.intermediates)
+        self.assertNotIn(H2s.code, crn.intermediates)
+        self.assertNotIn(H2Og.code, crn.intermediates)
+        self.assertNotIn(H2Os.code, crn.intermediates)
+        
+        self.assertIn(CO2g.code, crn.intermediates)
+        self.assertIn(Os.code, crn.intermediates)

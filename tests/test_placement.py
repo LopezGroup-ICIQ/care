@@ -4,7 +4,7 @@ import networkx as nx
 
 from care.crn.surface import bottom_half_indices
 from care.adsorption import place_adsorbate, get_active_sites
-from care.evaluators.utils import atoms_to_data, extract_adsorbate
+from care.crn.utils.graph import atoms_to_graph, extract_adsorbate
 
 from tests import test_inters, surface, co2_from_poscar, surface_from_slab, ammonia_from_poscar, surface_from_bulk, surface
 
@@ -25,7 +25,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
                 self.assertTrue(adsorptions1 == adsorptions2, msg="DockOnSurf returns DIFFERENT ORDER EVERYTIME IS CALLED!!!")
                 for structure in adsorptions1:
                     atoms_tags = list(structure.get_array("atom_tags"))
-                    g = atoms_to_data(structure, atoms_tags)
+                    g = atoms_to_graph(structure, atoms_tags)
                     gg = extract_adsorbate(g)
                     self.assertEqual(len(structure) , n_slab + n_adsorbate)
                     self.assertTrue(all(inter[i] == structure.get_chemical_symbols().count(i) for i in ["C", "H", "O"]))
@@ -44,7 +44,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
         """
         adsorptions = place_adsorbate(co2_from_poscar, surface_from_slab, 1, surface_sites=[38,39,40], adsorbate_atom=0)
         self.assertEqual(len(adsorptions), 1)
-        graph = atoms_to_data(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
+        graph = atoms_to_graph(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
         self.assertTrue(all([x in list(nx.get_node_attributes(graph, 'idx').values()) for x in [38,39,40]]))  # check on surface atoms
         adsorbate_anchoring_atom_graph_idx = next(node_id for node_id, data in graph.nodes(data=True) if data['idx'] == n_slab)
         self.assertTrue(any(neighbor_id in [38,39,40] for neighbor_id in graph.neighbors(adsorbate_anchoring_atom_graph_idx)))
@@ -56,7 +56,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
         """
         adsorptions = place_adsorbate(ammonia_from_poscar, surface_from_slab, 1, surface_sites=[38,39,40], adsorbate_atom=0)
         self.assertEqual(len(adsorptions), 1)
-        graph = atoms_to_data(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
+        graph = atoms_to_graph(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
         self.assertTrue(all([x in list(nx.get_node_attributes(graph, 'idx').values()) for x in [38,39,40]]))  # check on surface atoms
         adsorbate_anchoring_atom_graph_idx = next(node_id for node_id, data in graph.nodes(data=True) if data['idx'] == n_slab)
         self.assertTrue(any(neighbor_id in [38,39,40] for neighbor_id in graph.neighbors(adsorbate_anchoring_atom_graph_idx)))
@@ -65,7 +65,7 @@ class TestAdsorbatePlacement(unittest.TestCase):
             place_adsorbate(ammonia_from_poscar, surface_from_slab, 1, surface_sites=[38,39,40], adsorbate_atom=10)
         adsorptions = place_adsorbate(ammonia_from_poscar, surface_from_slab, 3, surface_sites=[43,44,45], adsorbate_atom=0)
         self.assertEqual(len(adsorptions), 3)
-        graph = atoms_to_data(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
+        graph = atoms_to_graph(adsorptions[0], adsorptions[0].get_array("atom_tags"), surface_order=1)
         self.assertTrue(all([x in list(nx.get_node_attributes(graph, 'idx').values()) for x in [43,44,45]]))  # check on surface atoms
         adsorbate_anchoring_atom_graph_idx = next(node_id for node_id, data in graph.nodes(data=True) if data['idx'] == n_slab)
         self.assertTrue(any(neighbor_id in [43,44,45] for neighbor_id in graph.neighbors(adsorbate_anchoring_atom_graph_idx)))

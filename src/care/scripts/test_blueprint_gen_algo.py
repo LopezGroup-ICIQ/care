@@ -9,7 +9,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from care import gen_blueprint
+from care.crn.utils.blueprint import gen_blueprint
 
 def test_blueprint_gen():
     """

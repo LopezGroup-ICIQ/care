@@ -3,7 +3,7 @@ import unittest
 from networkx import Graph
 from networkx.utils import graphs_equal
 
-from care.evaluators.utils import atoms_to_data, extract_adsorbate, get_connectivity_dict, connectivity_signature, is_adsorbate_fragmented, is_ring
+from care.crn.utils.graph import atoms_to_graph, extract_adsorbate, get_connectivity_dict, connectivity_signature, is_adsorbate_fragmented, is_ring
 from tests import ase_adsorbate_linear as x1
 from tests import ase_adsorbate_ring as x2
 from tests import ase_adsorbate_fragmented as x3
@@ -14,12 +14,12 @@ x22 = [0] * 48 + [1] * 15
 x33 = x11
 x44 = [0] * 120 + [1] * 6
 
-g1o1 = atoms_to_data(x1, x11, 1)
-g2o1 = atoms_to_data(x2, x22, 1)
-g1o2 = atoms_to_data(x1, x11, 2)
-g2o2 = atoms_to_data(x2, x22, 2)
-g1om1 = atoms_to_data(x1, x11, -1)
-g2om1 = atoms_to_data(x2, x22, -1)
+g1o1 = atoms_to_graph(x1, x11, 1)
+g2o1 = atoms_to_graph(x2, x22, 1)
+g1o2 = atoms_to_graph(x1, x11, 2)
+g2o2 = atoms_to_graph(x2, x22, 2)
+g1om1 = atoms_to_graph(x1, x11, -1)
+g2om1 = atoms_to_graph(x2, x22, -1)
 ads1_o1 = extract_adsorbate(g1o1)
 ads2_o1 = extract_adsorbate(g2o1)
 ads1_o2 = extract_adsorbate(g1o2)
@@ -33,11 +33,11 @@ condict_o1 = get_connectivity_dict(x1, x11)
 condict_o2 = get_connectivity_dict(x2, x22)
 
 # structure with 2 adsorbate fragments
-g_fragmented_nofilter = atoms_to_data(x3, x33, 1, filter=False)
-g_fragmented = atoms_to_data(x3, x33, 1, filter=True)
+g_fragmented_nofilter = atoms_to_graph(x3, x33, 1, filter=False)
+g_fragmented = atoms_to_graph(x3, x33, 1, filter=True)
 
 # structure where both surface and adsorbate contain same element (O)
-g_oxide_om1 = atoms_to_data(x4, x44, -1)
+g_oxide_om1 = atoms_to_graph(x4, x44, -1)
 adsorbate_oxide = extract_adsorbate(g_oxide_om1)
 
 class TestGraphUtils(unittest.TestCase):

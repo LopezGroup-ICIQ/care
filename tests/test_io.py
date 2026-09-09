@@ -9,3 +9,4 @@ class TestIO(unittest.TestCase):
         save_network(crn, str(TEST_DIR) + "/files/c1o2_Ru0001_new.json")
         crn_reconstructed = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001_new.json.gz")
         self.assertEqual(crn, crn_reconstructed)
+        print(crn.catalyst.energy)

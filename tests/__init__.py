@@ -3,15 +3,17 @@ import pathlib
 
 from ase.io import read
 
-from care import Surface, gen_blueprint, Intermediate
-from care.io import load_network
+from care import Surface, Intermediate, ReactionNetwork
+from care.crn.intermediate import AdsorbedSpecies
+from care.crn.utils.blueprint import gen_blueprint
 
 TEST_DIR = pathlib.Path(__file__).parent
 crn = gen_blueprint(ncc=1, noc=1)
 intermediates = crn.intermediates
-adsorbed_inters = {k:v for k,v in intermediates.items() if v.phase == "ads"}
 rxns = crn.reactions
 surface = Surface.from_metal_db(metal="Co", hkl="0001")
+crn.add_catalyst(surface)
+adsorbed_inters = {k:v for k,v in intermediates.items() if isinstance(v, AdsorbedSpecies)}
 surface_from_bulk = Surface.from_bulk_poscar(str(TEST_DIR) + "/files/Ni_fcc.poscar", hkl="111", num_layers=3, xy_repeat=2)
 surface_from_slab = Surface.from_poscar(str(TEST_DIR) + "/files/Os0001.poscar")
 co2_from_poscar = Intermediate.from_molecule(str(TEST_DIR) + "/files/CO2.poscar", code="CO2g", phase="gas")
@@ -21,7 +23,7 @@ ase_adsorbate_ring = read(str(TEST_DIR) + "/files/aromatic_Ag111.poscar", format
 ase_adsorbate_fragmented = read(str(TEST_DIR) + "/files/C3H6O3_fragmented_Cu111.poscar", format="vasp")
 ase_adsorbate_oxide = read(str(TEST_DIR) + "/files/carbonic_acid_TiO2.poscar", format="vasp")
 test_inters = random.sample(list(adsorbed_inters.values()), 4)
-evaluated_network = load_network(str(TEST_DIR) + "/files/c1o2_Ru0001.json.gz")
+evaluated_network = ReactionNetwork.load_from(str(TEST_DIR) + "/files/c1o2_Ru0001_evaluated.json.gz")
 
 __all__ = [
     "intermediates",
