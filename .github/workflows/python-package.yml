@@ -3,7 +3,17 @@ name: tests
 permissions:
   contents: read
   
-on: [push]
+on: 
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'SECURITY.md'
+      - 'docs/**'
+      - 'notebooks/care_demo.ipynb'
+      - 'notebooks/adsorbate_placement.py'
+      - '**/*.md'
 
 jobs:
   build-linux:
