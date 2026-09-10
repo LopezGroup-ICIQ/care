@@ -485,7 +485,14 @@ class TestDifferentialPFR(unittest.TestCase):
         """Verify that the Excel file is created with the correct sheets."""
         set_crn_energetics(self.crn)
         test_pfr = deepcopy(pfr)
-        full_run = test_pfr.run(iv={"CO": 0.5, "O2": 0.5}, rtol=RTOL, atol=ATOL, tfin=TFIN, rewire_network=False)
+        full_run = test_pfr.run(iv={"CO": 0.5, "O2": 0.5},
+                                eapp=True,
+                                napp=True,
+                                drc=True, 
+                                rtol=RTOL, 
+                                atol=ATOL, 
+                                tfin=TFIN, 
+                                rewire_network=False)
         
         with tempfile.TemporaryDirectory() as tmpdirname:
             output_path = os.path.join(tmpdirname, "test_report.xlsx")
@@ -503,3 +510,14 @@ class TestDifferentialPFR(unittest.TestCase):
             df_reactions = pd.read_excel(output_path, sheet_name='Reactions', engine='openpyxl')
             self.assertIn("net rate (1/s)", df_reactions.columns)
             self.assertEqual(len(df_reactions), 4)
+
+            df_kin = pd.read_excel(output_path, sheet_name='Apparent Kinetics', engine='openpyxl', header=None)
+            raw_kin_data = df_kin.to_string()
+            
+            self.assertIn("Apparent Activation Energy (kJ/mol)", raw_kin_data)
+            self.assertIn("Eapp (kJ/mol)", raw_kin_data)
+
+            df_sens = pd.read_excel(output_path, sheet_name='Sensitivity Analysis', engine='openpyxl', header=None)
+            raw_sens_data = df_sens.to_string()
+            
+            self.assertIn("Degree of Rate Control (DRC)", raw_sens_data)

@@ -1,10 +1,12 @@
+from dataclasses import dataclass, field
 from pickle import load
-from typing import Tuple, Union, Dict, Any
+from typing import Tuple, Union, Dict, Any, List, Optional
 
 import numpy as np
 import pandas as pd
 from numba import njit
 from scipy.constants import physical_constants
+from scipy.sparse import spmatrix
 
 from care.constants import R
 
@@ -144,59 +146,6 @@ def calc_drc(
             drc[i] = -kB_eV * T * (d_ln_r / d_e)
             
     return drc
-
-# def calc_drc(
-#     T: float, 
-#     e_minus: float, 
-#     e_zero: float, 
-#     e_plus: float, 
-#     rates_minus: np.ndarray, 
-#     rates_zero: np.ndarray, 
-#     rates_plus: np.ndarray, 
-#     products_idxs: list[int]
-# ) -> np.ndarray:
-#     """
-#     Evaluates Campbell's Degree of Rate Control (DRC) for product species.
-#     Handles barrierless reactions by dynamically falling back to forward finite 
-#     differences if the negative perturbation yields identical rates to the unperturbed state.
-    
-#     Args:
-#         T (float): Reactor temperature in Kelvin.
-#         e_minus (float): Transition state energy - de (in eV).
-#         e_zero (float): Unperturbed transition state energy (in eV).
-#         e_plus (float): Transition state energy + de (in eV).
-#         rates_minus (ndarray): Net rates resulting from e_minus.
-#         rates_zero (ndarray): Unperturbed net rates.
-#         rates_plus (ndarray): Net rates resulting from e_plus.
-#         products_idxs (list[int]): Indices of the product species to evaluate.
-        
-#     Returns:
-#         ndarray: Degree of rate control values. Non-evaluated species are set to np.nan.
-#     """
-#     kB_eV = physical_constants['Boltzmann constant in eV/K'][0]
-    
-#     drc = np.full(len(rates_zero), np.nan)
-    
-#     for i in products_idxs:
-#         r_plus = rates_plus[i]
-#         r_zero = rates_zero[i] if rates_zero is not None else None
-#         r_minus = rates_minus[i] if rates_minus is not None else None
-        
-#         if r_plus > 1e-30 and r_zero > 1e-30:
-            
-#             # If negative perturbation has no kinetic effect (clamped barrierless step) or is invalid
-#             if r_zero:
-#                 # Forward difference
-#                 d_ln_r = np.log(r_plus) - np.log(r_zero)
-#                 d_e = e_plus - e_zero
-#             elif r_minus:
-#                 # Central difference
-#                 d_ln_r = np.log(r_plus) - np.log(r_minus)
-#                 d_e = e_plus - e_minus 
-
-#             drc[i] = -kB_eV * T * (d_ln_r / d_e)
-            
-#     return drc
 
 @njit
 def jacobian_fill_numba(y, kd, kr,
@@ -341,7 +290,8 @@ def analyze_elemental_balance(mkm_results: Union[dict, str]) -> dict:
 def generate_simulation_report(results_dict: Dict[str, Any], 
                                output_filename: str = "simulation_report.xlsx") -> None:
     """
-    Generate a structured Excel report with four sheets: Species, Reactions, Settings, and Activity.
+    Generate a structured Excel report with Sheets: Species, Reactions, Settings, Activity, 
+    Apparent Kinetics, and Sensitivity Analysis.
 
     Args:
         results_dict (Dict[str, Any]): Dictionary containing simulation results and metadata.
@@ -351,10 +301,10 @@ def generate_simulation_report(results_dict: Dict[str, Any],
     """
 
     print(f"Generating report: {output_filename}...")
-    species_df, reactions_df, performance_df = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    
-    # Use ExcelWriter for multi-sheet output
+    species_df, reactions_df = pd.DataFrame(), pd.DataFrame()
+
     with pd.ExcelWriter(output_filename, engine='openpyxl', mode="w") as writer:
+        # --- Sheet 1: Species Information ---
         species_info = results_dict["inters_info"]
         species_df["idx"] = list(range(len(species_info['codes'])))
         species_df["InChIKey"] = species_info.get('codes', None)
@@ -368,10 +318,10 @@ def generate_simulation_report(results_dict: Dict[str, Any],
         species_df["reactants"] = ["True" if i in results_dict['reactants_idxs'] else "False" for i, x in enumerate(species_info['codes'])]
         species_df["products"] = ["True" if i in results_dict['products_idxs'] else "False" for i, x in enumerate(species_info['codes'])]
         species_df["formation rate (1/s)"] = results_dict['total_formation_rate']
-        species_df.to_excel(writer, sheet_name='Species', index=True)
+        species_df.to_excel(writer, sheet_name='Species', index=False)
 
 
-        # --- Sheet 2: Reaction Information (Simple Table) ---
+        # --- Sheet 2: Reaction Information ---
         reactions_df["idx"] = list(range(len(results_dict["net_rate"])))
         reactions_df["reaction"] = results_dict.get("rxn_strings", None)
         reactions_df["kdir"] = results_dict.get("kf", None)
@@ -380,7 +330,8 @@ def generate_simulation_report(results_dict: Dict[str, Any],
         reactions_df["backward rate (1/s)"] = results_dict["backward_rate"]
         reactions_df["net rate (1/s)"] = results_dict["net_rate"]
         reactions_df["reversibility"] = results_dict["reversibility"]
-        reactions_df.to_excel(writer, sheet_name='Reactions', index=True)
+        reactions_df.to_excel(writer, sheet_name='Reactions', index=False)
+
 
         # --- Sheet 3: Summary of performance metrics ---
         SHEET = 'Activity'
@@ -388,6 +339,7 @@ def generate_simulation_report(results_dict: Dict[str, Any],
         x = species_info.get("formulas", species_info.get("codes", None))
         row_labels = [x[i] for i in results_dict['reactants_idxs']]
         column_labels = [x[i] for i in results_dict['products_idxs']]
+        
         # conversion (vector)
         conversion_df = pd.DataFrame(results_dict["conversion"]*100.0, index=row_labels, columns=["Conversion (%)"])
         name = 'Conversion (%)'
@@ -396,8 +348,10 @@ def generate_simulation_report(results_dict: Dict[str, Any],
         current_row += 2
         conversion_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
         current_row += conversion_df.shape[0] + 3
-        #selectivity
+        
+        # selectivity
         for elem, matrix in results_dict["selectivity"].items():
+            if np.isnan(matrix).all(): continue
             performance_df = pd.DataFrame(matrix*100.0, index=row_labels, columns=column_labels)
             name = f'Selectivity ({elem}-based, %)'
             df = pd.DataFrame({0: [f"{name}"]})
@@ -405,8 +359,10 @@ def generate_simulation_report(results_dict: Dict[str, Any],
             current_row += 2
             performance_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
             current_row += performance_df.shape[0] + 3
+            
         # yield
-        for elem, matrix in results_dict["yield"].items():
+        for elem, matrix in results_dict.get("yield", {}).items():
+            if np.isnan(matrix).all(): continue
             performance_df = pd.DataFrame(matrix*100.0, index=row_labels, columns=column_labels)
             name = f'Yield ({elem}-based, %)'
             df = pd.DataFrame({0: [f"{name}"]})
@@ -414,6 +370,7 @@ def generate_simulation_report(results_dict: Dict[str, Any],
             current_row += 2
             performance_df.to_excel(writer, sheet_name=SHEET, startrow=current_row)
             current_row += performance_df.shape[0] + 3
+
 
         # --- Sheet 4: Simulation settings ---
         settings = {
@@ -430,18 +387,60 @@ def generate_simulation_report(results_dict: Dict[str, Any],
             "Simulation time (s)": results_dict.get("time", "N/A"),
         }
         for elem in species_info['elements']:
-            settings[f"{elem} elemental balance (IN/OUT)"] = results_dict.get(f'in_div_out_{elem}', None)
+            key = f'in_div_out_{elem}'
+            if key in results_dict:
+                settings[f"{elem} elemental balance (IN/OUT)"] = results_dict[key]
         settings_df = pd.DataFrame(list(settings.items()), columns=["Setting", "Value"])
-        settings_df.to_excel(writer, sheet_name='Settings', index=False)      
+        settings_df.to_excel(writer, sheet_name='Settings', index=False)
+
+
+        # --- Sheet 5: Apparent kinetics (Eapp and napp if available) ---
+        if "eapp_dict" in results_dict or "napp_dict" in results_dict:
+            SHEET_KIN = 'Apparent Kinetics'
+            current_row = 0
             
-    print(f"Report successfully generated at: **{output_filename}**")
+            if "eapp_dict" in results_dict and results_dict["eapp_dict"]:
+                df_title = pd.DataFrame({0: ["Apparent Activation Energy (kJ/mol)"]})
+                df_title.to_excel(writer, sheet_name=SHEET_KIN, index=False, header=False, startrow=current_row)
+                current_row += 2
+                eapp_df = pd.DataFrame(list(results_dict["eapp_dict"].items()), columns=["Product", "Eapp (kJ/mol)"])
+                eapp_df.set_index("Product", inplace=True)
+                eapp_df.to_excel(writer, sheet_name=SHEET_KIN, startrow=current_row)
+                current_row += eapp_df.shape[0] + 3
+
+            if "napp_dict" in results_dict and results_dict["napp_dict"]:
+                df_title = pd.DataFrame({0: ["Apparent Reaction Orders"]})
+                df_title.to_excel(writer, sheet_name=SHEET_KIN, index=False, header=False, startrow=current_row)
+                current_row += 2
+                # Transpose gives rows = Reactants, columns = Products
+                napp_df = pd.DataFrame(results_dict["napp_dict"]).T
+                napp_df.to_excel(writer, sheet_name=SHEET_KIN, startrow=current_row)
+
+
+        # --- Sheet 6: Sensitivity analysis (DRC/DSC if available) ---
+        if "drc_dict" in results_dict or "dsc_dict" in results_dict:
+            SHEET_SENS = 'Sensitivity Analysis'
+            current_row = 0
+            
+            if "drc_dict" in results_dict and results_dict["drc_dict"]:
+                df_title = pd.DataFrame({0: ["Degree of Rate Control (DRC)"]})
+                df_title.to_excel(writer, sheet_name=SHEET_SENS, index=False, header=False, startrow=current_row)
+                current_row += 2
+                drc_df = pd.DataFrame(results_dict["drc_dict"]).T
+                drc_df.to_excel(writer, sheet_name=SHEET_SENS, startrow=current_row)
+                current_row += drc_df.shape[0] + 3
+
+            if "dsc_dict" in results_dict and results_dict["dsc_dict"]:
+                for ref_name, targets_dict in results_dict["dsc_dict"].items():
+                    df_title = pd.DataFrame({0: [f"Degree of Selectivity Control (DSC) - Ref: {ref_name}"]})
+                    df_title.to_excel(writer, sheet_name=SHEET_SENS, index=False, header=False, startrow=current_row)
+                    current_row += 2
+                    dsc_df = pd.DataFrame(targets_dict)
+                    dsc_df.to_excel(writer, sheet_name=SHEET_SENS, startrow=current_row)
+                    current_row += dsc_df.shape[0] + 3
+
+    print(f"Report successfully generated at: {output_filename}")
     return
-
-
-from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any
-import numpy as np
-from scipy.sparse import spmatrix
 
 @dataclass
 class MKMRun:
@@ -449,7 +448,7 @@ class MKMRun:
     Data container for Microkinetic Modeling simulation results.
     """
     # ==========================================
-    # FIELDS WITHOUT DEFAULTS (Must come first)
+    # FIELDS WITHOUT DEFAULTS
     # ==========================================
     
     # --- Operating Conditions ---
@@ -499,7 +498,7 @@ class MKMRun:
     nsims: int
 
     # ==========================================
-    # FIELDS WITH DEFAULTS (Must come last)
+    # FIELDS WITH DEFAULTS
     # ==========================================
     
     U: Optional[float] = None
@@ -538,8 +537,7 @@ class MKMRun:
 
         valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
-        
-        # Inject the grouped balances
+
         filtered_data["balances"] = balances
         
         return cls(**filtered_data)
@@ -591,12 +589,12 @@ class MKMRun:
                  "              PERFORMANCE SUMMARY                 ",
                  "=================================================="]
                  
-        # 1. Format Conversion
+        # Conversion
         lines.append("\n--- Conversion ---")
         for r_name, conv in zip(reactants, self.conversion):
             lines.append(f"  {r_name:<10}: {conv * 100:>7.2f}%")
 
-        # 2. Format Reaction Rates
+        # Formation/Consumption Rates
         lines.append("\n--- Reaction Rates (s⁻¹) ---")
         lines.append("  Reactants (Consumption):")
         for r_name, rate in self.reactant_consumption_rates.items():
@@ -606,7 +604,6 @@ class MKMRun:
         for p_name, rate in self.product_formation_rates.items():
             lines.append(f"    {p_name:<10}: {rate:>10.3e}")
 
-        # 3. Format Apparent Activation Energy (if evaluated)
         eapp_dict = self.eapp
         if eapp_dict:
             lines.append(f"\n--- Apparent Activation Energy (kJ/mol) at {self.T} K ---")
@@ -616,11 +613,9 @@ class MKMRun:
         napp_dict = self.napp
         if napp_dict:
             lines.append("\n--- Apparent Reaction Orders ---")
-            # Create Header (Products)
             header = f"  {'Reactant':<10}" + "".join([f"{p:>10}" for p in products])
             lines.append(header)
-            
-            # Create Rows (Reactants)
+
             for r_name, p_orders in napp_dict.items():
                 row_str = f"  {r_name:<10}"
                 for p_name in products:
@@ -631,22 +626,18 @@ class MKMRun:
                         row_str += f"{val:>10.2f}"
                 lines.append(row_str)
 
-        # 3. Format Selectivity and Yield
         metrics = [("Selectivity", self.selectivity), ("Yield", self.yyield)]
         
         for metric_name, metric_dict in metrics:
             for elem, matrix in metric_dict.items():
-                # Skip printing tables for elements if the entire matrix is NaN
                 if np.isnan(matrix).all():
                     continue
 
                 lines.append(f"\n--- {metric_name} ({elem}) ---")
-                
-                # Create Header (Products)
+
                 header = f"  {'':<10}" + "".join([f"{p:>10}" for p in products])
                 lines.append(header)
-                
-                # Create Rows (Reactants)
+
                 for i, r_name in enumerate(reactants):
                     row_str = f"  {r_name:<10}"
                     for j, p_name in enumerate(products):
@@ -657,7 +648,6 @@ class MKMRun:
                             row_str += f"{val * 100:>9.2f}%"
                     lines.append(row_str)
 
-        # Format Degree of Rate Control (if evaluated)
         drc_dict = self.drc
         if drc_dict:
             lines.append("\n--- Degree of Rate Control (Threshold > 0.001) ---")
@@ -673,32 +663,57 @@ class MKMRun:
                     else:
                         row_str += f"{val:>10.3f}"
                 lines.append(row_str)
-                
-            # --- New: Calculate and append the Sum row ---
+
             lines.append("  " + "-" * (35 + 10 * len(products)))
             sum_str = f"  {'Sum':<35}"
             for p_idx in self.products_idxs:
-                # Sum the exact unfiltered values, ignoring NaNs
                 total_drc = sum(
-                    drc_array[p_idx] 
+                    float(drc_array[p_idx]) 
                     for drc_array in self.raw_drc.values() 
-                    if not np.isnan(drc_array[p_idx])
+                    if drc_array[p_idx] is not None and not np.isnan(drc_array[p_idx])
                 )
                 sum_str += f"{total_drc:>10.3f}"
             lines.append(sum_str)
+
+        dsc_dict = self.dsc
+        if dsc_dict:
+            for r_name, p_dscs in dsc_dict.items():
+                lines.append(f"\n--- Degree of Selectivity Control (ref: {r_name}) ---")
+                header = f"  {'Reaction':<35}" + "".join([f"{p:>10}" for p in products])
+                lines.append(header)
+
+                active_rxns = set()
+                for rxn_dict in p_dscs.values():
+                    active_rxns.update(rxn_dict.keys())
+
+                for r_str in self.rxn_strings:
+                    if r_str not in active_rxns:
+                        continue
+                        
+                    row_str = f"  {r_str:<35}"
+                    for p_name in products:
+                        val = p_dscs.get(p_name, {}).get(r_str, np.nan)
+                        if np.isnan(val):
+                            row_str += f"{'N/A':>10}"
+                        else:
+                            row_str += f"{val:>10.3f}"
+                    lines.append(row_str)
+
+                lines.append("  " + "-" * (35 + 10 * len(products)))
+                sum_str = f"  {'Sum (Expected ~0.0)':<35}"
+                for p_name in products:
+                    total_dsc = sum(p_dscs.get(p_name, {}).values())
+                    sum_str += f"{total_dsc:>10.3f}"
+                lines.append(sum_str)
                     
         lines.append("\n==================================================")
         return "\n".join(lines)
     
     def to_dict(self) -> dict:
-        """
-        Serializes the dataclass to a dictionary, evaluating lazy properties 
-        and mapping names to match reporting formats.
-        """
         from dataclasses import asdict
         
         res = asdict(self)
-        
+
         res["selectivity"] = self.selectivity
         
         res["yield"] = self.yyield
@@ -710,12 +725,31 @@ class MKMRun:
         if hasattr(self, "balances") and self.balances:
             for elem, val in self.balances.items():
                 res[f"in_div_out_{elem}"] = val
-                
-        # Optional: Expose the clean eapp dictionary for the Excel exporter
+
+        res["coverages"] = self.coverages
+        res["reactant_consumption_rates"] = self.reactant_consumption_rates
+        res["product_formation_rates"] = self.product_formation_rates
+
         if self.raw_eapp is not None:
             res["eapp_dict"] = self.eapp
             
+        if self.raw_napp is not None:
+            res["napp_dict"] = self.napp
+
+        if self.raw_drc is not None:
+            res["drc_dict"] = self.drc
+            res["rds_dict"] = self.rds
+            res["dsc_dict"] = self.dsc
+            
         return res
+    
+    def export(self, filename:str="mkm_report.xlsx") -> None:
+        """
+        Generate Excel file with simulation results.
+        """
+        if not filename.endswith(".xlsx"):
+            filename += ".xlsx"
+        generate_simulation_report(self.to_dict(), filename)
     
     @property
     def reactant_consumption_rates(self) -> Dict[str, float]:
@@ -750,22 +784,19 @@ class MKMRun:
     
     @property
     def napp(self) -> Dict[str, Dict[str, float]]:
-        """
-        Returns a nested dictionary mapping each reactant to its apparent 
-        reaction orders for each product. 
-        Format: {'Reactant': {'Product': order, ...}}
-        """
         if self.raw_napp is None:
             return {}
             
         napp_dict = {}
         for r_idx, orders_array in self.raw_napp.items():
-            r_formula = self.formulas[r_idx]
+            r_idx_int = int(r_idx)
+            r_formula = self.formulas[r_idx_int]
+            
             product_orders = {}
             for p_idx in self.products_idxs:
                 val = orders_array[p_idx]
-                if not np.isnan(val):
-                    product_orders[self.formulas[p_idx]] = val
+                if val is not None and not np.isnan(val):
+                    product_orders[self.formulas[p_idx]] = float(val)
                     
             if product_orders:
                 napp_dict[r_formula] = product_orders
@@ -774,24 +805,19 @@ class MKMRun:
     
     @property
     def drc(self) -> Dict[str, Dict[str, float]]:
-        """
-        Returns a nested dictionary mapping each reaction string to its 
-        Degree of Rate Control for each product. 
-        Format: {'Reaction String': {'Product': DRC, ...}}
-        """
         if self.raw_drc is None:
             return {}
             
         drc_dict = {}
         for r_idx, drc_array in self.raw_drc.items():
-            r_str = self.rxn_strings[r_idx]
+            r_idx_int = int(r_idx)
+            r_str = self.rxn_strings[r_idx_int]
+            
             product_drcs = {}
             for p_idx in self.products_idxs:
                 val = drc_array[p_idx]
-                # Filter out values below an arbitrary threshold to avoid cluttering 
-                # the report with 0.000 for non-rate-determining steps
-                if not np.isnan(val) and abs(val) > 1e-6: 
-                    product_drcs[self.formulas[p_idx]] = val
+                if val is not None and not np.isnan(val) and abs(val) > 1e-6:
+                    product_drcs[self.formulas[p_idx]] = float(val)
                     
             if product_drcs:
                 drc_dict[r_str] = product_drcs
@@ -803,10 +829,8 @@ class MKMRun:
         """
         Returns a dictionary mapping each product formula to a tuple of:
         the RDS index, the string representation of the RDS and its Degree of Rate Control (DRC).
-        The RDS is identified as the reaction with the highest DRC.
-        Returns an empty dictionary if DRC analysis was not performed.
         """
-        if self.raw_drc is None:
+        if self.raw_drc is None or not self.raw_drc:
             return {}
             
         rds_dict = {}
@@ -814,17 +838,61 @@ class MKMRun:
             p_name = self.formulas[p_idx]
             max_drc = -np.inf
             rds_rxn = None
+            best_r_idx = None
             
             for r_idx, drc_array in self.raw_drc.items():
+                r_idx_int = int(r_idx) 
                 val = drc_array[p_idx]
 
-                if not np.isnan(val) and val > max_drc:
-                    max_drc = val
-                    rds_rxn = self.rxn_strings[r_idx]
+                if val is not None and not np.isnan(val) and val > max_drc:
+                    max_drc = float(val)
+                    rds_rxn = self.rxn_strings[r_idx_int]
+                    best_r_idx = r_idx_int
 
             if rds_rxn is not None and max_drc > 1e-6:
-                rds_dict[p_name] = (r_idx, rds_rxn, max_drc)
+                rds_dict[p_name] = (best_r_idx, rds_rxn, max_drc)
                 
         return rds_dict
+    
+    @property
+    def dsc(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """
+        Degree of selectivity control.
+        Format: {'Reference Product': {'Target Product': {'Reaction String': DSC_value}}}
+        """
+        if self.raw_drc is None or not self.raw_drc:
+            return {}
+            
+        dsc_dict = {}
+
+        for ref_idx in self.products_idxs:
+            ref_name = self.formulas[ref_idx]
+            target_dscs = {}
+            
+            for p_idx in self.products_idxs:
+                if ref_idx == p_idx:
+                    continue
+                    
+                p_name = self.formulas[p_idx]
+                reaction_dscs = {}
+                
+                for rxn_idx, drc_array in self.raw_drc.items():
+                    rxn_idx_int = int(rxn_idx) 
+                    p_drc = drc_array[p_idx]
+                    ref_drc = drc_array[ref_idx]
+                    
+                    if p_drc is not None and ref_drc is not None and not np.isnan(p_drc) and not np.isnan(ref_drc):
+                        dsc_val = float(p_drc) - float(ref_drc)
+                        
+                        if abs(dsc_val) > 1e-6:
+                            reaction_dscs[self.rxn_strings[rxn_idx_int]] = dsc_val
+                            
+                if reaction_dscs:
+                    target_dscs[p_name] = reaction_dscs
+                    
+            if target_dscs:
+                dsc_dict[ref_name] = target_dscs
+                
+        return dsc_dict
 
 

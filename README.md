@@ -29,7 +29,7 @@ pip install care-crn
 
 ### 2\. ML evaluators
 
-`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem) or [FairChemV2](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb-v2](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
+`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem) or [FairChemV2](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
 
 ```bash
 pip install care-crn[mace]
@@ -100,14 +100,11 @@ crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
 # from chemical space (e.g., Ethanol decomposition network)
 crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
 
-# Get CRN overview
-print(crn)
+print(crn) # Get CRN overview
 
-# Get reaction table
-crn.get_reaction_table()
+crn.get_reaction_table()  # Get reaction table
 
-# visualize network
-crn.plot()
+crn.plot()  # visualize network
 ```
 
 ### Energy evaluation
@@ -128,6 +125,8 @@ for intermediate in crn.intermediates.values():  # relaxation
 
 for reaction in crn.reactions:  # neb for transition state search
     ml_evaluator(reaction, num_images=3)
+
+crn.get_reaction_table()
 ```
 
 ### Microkinetic run

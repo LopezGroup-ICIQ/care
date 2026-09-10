@@ -470,6 +470,7 @@ class TestReactionNetwork(unittest.TestCase):
             crn = ReactionNetwork.from_species(reactants, products)
             self.assertIsInstance(crn, ReactionNetwork)
             self.assertEqual(crn.elements, elements)
+            self.assertTrue(len(crn.global_reactions) > 0)
 
     def test_crn_with_N(self):
         for inputs in N_dict.values():
@@ -479,6 +480,7 @@ class TestReactionNetwork(unittest.TestCase):
             crn = ReactionNetwork.from_species(reactants, products)
             self.assertIsInstance(crn, ReactionNetwork)
             self.assertEqual(crn.elements, elements)
+            self.assertTrue(len(crn.global_reactions) > 0)
 
     def test_crn_with_halogens(self):
         for inputs in halogen_dict.values():

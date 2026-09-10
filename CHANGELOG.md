@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - direct evaluation of apparent activation energy of global reactions `eapp` in `DifferentialPFR.run()` method.
 - direct evaluation of apparent reaction orders of reactants `napp` in `DifferentialPFR.run()` method.
 - direct evaluation of degree of rate control of elementary reactions `drc` in `DifferentialPFR.run()` method.
+- direct evaluation of degree of selectivity control of elementary reactions, automatically obtained when `drc` analysis is activated in `DifferentialPFR.run()`.
 - Orb-v3 MLIP support by adapting `care.evaluators.orb.OrbEvaluator` interface to orb-models v0.7.0.
 - Color legend for CRN visualization with `care.crn.visualize.plot_crn` function.
+- `ReactionNetwork.plot()` method.
 - `cov0` argument to the MKM run function `DifferentialPFR.run()`, enabling to set the initial coverage population of the catalyst surface (before always assumed empty surface at time zero).
 
 
@@ -33,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump optional MLIP Sevenn from v0.11.0 to v0.13.0.
 - Bump optional MLIP Orb from v0.4.2 to v0.7.0.
 - `care.crn.utils.graph.atoms_to_data` function renamed to `care.crn.utils.graph.atoms_to_graph` (`data` was referring to the PyG `Data` class for representing graphs).
+- Extend `generate_simulation_report` to include in Excel files apparent kinetics and sensitivity information obtained from MKM.
+- Name of ML evaluators interfaces from `NameIntermediateEvaluator` to `Nameevaluator` (e.g. `MACEevaluator`).
 
 
 ## [0.8.0] - 2026-07-06

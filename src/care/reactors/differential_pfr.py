@@ -254,7 +254,7 @@ class DifferentialPFR(ReactorModel):
             napp (bool): If True, computes apparent reaction orders. 
                 Requires at least one inert diluent in `iv`.
             dy (float): Molar fraction step used for n_app estimation. Default is 0.01.
-            drc(bool): If True, computes degree of rate control for all elementary reactions.
+            drc(bool): If True, computes degree of rate  and selectivity control for all elementary reactions.
             de(float): Energy step in eV for drc estimation. Default to 0.01.
             rewire_network (bool): If True, reverses elementary reactions in the ReactionNetwork
             according to the simulation output. Default is True.
