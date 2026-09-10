@@ -241,7 +241,8 @@ class DifferentialPFR(ReactorModel):
             iv (Optional[Dict[str, float]]): Inlet molar fractions of gas-phase species.
                 Keys are chemical formulas, values are molar fractions (must sum to 1.0).
             cov0 (Optional[Dict[str, float]]): Initial surface coverage dictionary. If None, 
-                th surface is considered uncovered.
+                th surface is considered uncovered (sum of values does not need to sum to 1.0,
+                 remaining surface is assumed empty).
             mkm_checkpoint (Optional[Union[str, Path]]): Path to a saved MKM run (.pkl). 
                 If provided, `iv` and `oc` are bypassed.
             solver (str): ODE solver backend ("Julia" or "Python"). Default is "Julia".

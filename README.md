@@ -17,26 +17,33 @@
     </p>
 </div>
 
-CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), [SevenNet](https://github.com/MDIL-SNU/SevenNet), *etc*.) and includes multiscale kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
+CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), [SevenNet](https://github.com/MDIL-SNU/SevenNet)) and includes multiscale kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
 
 ## 🪛 Installation
 
+To install CARE with a specific Machine Learning Interatomic Potential (MLIP) evaluator, specify it as an extra dependency. 
+
 ```bash
-pip install care-crn[mlip]
+pip install "care-crn[mlip]"
 ```
 
-Where `mlip` can be one of the available ML evaluators: `fairchemv1`, `fairchemv2`, `mace`, `upet`, `orb`, `sevenn`, `gamenetuq`.
+Replace `[mlip]` with your desired evaluator. Supported models include:
+`fairchemv1` | `fairchemv2` | `mace` | `upet` | `orb` | `sevenn` | `gamenetuq`
 
-Note 1: as each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), you will likely need to create one distinct environment for each ML evaluator you want to employ. 
+> [!WARNING]
+> **Environment Isolation**
+> Because each ML model depends on highly specific backend versions (PyTorch, e3nn, ASE, etc.), you will likely need to create **one distinct virtual environment** for each ML evaluator you intend to use to avoid dependency conflicts.
 
-Note 2: To run microkinetic simulations, CARE relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration. No manual installation is required. The first time you execute a simulation that requires the Julia solver, the `juliapkg` package will take a few extra minutes to automatically:
-1. Download a private, compatible version of Julia if you don't already have one.
-2. Install the necessary Julia packages (`DifferentialEquations.jl`, etc.) defined in ``src/care/juliapkg.json`` into an isolated environment.
+> [!NOTE]
+> **Automatic Julia Backend Setup**
+> CARE relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration during microkinetic simulations. **No manual installation of Julia is required.** 
+> 
+> The first time you execute a simulation, `juliapkg` will automatically download a private, compatible version of Julia (if not present) and install the necessary dependencies defined in `src/care/juliapkg.json` into an isolated environment. This initial setup will take a few extra minutes to compile.
 
 
 ### Developer Installation
 
-💾 **Required disk space:** \~6.5 GB (Python environment), \~4.3 GB (Julia+dependencies)
+Required disk space: \~6.5 GB (Python environment), \~4.3 GB (Julia+dependencies)
 
 1.  Clone the repo:
 
@@ -52,70 +59,102 @@ Note 2: To run microkinetic simulations, CARE relies on a [Julia](https://julial
     conda activate care_env
     ```
 
-3.  Install the package in editable mode:
+3.  Install care-crn in editable mode:
 
     ```bash
-    python3 -m pip install -e .[gamenetuq,mace,etc.]  # with ML evaluators of choice
+    python3 -m pip install -e .[gamenetuq,mace,etc.]
     ```
 
 ## 💥 Usage
 
-### Network generation
+### Network Generation
 
-The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES. Current version allows generation of CRNs with (CHONS+halogens)-containing species.
+You can construct a reaction network blueprint using one of three primary methods:
+1. **Reactants and Products:** Define the start and end points using SMILES strings.
+2. **Cutoffs:** Define the maximum number of Carbon (`ncc`) and Oxygen (`noc`) atoms allowed.
+3. **Chemical Space:** Provide a specific list of target SMILES strings to explore (e.g., a specific decomposition network).
+
+> [!TIP]
+> **Supported Chemical Space**
+> CARE currently supports reaction networks with species containing CHONS + Halogens.
 
 ```python
 from care import ReactionNetwork
 
-# from reactants and products (e.g., CO2 to Methanol)
+# Method 1: From explicit reactants and products (e.g., CO2 hydrogenation to Methanol)
 crn = ReactionNetwork.from_species(reactants=["O=C=O", "[H][H]"], products=["CO", "O"])
 
-# from carbon and oxygen cutoffs
+# Method 2: From elemental network cutoffs (e.g., max 2 Carbons, 1 Oxygen)
 crn = ReactionNetwork.from_cutoffs(ncc=2, noc=1)
 
-# from chemical space (e.g., Ethanol decomposition network)
+# Method 3: From a predefined chemical space (e.g., Ethanol decomposition)
 crn = ReactionNetwork.from_chemical_space(cs=["CCO"])
 
-print(crn) # Get CRN overview
+# Prints a quick summary (number of species, reactions, etc.)
+print(crn) 
 
-crn.get_reaction_table()  # Get reaction table
+# Returns a pandas DataFrame of the generated reactions
+df_reactions = crn.get_reaction_table() 
 
-crn.plot()  # visualize network
+# Renders a visual graph of the reaction network
+crn.plot() 
 ```
 
-### Energy evaluation
+### Energy Evaluation
 
-The range of catalyst materials on which CRNs can be evaluated depends on the domain of the employed ML model.
-The list of available ML evaluators in CARE can be found [here](./src/care/evaluators/README.md).
+The range of catalyst materials on which CRNs can be evaluated depends on the training domain of the employed ML model.
+
+> [!NOTE]
+> **Available Evaluators**
+> A complete list of available ML evaluators (and their specific capabilities) can be found in the [Evaluators README](./src/care/evaluators/README.md).
 
 ```python
 from care import Surface 
 from care.evaluators import MACEevaluator
 
-catalyst = Surface.from_mp("mp-2", mp_api_key="your_key", hkl="110", xy_repeat=2)  # Pt(110)
+# 1. Define the catalyst surface (e.g., Pt(110) from the Materials Project)
+surface = Surface.from_mp("mp-2", mp_api_key="your_key", hkl="110", xy_repeat=2)
 crn.add_catalyst(surface)
+
+# 2. Initialize the ML evaluator (using GPU acceleration if available)
 ml_evaluator = MACEevaluator(device="cuda", num_configs=3, max_steps=50, fmax=0.05)
 
-for intermediate in crn.intermediates.values():  # relaxation
+# 3. Relax all adsorbed intermediates
+for intermediate in crn.intermediates.values():
     ml_evaluator(intermediate)
 
-for reaction in crn.reactions:  # neb for transition state search
+# 4. Perform Nudged Elastic Band (NEB) for transition state searches
+for reaction in crn.reactions:
     ml_evaluator(reaction, num_images=3)
 
+# View the updated table containing the newly computed thermodynamics and barriers
 crn.get_reaction_table()
 ```
 
-### Microkinetic run
+### Microkinetic Run
+
+Once the CRN is energetically evaluated, microkinetic simulations enable you to quantify the performance of the catalyst. CARE automatically calculates apparent kinetics ($E_{app}$, $n_{app}$) and performs robust sensitivity analyses, including the Degree of Rate Control ($\chi_{RC}$) and Degree of Selectivity Control ($\chi_{SC}$).
 
 ```python
 from care.reactors import DifferentialPFR
+
+# Initialize the reactor model
 reactor = DifferentialPFR(crn)
+
+# Define operating conditions
 reactor.T = 473  # Temperature in K
 reactor.P = 1e6  # Pressure in Pa
-y0 = {"CO2": 0.33, "H2": 0.67}  # reactants composition (mole fraction)
+y0 = {"CO2": 0.2, "H2": 0.4, "Ar": 0.4}  # Inlet gas molar fractions
+cov0 = {"H": 0.9}                        # Initial surface coverages
 
-mkm = reactor.run(iv=y0, eapp=True, napp=True)
+# Execute the simulation (automatically delegates to the Julia backend)
+mkm = reactor.run(iv=y0, cov0=cov0, eapp=True, napp=True, drc=True)
+
+# View results directly in the terminal
 print(mkm.get_performance_summary())
+
+# Export comprehensive results to Excel
+mkm.export("mkm_report.xlsx")
 ```
 
 ### Run all together
