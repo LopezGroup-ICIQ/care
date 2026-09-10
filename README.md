@@ -17,66 +17,42 @@
     </p>
 </div>
 
-CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace) potentials, *etc*.) and includes kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
+CARE (*Catalytic Automated Reaction Evaluator*) is a framework for the automated generation and manipulation of chemical reaction networks (CRNs) in heterogeneous catalysis. CARE is powered by ML-based energy evaluators ([GAME-Net-UQ](https://github.com/LopezGroup-ICIQ/gamenet_uq), [FairChem](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), [SevenNet](https://github.com/MDIL-SNU/SevenNet), *etc*.) and includes multiscale kinetic functionalities enabling the quantification of catalytic activity for reactions containing thousands of elementary steps.
 
 ## 🪛 Installation
 
-### 1\. From PyPI
-
 ```bash
-pip install care-crn
+pip install care-crn[mlip]
 ```
 
-### 2\. ML evaluators
+Where `mlip` can be one of the available ML evaluators: `fairchemv1`, `fairchemv2`, `mace`, `upet`, `orb`, `sevenn`, `gamenetuq`.
 
-`care-crn` interfaces with several external ML models, most of them ML interatomic potentials (MLIPs). These must be installed separately as they depend on different versions of Pytorch, causing conflicts. You can install [FairChemV1](https://github.com/FAIR-Chem/fairchem) or [FairChemV2](https://github.com/FAIR-Chem/fairchem), [MACE](https://github.com/ACEsuit/mace), [UPET](https://github.com/lab-cosmo/pet-mad), [Orb](https://github.com/orbital-materials/orb-models), and [SevenNet](https://github.com/MDIL-SNU/SevenNet) by running:
+Note 1: as each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), you will likely need to create one distinct environment for each ML evaluator you want to employ. 
 
-```bash
-pip install care-crn[mace]
-pip install care-crn[fairchemv1]
-pip install care-crn[fairchemv2]
-pip install care-crn[upet]
-pip install care-crn[orb]
-pip install care-crn[sevenn]
-pip install care-crn[gamenetuq]
-```
-
-Note: as each ML model depends on specific versions of Python packages (pytorch, e3nn, ase, etc.), starting from care-crn==0.6.0 you will need to create one distinct environment for each ML evaluator you want to employ. 
-
-
-### 3\. Julia microkinetic solver
-
-To run microkinetic simulations, the workflow relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration. **No manual installation is required**. The first time you execute a simulation that requires the Julia solver, the `juliapkg` package will automatically:
+Note 2: To run microkinetic simulations, CARE relies on a [Julia](https://julialang.org/) backend for high-performance ODE integration. No manual installation is required. The first time you execute a simulation that requires the Julia solver, the `juliapkg` package will take a few extra minutes to automatically:
 1. Download a private, compatible version of Julia if you don't already have one.
 2. Install the necessary Julia packages (`DifferentialEquations.jl`, etc.) defined in ``src/care/juliapkg.json`` into an isolated environment.
 
-*Note: The very first time you run a kinetic simulation, it may take a few extra minutes to download and precompile these dependencies. Subsequent runs will be instantaneous.*
 
------
+### Developer Installation
 
-### 4\. Developer Installation
+💾 **Required disk space:** \~6.5 GB (Python environment), \~4.3 GB (Julia+dependencies)
 
-If you want to contribute to the code or use the very latest (unstable) version, you can install from the source.
-
-  * 💾 **Required disk space:** \~6.5 GB (Conda environment), \~4.3 GB (Julia+dependencies)
-
-<!-- end list -->
-
-1.  **Clone the repo:**
+1.  Clone the repo:
 
     ```bash
     git clone git@github.com:LopezGroup-ICIQ/care.git
     cd care
     ```
 
-2.  **Create a conda environment:**
+2.  Create environment:
 
     ```bash
     conda create -n care_env python==3.12
     conda activate care_env
     ```
 
-3.  **Install the package in "editable" mode:**
+3.  Install the package in editable mode:
 
     ```bash
     python3 -m pip install -e .[gamenetuq,mace,etc.]  # with ML evaluators of choice
@@ -86,7 +62,7 @@ If you want to contribute to the code or use the very latest (unstable) version,
 
 ### Network generation
 
-The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES. Current version allows generation of CRNs with CHONS-containing species.
+The blueprint can be constructed by providing (i) reactants and products as SMILES, (ii) the network carbon and oxygen cutoffs *ncc* and *noc*, or (iii) the chemical space as SMILES. Current version allows generation of CRNs with (CHONS+halogens)-containing species.
 
 ```python
 from care import ReactionNetwork
@@ -110,7 +86,7 @@ crn.plot()  # visualize network
 ### Energy evaluation
 
 The range of catalyst materials on which CRNs can be evaluated depends on the domain of the employed ML model.
-CARE currently provides interfaces to GAME-Net-UQ and MLIPs such as FairChem-v1/v2, MACE, Orb, UPET, and SevenNet.
+The list of available ML evaluators in CARE can be found [here](./src/care/evaluators/README.md).
 
 ```python
 from care import Surface 
