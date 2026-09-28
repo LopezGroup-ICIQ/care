@@ -1,0 +1,9 @@
+---
+services:
+  care:
+    build:
+      context: .  # Build from the current directory (where the Dockerfile is located)
+      dockerfile: Dockerfile
+    image: care:latest  # Name and tag for the image
+    volumes:
+      - ./data:/data  # Mount ./data on the host to /data in the container
