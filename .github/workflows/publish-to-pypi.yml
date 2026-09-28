@@ -3,7 +3,8 @@ name: Publish Python Package to PyPI
 on:
   push:
     tags:
-      - 'v*' # Trigger the workflow on tags starting with 'v' (e.g., v0.1.4)
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   deploy:

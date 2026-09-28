@@ -19,4 +19,8 @@ Important notes:
 | Orb | MLIP | DFT total energy |eV| ✅ | Structural relaxation | `pip install care-crn[orb]` |
 | SevenNet | MLIP | DFT total energy |eV| ✅ | Structural relaxation| `pip install care-crn[sevenn]` |
 
+**Python compatibility:** FairChem v1 currently supports Python 3.12 only. Its
+optional dependency is skipped on Python 3.13; use a Python 3.12 environment to
+install and run `care-crn[fairchemv1]`.
+
 *GNN = Graph Neural Network; MLIP = Machine Learned Interatomic Potential; DFT = Density Funtional Theory*

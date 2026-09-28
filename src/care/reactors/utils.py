@@ -755,7 +755,7 @@ class MKMRun:
     def reactant_consumption_rates(self) -> Dict[str, float]:
         """Returns the consumption rate (s⁻¹) for each reactant."""
         return {
-            self.formulas[i]: float(-self.total_formation_rate[i])
+            self.formulas[i]: float(-self.total_formation_rate[i].item())
             for i in self.reactants_idxs
         }
 
@@ -763,7 +763,7 @@ class MKMRun:
     def product_formation_rates(self) -> Dict[str, float]:
         """Returns the formation rate (s⁻¹) for each product."""
         return {
-            self.formulas[i]: float(self.total_formation_rate[i])
+            self.formulas[i]: float(self.total_formation_rate[i].item())
             for i in self.products_idxs
         }
     

@@ -1,6 +1,8 @@
 """
 Interface to FairChem-V1 potentials.
 """
+import sys
+
 from ase.data import chemical_symbols
 from care import Intermediate, Surface, silent_context, ElementaryReaction
 from care.evaluators import UniversalEvaluator
@@ -21,6 +23,12 @@ class FairChemV1evaluator(UniversalEvaluator):
         device: str = 'cpu',
         **kwargs
     ):
+        if sys.version_info[:2] != (3, 12):
+            raise RuntimeError(
+                "FairChem v1 supports Python 3.12 only. "
+                "Create a Python 3.12 environment to use this evaluator."
+            )
+
         if not FAIRCHEMV1_AVAILABLE:
             raise ImportError("FairChemV1 dependencies missing. Install fairchem-core, torch-scatter, torch-sparse.")
 

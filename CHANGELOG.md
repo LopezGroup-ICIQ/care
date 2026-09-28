@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Support Python 3.13; test version in CI.
+- Allow the PyPI publishing workflow to be started manually with `workflow_dispatch`.
+- `Surface.cn` property defining the coordination number of each atom in the catalyst slab. Add tests.
+
+
+### Changed
+
+- Restrict FairChemv1 optional dependency to Python 3.12 and raise a clear error when attempting to initialize its evaluator on another Python version.
+- Convert MKM reactant-consumption and product-formation rate values to Python scalars in the exported result mappings.
+
+## [0.9.0] - 2026-09-10
+
+### Added
+
 - `CHANGELOG.md` file to track changes in the project.
 - `CONTRIBUTING.md` file to provide guidelines for contributing to the project.
 - setters/getters for energy properties of `care.Intermediate` and `care.ElementaryReaction` classes, enabling direct setting of energy properties for both species and reactions (e.g., from DFT).
@@ -173,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bug related to PyPI dependency compliance `energydiagram`.
 
-[Unreleased]: https://github.com/LopezGroup-ICIQ/care/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/LopezGroup-ICIQ/care/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/LopezGroup-ICIQ/care/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/LopezGroup-ICIQ/care/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/LopezGroup-ICIQ/care/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/LopezGroup-ICIQ/care/compare/v0.5.0...v0.6.0
@@ -184,5 +199,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.3]: https://github.com/LopezGroup-ICIQ/care/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/LopezGroup-ICIQ/care/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LopezGroup-ICIQ/care/releases/tag/v0.1.1
-
-

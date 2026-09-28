@@ -1,7 +1,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/care-crn.svg)](https://pypi.org/project/care-crn/)
 [![DOI](https://img.shields.io/badge/DOI-10.1038%2Fs44286--026--00361--8-blue)](https://doi.org/10.1038/s44286-026-00361-8)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
-![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/care-crn.svg?logo=python&logoColor=white)
 [![Python package](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml/badge.svg)](https://github.com/LopezGroup-ICIQ/care/actions/workflows/python-package.yml)
 [![codecov](https://codecov.io/gh/LopezGroup-ICIQ/care/graph/badge.svg)](https://codecov.io/gh/LopezGroup-ICIQ/care)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/care-crn?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/care-crn)

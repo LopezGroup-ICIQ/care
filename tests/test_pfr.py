@@ -485,7 +485,7 @@ class TestDifferentialPFR(unittest.TestCase):
         """Verify that the Excel file is created with the correct sheets."""
         set_crn_energetics(self.crn)
         test_pfr = deepcopy(pfr)
-        full_run = test_pfr.run(iv={"CO": 0.5, "O2": 0.5},
+        full_run = test_pfr.run(iv={"CO": 0.2, "O2": 0.2, "Ar":0.6},
                                 eapp=True,
                                 napp=True,
                                 drc=True, 

@@ -1,6 +1,7 @@
 import os
 from typing import Union
 
+from ase.neighborlist import natural_cutoffs, neighbor_list
 from ase import Atoms
 from ase.db import connect
 from ase.build import surface
@@ -239,6 +240,16 @@ class Surface:
         """
         fixed = set(self.fixed_atoms)
         return [atom.index for atom in self.slab if atom.index not in fixed]
+    
+    @property
+    def cn(self) -> list[int]:
+        """
+        get coordination number of atoms in the slab.
+        """
+        cutoffs = natural_cutoffs(self.slab)
+        i_indices = neighbor_list('i', self.slab, cutoffs)
+        coordination_numbers = np.bincount(i_indices, minlength=len(self.slab))
+        return coordination_numbers.tolist()
     
     def __eq__(self, other):
         if not isinstance(other, Surface):

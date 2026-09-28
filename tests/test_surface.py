@@ -86,3 +86,17 @@ class TestSurface(unittest.TestCase):
         
         with self.assertRaisesRegex(ValueError, "num_layers must be an int or float."):
             Surface.from_bulk_poscar(bulk_poscar_path=dummy_bulk, hkl="111", num_layers="three")
+
+    def test_cn(self):
+        dummy_bulk = bulk('Cu', 'fcc', a=3.6)
+        target_height = 4.0
+        surf = Surface.from_bulk_poscar(
+            bulk_poscar_path=dummy_bulk, 
+            hkl="100", 
+            num_layers=target_height,
+            xy_repeat=3
+        )
+        cn = surf.cn
+        self.assertTrue(len(cn) == len(surf.slab))
+        self.assertTrue(all(isinstance(i, int) for i in cn))
+        self.assertTrue(all(i > 0 and i <= 12 for i in cn))
