@@ -1,4 +1,5 @@
 import pytest
+import sys
 import unittest
 
 from dask.distributed import Client, LocalCluster
@@ -6,7 +7,7 @@ from dask.distributed import Client, LocalCluster
 from care.crn.intermediate import AdsorbedSpecies, GasSpecies, SurfaceSite
 from tests.shared_data import test_inters
 
-
+@pytest.mark.skipif(sys.version_info >= (3, 13), reason="Fairchem-core v1 is not supported on Python 3.13+")
 class TestEvaluator(unittest.TestCase):
 
     @classmethod
