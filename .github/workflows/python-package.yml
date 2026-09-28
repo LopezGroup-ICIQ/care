@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 5
+      fail-fast: true
       matrix:
         python-version: ['3.12', '3.13']
 
@@ -36,6 +37,8 @@ jobs:
         echo $CONDA/bin >> $GITHUB_PATH
         
     - name: Install care
+      env:
+          CXXFLAGS: "-include cstdint" 
       run: |
         conda create -n care_test python=${{ matrix.python-version }} -y 
         source $CONDA/etc/profile.d/conda.sh
