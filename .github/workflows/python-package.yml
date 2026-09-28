@@ -25,46 +25,39 @@ jobs:
         python-version: ['3.12', '3.13']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
+        cache: 'pip'
         
-    - name: Add conda to system path
-      run: |
-        echo $CONDA/bin >> $GITHUB_PATH
-        
-    - name: Install care
+    - name: Install care and test dependencies
       env:
           CXXFLAGS: "-include cstdint" 
       run: |
-        conda create -n care_test python=${{ matrix.python-version }} -y 
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate care_test
+        python -m pip install --upgrade pip
         pip install .[fairchemv2]
         pip install .[mace]
         pip install .[gamenetuq]
         pip install .[orb]
-        pip install coverage codecov
+        pip install coverage codecov flake8 pytest pytest-cov
         
-    - name: Install Julia 1.11 and dependencies
-      uses: julia-actions/setup-julia@v2
+    - name: Install Julia 1.11
+      uses: julia-actions/setup-julia@v3
       with:
         version: '1.11'
         
+    - name: Cache Julia environment
+      uses: julia-actions/cache@v2
+        
     - name: Resolve Julia dependencies
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate care_test
         python -c "import juliapkg; juliapkg.resolve()"
         
     - name: Lint with flake8
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate care_test
-        pip install flake8
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         
@@ -74,12 +67,9 @@ jobs:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         PYTHONPATH: .
       run: |
-        source $CONDA/etc/profile.d/conda.sh
-        conda activate care_test
-        pip install pytest pytest-cov
         pytest --cov --cov-branch --cov-report=xml
         
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
